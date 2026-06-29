@@ -17,7 +17,9 @@
  * 13. notify-users               (in-app + email notifications)
  */
 
-import { task, retry } from '@trigger.dev/sdk/v3'
+import { task } from '@trigger.dev/sdk/v3'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/database.types'
 
 export interface ProcessDocumentPayload {
   docId: string
@@ -51,7 +53,7 @@ export const processDocument = task({
 
     // Lazy-load service client (avoids bundling issues)
     const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as SupabaseClient<Database>
 
     // ── Step 1: Download from storage ─────────────────────────────
     console.log(`[Step 1] Downloading ${storagePath}`)
@@ -73,14 +75,16 @@ export const processDocument = task({
     const { createHash } = await import('crypto')
     const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
 
-    const { data: exactDup } = await supabase
+    const { data: exactDupRaw } = await supabase
       .from('documents')
       .select('id, reference_number')
       .eq('matter_id', matterId)
       .eq('file_hash_sha256', sha256)
       .neq('id', docId)
       .is('deleted_at', null)
-      .single()
+      .maybeSingle()
+
+    const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
 
     if (exactDup) {
       await updateDocStatus(supabase, docId, 'failed')
@@ -97,7 +101,7 @@ export const processDocument = task({
     }
 
     // Store SHA-256
-    await supabase
+    await (supabase as SupabaseClient)
       .from('documents')
       .update({ file_hash_sha256: sha256, status: 'processing' })
       .eq('id', docId)
@@ -170,7 +174,8 @@ export const processDocument = task({
     // ── Step 12: Write activity log ───────────────────────────────
     console.log('[Step 12] Writing activity log')
 
-    await supabase.from('activity_logs').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('activity_logs').insert({
       org_id: orgId,
       user_id: uploadedBy,
       action: 'document_processed',
@@ -224,10 +229,11 @@ export const analyzeStagedDocument = task({
     const { stagedDocId, orgId, uploadedBy, storagePath } = payload
 
     const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as SupabaseClient<Database>
 
     // Update status to analyzing
-    await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
       .from('staged_documents')
       .update({ status: 'analyzing' })
       .eq('id', stagedDocId)
@@ -236,7 +242,8 @@ export const analyzeStagedDocument = task({
     // query for matching matters, store suggestions
 
     // For now: mark ready_to_assign with empty suggestions
-    await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
       .from('staged_documents')
       .update({ status: 'ready_to_assign', suggested_matter_ids: [] })
       .eq('id', stagedDocId)
@@ -263,7 +270,7 @@ export const deadlineReminderCron = task({
   id: 'deadline-reminders',
   run: async () => {
     const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as SupabaseClient<Database>
 
     const today = new Date()
     const in7Days = new Date(today)
@@ -282,33 +289,28 @@ export const deadlineReminderCron = task({
 // Helpers
 // ================================================================
 
-async function updateDocStatus(
-  supabase: ReturnType<typeof import('@/lib/supabase/server').createServiceClient>,
-  docId: string,
-  status: string
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function updateDocStatus(supabase: any, docId: string, status: string) {
   await supabase.from('documents').update({ status }).eq('id', docId)
 }
 
-async function createNotification(
-  supabase: ReturnType<typeof import('@/lib/supabase/server').createServiceClient>,
-  opts: {
-    orgId: string
-    userId: string
-    type: string
-    title: string
-    body: string
-    entityType: string
-    entityId: string
-  }
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function createNotification(supabase: any, opts: {
+  orgId: string
+  userId: string
+  type: string
+  title: string
+  body: string
+  entityType: string
+  entityId: string
+}) {
   await supabase.from('notifications').insert({
     org_id: opts.orgId,
     user_id: opts.userId,
-    type: opts.type as never,
+    type: opts.type,
     title: opts.title,
     body: opts.body,
-    entity_type: opts.entityType as never,
+    entity_type: opts.entityType,
     entity_id: opts.entityId,
   })
 }

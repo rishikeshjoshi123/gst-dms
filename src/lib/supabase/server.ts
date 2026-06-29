@@ -32,12 +32,13 @@ export async function createClient() {
   )
 }
 
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
 /**
  * Service-role client for Trigger.dev jobs and admin operations.
  * NEVER expose to client. Only use server-side.
  */
 export function createServiceClient() {
-  const { createClient: createSupabaseClient } = require('@supabase/supabase-js')
   return createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,

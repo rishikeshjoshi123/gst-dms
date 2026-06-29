@@ -3,10 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from './lib/supabase/database.types'
 
 /**
- * Middleware: refreshes expired sessions and enforces auth on protected routes.
+ * Proxy (formerly Middleware): refreshes expired sessions and enforces auth on protected routes.
+ * In Next.js 16+, this file is named proxy.ts and exports a named `proxy` function.
  * Must run on every request that touches auth state.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -74,7 +75,6 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico
      * - public folder
-     * - api routes that handle their own auth
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
