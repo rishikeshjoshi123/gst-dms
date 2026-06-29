@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { Database } from './database.types'
 
@@ -24,15 +25,13 @@ export async function createClient() {
             )
           } catch {
             // setAll called from Server Component — safe to ignore.
-            // Middleware handles session refresh.
+            // Proxy (middleware) handles session refresh.
           }
         },
       },
     }
   )
 }
-
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Service-role client for Trigger.dev jobs and admin operations.

@@ -11,6 +11,7 @@
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_REF > src/lib/supabase/database.types.ts"
   },
   "dependencies": {
+    "@google-cloud/vertexai": "^1.12.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@trigger.dev/nextjs": "^3.3.12",
