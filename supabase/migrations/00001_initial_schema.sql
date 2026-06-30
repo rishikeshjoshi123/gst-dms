@@ -41,7 +41,7 @@ CREATE TABLE org_invites (
   org_id         uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
   invited_email  text NOT NULL,
   invited_by     uuid NOT NULL REFERENCES auth.users(id),
-  token          text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token          text NOT NULL UNIQUE DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
   status         invite_status NOT NULL DEFAULT 'pending',
   expires_at     timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
   created_at     timestamptz NOT NULL DEFAULT now()
