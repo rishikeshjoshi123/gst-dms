@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../trigger.config.ts"],
+  "sourcesContent": ["import { defineConfig } from '@trigger.dev/sdk/v3'\nimport path from 'path'\n\nexport default defineConfig({\n  project: 'proj_ejbymoiwjvnqcuvlbohm',\n  dirs: ['./src/trigger'],\n  // 5 minutes — enough for PDF download + Vertex AI analysis + embedding + DB writes\n  maxDuration: 300,\n  build: {},\n})\nexport const resolveEnvVars = undefined;"],
+  "mappings": ";;;;;;;;;AAAA;AAGA,IAAO,yBAAQ,aAAa;AAAA,EAC1B,SAAS;AAAA,EACT,MAAM,CAAC,eAAe;AAAA;AAAA,EAEtB,aAAa;AAAA,EACb,OAAO,CAAC;AACV,CAAC;AACM,IAAM,iBAAiB;",
+  "names": []
+}
