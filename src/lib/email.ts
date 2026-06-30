@@ -59,9 +59,19 @@ async function sendEmail(options: {
 export async function sendOrgInviteEmail(options: {
   to: string
   orgName: string
-  invitedByName: string
-  inviteUrl: string
+  /** Legacy: pass full invite URL directly */
+  inviteUrl?: string
+  /** New: pass inviter name + token + appUrl */
+  inviterName?: string
+  inviteToken?: string
+  appUrl?: string
+  /** Legacy param name support */
+  invitedByName?: string
 }): Promise<EmailResult> {
+  const inviterDisplay = options.inviterName ?? options.invitedByName ?? 'A team member'
+  const acceptUrl = options.inviteUrl
+    ?? `${options.appUrl}/api/invites/accept?token=${options.inviteToken}`
+
   return sendEmail({
     to: options.to,
     subject: `You've been invited to join ${options.orgName} on GST DMS`,
@@ -69,11 +79,11 @@ export async function sendOrgInviteEmail(options: {
       <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
         <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 8px;">You're invited!</h1>
         <p style="color: #4a4a6a; font-size: 16px; line-height: 1.6;">
-          <strong>${options.invitedByName}</strong> has invited you to join
+          <strong>${inviterDisplay}</strong> has invited you to join
           <strong>${options.orgName}</strong> on GST DMS.
         </p>
         <div style="margin: 32px 0;">
-          <a href="${options.inviteUrl}"
+          <a href="${acceptUrl}"
              style="background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px;
                     text-decoration: none; font-weight: 600; display: inline-block;">
             Accept Invitation
@@ -86,6 +96,7 @@ export async function sendOrgInviteEmail(options: {
     `,
   })
 }
+
 
 export async function sendDeadlineReminderEmail(options: {
   to: string
