@@ -43,16 +43,8 @@ export async function createOrganisation(formData: FormData) {
     .single()
 
   if (orgErr || !org) {
+    console.error('Organisation Creation Error:', orgErr)
     return { error: orgErr?.message ?? 'Failed to create organisation.' }
-  }
-
-  // Add user as admin
-  const { error: memberErr } = await supabase
-    .from('org_members')
-    .insert({ org_id: org.id, user_id: user.id, role: 'admin' })
-
-  if (memberErr) {
-    return { error: memberErr.message }
   }
 
   await setCurrentOrg(org.id)

@@ -3,8 +3,11 @@ import { cookies } from 'next/headers'
 import { Scale } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { SidebarNav, SearchTrigger } from '@/components/nav/SidebarNav'
+import { getStagedDocumentCount } from '@/lib/actions/inbox'
+import { SidebarNav } from '@/components/nav/SidebarNav'
 import { UserMenu } from '@/components/nav/UserMenu'
+import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
+import { BreadcrumbNav } from '@/components/nav/BreadcrumbNav'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -37,6 +40,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const activeOrg = orgs.find(o => o.id === currentOrgId) ?? orgs[0]
 
+  const inboxCount = await getStagedDocumentCount()
+
   // If no org cookie set, set it now
   if (!currentOrgId) {
     cookieStore.set('current_org_id', activeOrg.id, {
@@ -53,49 +58,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside className="sidebar flex flex-col shrink-0 overflow-y-auto">
-        {/* Logo */}
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2.5 px-4 h-14 border-b border-[--border-subtle] shrink-0"
-        >
-          <div className="flex h-7 w-7 items-center justify-center rounded-[--radius-sm] bg-[--accent]">
-            <Scale size={14} className="text-white" />
-          </div>
-          <span className="text-sm font-bold text-[--text-primary]">GST DMS</span>
-        </Link>
-
-        {/* Search */}
-        <div className="px-3 pt-3">
-          <SearchTrigger orgId={activeOrg.id} />
-        </div>
-
-        {/* Org header */}
-        <div className="px-3 pt-4 pb-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[--text-muted] px-3 mb-1">
-            {activeOrg.name}
-          </p>
-
+    <BreadcrumbProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-[--bg-base]">
+        {/* ── Sidebar ─────────────────────────────────────────────── */}
+        <div className="w-16 shrink-0 h-full relative z-20">
+          <aside
+            className="group absolute top-0 left-0 h-full flex flex-col overflow-x-hidden shadow-xl w-16 hover:w-60 transition-all duration-300 ease-in-out"
+            style={{ backgroundColor: 'var(--sidebar-bg)' }}
+          >
           {/* Navigation items */}
-          <SidebarNav />
+          <div className="px-3 pt-6 pb-2 flex-1">
+            <SidebarNav inboxCount={inboxCount} />
+          </div>
+          </aside>
         </div>
 
-        {/* Push user to bottom */}
-        <div className="mt-auto px-3 pb-3 border-t border-[--border-subtle] pt-3">
-          <UserMenu
-            user={userMeta}
-            currentOrg={activeOrg}
-            allOrgs={orgs}
-          />
-        </div>
-      </aside>
+        {/* ── Main content wrapper ─────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Topbar */}
+          <header className="h-[48px] bg-white border-b border-[--border-default] flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
+            <BreadcrumbNav activeOrgName={activeOrg.name} />
+            <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />
+          </header>
 
-      {/* ── Main content ─────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto bg-[--bg-base]">
-        {children}
-      </main>
-    </div>
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto p-8 max-w-6xl w-full mx-auto">
+            {children}
+          </main>
+        </div>
+      </div>
+    </BreadcrumbProvider>
   )
 }

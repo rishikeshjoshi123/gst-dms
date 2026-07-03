@@ -159,7 +159,7 @@ export function SettingsClient({
               {pendingInvites.map((invite) => (
                 <div
                   key={invite.id}
-                  className="flex items-center gap-3 py-2.5 px-3 rounded-[--radius-md] bg-[--bg-overlay]"
+                  className="flex items-center gap-3 py-2.5 px-3 rounded-md bg-[--bg-overlay]"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--bg-muted]">
                     <Mail size={14} className="text-[--text-muted]" />
@@ -207,7 +207,7 @@ export function SettingsClient({
                 name="role"
                 defaultValue="associate"
                 disabled={isPending}
-                className="w-full h-10 px-3.5 rounded-[--radius-md] text-sm bg-[--bg-overlay] text-[--text-primary] border border-[--border-default] focus:border-[--accent] focus:ring-2 focus:ring-[--accent-ring] outline-none transition-all"
+                className="w-full h-10 px-3.5 rounded-md text-sm bg-[--bg-overlay] text-[--text-primary] border border-[--border-default] focus:border-[--accent] focus:ring-2 focus:ring-[--accent-ring] outline-none transition-all"
               >
                 <option value="associate">Associate — can view and edit</option>
                 <option value="viewer">Viewer — read-only access</option>
@@ -216,14 +216,14 @@ export function SettingsClient({
             </FormField>
 
             {inviteSuccess && (
-              <div className="flex items-center gap-2 text-sm text-[--success] bg-[--success-muted] rounded-[--radius-md] px-4 py-3 animate-fade-in">
+              <div className="flex items-center gap-2 text-sm text-[--success] bg-[--success-muted] rounded-md px-4 py-3 animate-fade-in">
                 <ShieldCheck size={16} />
                 Invitation sent successfully!
               </div>
             )}
 
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setInviteOpen(false)}>
+              <Button variant="secondary" type="button" onClick={() => setInviteOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" loading={isPending}>

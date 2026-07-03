@@ -12,16 +12,16 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         type={type}
         className={cn(
-          'w-full h-10 px-3.5 rounded-[--radius-md] text-sm',
-          'bg-[--bg-overlay] text-[--text-primary] placeholder:text-[--text-muted]',
+          'w-full h-10 px-3.5 rounded-[--radius-sm] text-[14px]',
+          'bg-white text-[--text-primary] placeholder:text-[--text-muted]',
           'border transition-all duration-[--duration-fast]',
           error
-            ? 'border-[--danger] focus:ring-2 focus:ring-red-500/20'
-            : 'border-[--border-default] focus:border-[--accent] focus:ring-2 focus:ring-[--accent-ring]',
+            ? 'border-[--danger] focus:ring-2 focus:ring-[--danger]'
+            : 'border-[--border-strong] focus:border-[--accent] focus:ring-2 focus:ring-[--accent]',
           'outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
-          'autofill:bg-[--bg-overlay]',
-          '[&:-webkit-autofill]:bg-[--bg-overlay]',
+          'autofill:bg-white',
+          '[&:-webkit-autofill]:bg-white',
           className
         )}
         {...props}

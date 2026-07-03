@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   robots: 'noindex, nofollow', // private enterprise app
 }
 
+import { ThemeProvider } from '@/components/theme-provider'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
-      <body className="min-h-full flex flex-col antialiased">{children}</body>
+      <body className="min-h-full flex flex-col antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

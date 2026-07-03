@@ -20,6 +20,8 @@
 import { task } from '@trigger.dev/sdk/v3'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
+import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
+import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
 
 export interface ProcessDocumentPayload {
   docId: string
@@ -63,7 +65,7 @@ export const processDocument = task({
       .download(storagePath)
 
     if (downloadError || !fileData) {
-      await updateDocStatus(supabase, docId, 'failed')
+      await updateDocStatus(supabase, docId, 'failed', `Download failed: ${downloadError?.message || 'Empty file'}`)
       throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
     }
 
@@ -109,10 +111,7 @@ export const processDocument = task({
     // ── Step 3: AI analysis ────────────────────────────────────────
     console.log('[Step 3] Vertex AI analysis')
 
-    // TODO (Phase 6): Replace with real Vertex AI call
-    // const { analyzeDocument } = await import('@/lib/ai/vertex')
-    // const aiResult = await analyzeDocument(fileBuffer)
-    const aiResult = null // placeholder until Phase 6
+    const aiResult = await analyzeDocument(fileBuffer)
 
     if (!aiResult) {
       await updateDocStatus(supabase, docId, 'needs_review')
@@ -124,22 +123,61 @@ export const processDocument = task({
     // ── Step 4: Parse and validate ─────────────────────────────────
     console.log('[Step 4] Parsing AI output')
 
-    // TODO (Phase 6): Parse aiResult JSON, validate required fields
-    await updateDocStatus(supabase, docId, 'analyzed')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('documents').update({
+      doc_type: aiResult.doc_type,
+      reference_number: aiResult.reference_number,
+      doc_date: aiResult.doc_date,
+      direction: aiResult.direction,
+      issued_by: aiResult.issued_by,
+      financial_year: aiResult.financial_year,
+      summary: aiResult.summary,
+      raw_metadata: aiResult as any,
+      ai_prompt_version: aiResult.prompt_version,
+      status: 'analyzed'
+    }).eq('id', docId)
 
     // ── Step 5: Generate embedding ─────────────────────────────────
     console.log('[Step 5] Generating embedding')
 
-    // TODO (Phase 6): Call text-embedding-004
-    // const { generateEmbedding } = await import('@/lib/ai/embeddings')
-    // const embedding = await generateEmbedding(aiResult.summary + ' ' + ...)
-    // await supabase.from('documents').update({ embedding }).eq('id', docId)
+    const embeddingText = [
+      aiResult.doc_type || '',
+      aiResult.reference_number || '',
+      aiResult.summary || ''
+    ].join(' ').trim()
+
+    let embeddingStr: string | null = null
+    if (embeddingText) {
+      const embedding = await generateEmbedding(embeddingText)
+      if (embedding) {
+        embeddingStr = `[${embedding.join(',')}]`
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from('documents').update({ embedding: embeddingStr }).eq('id', docId)
+      }
+    }
 
     // ── Step 6: Semantic duplicate check ──────────────────────────
     console.log('[Step 6] Semantic duplicate check (cosine similarity)')
 
-    // TODO (Phase 6): Compare embedding against existing docs
-    // SELECT id FROM documents WHERE matter_id = $1 AND embedding <=> $2 < 0.03
+    if (embeddingStr) {
+      const { data: similarDocs, error: simError } = await supabase.rpc('match_documents', {
+        query_embedding: embeddingStr,
+        match_threshold: 0.97,
+        match_count: 5,
+        p_matter_id: matterId
+      })
+
+      if (!simError && similarDocs) {
+        const matchedDoc = similarDocs.find((d: any) => d.id !== docId)
+        if (matchedDoc) {
+          console.warn('[Step 6] Semantic duplicate detected', matchedDoc.id)
+          await updateDocStatus(supabase, docId, 'needs_review')
+          // Optional: we can add a notification or update review_reason if we had such column
+        }
+      }
+    } else {
+      console.warn('[Step 6] No embedding generated, skipping semantic check')
+    }
 
     // ── Step 7: Content hash check ────────────────────────────────
     console.log('[Step 7] Content hash check')
@@ -149,7 +187,7 @@ export const processDocument = task({
     // ── Step 8: Chain placement ────────────────────────────────────
     if (reprocessMode === 'full') {
       console.log('[Step 8] Chain placement')
-      // TODO (Phase 7): Import and run placeDocument()
+      await placeDocument(supabase, docId, matterId, orgId, uploadedBy, aiResult)
     } else {
       console.log('[Step 8] Skipped (metadata_only reprocess mode)')
     }
@@ -157,14 +195,37 @@ export const processDocument = task({
     // ── Step 9: Resolve pending links ─────────────────────────────
     console.log('[Step 9] Resolving pending links')
 
-    // TODO (Phase 7): If reference_number is known, scan document_links
-    // for pending_ref_number matches and resolve them
+    if (aiResult.reference_number) {
+      const resolvedCount = await resolvePendingLinks(
+        supabase, 
+        docId, 
+        aiResult.reference_number, 
+        matterId, 
+        aiResult.doc_type || 'OTHER', 
+        orgId, 
+        uploadedBy
+      )
+      console.log(`[Step 9] Resolved ${resolvedCount} pending link(s)`)
+    }
 
     // ── Step 10: Update deadlines ─────────────────────────────────
     console.log('[Step 10] Updating deadlines')
 
-    // TODO (Phase 8): Extract deadline dates from aiResult.deadlines[]
-    // Insert/update rows in deadlines table
+    if (aiResult.deadlines && aiResult.deadlines.length > 0) {
+      const deadlineRows = aiResult.deadlines.map(dl => ({
+        matter_id: matterId,
+        document_id: docId,
+        type: 'other' as const, // Map safely to enum
+        due_date: dl.due_date,
+        description: dl.description || dl.type
+      }))
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: dlError } = await (supabase as any).from('deadlines').insert(deadlineRows)
+      if (dlError) {
+        console.error('[Step 10] Error inserting deadlines', dlError)
+      }
+    }
 
     // ── Step 11: Trigger wiki update ──────────────────────────────
     console.log('[Step 11] Triggering wiki update')
@@ -240,12 +301,81 @@ export const analyzeStagedDocument = task({
 
     // TODO (Phase 5+6): Download, analyze with Vertex AI, extract GSTIN,
     // query for matching matters, store suggestions
+    
+    // 1. Download document
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('staging')
+      .download(storagePath)
 
-    // For now: mark ready_to_assign with empty suggestions
+    if (downloadError || !fileData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('staged_documents')
+        .update({ status: 'failed' })
+        .eq('id', stagedDocId)
+      throw new Error(`Staged Doc Download failed: ${downloadError?.message}`)
+    }
+
+    const fileBuffer = Buffer.from(await fileData.arrayBuffer())
+
+    // 2. Analyze
+    const aiResult = await analyzeDocument(fileBuffer)
+    
+    if (!aiResult) {
+      await (supabase as any)
+        .from('staged_documents')
+        .update({ 
+          status: 'failed',
+          suggestion_reason: 'AI analysis failed: Gemini model returned invalid response or JSON parsing failed.'
+        })
+        .eq('id', stagedDocId)
+      return { stagedDocId, status: 'failed' }
+    }
+
+    let suggestedMatterIds: string[] = []
+    let suggestedClientId: string | null = null
+    let suggestedMatterId: string | null = null
+
+    if (aiResult && aiResult.gstin) {
+      // Find clients with this GSTIN in this org
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('gstin', aiResult.gstin)
+        .is('deleted_at', null)
+
+      if (clients && clients.length > 0) {
+        suggestedClientId = clients[0].id
+        const clientIds = clients.map(c => c.id)
+        // Find matters for these clients
+        const { data: matters } = await supabase
+          .from('matters')
+          .select('id')
+          .in('client_id', clientIds)
+          .eq('org_id', orgId)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (matters && matters.length > 0) {
+          suggestedMatterId = matters[0].id
+          suggestedMatterIds = matters.map(m => m.id)
+        }
+      }
+    }
+
+    // 3. Update staged_document
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('staged_documents')
-      .update({ status: 'ready_to_assign', suggested_matter_ids: [] })
+      .update({ 
+        status: 'ready_to_assign', 
+        suggested_matter_ids: suggestedMatterIds,
+        suggested_client_id: suggestedClientId,
+        suggested_matter_id: suggestedMatterId,
+        raw_metadata: aiResult as any
+      })
       .eq('id', stagedDocId)
 
     // Notify the uploader
@@ -290,8 +420,12 @@ export const deadlineReminderCron = task({
 // ================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateDocStatus(supabase: any, docId: string, status: string) {
-  await supabase.from('documents').update({ status }).eq('id', docId)
+async function updateDocStatus(supabase: any, docId: string, status: string, reviewReason?: string) {
+  const payload: any = { status }
+  if (reviewReason) {
+    payload.review_reason = reviewReason
+  }
+  await supabase.from('documents').update(payload).eq('id', docId)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

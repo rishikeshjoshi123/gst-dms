@@ -21,8 +21,8 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-[180px] overflow-hidden rounded-[--radius-lg]',
-          'bg-[--bg-elevated] border border-[--border-default]',
+          'z-50 min-w-[180px] overflow-hidden rounded-[--radius-md]',
+          'bg-white border border-[--border-default]',
           'shadow-[--shadow-lg] p-1.5',
           'animate-scale-in',
           className
@@ -46,10 +46,10 @@ function DropdownMenuItem({
     <DropdownMenuPrimitive.Item
       className={cn(
         'relative flex cursor-pointer select-none items-center gap-2.5 rounded-[--radius-md]',
-        'px-3 py-2 text-sm transition-colors outline-none',
+        'px-3 py-2 text-[14px] transition-colors outline-none',
         destructive
-          ? 'text-[--danger] hover:bg-[--danger-muted]'
-          : 'text-[--text-secondary] hover:bg-[--bg-overlay] hover:text-[--text-primary]',
+          ? 'text-[--danger] hover:bg-red-50'
+          : 'text-[--text-secondary] hover:bg-[--bg-base] hover:text-[--text-primary]',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         inset && 'pl-8',
         className
@@ -62,7 +62,7 @@ function DropdownMenuItem({
 function DropdownMenuSeparator({ className, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
   return (
     <DropdownMenuPrimitive.Separator
-      className={cn('my-1.5 h-px bg-[--border-subtle]', className)}
+      className={cn('my-1.5 h-px bg-[--border-default]', className)}
       {...props}
     />
   )
@@ -88,7 +88,7 @@ function DropdownMenuCheckboxItem({
       checked={checked}
       className={cn(
         'relative flex cursor-pointer select-none items-center gap-2 rounded-[--radius-md]',
-        'py-2 pl-8 pr-3 text-sm text-[--text-secondary] hover:bg-[--bg-overlay] hover:text-[--text-primary]',
+        'py-2 pl-8 pr-3 text-[14px] text-[--text-secondary] hover:bg-[--bg-base] hover:text-[--text-primary]',
         'transition-colors outline-none',
         className
       )}

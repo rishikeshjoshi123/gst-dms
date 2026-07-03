@@ -1,7 +1,8 @@
 'use client'
 
-import { useTransition } from 'react'
-import { LogOut, Settings, ChevronsUpDown } from 'lucide-react'
+import { useTransition, useEffect, useState } from 'react'
+import { LogOut, Settings, ChevronsUpDown, Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +34,10 @@ interface UserMenuProps {
 
 export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
   const [isPending, startTransition] = useTransition()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => setMounted(true), [])
 
   function handleSwitch(orgId: string) {
     startTransition(async () => {
@@ -53,42 +58,46 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
           id="user-menu-trigger"
           aria-label="User menu"
           disabled={isPending}
-          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[--radius-md] hover:bg-[--bg-overlay] transition-colors group cursor-pointer"
+          className="flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[--accent] cursor-pointer"
         >
           <Avatar
             name={user.fullName || user.email}
             src={user.avatarUrl}
             size="sm"
           />
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-xs font-semibold text-[--text-primary] truncate">
-              {user.fullName || 'User'}
-            </p>
-            <p className="text-[10px] text-[--text-muted] truncate">{user.email}</p>
-          </div>
-          <ChevronsUpDown size={14} className="text-[--text-muted] group-hover:text-[--text-secondary] transition-colors shrink-0" />
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent side="top" align="start" className="w-56">
+      <DropdownMenuContent side="bottom" align="end" className="w-56">
         {/* Current org */}
-        <DropdownMenuLabel>{currentOrg.name}</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[12px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">
+          Current Workspace
+        </DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[14px] font-semibold text-[var(--text-primary)] pt-0 pb-2">
+          {currentOrg.name}
+        </DropdownMenuLabel>
 
-        {/* Other orgs */}
-        {allOrgs.filter(o => o.id !== currentOrg.id).length > 0 && (
+        {/* Workspaces list */}
+        {allOrgs.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Switch workspace</DropdownMenuLabel>
-            {allOrgs
-              .filter(o => o.id !== currentOrg.id)
-              .map(org => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onClick={() => handleSwitch(org.id)}
-                >
-                  {org.name}
-                </DropdownMenuItem>
-              ))}
+            <DropdownMenuLabel className="text-[12px] font-medium uppercase tracking-wide text-[var(--text-secondary)] pt-2">
+              Workspaces
+            </DropdownMenuLabel>
+            {allOrgs.map(org => (
+              <DropdownMenuItem
+                key={org.id}
+                onClick={() => handleSwitch(org.id)}
+                className="cursor-pointer flex items-center gap-2"
+              >
+                <div className="w-1.5 h-1.5 flex items-center justify-center shrink-0">
+                  {org.id === currentOrg.id && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+                  )}
+                </div>
+                <span>{org.name}</span>
+              </DropdownMenuItem>
+            ))}
           </>
         )}
 
@@ -97,9 +106,24 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings size={14} />
-            Settings
+            <span>Settings</span>
           </Link>
         </DropdownMenuItem>
+
+        {mounted && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault()
+              setTheme(theme === 'dark' ? 'light' : 'dark')
+            }}
+            className="cursor-pointer"
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
 
         <DropdownMenuItem destructive onClick={handleSignOut}>
           <LogOut size={14} />

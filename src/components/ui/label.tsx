@@ -10,7 +10,7 @@ function Label({ className, required, children, ...props }: LabelProps) {
   return (
     <LabelPrimitive.Root
       className={cn(
-        'block text-xs font-medium text-[--text-secondary] mb-1.5',
+        'block text-[12px] font-medium uppercase tracking-wide text-[--text-secondary] mb-1.5',
         'select-none',
         className
       )}
@@ -27,18 +27,21 @@ export function FormField({
   label,
   required,
   error,
+  hint,
   children,
   className,
 }: {
   label: string
   required?: boolean
   error?: string
+  hint?: string
   children: React.ReactNode
   className?: string
 }) {
   return (
     <div className={cn('flex flex-col', className)}>
       <Label required={required}>{label}</Label>
+      {hint && <p className="mb-2 text-xs text-[--text-muted]">{hint}</p>}
       {children}
       {error && (
         <p className="mt-1 text-xs text-[--danger] animate-fade-in">{error}</p>

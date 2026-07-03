@@ -74,7 +74,8 @@ Respond ONLY with valid JSON matching this exact schema (no markdown, no explana
     "references_document": "reference number of the PARENT document this responds to" | null,
     "gstin": "GSTIN from chaining context" | null,
     "financial_year": "FY from chaining context" | null,
-    "matter_ref": "matter description if mentioned" | null
+    "matter_ref": "matter description if mentioned" | null,
+    "link_type": "responds_to" | "arises_from" | "challenges" | "summarizes" | null
   },
   "deadlines": [
     {

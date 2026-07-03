@@ -186,6 +186,8 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          pan: string | null
+          updated_at: string
         }
         Insert: {
           company_name?: string | null
@@ -196,6 +198,8 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          pan?: string | null
+          updated_at?: string
         }
         Update: {
           company_name?: string | null
@@ -206,6 +210,8 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          pan?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -285,9 +291,10 @@ export type Database = {
           from_doc_id: string
           id: string
           link_type: Database["public"]["Enums"]["link_type"]
+          match_method: string | null
           pending_ref_number: string | null
           status: Database["public"]["Enums"]["link_status"]
-          to_doc_id: string
+          to_doc_id: string | null
         }
         Insert: {
           confidence?: number | null
@@ -296,9 +303,10 @@ export type Database = {
           from_doc_id: string
           id?: string
           link_type: Database["public"]["Enums"]["link_type"]
+          match_method?: string | null
           pending_ref_number?: string | null
           status?: Database["public"]["Enums"]["link_status"]
-          to_doc_id: string
+          to_doc_id?: string | null
         }
         Update: {
           confidence?: number | null
@@ -307,9 +315,10 @@ export type Database = {
           from_doc_id?: string
           id?: string
           link_type?: Database["public"]["Enums"]["link_type"]
+          match_method?: string | null
           pending_ref_number?: string | null
           status?: Database["public"]["Enums"]["link_status"]
-          to_doc_id?: string
+          to_doc_id?: string | null
         }
         Relationships: [
           {
@@ -331,6 +340,7 @@ export type Database = {
       documents: {
         Row: {
           ai_prompt_version: string | null
+          confidence_scores: Json | null
           content_hash: string | null
           created_at: string
           created_by: string | null
@@ -338,6 +348,8 @@ export type Database = {
           direction: Database["public"]["Enums"]["doc_direction"] | null
           doc_date: string | null
           doc_type: string | null
+          document_category: string | null
+          document_class: string | null
           embedding: string | null
           file_hash_sha256: string | null
           financial_year: string | null
@@ -347,16 +359,19 @@ export type Database = {
           org_id: string
           raw_metadata: Json | null
           reference_number: string | null
+          review_reason: string | null
           review_status: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at: string | null
           reviewed_by: string | null
           search_vector: unknown
+          source: string | null
           status: Database["public"]["Enums"]["doc_status"]
           storage_path: string
           summary: string | null
         }
         Insert: {
           ai_prompt_version?: string | null
+          confidence_scores?: Json | null
           content_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -364,6 +379,8 @@ export type Database = {
           direction?: Database["public"]["Enums"]["doc_direction"] | null
           doc_date?: string | null
           doc_type?: string | null
+          document_category?: string | null
+          document_class?: string | null
           embedding?: string | null
           file_hash_sha256?: string | null
           financial_year?: string | null
@@ -373,16 +390,19 @@ export type Database = {
           org_id: string
           raw_metadata?: Json | null
           reference_number?: string | null
+          review_reason?: string | null
           review_status?: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at?: string | null
           reviewed_by?: string | null
           search_vector?: unknown
+          source?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path: string
           summary?: string | null
         }
         Update: {
           ai_prompt_version?: string | null
+          confidence_scores?: Json | null
           content_hash?: string | null
           created_at?: string
           created_by?: string | null
@@ -390,6 +410,8 @@ export type Database = {
           direction?: Database["public"]["Enums"]["doc_direction"] | null
           doc_date?: string | null
           doc_type?: string | null
+          document_category?: string | null
+          document_class?: string | null
           embedding?: string | null
           file_hash_sha256?: string | null
           financial_year?: string | null
@@ -399,10 +421,12 @@ export type Database = {
           org_id?: string
           raw_metadata?: Json | null
           reference_number?: string | null
+          review_reason?: string | null
           review_status?: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at?: string | null
           reviewed_by?: string | null
           search_vector?: unknown
+          source?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string
           summary?: string | null
@@ -430,8 +454,9 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           description: string | null
-          financial_year: string | null
+          financial_year: string
           id: string
+          matter_code: string | null
           org_id: string
           status: Database["public"]["Enums"]["matter_status"]
           title: string
@@ -441,8 +466,9 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
-          financial_year?: string | null
+          financial_year?: string
           id?: string
+          matter_code?: string | null
           org_id: string
           status?: Database["public"]["Enums"]["matter_status"]
           title: string
@@ -452,8 +478,9 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           description?: string | null
-          financial_year?: string | null
+          financial_year?: string
           id?: string
+          matter_code?: string | null
           org_id?: string
           status?: Database["public"]["Enums"]["matter_status"]
           title?: string
@@ -618,33 +645,54 @@ export type Database = {
       }
       staged_documents: {
         Row: {
+          confidence_scores: Json | null
           created_at: string
+          document_text: string | null
+          extracted_fy: string | null
+          extracted_gstin: string | null
           id: string
           org_id: string
           raw_metadata: Json | null
           status: Database["public"]["Enums"]["staged_status"]
           storage_path: string
+          suggested_client_id: string | null
+          suggested_matter_id: string | null
           suggested_matter_ids: Json | null
+          suggestion_reason: string | null
           uploaded_by: string
         }
         Insert: {
+          confidence_scores?: Json | null
           created_at?: string
+          document_text?: string | null
+          extracted_fy?: string | null
+          extracted_gstin?: string | null
           id?: string
           org_id: string
           raw_metadata?: Json | null
           status?: Database["public"]["Enums"]["staged_status"]
           storage_path: string
+          suggested_client_id?: string | null
+          suggested_matter_id?: string | null
           suggested_matter_ids?: Json | null
+          suggestion_reason?: string | null
           uploaded_by: string
         }
         Update: {
+          confidence_scores?: Json | null
           created_at?: string
+          document_text?: string | null
+          extracted_fy?: string | null
+          extracted_gstin?: string | null
           id?: string
           org_id?: string
           raw_metadata?: Json | null
           status?: Database["public"]["Enums"]["staged_status"]
           storage_path?: string
+          suggested_client_id?: string | null
+          suggested_matter_id?: string | null
           suggested_matter_ids?: Json | null
+          suggestion_reason?: string | null
           uploaded_by?: string
         }
         Relationships: [
@@ -653,6 +701,20 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staged_documents_suggested_client_id_fkey"
+            columns: ["suggested_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staged_documents_suggested_matter_id_fkey"
+            columns: ["suggested_matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
             referencedColumns: ["id"]
           },
         ]
@@ -887,8 +949,30 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fuzzy_match_reference: {
+        Args: { p_matter_id: string; p_reference_number: string }
+        Returns: {
+          doc_type: string
+          id: string
+          reference_number: string
+          sim_score: number
+        }[]
+      }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      match_documents: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          p_matter_id: string
+          query_embedding: string
+        }
+        Returns: {
+          id: string
+          reference_number: string
+          similarity: number
+        }[]
+      }
       my_org_ids: { Args: never; Returns: string[] }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
@@ -925,7 +1009,16 @@ export type Database = {
         | "supporting_document"
       invite_status: "pending" | "accepted" | "rejected" | "expired"
       link_status: "confirmed" | "pending" | "rejected"
-      link_type: "responds_to" | "arises_from" | "challenges" | "summarizes"
+      link_type:
+        | "responds_to"
+        | "arises_from"
+        | "challenges"
+        | "summarizes"
+        | "supersedes"
+        | "appeals_to"
+        | "exhibit"
+        | "attachment_to"
+        | "references_doc"
       matter_status:
         | "active"
         | "stayed"
@@ -1125,7 +1218,17 @@ export const Constants = {
       ],
       invite_status: ["pending", "accepted", "rejected", "expired"],
       link_status: ["confirmed", "pending", "rejected"],
-      link_type: ["responds_to", "arises_from", "challenges", "summarizes"],
+      link_type: [
+        "responds_to",
+        "arises_from",
+        "challenges",
+        "summarizes",
+        "supersedes",
+        "appeals_to",
+        "exhibit",
+        "attachment_to",
+        "references_doc",
+      ],
       matter_status: [
         "active",
         "stayed",

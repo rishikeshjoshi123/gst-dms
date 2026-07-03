@@ -59,6 +59,7 @@ export interface AIDocumentResult {
     gstin: string | null
     financial_year: string | null
     matter_ref: string | null
+    link_type: 'responds_to' | 'arises_from' | 'challenges' | 'summarizes' | null
   }
   deadlines: Array<{
     type: string
@@ -81,7 +82,7 @@ export async function analyzeDocument(
   try {
     const vertex = getVertexAI()
     const model = vertex.preview.getGenerativeModel({
-      model: 'gemini-2.0-flash-001',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,   // low temperature for structured extraction

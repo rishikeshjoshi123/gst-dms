@@ -66,7 +66,7 @@ ALTER TABLE user_notification_prefs ENABLE ROW LEVEL SECURITY;
 -- ORGANISATIONS
 -- =============================================================
 CREATE POLICY "org_select" ON organisations
-  FOR SELECT USING (is_org_member(id));
+  FOR SELECT USING (is_org_member(id) OR created_by = auth.uid());
 
 CREATE POLICY "org_insert" ON organisations
   FOR INSERT WITH CHECK (auth.uid() = created_by);
@@ -225,6 +225,9 @@ CREATE POLICY "staged_insert" ON staged_documents
 CREATE POLICY "staged_update" ON staged_documents
   FOR UPDATE USING (is_org_member(org_id));
 
+CREATE POLICY "staged_delete" ON staged_documents
+  FOR DELETE USING (is_org_member(org_id));
+
 -- =============================================================
 -- DEADLINES
 -- =============================================================
@@ -349,3 +352,14 @@ CREATE POLICY "notif_prefs_select" ON user_notification_prefs
 
 CREATE POLICY "notif_prefs_upsert" ON user_notification_prefs
   FOR ALL USING (user_id = auth.uid());
+
+-- =============================================================
+-- ROLE PRIVILEGES (Required for local & production)
+-- =============================================================
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON ROUTINES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;

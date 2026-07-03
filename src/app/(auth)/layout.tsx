@@ -24,7 +24,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative w-full max-w-md mx-auto px-4 py-12">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 justify-center mb-8">
-
           <span className="text-lg font-bold text-[--text-primary]">GST Litigation DMS</span>
         </Link>
 

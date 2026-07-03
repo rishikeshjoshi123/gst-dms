@@ -13,7 +13,7 @@ function DialogOverlay({ className, ...props }: React.ComponentPropsWithoutRef<t
   return (
     <DialogPrimitive.Overlay
       className={cn(
-        'fixed inset-0 z-50 bg-black/60 backdrop-blur-sm',
+        'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm',
         'data-[state=open]:animate-scale-in data-[state=closed]:opacity-0',
         'transition-all duration-[--duration-base]',
         className
@@ -36,8 +36,8 @@ function DialogContent({
         className={cn(
           'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
           'w-full max-w-md',
-          'bg-[--bg-elevated] border border-[--border-default] rounded-[--radius-xl]',
-          'shadow-[--shadow-lg]',
+          'bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)]',
+          'shadow-[var(--shadow-xl)]',
           'p-6',
           'animate-scale-in',
           'focus:outline-none',
@@ -47,7 +47,7 @@ function DialogContent({
       >
         {children}
         {showClose && (
-          <DialogPrimitive.Close className="absolute right-4 top-4 text-[--text-muted] hover:text-[--text-primary] rounded-md p-1 hover:bg-[--bg-overlay] transition-colors">
+          <DialogPrimitive.Close className="absolute right-4 top-4 text-[--text-muted] hover:text-[--text-primary] rounded-md p-1 transition-colors">
             <X size={16} />
           </DialogPrimitive.Close>
         )}
@@ -65,7 +65,7 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 function DialogTitle({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn('text-base font-semibold text-[--text-primary]', className)}
+      className={cn('text-[18px] font-semibold text-[--text-primary]', className)}
       {...props}
     />
   )
@@ -74,7 +74,7 @@ function DialogTitle({ className, ...props }: React.ComponentPropsWithoutRef<typ
 function DialogDescription({ className, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn('text-sm text-[--text-muted]', className)}
+      className={cn('text-[14px] text-[--text-muted]', className)}
       {...props}
     />
   )
