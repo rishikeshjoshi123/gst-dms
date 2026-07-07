@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { uploadToMatter } from '@/lib/actions/document'
+import { uploadToMatter, checkExactDuplicate } from '@/lib/actions/document'
+import { calculateFileHash } from '@/lib/utils/hash'
+import { toast } from 'sonner'
 import { UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -55,6 +57,16 @@ export function Dropzone({ matterId }: { matterId: string }) {
       let errorCount = 0
 
       for (const file of files) {
+        // Client-side SHA-256 check
+        const sha256 = await calculateFileHash(file)
+        const dupCheck = await checkExactDuplicate(sha256)
+        
+        if (dupCheck.isDuplicate && dupCheck.duplicateOf) {
+          toast.error(`Upload cancelled: "${file.name}" is an exact duplicate of document ${dupCheck.duplicateOf.reference} in "${dupCheck.duplicateOf.matterTitle}".`)
+          setFiles(prev => prev.filter(f => f.name !== file.name))
+          continue
+        }
+
         const formData = new FormData()
         formData.append('file', file)
         const result = await uploadToMatter(matterId, formData)
@@ -69,11 +81,16 @@ export function Dropzone({ matterId }: { matterId: string }) {
         setUploadState('error')
         setErrorMessage(`Failed to upload ${errorCount} files.`)
       } else {
-        setUploadState('success')
-        setFiles([])
-        router.refresh()
-        // Simple success timeout
-        setTimeout(() => setUploadState('idle'), 3000)
+        if (successCount > 0) {
+          setUploadState('success')
+          setFiles([])
+          router.refresh()
+          setTimeout(() => setUploadState('idle'), 3000)
+        } else {
+          // All files were duplicates and filtered out
+          setUploadState('idle')
+          setFiles([])
+        }
       }
     })
   }

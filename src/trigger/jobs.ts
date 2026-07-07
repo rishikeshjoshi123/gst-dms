@@ -89,17 +89,27 @@ export const processDocument = task({
     const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
 
     if (exactDup) {
-      await updateDocStatus(supabase, docId, 'failed')
+      await updateDocStatus(supabase, docId, 'needs_review')
+      // Store the reason in the review_reason or raw_metadata if review_reason isn't accessible,
+      // wait, does updateDocStatus allow passing a reason? No, it only takes status.
+      // Let's manually update the review_reason column on the documents table.
+      await (supabase as any).from('documents').update({
+        status: 'needs_review',
+        review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
+      }).eq('id', docId)
+
       await createNotification(supabase, {
         orgId,
         userId: uploadedBy,
         type: 'processing_failed',
         title: 'Duplicate document detected',
-        body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}). Upload blocked.`,
+        body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
         entityType: 'document',
         entityId: exactDup.id,
       })
-      throw new Error(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
+      
+      console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
+      return { status: 'needs_review', reason: 'exact_duplicate' }
     }
 
     // Store SHA-256
@@ -318,6 +328,17 @@ export const analyzeStagedDocument = task({
 
     const fileBuffer = Buffer.from(await fileData.arrayBuffer())
 
+    // Check for exact duplicate in documents using SHA-256
+    const { createHash } = await import('crypto')
+    const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
+
+    const { data: exactDup } = await supabase
+      .from('documents')
+      .select('id, reference_number, matter_id, matters(title)')
+      .eq('file_hash_sha256', sha256)
+      .is('deleted_at', null)
+      .maybeSingle()
+
     // 2. Analyze
     const aiResult = await analyzeDocument(fileBuffer)
     
@@ -330,6 +351,34 @@ export const analyzeStagedDocument = task({
         })
         .eq('id', stagedDocId)
       return { stagedDocId, status: 'failed' }
+    }
+
+    if (exactDup) {
+      const matterTitle = (exactDup as any).matters?.title || 'Unknown Matter'
+      const refNum = exactDup.reference_number || exactDup.id
+      await (supabase as any)
+        .from('staged_documents')
+        .update({
+          status: 'ready_to_assign',
+          suggested_matter_ids: [exactDup.matter_id],
+          suggested_client_id: null,
+          suggested_matter_id: exactDup.matter_id,
+          suggestion_reason: `DUPLICATE: This file is identical to document "${refNum}" already inside matter "${matterTitle}".`,
+          raw_metadata: aiResult as any
+        })
+        .eq('id', stagedDocId)
+
+      await createNotification(supabase, {
+        orgId,
+        userId: uploadedBy,
+        type: 'processing_failed',
+        title: 'Duplicate document uploaded',
+        body: `Staged document is identical to document "${refNum}" in matter "${matterTitle}".`,
+        entityType: 'staged_document',
+        entityId: stagedDocId,
+      })
+
+      return { stagedDocId, status: 'ready_to_assign' }
     }
 
     let suggestedMatterIds: string[] = []
@@ -448,3 +497,93 @@ async function createNotification(supabase: any, opts: {
     entity_id: opts.entityId,
   })
 }
+
+// ================================================================
+// Wiki Generation
+// ================================================================
+
+export const generateMatterWiki = task({
+  id: 'generate-matter-wiki',
+  maxDuration: 120, // 2 minutes max for Gemini
+  retry: {
+    maxAttempts: 2,
+    minTimeoutInMs: 1000,
+    maxTimeoutInMs: 10000,
+    factor: 2,
+  },
+  run: async (payload: { matterId: string; orgId: string; triggeredBy: string }) => {
+    const { matterId, orgId, triggeredBy } = payload
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const supabase = createServiceClient() as SupabaseClient<Database>
+    const { generateWikiSummary } = await import('@/lib/ai/vertex')
+
+    // Fetch all processed documents for the matter
+    const { data: docs } = await supabase
+      .from('documents')
+      .select('id, doc_type, doc_date, reference_number, summary, raw_metadata')
+      .eq('matter_id', matterId)
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+
+    if (!docs || docs.length === 0) {
+      console.log('No documents found for wiki generation.')
+      return { success: false, reason: 'No documents' }
+    }
+
+    // Compile context
+    const contextLines = docs.map(d => {
+      return `Document [${d.doc_type || 'Unknown'} - ${d.reference_number || 'No Ref'} - Date: ${d.doc_date || 'N/A'}]:
+Summary: ${d.summary || 'N/A'}
+Details: ${JSON.stringify(d.raw_metadata)}`
+    })
+
+    const matterContext = contextLines.join('\n\n')
+
+    // Generate wiki content
+    const wikiResult = await generateWikiSummary(matterContext)
+
+    if (!wikiResult) {
+      throw new Error('Wiki generation returned null')
+    }
+
+    const sectionsToUpsert = [
+      { key: 'executive_summary', title: 'Executive Summary', content: wikiResult.executive_summary },
+      { key: 'key_arguments', title: 'Key Arguments', content: wikiResult.key_arguments },
+      { key: 'outstanding_tasks', title: 'Outstanding Tasks', content: wikiResult.outstanding_tasks },
+    ]
+
+    for (const sec of sectionsToUpsert) {
+      // Check if section exists
+      const { data: existing } = await supabase
+        .from('wiki_sections')
+        .select('id, is_user_edited')
+        .eq('matter_id', matterId)
+        .eq('section_key', sec.key)
+        .maybeSingle()
+
+      if (existing) {
+        // Only update content if not user edited, always update last_ai_content
+        const updateData: any = {
+          last_ai_content: JSON.stringify({ text: sec.content }),
+          updated_at: new Date().toISOString()
+        }
+        if (!existing.is_user_edited) {
+          updateData.content = JSON.stringify({ text: sec.content })
+        }
+        await supabase.from('wiki_sections').update(updateData).eq('id', existing.id)
+      } else {
+        await supabase.from('wiki_sections').insert({
+          matter_id: matterId,
+          section_key: sec.key,
+          title: sec.title,
+          content: JSON.stringify({ text: sec.content }),
+          last_ai_content: JSON.stringify({ text: sec.content }),
+          is_user_edited: false
+        })
+      }
+    }
+
+    return { success: true }
+  }
+})

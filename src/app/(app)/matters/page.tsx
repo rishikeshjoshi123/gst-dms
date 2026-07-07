@@ -10,7 +10,7 @@ export default async function MattersPage() {
   const matters = await getMatters()
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1 custom-scrollbar">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>

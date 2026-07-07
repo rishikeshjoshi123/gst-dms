@@ -37,7 +37,7 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
   ]
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in">
+    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in flex-1 overflow-y-auto pr-1 custom-scrollbar">
       <BreadcrumbSetter breadcrumbs={breadcrumbs} />
 
       {/* Client Header Card */}

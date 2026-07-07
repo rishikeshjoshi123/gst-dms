@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
+import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -170,5 +171,41 @@ export async function setMatterStatus(id: string, status: MatterStatus) {
 
   revalidatePath('/matters')
   revalidatePath(`/matters/${id}`)
+  return { success: true }
+}
+
+
+export async function autoLinkUnlinkedDocuments(matterId: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const res = await reevaluateMatterLinks(supabase, matterId, orgId, user.id)
+  
+  const { revalidatePath } = require('next/cache')
+  revalidatePath(`/matters/${matterId}`)
+  
+  return res
+}
+
+
+export async function updateMatterTitle(matterId: string, newTitle: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+
+  const { error } = await supabase
+    .from('matters')
+    .update({ title: newTitle })
+    .eq('id', matterId)
+    .eq('org_id', orgId)
+
+  if (error) return { error: error.message }
+
+  const { revalidatePath } = require('next/cache')
+  revalidatePath(`/matters/${matterId}`)
+  
   return { success: true }
 }

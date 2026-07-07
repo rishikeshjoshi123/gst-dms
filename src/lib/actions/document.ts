@@ -62,6 +62,38 @@ export async function getNeedsReviewDocuments() {
   return data ?? []
 }
 
+// ── Duplicate Checking ────────────────────────────────────────────
+
+export async function checkExactDuplicate(sha256: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation.' }
+
+  const { data: exactDup, error } = await supabase
+    .from('documents')
+    .select('id, reference_number, matters(title)')
+    .eq('org_id', orgId)
+    .eq('file_hash_sha256', sha256)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Error checking duplicate:', error)
+    return { error: 'Failed to check duplicates.' }
+  }
+
+  if (exactDup) {
+    const matterTitle = (exactDup as any).matters?.title || 'Unknown Matter'
+    const refNum = exactDup.reference_number || exactDup.id
+    return { 
+      isDuplicate: true, 
+      duplicateOf: { id: exactDup.id, reference: refNum, matterTitle } 
+    }
+  }
+
+  return { isDuplicate: false }
+}
+
 // ── Upload Directly to a Matter ───────────────────────────────────
 
 export async function uploadToMatter(matterId: string, formData: FormData) {
@@ -321,4 +353,46 @@ export async function getDocumentSignedUrl(bucket: 'documents' | 'staging', path
   }
 
   return { url: data.signedUrl }
+}
+
+
+export async function updateDocumentMetadata(docId: string, metadataKey: string, newValue: any) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+
+  // Get current metadata
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('raw_metadata, matter_id')
+    .eq('id', docId)
+    .eq('org_id', orgId)
+    .single()
+
+  if (!doc) return { error: 'Document not found' }
+
+  let currentMetadata = doc.raw_metadata as any || {}
+  
+  if (metadataKey.includes('.')) {
+    // nested update for extracted_amounts
+    const [parent, child] = metadataKey.split('.')
+    if (!currentMetadata[parent]) currentMetadata[parent] = {}
+    currentMetadata[parent][child] = newValue
+  } else {
+    currentMetadata[metadataKey] = newValue
+  }
+
+  const { error } = await supabase
+    .from('documents')
+    .update({ raw_metadata: currentMetadata })
+    .eq('id', docId)
+
+  if (error) return { error: error.message }
+
+  const { revalidatePath } = require('next/cache')
+  if (doc.matter_id) {
+    revalidatePath(`/matters/${doc.matter_id}`)
+  }
+  
+  return { success: true }
 }

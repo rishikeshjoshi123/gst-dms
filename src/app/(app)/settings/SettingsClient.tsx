@@ -83,7 +83,7 @@ export function SettingsClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-8 space-y-8">
+    <div className="max-w-3xl mx-auto px-8 py-8 space-y-8 flex-1 overflow-y-auto pr-1 custom-scrollbar">
       {/* Page header */}
       <div className="animate-fade-in">
         <h1 className="text-2xl font-bold text-[--text-primary]">Settings</h1>

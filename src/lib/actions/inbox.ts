@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { tasks } from '@trigger.dev/sdk/v3'
+import { placeDocument } from './chaining'
+import type { AIDocumentResult } from '@/lib/ai/vertex'
 
 // ── Read Staged Documents ─────────────────────────────────────────
 
@@ -21,7 +23,7 @@ export async function getStagedDocuments() {
     `)
     .eq('org_id', orgId)
     .neq('status', 'assigned')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
 
   return data ?? []
 }
@@ -128,7 +130,7 @@ export async function assignStagedDocument(
   // Verify staged document belongs to this org
   const { data: staged } = await supabase
     .from('staged_documents')
-    .select('id, storage_path, status')
+    .select('id, storage_path, status, raw_metadata')
     .eq('id', stagedId)
     .eq('org_id', orgId)
     .single()
@@ -188,6 +190,21 @@ export async function assignStagedDocument(
     await supabase.storage.from('documents').remove([newPath])
     return { error: docError?.message ?? 'Failed to create document record.' }
   }
+
+  // 2.5 Place document in graph
+  if (staged.raw_metadata) {
+    const aiResult = staged.raw_metadata as unknown as AIDocumentResult;
+    // ensure chaining_attributes exists for placeDocument
+    if (!aiResult.chaining_attributes) {
+      aiResult.chaining_attributes = {} as any;
+    }
+    try {
+      await placeDocument(supabase, doc.id, matterId, orgId, user.id, aiResult);
+    } catch (e) {
+      console.error('Failed to link document in graph:', e);
+    }
+  }
+
 
   // 3. Delete from staging bucket and mark staged as assigned
   await supabase.storage.from('staging').remove([staged.storage_path])
@@ -287,7 +304,7 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
       .from('clients')
       .select('id')
       .eq('org_id', orgId)
-      .eq('name', metadata.client_name)
+      .ilike('name', `%${metadata.client_name}%`)
       .is('deleted_at', null)
       .maybeSingle()
 
@@ -311,7 +328,9 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
   }
 
   // 3. Create Matter
-  const title = metadata.reference_number || `Matter for ${metadata.doc_type || 'Document'}`
+  const docTypeStr = metadata.doc_type || 'Document';
+  const fyStr = metadata.financial_year || new Date().getFullYear();
+  const title = `${docTypeStr} - FY ${fyStr}`;
   const financialYear = metadata.financial_year || '2023-24'
   const description = metadata.summary || null
 
@@ -368,4 +387,84 @@ export async function discardStagedDocument(stagedId: string) {
 
   revalidatePath('/inbox')
   return { success: true }
+}
+
+
+// ── Re-evaluate Staged Documents ─────────────────────────────────────────
+
+export async function reevaluateStagedDocuments() {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return
+
+  const { data: staged } = await supabase
+    .from('staged_documents')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('status', 'ready_to_assign')
+
+  if (!staged || staged.length === 0) return
+
+  let revalidated = false
+
+  for (const doc of staged) {
+    const metadata = doc.raw_metadata as any
+    if (!metadata) continue
+
+    let clientId: string | null = null
+    let gstin: string | null = null
+
+    if (metadata.gstin) {
+      let s = metadata.gstin.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+      if (s.length === 15) {
+        let state = s.substring(0, 2).replace(/O/g, '0')
+        s = state + s.substring(2)
+      }
+      gstin = s
+    }
+
+    if (gstin) {
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('gstin', gstin)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (existingClient) clientId = existingClient.id
+    } else if (metadata.client_name) {
+      const { data: existingClient } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('name', metadata.client_name)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (existingClient) clientId = existingClient.id
+    }
+
+    if (clientId) {
+      const { data: matters } = await supabase
+        .from('matters')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('status', 'active')
+
+      if (matters && matters.length > 0) {
+        await supabase
+          .from('staged_documents')
+          .update({
+            suggested_client_id: clientId,
+            suggested_matter_id: matters[0].id,
+            suggestion_reason: 'Match found in re-evaluation'
+          })
+          .eq('id', doc.id)
+        revalidated = true
+      }
+    }
+  }
+
+  if (revalidated) {
+    revalidatePath('/inbox')
+  }
 }

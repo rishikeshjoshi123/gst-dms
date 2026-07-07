@@ -2,12 +2,15 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { assignStagedDocument, discardStagedDocument, autoCreateClientAndMatterForStagedDocument, getStagedDocuments } from '@/lib/actions/inbox'
+import { assignStagedDocument, discardStagedDocument, autoCreateClientAndMatterForStagedDocument, getStagedDocuments, reevaluateStagedDocuments } from '@/lib/actions/inbox'
 import { getDocumentSignedUrl } from '@/lib/actions/document'
+import { reprocessDocument } from '@/lib/actions/reprocess'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
+import { DocumentViewerModal } from './DocumentViewerModal'
 
 function humanizeKey(key: string) {
   return key
@@ -33,10 +36,22 @@ export function InboxClientView({
   )
   const [selectedMatterId, setSelectedMatterId] = useState<string>(preselectedMatterId || '')
   const [isPending, startTransition] = useTransition()
+  const [isReprocessing, setIsReprocessing] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
+
+  useEffect(() => {
+    reevaluateStagedDocuments()
+  }, [])
+
+  
+  // Sync state when Server Component re-fetches data (e.g. after upload)
+  useEffect(() => {
+    setDocuments(initialDocuments)
+  }, [initialDocuments])
   
   const preselectedMatter = matters.find(m => m.id === preselectedMatterId)
 
@@ -107,8 +122,9 @@ export function InboxClientView({
     startTransition(async () => {
       const res = await assignStagedDocument(selectedDocId, selectedMatterId)
       if (res.error) {
-        alert(res.error)
+        toast.error(res.error)
       } else {
+        toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
         router.refresh()
       }
@@ -120,8 +136,9 @@ export function InboxClientView({
     startTransition(async () => {
       const res = await autoCreateClientAndMatterForStagedDocument(selectedDocId)
       if (res.error) {
-        alert(res.error)
+        toast.error(res.error)
       } else {
+        toast.success('Matter and client automatically created')
         setIsActionModalOpen(false)
         router.refresh()
       }
@@ -135,8 +152,9 @@ export function InboxClientView({
     startTransition(async () => {
       const res = await discardStagedDocument(selectedDocId)
       if (res.error) {
-        alert(res.error)
+        toast.error(res.error)
       } else {
+        toast.success('Document discarded')
         setIsActionModalOpen(false)
         // Select next doc if available
         const remainingDocs = documents.filter(d => d.id !== selectedDocId)
@@ -154,9 +172,21 @@ export function InboxClientView({
     if (!activeDoc) return
     const res = await getDocumentSignedUrl('staging', activeDoc.storage_path)
     if (res.error || !res.url) {
-      alert(res.error || 'Failed to generate signed url')
+      toast.error(res.error || 'Failed to generate signed url')
     } else {
-      window.open(res.url, '_blank')
+      setViewDocumentUrl(res.url)
+    }
+  }
+
+  const handleReprocess = async (docId: string) => {
+    setIsReprocessing(docId)
+    toast.info('Triggering AI reprocessing for this document...')
+    const res = await reprocessDocument(docId, true)
+    setIsReprocessing(null)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success('Reprocessing triggered. Processing with AI in the background...')
     }
   }
 
@@ -170,7 +200,7 @@ export function InboxClientView({
   )
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] gap-4 animate-fade-in">
+    <div className="flex flex-col flex-1 overflow-hidden gap-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-[var(--border)] shrink-0">
         <div>
@@ -183,10 +213,27 @@ export function InboxClientView({
               : 'Centralized processing and assignment queue'}
           </p>
         </div>
-        <Button onClick={() => setIsUploadModalOpen(true)} variant="default">
-          <Plus size={16} className="mr-2" />
-          Add Document
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button onClick={async () => {
+            const toastId = toast.loading('Re-evaluating client and matter matching for queue documents...')
+            try {
+              await reevaluateStagedDocuments()
+              const latestDocs = await getStagedDocuments()
+              setDocuments(latestDocs)
+              router.refresh()
+              toast.success('Queue refreshed. Matching recommendations updated.', { id: toastId })
+            } catch (err: any) {
+              toast.error(err.message || 'Failed to refresh queue', { id: toastId })
+            }
+          }} variant="outline" className="text-[var(--text-secondary)]">
+            <RefreshCw size={16} className="mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={() => setIsUploadModalOpen(true)} variant="default">
+            <Plus size={16} className="mr-2" />
+            Add Document
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 gap-6 overflow-hidden pt-2">
@@ -201,7 +248,7 @@ export function InboxClientView({
               </p>
             </div>
           ) : (
-            documents.map(doc => {
+            documents.map((doc, index) => {
               const fileName = doc.storage_path.split('/').pop()
               const isSelected = doc.id === selectedDocId
               const isAnalyzing = doc.status === 'analyzing'
@@ -212,49 +259,64 @@ export function InboxClientView({
                 <div 
                   key={doc.id}
                   onClick={() => handleSelectDoc(doc)}
-                  className={`relative flex items-start gap-3 p-4 rounded-[var(--radius-md)] border transition-all cursor-pointer overflow-hidden ${
+                  className={`group relative p-3 rounded-lg border transition-all cursor-pointer bg-white ${
                     isSelected 
-                      ? 'border-[var(--primary)] bg-[#EFF6FF] shadow-[var(--shadow-sm)] border-l-[4px]' 
-                      : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)]'
-                  } ${isAnalyzing ? 'animate-pulse-slow' : ''}`}
+                      ? 'border-transparent ring-2 ring-[#1D4ED8] ring-inset shadow-sm z-10' 
+                      : 'border-[#E5E2DC] hover:shadow-sm hover:border-[#C9C5BE]'
+                  }`}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-slate-50 border border-slate-200">
-                    <FileText size={20} className="text-slate-500" />
-                  </div>
-                  <div className="flex flex-col gap-1 min-w-0 pt-0.5 flex-1">
-                    <h3 className={`text-section-heading truncate ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-primary)]'}`}>
-                      {fileName}
-                    </h3>
-                    
-                    {isAnalyzing ? (
-                      <div className="flex items-center gap-1.5 text-caption text-[var(--accent)]">
-                        <div className="h-3 w-3 animate-spin rounded-full border border-[var(--accent)] border-t-transparent" />
-                        AI is analyzing...
-                      </div>
-                    ) : isPending ? (
-                      <span className="text-caption text-[var(--text-muted)]">Queued for analysis</span>
-                    ) : doc.status === 'failed' ? (
-                      <span className="text-caption text-[var(--danger)] flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        Analysis failed
-                      </span>
-                    ) : hasSuggestion ? (
-                      <span className="text-caption text-[var(--success)] flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-                        AI suggestion ready
-                      </span>
-                    ) : (
-                      <span className="text-caption text-amber-600 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        No match found
-                      </span>
-                    )}
-                  </div>
-                  {isSelected && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--primary)]">
-                      <ChevronRight size={20} />
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#FAFAF9] border border-[#E5E2DC]">
+                      <FileText size={18} className="text-[#A8A29E]" />
                     </div>
-                  )}
+                    
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <h3 className={`text-[14px] font-medium truncate ${isSelected ? 'text-[#1D4ED8]' : 'text-[#1C1917]'}`}>
+                        {fileName}
+                      </h3>
+                      
+                      {doc.created_at && (
+                        <span className="text-[12px] text-[#A8A29E] mt-0.5">
+                          {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      
+                      <div className="mt-2.5">
+                        {isAnalyzing ? (
+                          <div className="flex items-center gap-1.5 text-[12px] font-medium text-blue-600">
+                            <div className="h-3 w-3 animate-spin rounded-full border border-blue-600 border-t-transparent" />
+                            Analyzing with AI...
+                          </div>
+                        ) : isPending ? (
+                          <span className="text-[12px] font-medium text-[#78716C]">Queued for analysis</span>
+                        ) : doc.status === 'failed' ? (
+                          <span className="text-[12px] font-medium text-[#DC2626] flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            Analysis failed
+                          </span>
+                        ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
+                          <span className="text-[12px] font-medium text-[#DC2626] flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            Duplicate detected
+                          </span>
+                        ) : hasSuggestion ? (
+                          <span className="text-[12px] font-medium text-emerald-600 flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                            Ready to assign
+                          </span>
+                        ) : (
+                          <span className="text-[12px] font-medium text-[#78716C] flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            Manual review needed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[#1D4ED8]' : 'text-[#C9C5BE]'}`}>
+                      <ChevronRight size={18} />
+                    </div>
+                  </div>
                 </div>
               )
             })
@@ -275,13 +337,17 @@ export function InboxClientView({
                     Staged Document Details
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={handleViewDocument} variant="secondary" size="sm">
+                <div className="flex flex-wrap items-center gap-2 justify-end">
+                  <Button variant="outline" size="sm" onClick={() => handleReprocess(activeDoc.id)} disabled={isReprocessing === activeDoc.id} className="h-8 text-xs shrink-0 text-[--text-secondary]">
+                    {isReprocessing === activeDoc.id ? <RotateCcw size={14} className="mr-1.5 animate-spin" /> : <RotateCcw size={14} className="mr-1.5" />}
+                    Reprocess
+                  </Button>
+                  <Button onClick={handleViewDocument} variant="secondary" size="sm" className="h-8 text-xs shrink-0">
                     <ExternalLink size={14} className="mr-1.5" />
                     Original PDF
                   </Button>
-                  <Button onClick={() => setIsActionModalOpen(true)} variant="default" size="sm">
-                    <Settings2 size={14} className="mr-1.5" />
+                  <Button onClick={() => setIsActionModalOpen(true)} variant="default" size="sm" className="h-8 text-xs shrink-0 whitespace-nowrap">
+                    <Check size={14} className="mr-1.5" />
                     Take Action
                   </Button>
                 </div>
@@ -317,8 +383,20 @@ export function InboxClientView({
                 </div>
               ) : (
                 /* Extracted Metadata Card */
-                <div className="flex flex-col gap-5 p-6 rounded-md border border-border bg-surface shadow-[var(--shadow-sm)]">
-                  <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--text-primary)]">
+                <div className="flex flex-col gap-4">
+                  {activeDoc.suggestion_reason?.startsWith('DUPLICATE:') && (
+                    <div className="flex flex-col gap-2 p-4 rounded-md border border-red-200 bg-red-50 text-[14px]">
+                      <div className="flex items-center gap-2 font-semibold text-[#DC2626]">
+                        <AlertCircle size={16} />
+                        Duplicate Document Detected
+                      </div>
+                      <p className="text-red-900 leading-relaxed font-medium">
+                        {activeDoc.suggestion_reason}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-5 p-6 rounded-md border border-border bg-surface shadow-[var(--shadow-sm)]">
+                    <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--text-primary)]">
                     <Info size={16} className="text-[var(--accent)]" />
                     AI-Extracted Metadata
                   </div>
@@ -383,7 +461,8 @@ export function InboxClientView({
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+            )}
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
@@ -492,6 +571,14 @@ export function InboxClientView({
             </div>
           </div>
         </div>
+      )}
+
+      {viewDocumentUrl && activeDoc && (
+        <DocumentViewerModal 
+          url={viewDocumentUrl} 
+          title={activeDoc.storage_path.split('/').pop()}
+          onClose={() => setViewDocumentUrl(null)}
+        />
       )}
     </div>
   )

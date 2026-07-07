@@ -235,3 +235,60 @@ async function queueNotification(
     entity_id: docId
   } as any)
 }
+
+
+export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, matterId: string, orgId: string, userId: string) {
+  // 1. Get all documents in matter
+  const { data: documents } = await supabase
+    .from('documents')
+    .select('id, doc_type, raw_metadata')
+    .eq('matter_id', matterId)
+    .is('deleted_at', null)
+
+  if (!documents || documents.length === 0) return { success: true, count: 0 }
+
+  // 2. Get all links
+  const { data: links } = await supabase
+    .from('document_links')
+    .select('id, from_doc_id, to_doc_id, status')
+    .in('from_doc_id', documents.map(d => d.id))
+
+  const resolvedLinkedDocIds = new Set<string>()
+  if (links) {
+    links.forEach(l => {
+      if (l.status === 'confirmed' || l.to_doc_id) {
+        resolvedLinkedDocIds.add(l.from_doc_id)
+        if (l.to_doc_id) resolvedLinkedDocIds.add(l.to_doc_id)
+      }
+    })
+  }
+
+  // 3. Find unlinked documents (those with no resolved links)
+  const unlinkedDocs = documents.filter(d => !resolvedLinkedDocIds.has(d.id))
+  
+  if (unlinkedDocs.length === 0) return { success: true, count: 0 }
+
+  // 4. Delete pending links for these unlinked docs to avoid duplicates
+  const unlinkedDocIds = new Set(unlinkedDocs.map(d => d.id))
+  const linksToDelete = links?.filter(l => l.status === 'pending' && unlinkedDocIds.has(l.from_doc_id)).map(l => l.id) || []
+  
+  if (linksToDelete.length > 0) {
+    await supabase.from('document_links').delete().in('id', linksToDelete)
+  }
+
+  let count = 0
+  for (const doc of unlinkedDocs) {
+    if (doc.raw_metadata) {
+      const aiResult = doc.raw_metadata as unknown as AIDocumentResult
+      if (!aiResult.chaining_attributes) aiResult.chaining_attributes = {} as any
+      try {
+        await placeDocument(supabase, doc.id, matterId, orgId, userId, aiResult)
+        count++
+      } catch (e) {
+        console.error('Failed to link document in re-evaluation:', e)
+      }
+    }
+  }
+
+  return { success: true, count }
+}

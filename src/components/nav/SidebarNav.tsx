@@ -9,6 +9,7 @@ import {
   Inbox as InboxIcon,
   Settings,
   Bell,
+  StickyNote,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/inbox',     icon: InboxIcon,       label: 'Document Hub' },
   { href: '/clients',   icon: Users,           label: 'Clients' },
   { href: '/matters',   icon: FolderOpen,       label: 'Matters' },
+  { href: '/notes',     icon: StickyNote,       label: 'Notes' },
 ]
 
 const bottomItems = [

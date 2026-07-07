@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { AlertCircle, Clock, Link as LinkIcon, FileText } from 'lucide-react'
+import { toast } from 'sonner'
+import { AlertCircle, Clock, Link as LinkIcon, FileText, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { autoLinkUnlinkedDocuments } from '@/lib/actions/matter'
+import { useTransition } from 'react'
+import { Loader2, RefreshCw } from 'lucide-react'
 
 export function TimelineGraph({ 
   documents, 
@@ -17,9 +21,35 @@ export function TimelineGraph({
   onSelectDoc?: (id: string) => void
 }) {
   const [compact, setCompact] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  
+  const matterId = documents.length > 0 ? documents[0].matter_id : null;
+
+  const handleReevaluate = () => {
+    if (!matterId) return;
+    const toastId = toast.loading('Re-evaluating matter links...')
+    startTransition(async () => {
+      try {
+        const res = await autoLinkUnlinkedDocuments(matterId);
+        if (res && 'error' in res) {
+          toast.error(res.error, { id: toastId });
+        } else if (res && 'success' in res) {
+          toast.success(`Processed ${res.count} documents successfully!`, {
+            id: toastId,
+            description: `If documents are still unlinked, they may be missing required metadata. Please ensure their 'Document Type' and 'Reference Number' are correct. (e.g., a DRC-07 needs an existing 'OIO' document to link to).`
+          });
+        }
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to re-evaluate links', { id: toastId })
+      }
+    });
+  };
 
   // 1. Identify roots (docs with no outgoing links to other docs)
   // An outgoing link means from_doc_id = currentDoc.id
+  // We only count RESOLVED links to documents that are actually present in the current view
+  const docIds = useMemo(() => new Set(documents.map(d => d.id)), [documents])
+
   const outgoingLinksByDoc = useMemo(() => {
     const map = new Map<string, any[]>()
     links.forEach(l => {
@@ -28,6 +58,17 @@ export function TimelineGraph({
     })
     return map
   }, [links])
+
+  const resolvedOutgoingLinksByDoc = useMemo(() => {
+    const map = new Map<string, any[]>()
+    links.forEach(l => {
+      if (l.to_doc_id && docIds.has(l.to_doc_id)) {
+        if (!map.has(l.from_doc_id)) map.set(l.from_doc_id, [])
+        map.get(l.from_doc_id)!.push(l)
+      }
+    })
+    return map
+  }, [links, docIds])
 
   const incomingLinksByDoc = useMemo(() => {
     const map = new Map<string, any[]>()
@@ -41,22 +82,33 @@ export function TimelineGraph({
     return map
   }, [links])
 
+  const resolvedIncomingLinksByDoc = useMemo(() => {
+    const map = new Map<string, any[]>()
+    links.forEach(l => {
+      if (l.to_doc_id && docIds.has(l.to_doc_id) && docIds.has(l.from_doc_id)) {
+        if (!map.has(l.to_doc_id)) map.set(l.to_doc_id, [])
+        map.get(l.to_doc_id)!.push(l)
+      }
+    })
+    return map
+  }, [links, docIds])
+
   const roots = useMemo(() => {
-    // A root is a document that doesn't "respond" to anything else in this matter.
-    // Meaning it has NO outgoing links to another document.
-    return documents.filter(d => !outgoingLinksByDoc.has(d.id) || outgoingLinksByDoc.get(d.id)!.length === 0)
-  }, [documents, outgoingLinksByDoc])
+    // A root is a document that doesn't "respond" to anything else in this matter's visible documents.
+    // Meaning it has NO resolved outgoing links.
+    return documents.filter(d => !resolvedOutgoingLinksByDoc.has(d.id) || resolvedOutgoingLinksByDoc.get(d.id)!.length === 0)
+  }, [documents, resolvedOutgoingLinksByDoc])
 
   const unlinked = useMemo(() => {
-    // Documents that have no incoming AND no outgoing links
+    // Documents that have no resolved incoming AND no resolved outgoing links
     return documents.filter(d => 
-      (!outgoingLinksByDoc.has(d.id) || outgoingLinksByDoc.get(d.id)!.length === 0) &&
-      (!incomingLinksByDoc.has(d.id) || incomingLinksByDoc.get(d.id)!.length === 0)
+      (!resolvedOutgoingLinksByDoc.has(d.id) || resolvedOutgoingLinksByDoc.get(d.id)!.length === 0) &&
+      (!resolvedIncomingLinksByDoc.has(d.id) || resolvedIncomingLinksByDoc.get(d.id)!.length === 0)
     )
-  }, [documents, outgoingLinksByDoc, incomingLinksByDoc])
+  }, [documents, resolvedOutgoingLinksByDoc, resolvedIncomingLinksByDoc])
 
-  // Filter roots to only those that actually have children (so we don't duplicate unlinked docs)
-  const trueRoots = roots.filter(r => incomingLinksByDoc.has(r.id) && incomingLinksByDoc.get(r.id)!.length > 0)
+  // Filter roots to only those that actually have resolved children (so we don't duplicate unlinked docs)
+  const trueRoots = roots.filter(r => resolvedIncomingLinksByDoc.has(r.id) && resolvedIncomingLinksByDoc.get(r.id)!.length > 0)
 
   // DAG tracking to avoid infinite loops and duplicate deep rendering
   const renderedIds = new Set<string>()
@@ -134,14 +186,23 @@ export function TimelineGraph({
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     <span className="text-xs font-medium text-[--text-muted]">
-                      {doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : 'Unknown date'}
+                      {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}
                     </span>
-                    <Badge variant={
-                      doc.status === 'processing' ? 'muted' :
-                      doc.status === 'needs_review' ? 'warning' : 'default'
-                    }>
-                      {doc.status.replace('_', ' ')}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={
+                        doc.status === 'processing' ? 'muted' :
+                        doc.status === 'needs_review' ? 'warning' : 'default'
+                      }>
+                        {doc.status.replace('_', ' ')}
+                      </Badge>
+                      <a 
+                        href={`/matters/${doc.matter_id}/documents/${doc.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-wider h-5 px-2 gap-1 bg-[--bg-muted] text-[--text-secondary] hover:bg-[--border-strong] hover:text-[--text-primary] transition-colors"
+                      >
+                        <ExternalLink size={10} /> View PDF
+                      </a>
+                    </div>
                   </div>
                 </div>
 
@@ -213,12 +274,24 @@ export function TimelineGraph({
             
             {unlinked.length > 0 && (
               <div className="mt-8 pt-6 border-t border-[--border-subtle]">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText size={16} className="text-[--text-muted]" />
-                  <h3 className="text-sm font-semibold text-[--text-secondary] uppercase tracking-wider">Unlinked Documents</h3>
-                  <Badge variant="muted" className="ml-2">{unlinked.length}</Badge>
+                <div className="flex items-center justify-between gap-2 mb-4 w-full border-b border-[--border-subtle] pb-2">
+                  <div className="flex items-center gap-2">
+                    <FileText size={16} className="text-[--text-muted]" />
+                    <h3 className="text-sm font-semibold text-[--text-secondary] uppercase tracking-wider">Unlinked Documents</h3>
+                    <Badge variant="muted" className="ml-2">{unlinked.length}</Badge>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleReevaluate} 
+                    disabled={isPending}
+                    className="h-8 text-xs shrink-0"
+                  >
+                    {isPending ? <Loader2 size={12} className="animate-spin mr-1.5" /> : <RefreshCw size={12} className="mr-1.5" />}
+                    Re-evaluate Links
+                  </Button>
                 </div>
-                <div className="grid gap-3">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
                   {unlinked.map(doc => (
                     <div 
                       key={doc.id} 
@@ -234,7 +307,16 @@ export function TimelineGraph({
                           <span className="font-medium text-[--text-primary] text-sm truncate">{doc.reference_number || doc.storage_path.split('/').pop()}</span>
                           {doc.doc_type && <span className="text-[10px] text-[--text-muted] font-medium">{doc.doc_type}</span>}
                         </div>
-                        <span className="text-xs text-[--text-muted]">{doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : 'No date'}</span>
+                        <span className="text-xs text-[--text-muted]">{doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'No date'}</span>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <a 
+                          href={`/matters/${doc.matter_id}/documents/${doc.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-wider h-6 px-2 gap-1 border border-[--border-strong] text-[--text-secondary] hover:bg-[--border-strong] hover:text-[--text-primary] transition-colors"
+                        >
+                          <ExternalLink size={10} /> View PDF
+                        </a>
                       </div>
                     </div>
                   ))}

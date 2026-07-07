@@ -2,6 +2,9 @@
 
 import { useState, useRef, useTransition } from 'react'
 import { uploadToInbox } from '@/lib/actions/inbox'
+import { checkExactDuplicate } from '@/lib/actions/document'
+import { calculateFileHash } from '@/lib/utils/hash'
+import { toast } from 'sonner'
 import { UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -50,7 +53,20 @@ export function GlobalDropzone() {
 
     let hasError = false
     startTransition(async () => {
+      let uploadedCount = 0
+      
       for (const file of files) {
+        // Client-side SHA-256 check
+        const sha256 = await calculateFileHash(file)
+        const dupCheck = await checkExactDuplicate(sha256)
+        
+        if (dupCheck.isDuplicate && dupCheck.duplicateOf) {
+          toast.error(`Upload cancelled: "${file.name}" is an exact duplicate of document ${dupCheck.duplicateOf.reference} in "${dupCheck.duplicateOf.matterTitle}".`)
+          // We remove this file from the state but continue with others
+          setFiles(prev => prev.filter(f => f.name !== file.name))
+          continue
+        }
+
         const formData = new FormData()
         formData.append('file', file)
         
@@ -61,12 +77,19 @@ export function GlobalDropzone() {
           hasError = true
           break
         }
+        uploadedCount++
       }
 
       if (!hasError) {
-        setUploadState('success')
-        setFiles([])
-        setTimeout(() => setUploadState('idle'), 3000)
+        if (uploadedCount > 0) {
+          setUploadState('success')
+          setFiles([])
+          setTimeout(() => setUploadState('idle'), 3000)
+        } else {
+          // All files were duplicates and filtered out
+          setUploadState('idle')
+          setFiles([])
+        }
       } else {
         setUploadState('error')
       }

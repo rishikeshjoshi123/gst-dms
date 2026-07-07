@@ -21,6 +21,7 @@
     "@radix-ui/react-toast": "^1.2.17",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@tailwindcss/typography": "^0.5.20",
     "@trigger.dev/sdk": "4.5.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.22.0",
@@ -29,7 +30,10 @@
     "node-fetch": "^3.3.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "react-pdf": "^10.4.1",
     "resend": "^6.16.0",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "zod": "^3.25.76"
   },

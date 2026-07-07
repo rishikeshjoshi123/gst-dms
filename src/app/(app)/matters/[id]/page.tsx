@@ -1,12 +1,17 @@
 import { getMatterById } from '@/lib/actions/matter'
 import { MATTER_STATUS_LABELS } from '@/lib/constants'
 import { getDocumentsByMatter } from '@/lib/actions/document'
+import { getWikiSections } from '@/lib/actions/wiki'
+import { getNotes } from '@/lib/actions/notes'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getCurrentOrgId } from '@/lib/actions/org'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { MatterTabs } from '@/components/matters/MatterTabs'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
+import { MatterHeader } from '@/components/matters/MatterHeader'
 import { Button } from '@/components/ui/button'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
@@ -19,7 +24,27 @@ export default async function MatterPage(props: { params: Promise<{ id: string }
     notFound()
   }
 
+  const supabase = await createClient()
+
   const { proceedings, supporting, links } = await getDocumentsByMatter(params.id)
+  const wikiSections = await getWikiSections(params.id)
+  const notes = await getNotes({ matterId: params.id })
+
+  const orgId = await getCurrentOrgId()
+  const { data: memberRows } = await supabase
+    .from('org_members')
+    .select('user_id, role')
+    .eq('org_id', orgId || '')
+
+  const serviceClient = createServiceClient()
+  const { data: { users: authUsers } } = await serviceClient.auth.admin.listUsers()
+  const userMap = new Map(authUsers.map(u => [u.id, u.email]))
+
+  const usersList = (memberRows ?? []).map((m: any) => ({
+    id: m.user_id,
+    email: userMap.get(m.user_id) || `User (${m.user_id.slice(0, 8)})`
+  }))
+
   const isClosed = matter.status === 'closed'
 
   const breadcrumbs = [
@@ -29,42 +54,10 @@ export default async function MatterPage(props: { params: Promise<{ id: string }
   ]
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in">
+    <div className="flex flex-col gap-6 max-w-5xl flex-1 overflow-hidden animate-fade-in">
       <BreadcrumbSetter breadcrumbs={breadcrumbs} />
 
-      {/* Header Card */}
-      <div className="flex flex-col gap-4 p-6 rounded-md bg-white border border-[var(--border-default)] shadow-[var(--shadow-sm)]">
-        <div className="flex items-start justify-between">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-[24px] font-semibold text-[var(--text-primary)]">{matter.title}</h1>
-              <Badge variant={matter.status === 'active' ? 'default' : 'muted'}>
-                {MATTER_STATUS_LABELS[matter.status]}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-4 text-[14px] text-[var(--text-muted)]">
-              {matter.matter_code && (
-                <span className="font-mono bg-slate-50 px-2 py-0.5 rounded text-[12px] border border-slate-100">{matter.matter_code}</span>
-              )}
-              <span className="font-medium">FY: {matter.financial_year}</span>
-            </div>
-            {matter.description && (
-              <p className="text-[14px] text-[var(--text-secondary)] mt-1 max-w-2xl">{matter.description}</p>
-            )}
-          </div>
-          
-          {/* Add Documents Button */}
-          {!isClosed && (
-            <Link 
-              href={`/inbox?matterId=${matter.id}`}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-9 px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-sm transition-colors"
-            >
-              <Plus size={16} className="mr-2" />
-              Add Documents
-            </Link>
-          )}
-        </div>
-      </div>
+      <MatterHeader matter={matter} isClosed={isClosed} />
 
       {/* Warning Banner */}
       {isClosed && (
@@ -75,9 +68,13 @@ export default async function MatterPage(props: { params: Promise<{ id: string }
       )}
 
       <MatterTabs 
+        matterId={matter.id}
         proceedings={proceedings} 
         supporting={supporting} 
-        links={links || []} 
+        links={links || []}
+        wikiSections={wikiSections || []}
+        notes={notes || []}
+        users={usersList}
       />
     </div>
   )

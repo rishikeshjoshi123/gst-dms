@@ -75,7 +75,7 @@ export function DashboardContent({
   const showResults = query.trim().length >= 2
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col flex-1 overflow-y-auto pr-1 custom-scrollbar">
       {/* Page header */}
       <div className="mb-6 animate-fade-in flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

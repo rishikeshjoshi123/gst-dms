@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -107,7 +102,9 @@ export type Database = {
           is_pinned: boolean
           matter_id: string
           org_id: string
+          page_number: number | null
           parent_note_id: string | null
+          quote: string | null
           search_vector: unknown
           template_type: Database["public"]["Enums"]["note_template_type"]
           updated_at: string
@@ -126,7 +123,9 @@ export type Database = {
           is_pinned?: boolean
           matter_id: string
           org_id: string
+          page_number?: number | null
           parent_note_id?: string | null
+          quote?: string | null
           search_vector?: unknown
           template_type?: Database["public"]["Enums"]["note_template_type"]
           updated_at?: string
@@ -145,7 +144,9 @@ export type Database = {
           is_pinned?: boolean
           matter_id?: string
           org_id?: string
+          page_number?: number | null
           parent_note_id?: string | null
+          quote?: string | null
           search_vector?: unknown
           template_type?: Database["public"]["Enums"]["note_template_type"]
           updated_at?: string
@@ -1277,3 +1278,4 @@ export const Constants = {
     },
   },
 } as const
+

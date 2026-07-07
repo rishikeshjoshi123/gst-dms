@@ -118,21 +118,95 @@ export async function analyzeDocument(
       return null
     }
 
-    const rawText = candidate.content.parts[0].text.trim()
+    let rawText = ''
+    try {
+      rawText = candidate.content.parts[0].text.trim()
+    } catch (e) {
+      console.error('[Vertex AI] Failed to extract text from parts:', e)
+      return null
+    }
 
-    // Strip markdown code fences if present
-    const jsonText = rawText
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '')
+    let jsonText = rawText
+    const firstBrace = rawText.indexOf('{')
+    const lastBrace = rawText.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      jsonText = rawText.slice(firstBrace, lastBrace + 1)
+    }
 
-    const parsed = JSON.parse(jsonText) as Omit<AIDocumentResult, 'prompt_version'>
-
-    return {
-      ...parsed,
-      prompt_version: PROMPT_VERSION,
+    try {
+      const parsed = JSON.parse(jsonText) as Omit<AIDocumentResult, 'prompt_version'>
+      return {
+        ...parsed,
+        prompt_version: PROMPT_VERSION,
+      }
+    } catch (err) {
+      console.error('[Vertex AI] analyzeDocument failed parsing JSON:', err)
+      console.error('[Vertex AI] Raw text was:', rawText)
+      return null
     }
   } catch (err) {
     console.error('[Vertex AI] analyzeDocument failed:', err)
+    return null
+  }
+}
+
+export interface AIWikiResult {
+  executive_summary: string
+  key_arguments: string
+  outstanding_tasks: string
+}
+
+export async function generateWikiSummary(
+  matterContext: string
+): Promise<AIWikiResult | null> {
+  try {
+    const vertex = getVertexAI()
+    const model = vertex.preview.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+      },
+    })
+
+    const prompt = `
+    You are an expert Indian GST (Goods and Services Tax) litigation assistant.
+    Below is a compilation of all documents and their metadata/summaries for a specific legal matter.
+    
+    Your task is to synthesize this information and generate three comprehensive markdown-formatted sections for a Case Wiki:
+    1. executive_summary: A high-level overview of the entire matter, what the core dispute is about, and the current status.
+    2. key_arguments: A breakdown of the primary arguments from both the Tax Department and the Client.
+    3. outstanding_tasks: A list of next steps, open questions, or pending compliance actions.
+    
+    Output JSON exactly in this format:
+    {
+      "executive_summary": "# Executive Summary\\n...",
+      "key_arguments": "# Key Arguments\\n...",
+      "outstanding_tasks": "# Outstanding Tasks\\n..."
+    }
+    
+    Document Context:
+    ${matterContext}
+    `
+
+    const response = await model.generateContent(prompt)
+    const candidate = response.response.candidates?.[0]
+    if (!candidate?.content?.parts?.[0]?.text) {
+      console.warn('[Vertex AI] Empty response from model for wiki')
+      return null
+    }
+
+    const rawText = candidate.content.parts[0].text.trim()
+    let jsonText = rawText
+    const firstBrace = rawText.indexOf('{')
+    const lastBrace = rawText.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      jsonText = rawText.slice(firstBrace, lastBrace + 1)
+    }
+
+    return JSON.parse(jsonText) as AIWikiResult
+  } catch (err) {
+    console.error('[Vertex AI] generateWikiSummary failed:', err)
     return null
   }
 }

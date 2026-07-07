@@ -6,13 +6,13 @@ import type { Database } from './database.types'
 // Polyfill WebSocket for environments like Trigger.dev (running on older Node)
 // where Supabase-js instantiates Realtime client on constructor.
 if (typeof global !== 'undefined' && !global.WebSocket) {
-  (global as any).WebSocket = class {};
+  (global as any).WebSocket = class { };
 }
 
 /**
  * Server Component / Server Action Supabase client.
  * Uses cookie store to maintain session server-side.
- */
+  */
 export async function createClient() {
   const cookieStore = await cookies()
 
