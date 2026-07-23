@@ -92,6 +92,70 @@ export type Database = {
           },
         ]
       }
+      ai_usage_logs: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          id: string
+          input_tokens: number
+          metadata: Json | null
+          model_name: string
+          operation_type: string
+          org_id: string
+          output_tokens: number
+          total_cost_usd: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          input_tokens?: number
+          metadata?: Json | null
+          model_name: string
+          operation_type: string
+          org_id: string
+          output_tokens?: number
+          total_cost_usd?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          input_tokens?: number
+          metadata?: Json | null
+          model_name?: string
+          operation_type?: string
+          org_id?: string
+          output_tokens?: number
+          total_cost_usd?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_model_name_fkey"
+            columns: ["model_name"]
+            isOneToOne: false
+            referencedRelation: "model_pricing"
+            referencedColumns: ["model_name"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_notes: {
         Row: {
           action_item_assignee: string | null
@@ -512,6 +576,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      model_pricing: {
+        Row: {
+          created_at: string
+          input_price_per_1m: number
+          model_name: string
+          output_price_per_1m: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          input_price_per_1m: number
+          model_name: string
+          output_price_per_1m: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          input_price_per_1m?: number
+          model_name?: string
+          output_price_per_1m?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {

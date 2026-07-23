@@ -192,7 +192,7 @@ export function GlobalDropzone() {
             <p className="text-sm text-[--danger] mt-1">{errorMessage}</p>
           )}
           {uploadState === 'success' && (
-            <p className="text-sm text-[--success] mt-1">Upload complete! AI processing started.</p>
+            <p className="text-sm text-[--success] mt-1">Upload complete! System processing started.</p>
           )}
         </div>
       )}

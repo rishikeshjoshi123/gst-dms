@@ -4,9 +4,10 @@ import { X, FileText, Calendar, ExternalLink, StickyNote, Plus, Trash2, Pin, Che
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useState, useTransition, useEffect, useRef } from 'react'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
-import { updateDocumentMetadata } from '@/lib/actions/document'
+import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
 
 function humanizeKey(key: string) {
@@ -21,13 +22,15 @@ function humanizeKey(key: string) {
 function EditableField({ 
   label, 
   value, 
-  type = 'text', 
+  type = 'text',
+  options = [],
   onSave, 
   disabled 
 }: { 
   label: string, 
   value: any, 
-  type?: string, 
+  type?: 'text' | 'number' | 'date' | 'select', 
+  options?: string[],
   onSave: (val: any) => Promise<void>,
   disabled?: boolean
 }) {
@@ -35,10 +38,14 @@ function EditableField({
   const [editValue, setEditValue] = useState(value ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
 
   useEffect(() => {
-    if (isEditing && inputRef.current) inputRef.current.focus()
-  }, [isEditing])
+    if (isEditing) {
+      if (type === 'select' && selectRef.current) selectRef.current.focus()
+      else if (inputRef.current) inputRef.current.focus()
+    }
+  }, [isEditing, type])
 
   const handleSave = async () => {
     if (editValue === value) {
@@ -66,15 +73,29 @@ function EditableField({
       </h5>
       {isEditing ? (
         <div className="flex items-center gap-1.5">
-          <input
-            ref={inputRef}
-            type={type === 'number' ? 'number' : 'text'}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isSaving || disabled}
-            className="w-full text-sm font-medium text-[--text-primary] bg-white border border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none rounded px-2 py-1 shadow-sm"
-          />
+          {type === 'select' ? (
+            <select
+              ref={selectRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSaving || disabled}
+              className="w-full text-sm font-medium text-[var(--text-primary)] bg-[var(--bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded px-2 py-1 shadow-sm"
+            >
+              <option value="">Select...</option>
+              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          ) : (
+            <input
+              ref={inputRef}
+              type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSaving || disabled}
+              className="flex-1 min-w-0 w-full text-sm font-medium text-[var(--text-primary)] bg-[var(--bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded px-2 py-1 shadow-sm"
+            />
+          )}
           <button 
             onClick={handleSave} 
             disabled={isSaving || disabled}
@@ -92,15 +113,16 @@ function EditableField({
         </div>
       ) : (
         <div className="flex items-center justify-between gap-2 min-h-[28px]">
-          <div className={`text-sm ${!value ? 'text-[--text-muted] italic' : 'text-[--text-primary] font-medium'}`}>
+          <div className={`flex-1 min-w-0 break-words text-sm ${!value ? 'text-[--text-muted] italic' : 'text-[--text-primary] font-medium'}`}>
             {type === 'number' && value !== null && value !== undefined 
               ? `₹${Number(value).toLocaleString('en-IN')}` 
+              : type === 'date' && value ? new Date(value).toLocaleDateString()
               : (value || 'Not Extracted')}
           </div>
           {!disabled && (
             <button 
               onClick={() => setIsEditing(true)}
-              className="p-1.5 text-[--primary] opacity-0 group-hover:opacity-100 hover:bg-[--primary]/10 rounded transition-all"
+              className="shrink-0 p-1.5 text-[--primary] opacity-0 group-hover:opacity-100 hover:bg-[--primary]/10 rounded transition-all"
               title="Edit value"
             >
               <Edit2 size={12} />
@@ -114,14 +136,19 @@ function EditableField({
 
 export function TimelineDocumentDetail({ 
   doc, 
+  allDocuments = [],
+  links = [],
   notes: propNotes = [], 
   onClose 
 }: { 
   doc: any
+  allDocuments?: any[]
+  links?: any[]
   notes?: any[]
   onClose?: () => void 
 }) {
   const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details')
+  const [isSynopsisOpen, setIsSynopsisOpen] = useState(false)
   const [notes, setNotes] = useState<any[]>(propNotes)
   const [newNoteContent, setNewNoteContent] = useState('')
   const [newNoteType, setNewNoteType] = useState<'general' | 'hearing_note' | 'client_instruction' | 'research_note'>('general')
@@ -129,15 +156,30 @@ export function TimelineDocumentDetail({
   const [isReprocessing, setIsReprocessing] = useState(false)
   const [activeQuote, setActiveQuote] = useState<{ text: string, pageNumber: number } | null>(null)
 
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDeleteDocument = async () => {
+    if (!confirm('Are you sure you want to delete this document? This will remove it from the matter timeline.')) return
+    setIsDeleting(true)
+    const res = await deleteDocument(doc.id)
+    setIsDeleting(false)
+    if (res.error) {
+      toast.error(res.error)
+    } else {
+      toast.success('Document deleted successfully')
+      onClose?.()
+    }
+  }
+
   const handleReprocess = async () => {
     setIsReprocessing(true)
-    toast.info('Triggering AI reprocessing for this document...')
+    toast.info('Triggering reprocessing for this document...')
     const res = await reprocessDocument(doc.id, false)
     setIsReprocessing(false)
     if (res.error) {
       toast.error(res.error)
     } else {
-      toast.success('Reprocessing triggered. Processing with AI in the background...')
+      toast.success('Reprocessing triggered. Processing in the background...')
     }
   }
   useEffect(() => {
@@ -218,84 +260,103 @@ export function TimelineDocumentDetail({
   const amounts = metadata.extracted_amounts || {}
   const viewUrl = `/matters/${doc.matter_id}/documents/${doc.id}`
 
+  // Find linked documents
+  const linkedDocIds = new Set<string>()
+  links.forEach(l => {
+    if (l.from_doc_id === doc.id && l.to_doc_id) linkedDocIds.add(l.to_doc_id)
+    if (l.to_doc_id === doc.id && l.from_doc_id) linkedDocIds.add(l.from_doc_id)
+  })
+  
+  const linkedDocs = allDocuments.filter(d => linkedDocIds.has(d.id))
+
   return (
-    <div className="flex flex-col h-full min-h-[600px] border border-[--border-subtle] bg-white rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-right-4 duration-300">
+    <div className="flex flex-col h-full border border-[var(--border-strong)] bg-[var(--surface)] rounded-lg shadow-xl overflow-hidden animate-in slide-in-from-right-4 duration-300">
       
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[--border-subtle] bg-[--bg-muted]/20">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 rounded-md bg-[--primary]/10 text-[--primary]">
-            <FileText size={20} />
+      <div className="flex items-start justify-between p-3 border-b border-[--border-subtle] bg-[--bg-muted]/20 gap-3">
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+          <div className="p-1.5 rounded-md bg-[--primary]/10 text-[--primary] mt-0.5 shrink-0">
+            <FileText size={16} />
           </div>
-          <div className="flex flex-col min-w-0">
-            <h3 className="text-base font-semibold text-[--text-primary] truncate pr-4">
+          <div className="flex flex-col min-w-0 w-full">
+            <h3 className="text-sm font-semibold text-[--text-primary] truncate mb-0.5" title={doc.reference_number || doc.storage_path.split('/').pop()}>
               {doc.reference_number || doc.storage_path.split('/').pop()}
             </h3>
-            <div className="flex items-center gap-2 mt-0.5">
-              {doc.doc_type && <Badge variant="muted" className="text-[10px] uppercase h-4 px-1.5 py-0">{doc.doc_type}</Badge>}
-              <span className="text-xs text-[--text-muted] flex items-center gap-1">
-                <Calendar size={12} />
-                {doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : 'Unknown date'}
+            <div className="flex items-center flex-wrap gap-1.5">
+              {doc.doc_type && <Badge variant="muted" className="text-[9px] uppercase h-4 px-1 py-0">{doc.doc_type}</Badge>}
+              <span className="text-[10px] text-[--text-muted] flex items-center gap-1 shrink-0">
+                <Calendar size={10} />
+                {doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : 'Unknown'}
               </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={handleReprocess} disabled={isReprocessing} className="h-8 text-xs shrink-0 text-[--text-secondary]">
-            {isReprocessing ? <RefreshCw size={14} className="mr-1.5 animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
-            Reprocess
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button variant="outline" size="icon" onClick={handleReprocess} disabled={isReprocessing || isDeleting} className="h-7 w-7 text-[--text-secondary]" title="Reprocess Document">
+            {isReprocessing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           </Button>
-          <a href={viewUrl} className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 gap-1.5 bg-[--primary] text-white hover:bg-[--primary-hover] shadow-sm transition-colors">
-            <ExternalLink size={14} />
-            View PDF
+          <Button variant="outline" size="icon" onClick={handleDeleteDocument} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" title="Delete Document">
+            {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+          </Button>
+          <a href={viewUrl} className="inline-flex items-center justify-center rounded-md text-[11px] font-medium h-7 px-2.5 gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors">
+            <ExternalLink size={12} />
+            View
           </a>
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-[--text-muted] hover:text-[--text-primary]" onClick={onClose}>
-              <X size={16} />
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-[--text-muted] hover:text-[--text-primary] ml-0.5" onClick={onClose}>
+              <X size={14} />
             </Button>
           )}
         </div>
       </div>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-[--border-subtle] bg-slate-50/50 px-4 shrink-0">
+      <div className="flex border-b border-[var(--border)] bg-[var(--surface-hover)] px-3 shrink-0">
         <button
           onClick={() => setActiveTab('details')}
-          className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+          className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
             activeTab === 'details'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
           }`}
         >
-          <FileText size={14} />
+          <FileText size={12} />
           Details
         </button>
         <button
           onClick={() => setActiveTab('notes')}
-          className={`flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+          className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
             activeTab === 'notes'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
           }`}
         >
-          <StickyNote size={14} />
+          <StickyNote size={12} />
           Notes
-          <Badge variant="muted" className="ml-1 px-1 py-0 text-[10px] h-4">
+          <Badge variant="muted" className="ml-1 px-1 py-0 text-[9px] h-3.5">
             {docNotes.length}
           </Badge>
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         {activeTab === 'details' ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
           
           {/* Summary */}
           {doc.summary && (
-            <div className="flex flex-col gap-2 bg-slate-50 border border-[--border-subtle] p-4 rounded-lg shadow-sm">
-              <h4 className="text-[11px] font-bold text-[--text-muted] uppercase tracking-wider">AI Synopsis</h4>
-              <p className="text-sm text-[--text-secondary] leading-relaxed">{doc.summary}</p>
+            <div className="flex flex-col gap-2 bg-[var(--bg)] border border-[var(--border)] p-4 rounded-lg shadow-sm">
+              <div 
+                className="flex items-center justify-between cursor-pointer group"
+                onClick={() => setIsSynopsisOpen(!isSynopsisOpen)}
+              >
+                <h4 className="text-[11px] font-bold text-[--text-muted] uppercase tracking-wider group-hover:text-[--text-primary] transition-colors">Document Synopsis</h4>
+                <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600">{isSynopsisOpen ? 'Collapse' : 'Expand'}</span>
+              </div>
+              {isSynopsisOpen && (
+                <p className="text-sm text-[--text-secondary] leading-relaxed mt-1 animate-in fade-in slide-in-from-top-2">{doc.summary}</p>
+              )}
             </div>
           )}
 
@@ -307,9 +368,16 @@ export function TimelineDocumentDetail({
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               <EditableField label="Client Name" value={metadata.client_name} onSave={(val) => handleUpdateMetadata('client_name', val)} />
               <EditableField label="GSTIN" value={metadata.gstin} onSave={(val) => handleUpdateMetadata('gstin', val)} />
-              <EditableField label="Reference Number" value={metadata.reference_number} onSave={(val) => handleUpdateMetadata('reference_number', val)} />
-              <EditableField label="Document Type" value={metadata.doc_type} onSave={(val) => handleUpdateMetadata('doc_type', val)} />
-              <EditableField label="Financial Year" value={metadata.financial_year} onSave={(val) => handleUpdateMetadata('financial_year', val)} />
+              <EditableField label="Reference Number" value={doc.reference_number || metadata.reference_number} onSave={(val) => handleUpdateMetadata('reference_number', val)} />
+              <EditableField label="Document Type" value={doc.doc_type || metadata.doc_type} type="select" options={['DRC-01', 'DRC-01A', 'DRC-01C', 'DRC-07', 'DRC-03', 'SCN', 'OIO', 'OIA', 'APL-01', 'APL-02', 'APL-05', 'STAY', 'REPLY', 'HC_PETITION', 'HC_ORDER', 'SC_PETITION', 'SC_ORDER', 'OTHER']} onSave={(val) => handleUpdateMetadata('doc_type', val)} />
+              <EditableField label="Document Date" value={doc.doc_date || metadata.doc_date} type="date" onSave={(val) => handleUpdateMetadata('doc_date', val)} />
+              <EditableField 
+                label="Financial Year" 
+                value={doc.financial_year || metadata.financial_year} 
+                type="select"
+                options={['2017-18', '2018-19', '2019-20', '2020-21', '2021-22', '2022-23', '2023-24', '2024-25', '2025-26', 'Unknown FY']}
+                onSave={(val) => handleUpdateMetadata('financial_year', val)} 
+              />
               <EditableField label="Tax Period" value={metadata.tax_period} onSave={(val) => handleUpdateMetadata('tax_period', val)} />
             </div>
           </div>
@@ -327,24 +395,70 @@ export function TimelineDocumentDetail({
             </div>
           </div>
 
+          {/* Linked Documents */}
+          {linkedDocs.length > 0 && (
+            <div className="flex flex-col gap-3 pt-6 border-t border-[--border-subtle] mt-2">
+              <h4 className="text-sm font-semibold text-[--text-primary] px-1">
+                Linked Documents
+              </h4>
+              <div className="grid grid-cols-1 gap-2">
+                {linkedDocs.map(ldoc => {
+                  const linkType = links.find(l => (l.from_doc_id === doc.id && l.to_doc_id === ldoc.id) || (l.to_doc_id === doc.id && l.from_doc_id === ldoc.id))?.link_type || 'linked'
+                  
+                  return (
+                    <div key={ldoc.id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] transition-colors">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="text-sm font-medium text-[--text-primary] truncate">{ldoc.reference_number || ldoc.storage_path.split('/').pop()}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="muted" className="text-[9px] uppercase tracking-wider py-0 px-1 border-dashed">
+                            {linkType.replace('_', ' ')}
+                          </Badge>
+                          {ldoc.document_class === 'supporting' && (
+                            <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 bg-slate-100 text-slate-600">Supporting</Badge>
+                          )}
+                          <span className="text-xs text-[--text-muted]">{ldoc.doc_date ? new Date(ldoc.doc_date).toISOString().split('T')[0] : ''}</span>
+                        </div>
+                      </div>
+                      <a 
+                        href={`/matters/${ldoc.matter_id}/documents/${ldoc.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                        title="Open Document"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* System Info */}
           <div className="flex flex-col gap-3 pt-6 border-t border-[--border-subtle] mt-4">
             <h4 className="text-[11px] font-bold text-[--text-muted] uppercase tracking-wider px-1">System Info</h4>
             <div className="grid grid-cols-2 gap-4 px-1">
               <div className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">Status</span>
-                <Badge variant={doc.status === 'needs_review' ? 'warning' : doc.status === 'failed' ? 'danger' : 'muted'} className="w-fit">{doc.status.replace('_', ' ')}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant={doc.status === 'needs_review' ? 'warning' : doc.status === 'failed' ? 'danger' : 'muted'} 
+                    className={cn("w-fit", doc.status === 'failed' && doc.review_reason ? "cursor-pointer hover:opacity-80" : "")}
+                    onClick={() => {
+                      if (doc.status === 'failed' && doc.review_reason) {
+                        toast.error(`Error details: ${doc.review_reason}`, { duration: 10000, dismissible: true })
+                      }
+                    }}
+                  >
+                    {doc.status.replace('_', ' ')}
+                  </Badge>
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">Storage Path</span>
-                <span className="text-xs font-mono text-[--text-secondary] break-all bg-slate-50 p-1.5 rounded border border-slate-100">{doc.storage_path}</span>
+                <span className="text-xs font-mono text-[var(--text-secondary)] break-all bg-[var(--bg)] p-1.5 rounded border border-[var(--border)]">{doc.storage_path}</span>
               </div>
-              {doc.review_reason && (
-                <div className="flex flex-col gap-1 col-span-2 mt-2 p-3 rounded-md bg-[--danger-muted] border border-[--danger] text-[--danger] text-xs shadow-sm">
-                  <span className="font-semibold uppercase tracking-wider text-[10px]">Error Details</span>
-                  <span className="leading-relaxed">{doc.review_reason}</span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -352,13 +466,13 @@ export function TimelineDocumentDetail({
         ) : (
           <div className="flex flex-col gap-5 h-full">
             {/* Quick Add Note Form */}
-            <div className="flex flex-col gap-2 p-3 bg-slate-50 border border-[#E5E2DC] rounded-lg shadow-sm">
+            <div className="flex flex-col gap-2 p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716C]">Quick Note</span>
                 <select
                   value={newNoteType}
                   onChange={(e: any) => setNewNoteType(e.target.value)}
-                  className="p-1 px-2 text-[11px] font-medium bg-white border border-[#C9C5BE] rounded outline-none shadow-sm"
+                  className="p-1 px-2 text-[11px] font-medium bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded outline-none shadow-sm"
                 >
                   <option value="general">General</option>
                   <option value="hearing_note">Hearing Note</option>
@@ -388,7 +502,7 @@ export function TimelineDocumentDetail({
                 value={newNoteContent}
                 onChange={(e) => setNewNoteContent(e.target.value)}
                 placeholder="Type note content..."
-                className="w-full min-h-[80px] p-2.5 text-xs text-[--text-primary] bg-white border border-[#C9C5BE] rounded outline-none resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-inner mt-1"
+                className="w-full min-h-[80px] p-2.5 text-xs text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] rounded outline-none resize-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] shadow-inner mt-1"
               />
               <Button 
                 onClick={handleAddNote} 
@@ -409,9 +523,9 @@ export function TimelineDocumentDetail({
             ) : (
               <div className="flex flex-col gap-4 overflow-y-auto pr-1">
                 {docNotes.map((note) => (
-                  <div key={note.id} className="p-3 bg-white border border-[#E5E2DC] rounded-lg shadow-sm flex flex-col relative group">
+                  <div key={note.id} className="p-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-sm flex flex-col relative group">
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-[#A8A29E] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] px-1.5 py-0.5 rounded">
                         {note.template_type.replace('_', ' ')}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -436,14 +550,14 @@ export function TimelineDocumentDetail({
                         onClick={() => {
                           window.dispatchEvent(new CustomEvent('JUMP_TO_PDF_PAGE', { detail: { pageNumber: note.page_number } }))
                         }}
-                        className="mb-3 p-2 bg-slate-50 border-l-2 border-blue-400 rounded-r text-xs text-[--text-secondary] italic cursor-pointer hover:bg-blue-50 transition-colors shadow-sm"
+                        className="mb-3 p-2 bg-[var(--bg)] border-l-2 border-blue-400 rounded-r text-xs text-[var(--text-secondary)] italic cursor-pointer hover:bg-[var(--surface-hover)] transition-colors shadow-sm"
                         title={`Jump to Page ${note.page_number}`}
                       >
                         "{note.quote}"
                       </div>
                     )}
-                    <p className="text-[13px] text-[#1C1917] whitespace-pre-wrap leading-relaxed">{note.content}</p>
-                    <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-[#A8A29E] font-medium">
+                    <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                    <div className="mt-3 pt-2 border-t border-[var(--border)] flex items-center justify-between text-[10px] text-[var(--text-muted)] font-medium">
                       <span>{note.author?.email || 'System'}</span>
                       <span>{new Date(note.created_at).toLocaleDateString()}</span>
                     </div>

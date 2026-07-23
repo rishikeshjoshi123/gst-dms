@@ -126,6 +126,9 @@ export function InboxClientView({
       } else {
         toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
+        await reevaluateStagedDocuments()
+        const latestDocs = await getStagedDocuments()
+        setDocuments(latestDocs)
         router.refresh()
       }
     })
@@ -140,6 +143,9 @@ export function InboxClientView({
       } else {
         toast.success('Matter and client automatically created')
         setIsActionModalOpen(false)
+        await reevaluateStagedDocuments()
+        const latestDocs = await getStagedDocuments()
+        setDocuments(latestDocs)
         router.refresh()
       }
     })
@@ -244,7 +250,7 @@ export function InboxClientView({
               <FolderOpen size={32} className="text-[var(--text-muted)] mb-3" />
               <h3 className="text-section-heading text-[var(--text-primary)]">Queue is empty</h3>
               <p className="text-caption text-[var(--text-muted)] mt-1 max-w-xs">
-                Upload files using the 'Add Document' button to stage them for AI analysis.
+                Upload files using the 'Add Document' button to stage them for analysis.
               </p>
             </div>
           ) : (
@@ -256,65 +262,72 @@ export function InboxClientView({
               const hasSuggestion = doc.suggested_client && doc.suggested_matter
 
               return (
-                <div 
+                <div
                   key={doc.id}
-                  onClick={() => handleSelectDoc(doc)}
-                  className={`group relative p-3 rounded-lg border transition-all cursor-pointer bg-white ${
-                    isSelected 
-                      ? 'border-transparent ring-2 ring-[#1D4ED8] ring-inset shadow-sm z-10' 
-                      : 'border-[#E5E2DC] hover:shadow-sm hover:border-[#C9C5BE]'
-                  }`}
+                  onClick={() => {
+                    setSelectedDocId(doc.id)
+                    if (doc.suggested_matter?.id) {
+                      setSelectedMatterId(doc.suggested_matter.id)
+                    }
+                  }}
+                  className={isAnalyzing ? 'animated-gradient-border' : ''}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#FAFAF9] border border-[#E5E2DC]">
-                      <FileText size={18} className="text-[#A8A29E]" />
-                    </div>
-                    
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <h3 className={`text-[14px] font-medium truncate ${isSelected ? 'text-[#1D4ED8]' : 'text-[#1C1917]'}`}>
-                        {fileName}
-                      </h3>
-                      
-                      {doc.created_at && (
-                        <span className="text-[12px] text-[#A8A29E] mt-0.5">
-                          {new Date(doc.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  <div
+                    className={`p-4 rounded-md border text-left cursor-pointer transition-all duration-150 relative ${
+                      isSelected
+                        ? 'border-[#1D4ED8] bg-white dark:bg-[#1E293B] dark:border-[#3B82F6] shadow-md ring-1 ring-[#1D4ED8]'
+                        : 'border-[#E5E2DC] dark:border-[#1F293D] bg-white dark:bg-[#161E2E] hover:border-[#C9C5BE] dark:hover:border-[#334155] hover:shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText size={16} className={isSelected ? 'text-[#1D4ED8] dark:text-[#60A5FA]' : 'text-[#78716C] dark:text-[#94A3B8]'} />
+                          <h4 className="text-[14px] font-semibold text-[var(--text-primary)] dark:text-[#F8FAFC] truncate">
+                            {doc.storage_path.split('/').pop()}
+                          </h4>
+                        </div>
+                        
+                        <span className="text-[12px] text-[var(--text-muted)] dark:text-[#64748B]">
+                          Uploaded {new Date(doc.created_at).toLocaleDateString()}
                         </span>
-                      )}
-                      
-                      <div className="mt-2.5">
-                        {isAnalyzing ? (
-                          <div className="flex items-center gap-1.5 text-[12px] font-medium text-blue-600">
-                            <div className="h-3 w-3 animate-spin rounded-full border border-blue-600 border-t-transparent" />
-                            Analyzing with AI...
-                          </div>
-                        ) : isPending ? (
-                          <span className="text-[12px] font-medium text-[#78716C]">Queued for analysis</span>
-                        ) : doc.status === 'failed' ? (
-                          <span className="text-[12px] font-medium text-[#DC2626] flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            Analysis failed
-                          </span>
-                        ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
-                          <span className="text-[12px] font-medium text-[#DC2626] flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            Duplicate detected
-                          </span>
-                        ) : hasSuggestion ? (
-                          <span className="text-[12px] font-medium text-emerald-600 flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                            Ready to assign
-                          </span>
-                        ) : (
-                          <span className="text-[12px] font-medium text-[#78716C] flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            Manual review needed
-                          </span>
-                        )}
+
+                        {/* Status Badges */}
+                        <div className="mt-2.5">
+                          {isAnalyzing ? (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold animated-gradient-badge shadow-xs">
+                              <Loader2 size={12} className="animate-spin" />
+                              Processing in Engine...
+                            </div>
+                          ) : isPending ? (
+                            <span className="text-[12px] font-medium text-[#78716C] dark:text-[#94A3B8]">Queued for analysis</span>
+                          ) : doc.status === 'failed' ? (
+                            <span className="text-[12px] font-medium text-[#DC2626] dark:text-red-400 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              Analysis failed
+                            </span>
+                          ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
+                            <span className="text-[12px] font-medium text-[#DC2626] dark:text-red-400 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              Duplicate detected
+                            </span>
+                          ) : hasSuggestion ? (
+                            <span className="text-[12px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse" />
+                              Ready to assign
+                            </span>
+                          ) : (
+                            <span className="text-[12px] font-medium text-[#78716C] dark:text-[#94A3B8] flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              Manual review needed
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[#1D4ED8]' : 'text-[#C9C5BE]'}`}>
-                      <ChevronRight size={18} />
+                      
+                      <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[#1D4ED8] dark:text-[#60A5FA]' : 'text-[#C9C5BE] dark:text-[#475569]'}`}>
+                        <ChevronRight size={18} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -353,21 +366,21 @@ export function InboxClientView({
                 </div>
               </div>
 
-              {/* AI Analysis Result */}
+              {/* Analysis Result */}
               {activeDoc.status === 'analyzing' ? (
                 <div className="flex flex-col items-center justify-center p-12 rounded-md bg-surface border border-border-strong shadow-[var(--shadow-sm)] text-center text-primary">
                   <Loader2 size={32} className="animate-spin mb-3 text-[var(--accent)]" />
                   <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Extracting Metadata...</h3>
-                  <p className="text-[12px] text-[var(--text-secondary)] mt-1">Vertex AI is analyzing the document context.</p>
+                  <p className="text-[12px] text-[var(--text-secondary)] mt-1">System engine is analyzing the document context.</p>
                 </div>
               ) : activeDoc.status === 'failed' ? (
                 <div className="flex flex-col gap-4 p-5 rounded-md border border-red-200 bg-red-50">
                   <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--danger)]">
                     <AlertCircle size={16} />
-                    AI Analysis Failed
+                    Analysis Failed
                   </div>
                   <p className="text-[14px] text-red-900 leading-relaxed">
-                    {activeDoc.suggestion_reason || 'An unknown error occurred during AI extraction.'}
+                    {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
                   </p>
                   <p className="text-[12px] text-red-700 font-medium">
                     You can still assign this document manually using the "Take Action" button.

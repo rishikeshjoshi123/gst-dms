@@ -4,6 +4,7 @@ import { Scale } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getStagedDocumentCount } from '@/lib/actions/inbox'
+import { getUnreadNotificationCount } from '@/lib/actions/notifications'
 import { SidebarNav } from '@/components/nav/SidebarNav'
 import { UserMenu } from '@/components/nav/UserMenu'
 import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
@@ -40,7 +41,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const activeOrg = orgs.find(o => o.id === currentOrgId) ?? orgs[0]
 
-  const inboxCount = await getStagedDocumentCount()
+  const [inboxCount, notifCount] = await Promise.all([
+    getStagedDocumentCount(),
+    getUnreadNotificationCount(),
+  ])
 
   // If no org cookie set, set it now
   if (!currentOrgId) {
@@ -59,16 +63,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <BreadcrumbProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-[--bg-base]">
+      <div className="flex h-screen w-full overflow-hidden bg-[var(--bg)] text-[var(--text-primary)] transition-colors duration-200">
         {/* ── Sidebar ─────────────────────────────────────────────── */}
         <div className="w-16 shrink-0 h-full relative z-20">
           <aside
-            className="group absolute top-0 left-0 h-full flex flex-col overflow-x-hidden shadow-xl w-16 hover:w-60 transition-all duration-300 ease-in-out"
+            className="group absolute top-0 left-0 h-full flex flex-col overflow-x-hidden shadow-xl w-16 hover:w-60 transition-all duration-300 ease-in-out border-r border-stone-800"
             style={{ backgroundColor: 'var(--sidebar-bg)' }}
           >
           {/* Navigation items */}
           <div className="px-3 pt-6 pb-2 flex-1">
-            <SidebarNav inboxCount={inboxCount} />
+            <SidebarNav inboxCount={inboxCount} notifCount={notifCount} />
           </div>
           </aside>
         </div>
@@ -76,13 +80,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* ── Main content wrapper ─────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Topbar */}
-          <header className="h-[48px] bg-white border-b border-[--border-default] flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
+          <header className="h-[48px] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 shadow-xs z-10 transition-colors duration-200">
             <BreadcrumbNav activeOrgName={activeOrg.name} />
             <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-hidden flex flex-col p-8 max-w-6xl w-full mx-auto">
+          <main className="flex-1 overflow-hidden flex flex-col p-6 max-w-7xl w-full mx-auto">
             {children}
           </main>
         </div>

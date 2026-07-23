@@ -68,7 +68,7 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent side="bottom" align="end" className="w-56">
+      <DropdownMenuContent side="bottom" align="end" className="w-60 z-[100]">
         {/* Current org */}
         <DropdownMenuLabel className="text-[12px] font-medium uppercase tracking-wide text-[var(--text-secondary)]">
           Current Workspace
@@ -114,12 +114,13 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
           <DropdownMenuItem
             onClick={(e) => {
               e.preventDefault()
-              setTheme(theme === 'dark' ? 'light' : 'dark')
+              const nextTheme = (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) ? 'light' : 'dark'
+              setTheme(nextTheme)
             }}
-            className="cursor-pointer"
+            className="cursor-pointer flex items-center gap-2"
           >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            {theme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-blue-500" />}
+            <span>{theme === 'dark' ? 'Switch to Light mode' : 'Switch to Dark mode'}</span>
           </DropdownMenuItem>
         )}
 

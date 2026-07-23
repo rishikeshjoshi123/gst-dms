@@ -128,22 +128,49 @@ export async function deleteClientAction(id: string) {
   
   if (!orgId) return { error: 'No active organisation.' }
 
-  // Check if admin (enforced by RLS anyway, but good for custom error)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
+  const nowStr = new Date().toISOString()
+
+  // 1. Get client's matters
+  const { data: matters } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('client_id', id)
+    .eq('org_id', orgId)
+
+  const matterIds = (matters || []).map(m => m.id)
+
+  // 2. Soft delete associated documents
+  if (matterIds.length > 0) {
+    await supabase
+      .from('documents')
+      .update({ deleted_at: nowStr })
+      .in('matter_id', matterIds)
+      .eq('org_id', orgId)
+
+    // 3. Soft delete associated matters
+    await supabase
+      .from('matters')
+      .update({ deleted_at: nowStr })
+      .in('id', matterIds)
+      .eq('org_id', orgId)
+  }
+
+  // 4. Soft delete client
   const { error } = await supabase
     .from('clients')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: nowStr })
     .eq('id', id)
     .eq('org_id', orgId)
 
   if (error) {
     console.error('Delete client error:', error)
-    // Could be RLS policy violation if not admin
-    return { error: 'Failed to delete client. Only admins can delete clients.' }
+    return { error: 'Failed to delete client.' }
   }
 
   revalidatePath('/clients')
+  revalidatePath('/matters')
   return { success: true }
 }

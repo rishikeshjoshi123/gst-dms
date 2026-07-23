@@ -142,7 +142,7 @@ export function Dropzone({ matterId }: { matterId: string }) {
           <div className="flex items-center justify-between mt-2">
             <div>
               {uploadState === 'error' && <p className="text-sm text-[--danger]">{errorMessage}</p>}
-              {uploadState === 'success' && <p className="text-sm text-[--success]">Upload successful. AI processing started.</p>}
+              {uploadState === 'success' && <p className="text-sm text-[--success]">Upload successful. System processing started.</p>}
             </div>
             <Button onClick={handleUpload} loading={uploadState === 'uploading'}>
               {uploadState === 'uploading' ? 'Uploading...' : `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`}

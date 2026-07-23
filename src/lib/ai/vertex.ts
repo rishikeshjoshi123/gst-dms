@@ -45,19 +45,22 @@ function getVertexAI(): VertexAI {
 
 export interface AIDocumentResult {
   doc_type: string | null
+  document_class: 'proceeding' | 'supporting'
+  document_category: string | null
   reference_number: string | null
   gstin: string | null
+  client_identifiers: string[] | null
   client_name: string | null
   doc_date: string | null
-  financial_year: string | null
+  financial_years: string[]
   tax_period: string | null
   direction: 'incoming' | 'outgoing' | null
   issued_by: string | null
   summary: string
   chaining_attributes: {
-    references_document: string | null
+    references_documents: string[]
     gstin: string | null
-    financial_year: string | null
+    financial_years: string[]
     matter_ref: string | null
     link_type: 'responds_to' | 'arises_from' | 'challenges' | 'summarizes' | null
   }
@@ -70,7 +73,15 @@ export interface AIDocumentResult {
   parties_named: string[]
   confidence: number
   prompt_version: string
+  usage?: {
+    promptTokens: number
+    candidateTokens: number
+    totalTokens: number
+  }
 }
+
+export const VERTEX_DOCUMENT_MODEL = 'gemini-2.5-flash'
+export const VERTEX_EMBEDDING_MODEL = 'text-embedding-004'
 
 /**
  * Send a PDF buffer to Gemini Flash for structured metadata extraction.
@@ -82,7 +93,7 @@ export async function analyzeDocument(
   try {
     const vertex = getVertexAI()
     const model = vertex.preview.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: VERTEX_DOCUMENT_MODEL,
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,   // low temperature for structured extraction
@@ -135,9 +146,15 @@ export async function analyzeDocument(
 
     try {
       const parsed = JSON.parse(jsonText) as Omit<AIDocumentResult, 'prompt_version'>
+      const usage = response.response.usageMetadata
       return {
         ...parsed,
         prompt_version: PROMPT_VERSION,
+        usage: usage ? {
+          promptTokens: usage.promptTokenCount ?? 0,
+          candidateTokens: usage.candidatesTokenCount ?? 0,
+          totalTokens: usage.totalTokenCount ?? 0
+        } : undefined
       }
     } catch (err) {
       console.error('[Vertex AI] analyzeDocument failed parsing JSON:', err)
@@ -154,6 +171,11 @@ export interface AIWikiResult {
   executive_summary: string
   key_arguments: string
   outstanding_tasks: string
+  usage?: {
+    promptTokens: number
+    candidateTokens: number
+    totalTokens: number
+  }
 }
 
 export async function generateWikiSummary(
@@ -162,7 +184,7 @@ export async function generateWikiSummary(
   try {
     const vertex = getVertexAI()
     const model = vertex.preview.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: VERTEX_DOCUMENT_MODEL,
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.2,
@@ -204,7 +226,16 @@ export async function generateWikiSummary(
       jsonText = rawText.slice(firstBrace, lastBrace + 1)
     }
 
-    return JSON.parse(jsonText) as AIWikiResult
+    const parsed = JSON.parse(jsonText) as AIWikiResult
+    const usage = response.response.usageMetadata
+    if (usage) {
+      parsed.usage = {
+        promptTokens: usage.promptTokenCount ?? 0,
+        candidateTokens: usage.candidatesTokenCount ?? 0,
+        totalTokens: usage.totalTokenCount ?? 0
+      }
+    }
+    return parsed
   } catch (err) {
     console.error('[Vertex AI] generateWikiSummary failed:', err)
     return null
@@ -217,7 +248,7 @@ export async function generateWikiSummary(
  * Generate a 768-dimensional embedding for semantic search using text-embedding-004.
  * Returns null on failure.
  */
-export async function generateEmbedding(text: string): Promise<number[] | null> {
+export async function generateEmbedding(text: string): Promise<{ embedding: number[], charCount: number } | null> {
   try {
     const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
     if (!credentialsJson) throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON not set')
@@ -234,7 +265,9 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     const client = await auth.getClient()
     const token = await client.getAccessToken()
 
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/text-embedding-004:predict`
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${VERTEX_EMBEDDING_MODEL}:predict`
+
+    const slicedText = text.slice(0, 8000) // model max input
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -245,7 +278,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       body: JSON.stringify({
         instances: [
           {
-            content: text.slice(0, 8000), // model max input
+            content: slicedText, 
             task_type: 'RETRIEVAL_DOCUMENT',
           },
         ],
@@ -265,7 +298,9 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       predictions: Array<{ embeddings: { values: number[] } }>
     }
 
-    return data.predictions[0]?.embeddings?.values ?? null
+    const embedding = data.predictions[0]?.embeddings?.values ?? null
+    if (!embedding) return null
+    return { embedding, charCount: slicedText.length }
   } catch (err) {
     console.error('[Vertex AI] generateEmbedding failed:', err)
     return null

@@ -32,11 +32,18 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
-          enableSystem={false}
+          enableSystem={true}
           disableTransitionOnChange
         >
           {children}
-          <Toaster position="top-right" richColors />
+          <Toaster 
+            position="top-right" 
+            richColors 
+            closeButton 
+            toastOptions={{
+              className: 'font-sans shadow-lg border rounded-lg',
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>

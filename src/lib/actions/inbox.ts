@@ -170,6 +170,14 @@ export async function assignStagedDocument(
     return { error: 'Failed to copy document to matter storage.' }
   }
 
+  let documentClass = 'proceeding'
+  let documentCategory = null
+  if (staged.raw_metadata) {
+    const aiResult = staged.raw_metadata as unknown as AIDocumentResult;
+    documentClass = aiResult.document_class || 'proceeding'
+    documentCategory = aiResult.document_category || null
+  }
+
   // 2. Create the documents record (source='inbox' → skips routing check)
   const { data: doc, error: docError } = await supabase
     .from('documents')
@@ -180,6 +188,8 @@ export async function assignStagedDocument(
       status: 'processing',
       source: 'inbox',
       created_by: user.id,
+      document_class: documentClass,
+      document_category: documentCategory,
     })
     .select('id')
     .single()
@@ -433,14 +443,17 @@ export async function reevaluateStagedDocuments() {
         .maybeSingle()
       if (existingClient) clientId = existingClient.id
     } else if (metadata.client_name) {
-      const { data: existingClient } = await supabase
+      const { data: existingClients } = await supabase
         .from('clients')
         .select('id')
         .eq('org_id', orgId)
-        .eq('name', metadata.client_name)
+        .ilike('name', `%${metadata.client_name}%`)
         .is('deleted_at', null)
-        .maybeSingle()
-      if (existingClient) clientId = existingClient.id
+        .limit(1)
+        
+      if (existingClients && existingClients.length > 0) {
+        clientId = existingClients[0].id
+      }
     }
 
     if (clientId) {

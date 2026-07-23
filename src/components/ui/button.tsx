@@ -9,17 +9,17 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variants = {
   default:
-    'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] border-none',
+    'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] border-none shadow-sm',
   secondary:
-    'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-gray-50',
+    'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
   outline:
-    'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-gray-50',
+    'bg-transparent border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
   ghost:
-    'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-none',
+    'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-none',
   destructive:
-    'bg-transparent text-[var(--danger)] hover:opacity-80 border-none',
+    'bg-transparent text-[var(--danger)] hover:bg-red-50 dark:hover:bg-red-950/30 border-none',
   link:
-    'bg-transparent text-[var(--accent)] hover:text-[var(--accent-hover)] underline-offset-4 hover:underline p-0 h-auto',
+    'bg-transparent text-[var(--primary)] hover:text-[var(--primary-hover)] underline-offset-4 hover:underline p-0 h-auto',
 }
 
 const sizes = {

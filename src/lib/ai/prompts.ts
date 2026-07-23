@@ -6,7 +6,7 @@
  * the prompt structure in ways that affect the output schema.
  */
 
-export const PROMPT_VERSION = 'v1.0'
+export const PROMPT_VERSION = 'v1.1'
 
 /**
  * Builds the analysis prompt for multimodal Gemini document extraction.
@@ -49,7 +49,11 @@ CRITICAL: Look for backward references — phrases like:
 - "ARN: ..."
 - "In response to SCN dated ..."
 - "Reference: ..."
-These are the chain links to parent documents.
+These are the chain links to parent documents. A single document (like an OIO) may reference multiple parent documents.
+
+TRANSLATION & TRANSLITERATION:
+- If the document is in a regional language (e.g. Hindi, Marathi), translate the summary and text fields to English.
+- Transliterate named entities (names of people, places) into English characters.
 
 FINANCIAL YEAR format: "YYYY-YY" e.g. "2021-22"
 
@@ -61,19 +65,22 @@ Respond ONLY with valid JSON matching this exact schema (no markdown, no explana
 
 {
   "doc_type": "OIO" | "APL-01" | "DRC-01" | ... (from list above, or "OTHER"),
+  "document_class": "proceeding" | "supporting",
+  "document_category": "invoice" | "client_document" | "explanation" | "other" | null,
   "reference_number": "full official reference number of THIS document" | null,
   "gstin": "15-char GSTIN" | null,
+  "client_identifiers": ["Extract EVERYTHING possible to help identify the client: PAN, TAN, CIN, Registration Numbers, or any other IDs found"],
   "client_name": "taxpayer/company name" | null,
   "doc_date": "YYYY-MM-DD" | null,
-  "financial_year": "YYYY-YY" | null,
+  "financial_years": ["array of FYs e.g., FY21-22, FY22-23"],
   "tax_period": "human-readable period e.g. Apr 2021 – Mar 2022" | null,
   "direction": "incoming" | "outgoing",
   "issued_by": "name/designation of issuing authority or 'taxpayer'" | null,
-  "summary": "2-3 sentence factual summary of what this document does and its outcome",
+  "summary": "2-3 sentence factual summary of what this document does and its outcome (translated to English if necessary)",
   "chaining_attributes": {
-    "references_document": "reference number of the PARENT document this responds to" | null,
+    "references_documents": ["array of reference numbers of PARENT documents this responds to"],
     "gstin": "GSTIN from chaining context" | null,
-    "financial_year": "FY from chaining context" | null,
+    "financial_years": ["FYs from chaining context"],
     "matter_ref": "matter description if mentioned" | null,
     "link_type": "responds_to" | "arises_from" | "challenges" | "summarizes" | null
   },
@@ -106,14 +113,14 @@ export function buildEmbeddingText(doc: {
   doc_type: string | null
   reference_number: string | null
   summary: string | null
-  financial_year: string | null
+  financial_years?: string[]
   issued_by: string | null
   client_name: string | null
 }): string {
   const parts = [
     doc.doc_type,
     doc.reference_number,
-    doc.financial_year ? `FY ${doc.financial_year}` : null,
+    doc.financial_years && doc.financial_years.length > 0 ? `FY ${doc.financial_years.join(', ')}` : null,
     doc.issued_by ? `Issued by: ${doc.issued_by}` : null,
     doc.client_name ? `Taxpayer: ${doc.client_name}` : null,
     doc.summary,

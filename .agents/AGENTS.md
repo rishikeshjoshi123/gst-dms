@@ -2,45 +2,44 @@
 
 Always use this UI pattern as the application development proceeds further.
 
-## 1. Color Tokens
-Commit to these exact tokens. Do not default to dark mode (light mode only for main UI, dark mode only for sidebar). Do not use glassmorphism.
+## 1. Desktop Application Layout (MS Excel / Figma Desktop Feel)
+- **Viewport Container**: Solid `h-screen w-full overflow-hidden` container. The outer window MUST NOT scroll or shake when browsing or interacting.
+- **Fixed Toolbars & Action Bars**: Page title headers, navigation sidebars, action toolbars, and table headers stay **hard-fixed (`shrink-0 z-10`)**.
+- **Inner Panel Scrolling**: Internal content areas scroll independently using subtle custom scrollbars (`scrollbar-none` or `custom-scrollbar`), maintaining zero layout shift.
+
+## 2. Color System & Dark Mode
+The app supports seamless Light and Dark mode themes:
+
+### Light Mode Tokens:
 - **Background**: `#FAFAF9` (warm white)
-- **Surface (cards)**: `#FFFFFF` with shadow: `0 1px 3px rgba(0,0,0,0.08)`
+- **Surface (cards)**: `#FFFFFF` with shadow: `0 2px 8px rgba(0,0,0,0.06)`
 - **Border**: `#E5E2DC` (warm gray)
-- **Border-strong**: `#C9C5BE` (for inputs at rest)
-- **Sidebar bg**: `#1C1917` (warm near-black, like stone-900)
-- **Sidebar text**: `#E7E5E4`
-- **Sidebar active**: `#292524` with left border `2px #F97316` (amber accent)
-- **Primary action**: `#1D4ED8` (deep blue — authoritative)
-- **Primary hover**: `#1E40AF`
-- **Danger**: `#DC2626`
+- **Border-strong**: `#C9C5BE` (inputs at rest)
+- **Sidebar bg**: `#1C1917` (warm stone-900)
+- **Primary action**: `#1D4ED8` (deep blue) or gradient `linear-gradient(135deg, #1D4ED8 0%, #3B82F6 100%)`
 - **Text primary**: `#1C1917`
 - **Text secondary**: `#78716C`
 - **Text muted**: `#A8A29E`
 
-## 2. Typography
-Three sizes, three weights, nothing else:
-- **Page title**: `24px / 600`
-- **Section heading**: `16px / 600`
-- **Body**: `14px / 400`
-- **Caption/label**: `12px / 500` (uppercase for labels, normal case for descriptions)
+### Dark Mode Tokens (`.dark`):
+- **Background**: `#0B0F17` (obsidian midnight)
+- **Surface (cards)**: `#161E2E` / `#1E293B` with ambient glow shadow
+- **Border**: `#1F293D` / `#334155`
+- **Border-strong**: `#475569`
+- **Sidebar bg**: `#0F172A`
+- **Primary action**: `#3B82F6` or gradient `linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)`
+- **Text primary**: `#F8FAFC`
+- **Text secondary**: `#94A3B8`
+- **Text muted**: `#64748B`
 
-## 3. Sidebar & Topbar
-- **Sidebar**: The single source of navigation authority. Has the org name and switcher at the top, navigation in the middle, and user info at the bottom.
-  - *Rest*: text only, no background
-  - *Hover*: very subtle background `#292524`
-  - *Active*: `#292524` background + `2px` left amber border + text in white
-- **Topbar**: Stripped down to a 48px bar that only shows the current page breadcrumb on the left and the user avatar on the right — no logo, no org name.
+## 3. Vibrant Gradients, Ambient Shadows & Processing Animations
+- **Animated Gradient Borders**: For active processing/pipeline operations (e.g. document analysis, queue processing), wrap containers in multi-color animated gradient borders (`.animated-gradient-border`).
+- **Ambient Gradient Shadows**: Key stat cards and primary action cards feature subtle colored ambient shadows (`shadow-[0_8px_30px_rgba(59,130,246,0.15)]` or `dark:shadow-[0_8px_30px_rgba(59,130,246,0.25)]`).
+- **Litigation Graph Aesthetics**: Node borders use subtle gradient accents; graph connector lines use animated flowing SVG gradients (`stroke: url(#edge-gradient)`).
 
-## 4. Modals and Forms
-One consistent component:
-- White background, `rounded-lg`, `shadow-xl` (not a flat box)
-- Title `18px/600`, subtitle `14px/400` in muted color
-- **Inputs**: white background, 1px solid `#C9C5BE` border at rest, 2px solid `#1D4ED8` ring on focus, 4px border radius
-- **Required fields**: a small red asterisk, not just "required" text
-- **Action buttons** right-aligned: secondary (outlined) on left, primary (filled blue) on right
+## 4. Toast Notifications
+- Styled Sonner toasts with custom left-accent borders, dark mode compatibility, and smooth slide-in animations.
 
-## 5. Cards
-Two types, used consistently:
-- **Stat card (dashboard metrics)**: white, subtle shadow, large number in `32px/700`, label in `12px/500` muted uppercase, a directional arrow icon top-right that links to the relevant page. Cards representing action items get a thin amber left border.
-- **List card (clients, matters, documents)**: white, 1px warm gray border, 12px padding, hover state adds a faint shadow and shifts the chevron right by 2px. Show secondary information (matter count, open matters count, last document date).
+## 5. Sidebar & Topbar
+- **Sidebar**: Fixed navigation with active amber accent border (`2px #F97316`).
+- **Topbar**: Fixed `48px` header with breadcrumbs, org switcher, and one-click Theme Toggle (Light / Dark mode).

@@ -15,13 +15,13 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
 
   const handleGenerate = async () => {
     setIsGenerating(true)
-    const toastId = toast.loading('Triggering AI Wiki generation...')
+    const toastId = toast.loading('Triggering Case Synthesis...')
     const res = await triggerWikiGeneration(matterId)
     if (res.error) {
       toast.error(res.error, { id: toastId })
       setIsGenerating(false)
     } else {
-      toast.success('AI generation started! Synthesizing the case wiki in the background (takes 1-2 mins).', {
+      toast.success('Synthesis started! Synthesizing the case wiki in the background (takes 1-2 mins).', {
         id: toastId,
         duration: 5000
       })
@@ -63,18 +63,18 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
         <Sparkles size={40} className="mb-4 text-blue-500 opacity-80" />
         <h3 className="text-xl font-medium text-[var(--text-primary)] mb-2">CaseWiki</h3>
         <p className="text-sm max-w-md text-center mb-6 leading-relaxed">
-          The CaseWiki provides an AI-synthesized summary of the entire matter history, key arguments, and outstanding tasks based on uploaded documents.
+          The CaseWiki provides an automated synthesized summary of the entire matter history, key arguments, and outstanding tasks based on uploaded documents.
         </p>
         <Button onClick={handleGenerate} disabled={isGenerating} className="bg-blue-600 hover:bg-blue-700 text-white">
           {isGenerating ? (
             <>
               <RefreshCw size={16} className="mr-2 animate-spin" />
-              Generating Wiki...
+              Synthesizing Wiki...
             </>
           ) : (
             <>
               <Sparkles size={16} className="mr-2" />
-              Generate with AI
+              Generate Case Wiki
             </>
           )}
         </Button>

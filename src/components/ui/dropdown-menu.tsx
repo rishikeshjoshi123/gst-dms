@@ -22,8 +22,8 @@ function DropdownMenuContent({
         sideOffset={sideOffset}
         className={cn(
           'z-50 min-w-[180px] overflow-hidden rounded-[--radius-md]',
-          'bg-white border border-[--border-default]',
-          'shadow-[--shadow-lg] p-1.5',
+          'bg-[var(--surface)] border border-[var(--border-strong)]',
+          'shadow-[var(--shadow-xl)] p-1.5',
           'animate-scale-in',
           className
         )}
@@ -48,8 +48,8 @@ function DropdownMenuItem({
         'relative flex cursor-pointer select-none items-center gap-2.5 rounded-[--radius-md]',
         'px-3 py-2 text-[14px] transition-colors outline-none',
         destructive
-          ? 'text-[--danger] hover:bg-red-50'
-          : 'text-[--text-secondary] hover:bg-[--bg-base] hover:text-[--text-primary]',
+          ? 'text-[var(--danger)] hover:bg-red-50 dark:hover:bg-red-950/30'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         inset && 'pl-8',
         className

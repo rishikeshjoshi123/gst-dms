@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
+import { generateEmbedding } from '@/lib/ai/vertex'
 
 export interface SearchResultItem {
   id: string
@@ -11,14 +12,58 @@ export interface SearchResultItem {
   type: 'client' | 'matter' | 'document'
 }
 
-export async function searchAll(query: string): Promise<SearchResultItem[]> {
+export async function searchAll(query: string, semantic: boolean = false): Promise<SearchResultItem[]> {
   if (!query || query.trim().length < 2) return []
   
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
+  const { data: { user } } = await supabase.auth.getUser()
 
   const formattedQuery = `%${query.trim()}%`
+
+  // Generate embedding for query (gracefully fallback if it fails)
+  let vectorMatches: any[] = []
+  if (semantic) {
+    try {
+      const aiResult = await generateEmbedding(query)
+      if (aiResult?.embedding) {
+        // Log AI usage for semantic search
+        const { logUsage } = await import('@/lib/actions/usage')
+        const { VERTEX_EMBEDDING_MODEL } = await import('@/lib/ai/vertex')
+        await logUsage(supabase, {
+          orgId,
+          userId: user?.id,
+          operationType: 'semantic_search',
+          modelName: VERTEX_EMBEDDING_MODEL,
+          inputTokens: aiResult.charCount,
+          outputTokens: 0
+        })
+
+        const { data: vMatchesRes } = await (supabase.rpc as any)('match_all_documents', {
+          query_embedding: `[${aiResult.embedding.join(',')}]`,
+          match_threshold: 0.7,
+          match_count: 5,
+          p_org_id: orgId
+        })
+        const vMatches = vMatchesRes as any[]
+        if (vMatches && vMatches.length > 0) {
+          // Fetch document details for the vector matches
+          const docIds = vMatches.map((m: any) => m.id)
+          const { data: vDocs } = await supabase
+            .from('documents')
+            .select('id, storage_path, reference_number, matter_id, matters(title, client_id)')
+            .in('id', docIds)
+            
+          if (vDocs) {
+            vectorMatches = vDocs
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Vector search failed', e)
+    }
+  }
 
   const [clientsRes, mattersRes, docsRes] = await Promise.all([
     supabase
@@ -43,6 +88,14 @@ export async function searchAll(query: string): Promise<SearchResultItem[]> {
       .or(`storage_path.ilike.${formattedQuery},reference_number.ilike.${formattedQuery}`)
       .limit(10)
   ])
+
+  // Combine text matches with vector matches (avoiding duplicates)
+  const combinedDocs = docsRes.data ? [...docsRes.data] : []
+  for (const vDoc of vectorMatches) {
+    if (!combinedDocs.some(d => d.id === vDoc.id)) {
+      combinedDocs.push(vDoc)
+    }
+  }
 
   const results: SearchResultItem[] = []
 

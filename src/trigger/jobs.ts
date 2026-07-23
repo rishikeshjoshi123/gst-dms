@@ -22,6 +22,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
 import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
+import { logUsage } from '@/lib/actions/usage'
+import { VERTEX_DOCUMENT_MODEL, VERTEX_EMBEDDING_MODEL } from '@/lib/ai/vertex'
 
 export interface ProcessDocumentPayload {
   docId: string
@@ -31,6 +33,7 @@ export interface ProcessDocumentPayload {
   uploadedBy: string
   /** 'metadata_only' skips chain placement; preserves all links */
   reprocessMode?: 'metadata_only' | 'full'
+  skipDuplicateCheck?: boolean
 }
 
 export const processDocument = task({
@@ -51,6 +54,7 @@ export const processDocument = task({
       storagePath,
       uploadedBy,
       reprocessMode = 'full',
+      skipDuplicateCheck = false,
     } = payload
 
     // Lazy-load service client (avoids bundling issues)
@@ -72,44 +76,46 @@ export const processDocument = task({
     const fileBuffer = Buffer.from(await fileData.arrayBuffer())
 
     // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
-    console.log('[Step 2] SHA-256 duplicate check')
-
     const { createHash } = await import('crypto')
     const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
 
-    const { data: exactDupRaw } = await supabase
-      .from('documents')
-      .select('id, reference_number')
-      .eq('matter_id', matterId)
-      .eq('file_hash_sha256', sha256)
-      .neq('id', docId)
-      .is('deleted_at', null)
-      .maybeSingle()
+    if (!skipDuplicateCheck) {
+      console.log('[Step 2] SHA-256 duplicate check')
 
-    const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
+      const { data: exactDupRaw } = await supabase
+        .from('documents')
+        .select('id, reference_number')
+        .eq('matter_id', matterId)
+        .eq('file_hash_sha256', sha256)
+        .neq('id', docId)
+        .is('deleted_at', null)
+        .maybeSingle()
 
-    if (exactDup) {
-      await updateDocStatus(supabase, docId, 'needs_review')
-      // Store the reason in the review_reason or raw_metadata if review_reason isn't accessible,
-      // wait, does updateDocStatus allow passing a reason? No, it only takes status.
-      // Let's manually update the review_reason column on the documents table.
-      await (supabase as any).from('documents').update({
-        status: 'needs_review',
-        review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
-      }).eq('id', docId)
+      const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
 
-      await createNotification(supabase, {
-        orgId,
-        userId: uploadedBy,
-        type: 'processing_failed',
-        title: 'Duplicate document detected',
-        body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
-        entityType: 'document',
-        entityId: exactDup.id,
-      })
-      
-      console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
-      return { status: 'needs_review', reason: 'exact_duplicate' }
+      if (exactDup) {
+        await updateDocStatus(supabase, docId, 'needs_review')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from('documents').update({
+          status: 'needs_review',
+          review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
+        }).eq('id', docId)
+
+        await createNotification(supabase, {
+          orgId,
+          userId: uploadedBy,
+          type: 'processing_failed',
+          title: 'Duplicate document detected',
+          body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
+          entityType: 'document',
+          entityId: exactDup.id,
+        })
+        
+        console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
+        return { status: 'needs_review', reason: 'exact_duplicate' }
+      }
+    } else {
+      console.log('[Step 2] Skipped exact duplicate check')
     }
 
     // Store SHA-256
@@ -122,6 +128,18 @@ export const processDocument = task({
     console.log('[Step 3] Vertex AI analysis')
 
     const aiResult = await analyzeDocument(fileBuffer)
+
+    if (aiResult?.usage) {
+      await logUsage(supabase, {
+        orgId,
+        userId: uploadedBy,
+        docId,
+        operationType: 'document_analysis',
+        modelName: VERTEX_DOCUMENT_MODEL,
+        inputTokens: aiResult.usage.promptTokens,
+        outputTokens: aiResult.usage.candidateTokens
+      })
+    }
 
     if (!aiResult) {
       await updateDocStatus(supabase, docId, 'needs_review')
@@ -140,7 +158,7 @@ export const processDocument = task({
       doc_date: aiResult.doc_date,
       direction: aiResult.direction,
       issued_by: aiResult.issued_by,
-      financial_year: aiResult.financial_year,
+      financial_year: aiResult.financial_years && aiResult.financial_years.length > 0 ? aiResult.financial_years[0] : null,
       summary: aiResult.summary,
       raw_metadata: aiResult as any,
       ai_prompt_version: aiResult.prompt_version,
@@ -158,35 +176,49 @@ export const processDocument = task({
 
     let embeddingStr: string | null = null
     if (embeddingText) {
-      const embedding = await generateEmbedding(embeddingText)
-      if (embedding) {
-        embeddingStr = `[${embedding.join(',')}]`
+      const res = await generateEmbedding(embeddingText)
+      if (res && res.embedding) {
+        embeddingStr = `[${res.embedding.join(',')}]`
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (supabase as any).from('documents').update({ embedding: embeddingStr }).eq('id', docId)
+
+        await logUsage(supabase, {
+          orgId,
+          userId: uploadedBy,
+          docId,
+          operationType: 'embedding_generation',
+          modelName: VERTEX_EMBEDDING_MODEL,
+          inputTokens: res.charCount, // Treating charCount as token count for pricing purposes
+          outputTokens: 0
+        })
       }
     }
 
     // ── Step 6: Semantic duplicate check ──────────────────────────
-    console.log('[Step 6] Semantic duplicate check (cosine similarity)')
+    if (!skipDuplicateCheck) {
+      console.log('[Step 6] Semantic duplicate check (cosine similarity)')
 
-    if (embeddingStr) {
-      const { data: similarDocs, error: simError } = await supabase.rpc('match_documents', {
-        query_embedding: embeddingStr,
-        match_threshold: 0.97,
-        match_count: 5,
-        p_matter_id: matterId
-      })
+      if (embeddingStr) {
+        const { data: similarDocs, error: simError } = await supabase.rpc('match_documents', {
+          query_embedding: embeddingStr,
+          match_threshold: 0.97,
+          match_count: 5,
+          p_matter_id: matterId
+        })
 
-      if (!simError && similarDocs) {
-        const matchedDoc = similarDocs.find((d: any) => d.id !== docId)
-        if (matchedDoc) {
-          console.warn('[Step 6] Semantic duplicate detected', matchedDoc.id)
-          await updateDocStatus(supabase, docId, 'needs_review')
-          // Optional: we can add a notification or update review_reason if we had such column
+        if (!simError && similarDocs) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const matchedDoc = similarDocs.find((d: any) => d.id !== docId)
+          if (matchedDoc) {
+            console.warn('[Step 6] Semantic duplicate detected', matchedDoc.id)
+            await updateDocStatus(supabase, docId, 'needs_review')
+          }
         }
+      } else {
+        console.warn('[Step 6] No embedding generated, skipping semantic check')
       }
     } else {
-      console.warn('[Step 6] No embedding generated, skipping semantic check')
+      console.log('[Step 6] Skipped semantic duplicate check')
     }
 
     // ── Step 7: Content hash check ────────────────────────────────
@@ -342,6 +374,18 @@ export const analyzeStagedDocument = task({
     // 2. Analyze
     const aiResult = await analyzeDocument(fileBuffer)
     
+    if (aiResult?.usage) {
+      await logUsage(supabase, {
+        orgId,
+        userId: uploadedBy,
+        docId: null, // Staged doc, no final doc ID yet
+        operationType: 'staged_document_analysis',
+        modelName: VERTEX_DOCUMENT_MODEL,
+        inputTokens: aiResult.usage.promptTokens,
+        outputTokens: aiResult.usage.candidateTokens
+      })
+    }
+
     if (!aiResult) {
       await (supabase as any)
         .from('staged_documents')
@@ -381,48 +425,125 @@ export const analyzeStagedDocument = task({
       return { stagedDocId, status: 'ready_to_assign' }
     }
 
-    let suggestedMatterIds: string[] = []
-    let suggestedClientId: string | null = null
-    let suggestedMatterId: string | null = null
+    let matchedClient = null;
 
-    if (aiResult && aiResult.gstin) {
-      // Find clients with this GSTIN in this org
-      const { data: clients } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('gstin', aiResult.gstin)
-        .is('deleted_at', null)
-
-      if (clients && clients.length > 0) {
-        suggestedClientId = clients[0].id
-        const clientIds = clients.map(c => c.id)
-        // Find matters for these clients
-        const { data: matters } = await supabase
-          .from('matters')
-          .select('id')
-          .in('client_id', clientIds)
-          .eq('org_id', orgId)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (matters && matters.length > 0) {
-          suggestedMatterId = matters[0].id
-          suggestedMatterIds = matters.map(m => m.id)
+    if (aiResult) {
+      if (aiResult.gstin) {
+        const { data } = await supabase.from('clients').select('id, name').eq('org_id', orgId).eq('gstin', aiResult.gstin).is('deleted_at', null).maybeSingle();
+        if (data) matchedClient = data;
+      }
+      if (!matchedClient && aiResult.client_identifiers && aiResult.client_identifiers.length > 0) {
+        const { data: allClients } = await supabase.from('clients').select('id, name, pan, gstin').eq('org_id', orgId).is('deleted_at', null);
+        if (allClients) {
+          outer: for (const client of allClients) {
+            for (const idStr of aiResult.client_identifiers) {
+              if (client.pan && idStr.includes(client.pan)) {
+                matchedClient = client;
+                break outer;
+              }
+              if (client.gstin && idStr.includes(client.gstin)) {
+                matchedClient = client;
+                break outer;
+              }
+            }
+          }
         }
+      }
+      if (!matchedClient && aiResult.client_name) {
+        const { data } = await supabase.from('clients').select('id, name').eq('org_id', orgId).ilike('name', `%${aiResult.client_name}%`).is('deleted_at', null).maybeSingle();
+        if (data) matchedClient = data;
       }
     }
 
-    // 3. Update staged_document
+    if (matchedClient) {
+      // @ts-ignore
+      const fys = (aiResult && (aiResult as any).financial_years && (aiResult as any).financial_years.length > 0) ? (aiResult as any).financial_years : ['Unknown FY'];
+      
+      const createdMatterIds: string[] = [];
+      const baseName = storagePath.split('/').pop() || 'document.pdf'
+      const { data: fileData } = await supabase.storage.from('staging').download(storagePath)
+
+      for (const fy of fys) {
+        let { data: matter } = await supabase.from('matters').select('id').eq('org_id', orgId).eq('client_id', matchedClient.id).eq('financial_year', fy).is('deleted_at', null).maybeSingle();
+        
+        if (!matter) {
+          const { data: newMatter } = await supabase.from('matters').insert({
+            org_id: orgId,
+            client_id: matchedClient.id,
+            financial_year: fy,
+            title: fy === 'Unknown FY' ? 'General Matter' : `FY ${fy}`,
+            status: 'active'
+          }).select('id').single();
+          matter = newMatter;
+        }
+
+        if (matter) {
+          createdMatterIds.push(matter.id);
+          
+          let newStoragePath = storagePath;
+          if (fileData) {
+            const path = `${orgId}/${matter.id}/${Date.now()}_${baseName}`
+            const { error: uploadErr } = await supabase.storage.from('documents').upload(path, fileData, { contentType: 'application/pdf' })
+            if (!uploadErr) {
+              newStoragePath = path;
+            }
+          }
+
+          const { data: newDoc } = await supabase.from('documents').insert({
+            org_id: orgId,
+            matter_id: matter.id,
+            storage_path: newStoragePath,
+            created_by: uploadedBy,
+            status: 'processing',
+            review_status: 'unreviewed',
+            doc_type: aiResult.doc_type || 'OTHER',
+            direction: aiResult.direction || 'incoming',
+            document_class: aiResult.document_class || 'proceeding',
+            financial_year: fy,
+            raw_metadata: aiResult as any
+          }).select('id').single();
+
+          if (newDoc) {
+             const { tasks } = await import('@trigger.dev/sdk/v3');
+             await tasks.trigger('process-document', {
+               docId: newDoc.id,
+               matterId: matter.id,
+               orgId: orgId,
+               storagePath: newStoragePath,
+               uploadedBy: uploadedBy,
+               reprocessMode: 'full'
+             })
+          }
+        }
+      }
+
+      if (fileData) {
+        await supabase.storage.from('staging').remove([storagePath]);
+      }
+      await supabase.from('staged_documents').delete().eq('id', stagedDocId);
+      
+      await createNotification(supabase, {
+        orgId,
+        userId: uploadedBy,
+        type: 'document_ready',
+        title: 'Document Auto-Assigned',
+        body: `Document automatically assigned to ${matchedClient.name} for ${fys.join(', ')}.`,
+        entityType: 'client',
+        entityId: matchedClient.id,
+      })
+
+      return { stagedDocId, status: 'auto_assigned' };
+    }
+
+    // 3. If no client found, just update staged_document with ready_to_assign so user can do it manually
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('staged_documents')
       .update({ 
         status: 'ready_to_assign', 
-        suggested_matter_ids: suggestedMatterIds,
-        suggested_client_id: suggestedClientId,
-        suggested_matter_id: suggestedMatterId,
+        suggested_matter_ids: [],
+        suggested_client_id: null,
+        suggested_matter_id: null,
         raw_metadata: aiResult as any
       })
       .eq('id', stagedDocId)
@@ -432,8 +553,8 @@ export const analyzeStagedDocument = task({
       orgId,
       userId: uploadedBy,
       type: 'staged_doc_ready',
-      title: 'Document analyzed — please assign it to a matter',
-      body: 'Open the Needs Attention panel to assign this document.',
+      title: 'Action Required: Assign Document',
+      body: 'We could not automatically match the client. Please assign manually.',
       entityType: 'staged_document',
       entityId: stagedDocId,
     })
@@ -461,6 +582,43 @@ export const deadlineReminderCron = task({
 
     console.log('[Deadline cron] Checking approaching deadlines...')
     return { checked: true }
+  },
+})
+
+// ================================================================
+// Retry failed documents cron (runs hourly)
+// ================================================================
+export const retryFailedDocumentsCron = task({
+  id: 'retry-failed-documents',
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const supabase = createServiceClient() as SupabaseClient<Database>
+    const { tasks } = await import('@trigger.dev/sdk/v3')
+
+    console.log('[Retry cron] Fetching failed documents...')
+    const { data: failedDocs } = await supabase
+      .from('documents')
+      .select('id, matter_id, org_id, storage_path, created_by')
+      .eq('status', 'failed')
+      .is('deleted_at', null)
+      .limit(50)
+
+    if (failedDocs && failedDocs.length > 0) {
+      console.log(`[Retry cron] Found ${failedDocs.length} failed documents. Triggering reprocessing...`)
+      
+      for (const doc of failedDocs) {
+        await tasks.trigger('process-document', {
+          docId: doc.id,
+          matterId: doc.matter_id,
+          orgId: doc.org_id,
+          storagePath: doc.storage_path,
+          uploadedBy: doc.created_by,
+          reprocessMode: 'full'
+        })
+      }
+    }
+
+    return { retried: failedDocs?.length || 0 }
   },
 })
 
@@ -545,6 +703,18 @@ Details: ${JSON.stringify(d.raw_metadata)}`
 
     if (!wikiResult) {
       throw new Error('Wiki generation returned null')
+    }
+    
+    if (wikiResult.usage) {
+      await logUsage(supabase, {
+        orgId,
+        userId: triggeredBy,
+        docId: null,
+        operationType: 'wiki_summary',
+        modelName: VERTEX_DOCUMENT_MODEL,
+        inputTokens: wikiResult.usage.promptTokens,
+        outputTokens: wikiResult.usage.candidateTokens
+      })
     }
 
     const sectionsToUpsert = [

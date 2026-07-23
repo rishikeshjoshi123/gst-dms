@@ -10,8 +10,8 @@ export function MatterTimelineTab({ documents, links, notes = [] }: { documents:
   const selectedDoc = documents.find(d => d.id === selectedDocId) || null
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 w-full h-full overflow-hidden min-h-0">
-      <div className={`transition-all duration-300 ease-in-out h-full overflow-y-auto pr-1 custom-scrollbar ${selectedDoc ? 'lg:w-[45%] w-full shrink-0' : 'w-full'}`}>
+    <div className="relative w-full h-full overflow-hidden rounded-lg">
+      <div className="w-full h-full">
         <TimelineGraph 
           documents={documents} 
           links={links} 
@@ -21,9 +21,12 @@ export function MatterTimelineTab({ documents, links, notes = [] }: { documents:
       </div>
       
       {selectedDoc && (
-        <div className="w-full lg:w-[55%] h-full overflow-y-auto pr-1 custom-scrollbar shrink-0">
+        <div className="absolute top-0 right-0 h-full w-[420px] max-w-[90%] z-50 animate-in slide-in-from-right-8 duration-300 p-4 drop-shadow-2xl">
           <TimelineDocumentDetail 
+
             doc={selectedDoc} 
+            allDocuments={documents}
+            links={links}
             notes={notes}
             onClose={() => setSelectedDocId(null)}
           />

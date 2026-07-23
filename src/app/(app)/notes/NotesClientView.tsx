@@ -3,23 +3,45 @@
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
-import { Button } from '@/components/ui/button'
-import { Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink } from 'lucide-react'
+import {
+  Search, Pin, Trash2, CheckCircle2, Circle, FileText,
+  Check, Edit2, MessageSquarePlus, CornerDownRight, ExternalLink,
+  StickyNote, Filter, X
+} from 'lucide-react'
 import { updateNote, deleteNote, createNote } from '@/lib/actions/notes'
-import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { formatDistanceToNow } from 'date-fns'
 
-const TEMPLATE_LABELS = {
-  general: 'General',
-  hearing_note: 'Hearing Note',
-  client_instruction: 'Client Instruction',
-  research_note: 'Research Note',
+const TEMPLATE_META = {
+  general: {
+    label: 'General',
+    gradient: 'from-slate-500 to-slate-600',
+    pillClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    borderClass: 'border-l-slate-400',
+  },
+  hearing_note: {
+    label: 'Hearing Note',
+    gradient: 'from-blue-500 to-indigo-500',
+    pillClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
+    borderClass: 'border-l-blue-500',
+  },
+  client_instruction: {
+    label: 'Client Instruction',
+    gradient: 'from-emerald-500 to-teal-500',
+    pillClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+    borderClass: 'border-l-emerald-500',
+  },
+  research_note: {
+    label: 'Research Note',
+    gradient: 'from-violet-500 to-purple-500',
+    pillClass: 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300',
+    borderClass: 'border-l-violet-500',
+  },
 }
 
-const TEMPLATE_COLORS = {
-  general: 'bg-slate-100 text-slate-800 border-slate-200',
-  hearing_note: 'bg-blue-50 text-blue-800 border-blue-200',
-  client_instruction: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-  research_note: 'bg-purple-50 text-purple-800 border-purple-200',
+function getInitials(email: string) {
+  const name = email.split('@')[0]
+  return name.slice(0, 2).toUpperCase()
 }
 
 export function NotesClientView({
@@ -37,16 +59,13 @@ export function NotesClientView({
   const [searchQuery, setSearchQuery] = useState('')
   const [filterMatter, setFilterMatter] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [filterActionItems, setFilterActionItems] = useState('all') 
-  
+  const [filterActionItems, setFilterActionItems] = useState('all')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
-  
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const [replyContent, setReplyContent] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  // Filter notes locally (only parent notes are filtered for the list, children are always kept for the thread)
   const allParentNotes = useMemo(() => notes.filter(n => !n.parent_note_id), [notes])
   const childNotesByParent = useMemo(() => {
     const map = new Map<string, any[]>()
@@ -54,8 +73,7 @@ export function NotesClientView({
       if (!map.has(n.parent_note_id)) map.set(n.parent_note_id, [])
       map.get(n.parent_note_id)!.push(n)
     })
-    // Sort replies by oldest first
-    for (const [key, replies] of map.entries()) {
+    for (const [, replies] of map.entries()) {
       replies.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     }
     return map
@@ -73,61 +91,49 @@ export function NotesClientView({
     })
   }, [allParentNotes, searchQuery, filterMatter, filterType, filterActionItems])
 
+  const pinnedThreads = filteredThreads.filter(n => n.is_pinned)
+  const unpinnedThreads = filteredThreads.filter(n => !n.is_pinned)
+
   const handleTogglePin = async (note: any) => {
     const newPinned = !note.is_pinned
     const res = await updateNote(note.id, { is_pinned: newPinned })
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      setNotes(prev => {
-        const updated = prev.map(n => n.id === note.id ? { ...n, is_pinned: newPinned } : n)
-        return updated.sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        })
+    if (res.error) { toast.error(res.error); return }
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === note.id ? { ...n, is_pinned: newPinned } : n)
+      return updated.sort((a, b) => {
+        if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
-      toast.success(newPinned ? 'Note pinned' : 'Note unpinned')
-    }
+    })
+    toast.success(newPinned ? 'Note pinned' : 'Note unpinned')
   }
 
   const handleToggleResolve = async (note: any) => {
     const newResolved = !note.action_item_resolved
     const res = await updateNote(note.id, { action_item_resolved: newResolved })
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      setNotes(prev => prev.map(n => n.id === note.id ? { ...n, action_item_resolved: newResolved } : n))
-      toast.success(newResolved ? 'Task resolved' : 'Task reopened')
-    }
+    if (res.error) { toast.error(res.error); return }
+    setNotes(prev => prev.map(n => n.id === note.id ? { ...n, action_item_resolved: newResolved } : n))
+    toast.success(newResolved ? 'Task resolved' : 'Task reopened')
   }
 
   const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Are you sure you want to delete this note?')) return
+    if (!confirm('Delete this note?')) return
     const res = await deleteNote(noteId)
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      setNotes(prev => prev.filter(n => n.id !== noteId))
-      if (selectedThreadId === noteId) setSelectedThreadId(null)
-      toast.success('Note deleted')
-    }
+    if (res.error) { toast.error(res.error); return }
+    setNotes(prev => prev.filter(n => n.id !== noteId))
+    if (selectedThreadId === noteId) setSelectedThreadId(null)
+    toast.success('Note deleted')
   }
 
-  const startEditing = (note: any) => {
-    setEditingNoteId(note.id)
-    setEditContent(note.content)
-  }
+  const startEditing = (note: any) => { setEditingNoteId(note.id); setEditContent(note.content) }
 
   const handleSaveEdit = async (noteId: string) => {
     if (!editContent.trim()) return
     const res = await updateNote(noteId, { content: editContent })
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: editContent } : n))
-      setEditingNoteId(null)
-      toast.success('Note updated')
-    }
+    if (res.error) { toast.error(res.error); return }
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: editContent } : n))
+    setEditingNoteId(null)
+    toast.success('Note updated')
   }
 
   const handleReply = (parentNote: any) => {
@@ -139,238 +145,410 @@ export function NotesClientView({
         content: replyContent,
         templateType: 'general',
         isActionItem: false,
-        parentNoteId: parentNote.id
+        parentNoteId: parentNote.id,
       })
-      if (res.error) {
-        toast.error(res.error)
-      } else {
-        setNotes(prev => [res.note, ...prev])
-        setReplyContent('')
-        toast.success('Reply added')
-      }
+      if (res.error) { toast.error(res.error); return }
+      setNotes(prev => [res.note, ...prev])
+      setReplyContent('')
+      toast.success('Reply added')
     })
   }
 
   const selectedThread = useMemo(() => notes.find(n => n.id === selectedThreadId), [notes, selectedThreadId])
-  const selectedThreadReplies = useMemo(() => selectedThreadId ? (childNotesByParent.get(selectedThreadId) || []) : [], [selectedThreadId, childNotesByParent])
+  const selectedThreadReplies = useMemo(() =>
+    selectedThreadId ? (childNotesByParent.get(selectedThreadId) || []) : [],
+    [selectedThreadId, childNotesByParent]
+  )
+
+  function ThreadCard({ note }: { note: any }) {
+    const isSelected = selectedThreadId === note.id
+    const replyCount = (childNotesByParent.get(note.id) || []).length
+    const meta = TEMPLATE_META[note.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general
+    const initials = getInitials(note.author?.email || 'U')
+
+    return (
+      <div
+        onClick={() => setSelectedThreadId(note.id)}
+        className={cn(
+          'flex flex-col p-3.5 rounded-xl cursor-pointer transition-all duration-200 border group',
+          note.is_pinned && 'border-l-4',
+          note.is_pinned ? meta.borderClass : '',
+          isSelected
+            ? 'bg-[var(--surface)] border-[var(--primary)] shadow-md shadow-blue-500/10'
+            : 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-sm'
+        )}
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {note.is_pinned && <Pin size={10} className="text-amber-500 fill-current shrink-0" />}
+            <span className={cn(
+              'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+              meta.pillClass
+            )}>
+              {meta.label}
+            </span>
+            {note.is_action_item && (
+              <span className={cn(
+                'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                note.action_item_resolved
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+              )}>
+                {note.action_item_resolved ? '✓ Done' : 'Task'}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] text-[var(--text-muted)] shrink-0">
+            {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+          </span>
+        </div>
+
+        <p className="text-sm text-[var(--text-primary)] line-clamp-3 mb-2.5 leading-relaxed">
+          {note.content}
+        </p>
+
+        <div className="flex items-center justify-between mt-auto pt-2 border-t border-[var(--border)]">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              'w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-gradient-to-br shrink-0',
+              meta.gradient
+            )}>
+              {initials}
+            </div>
+            <span className="text-[10px] text-[var(--text-muted)] truncate max-w-[100px]">
+              {note.author?.email?.split('@')[0] || 'Unknown'}
+            </span>
+          </div>
+          {replyCount > 0 && (
+            <div className="flex items-center gap-1 text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] px-1.5 py-0.5 rounded-full">
+              <MessageSquarePlus size={10} />
+              <span className="text-[10px] font-semibold">{replyCount}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden max-w-7xl animate-fade-in">
+    <div className="flex flex-col flex-1 overflow-hidden animate-fade-in">
       <BreadcrumbSetter breadcrumbs={[{ label: 'Notes Hub' }]} />
 
-      {/* Filter and Search Bar - Fixed at top */}
-      <div className="flex flex-col md:flex-row gap-4 p-4 shrink-0 bg-white shadow-sm z-10 border-b border-[--border-subtle]">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A8A29E]" size={16} />
+      {/* Filter & search bar */}
+      <div className="flex flex-wrap items-center gap-2.5 pb-4 shrink-0">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={14} />
           <input
             type="text"
-            placeholder="Search notes content..."
+            placeholder="Search notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-[--border-strong] rounded-lg focus:outline-none focus:ring-2 focus:ring-[--primary]"
+            className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
           />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+              <X size={12} />
+            </button>
+          )}
         </div>
-        <select value={filterMatter} onChange={(e) => setFilterMatter(e.target.value)} className="px-3 py-2 text-sm bg-white border border-[--border-strong] rounded-lg outline-none">
-          <option value="">All Matters</option>
-          {matters.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-        </select>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="px-3 py-2 text-sm bg-white border border-[--border-strong] rounded-lg outline-none">
-          <option value="">All Template Types</option>
-          {Object.entries(TEMPLATE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select value={filterActionItems} onChange={(e) => setFilterActionItems(e.target.value)} className="px-3 py-2 text-sm bg-white border border-[--border-strong] rounded-lg outline-none">
-          <option value="all">All Notes & Tasks</option>
-          <option value="notes_only">General Notes Only</option>
-          <option value="pending_tasks">Pending Tasks</option>
-          <option value="resolved_tasks">Completed Tasks</option>
-        </select>
+
+        <div className="flex items-center gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
+          <Filter size={12} className="text-[var(--text-muted)] ml-1.5" />
+          {/* Matter filter */}
+          <select
+            value={filterMatter}
+            onChange={(e) => setFilterMatter(e.target.value)}
+            className="px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none cursor-pointer"
+          >
+            <option value="">All Matters</option>
+            {matters.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+          </select>
+
+          <div className="w-px h-4 bg-[var(--border)]" />
+
+          {/* Type filter */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none cursor-pointer"
+          >
+            <option value="">All Types</option>
+            {Object.entries(TEMPLATE_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+
+          <div className="w-px h-4 bg-[var(--border)]" />
+
+          {/* Action item filter */}
+          <select
+            value={filterActionItems}
+            onChange={(e) => setFilterActionItems(e.target.value)}
+            className="px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none cursor-pointer"
+          >
+            <option value="all">All Notes</option>
+            <option value="notes_only">Notes Only</option>
+            <option value="pending_tasks">Pending Tasks</option>
+            <option value="resolved_tasks">Resolved Tasks</option>
+          </select>
+        </div>
       </div>
 
       {/* Split Pane */}
-      <div className="flex flex-1 min-h-0 overflow-hidden bg-[--bg-surface]">
-        
+      <div className="flex flex-1 min-h-0 overflow-hidden gap-4">
+
         {/* Left Pane: Thread List */}
-        <div className="w-1/3 min-w-[350px] border-r border-[--border-subtle] flex flex-col bg-slate-50/50">
-          <div className="p-4 border-b border-[--border-subtle] bg-white shrink-0">
-            <h2 className="text-sm font-semibold text-[--text-primary] uppercase tracking-wider">Conversations ({filteredThreads.length})</h2>
+        <div className="w-[320px] shrink-0 flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 flex items-center justify-between">
+            <h2 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              Conversations
+            </h2>
+            <span className="text-[10px] font-semibold bg-[var(--surface-hover)] border border-[var(--border)] px-2 py-0.5 rounded-full text-[var(--text-muted)]">
+              {filteredThreads.length}
+            </span>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
             {filteredThreads.length === 0 ? (
-              <div className="py-10 text-center text-[--text-muted]">No threads found.</div>
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+                  <StickyNote size={22} className="text-[var(--text-muted)]" />
+                </div>
+                <p className="text-xs text-[var(--text-muted)] text-center">No notes found</p>
+              </div>
             ) : (
-              filteredThreads.map((note: any) => {
-                const isSelected = selectedThreadId === note.id
-                const replyCount = (childNotesByParent.get(note.id) || []).length
-                
-                return (
-                  <div
-                    key={note.id}
-                    onClick={() => setSelectedThreadId(note.id)}
-                    className={`flex flex-col p-4 border rounded-lg cursor-pointer transition-all ${
-                      isSelected 
-                        ? 'bg-[--primary]/5 border-[--primary] ring-1 ring-[--primary]/20 shadow-sm' 
-                        : 'bg-white border-[--border-subtle] hover:border-[--border-strong]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        {note.is_pinned && <Pin size={12} className="text-amber-500 fill-current" />}
-                        <Badge variant="muted" className={`${TEMPLATE_COLORS[note.template_type as keyof typeof TEMPLATE_COLORS]} text-[9px] uppercase font-bold tracking-wider px-1.5 py-0 border`}>
-                          {TEMPLATE_LABELS[note.template_type as keyof typeof TEMPLATE_LABELS]}
-                        </Badge>
+              <>
+                {pinnedThreads.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 px-1 mb-1">
+                      <Pin size={10} className="text-amber-500 fill-current" />
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Pinned</span>
+                    </div>
+                    {pinnedThreads.map(note => <ThreadCard key={note.id} note={note} />)}
+                    {unpinnedThreads.length > 0 && (
+                      <div className="my-1 flex items-center gap-2">
+                        <div className="flex-1 h-px bg-[var(--border)]" />
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">All Notes</span>
+                        <div className="flex-1 h-px bg-[var(--border)]" />
                       </div>
-                      <span className="text-[10px] text-[--text-muted]">{new Date(note.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-sm text-[--text-primary] line-clamp-3 mb-2">{note.content}</p>
-                    
-                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-[--border-subtle] text-xs">
-                      <span className="text-[--text-muted]">{note.author?.email || 'Unknown'}</span>
-                      {replyCount > 0 && (
-                        <div className="flex items-center gap-1 text-[--text-secondary] font-medium bg-slate-100 px-2 py-0.5 rounded-full">
-                          <MessageSquarePlus size={12} />
-                          {replyCount}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
+                    )}
+                  </>
+                )}
+                {unpinnedThreads.map(note => <ThreadCard key={note.id} note={note} />)}
+              </>
             )}
           </div>
         </div>
 
         {/* Right Pane: Thread Detail */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--surface)]">
           {!selectedThread ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-[--text-muted]">
-              <FileText size={48} className="text-[--border-strong] mb-4" />
-              <p className="text-lg font-medium text-[--text-secondary]">Select a conversation to view details</p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 text-[var(--text-muted)]">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-[var(--border)] flex items-center justify-center">
+                <FileText size={28} className="text-[var(--text-muted)]" />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-[var(--text-primary)]">Select a conversation</p>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Click any note from the list to view its thread</p>
+              </div>
             </div>
           ) : (
             <>
-              {/* Thread Header Context */}
-              <div className="p-4 border-b border-[--border-subtle] bg-slate-50 flex items-center justify-between shrink-0">
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-sm font-bold text-[--text-primary]">Thread Details</h3>
-                  <div className="flex items-center gap-3 text-xs text-[--text-secondary]">
+              {/* Thread Header */}
+              <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--surface)] flex items-center justify-between shrink-0">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                      (TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).pillClass
+                    )}>
+                      {(TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).label}
+                    </span>
                     {selectedThread.matters && (
-                      <span className="flex items-center gap-1">
-                        <FileText size={12} /> {selectedThread.matters.title}
+                      <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                        <FileText size={11} /> {selectedThread.matters.title}
                       </span>
                     )}
                     {selectedThread.documents && (
-                      <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}`} className="flex items-center gap-1 text-[--primary] hover:underline font-mono">
-                        <ExternalLink size={12} /> {selectedThread.documents.reference_number || 'Doc'}
+                      <a
+                        href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}`}
+                        className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-mono"
+                      >
+                        <ExternalLink size={11} /> {selectedThread.documents.reference_number || 'Doc'}
                       </a>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handleTogglePin(selectedThread)} className={`p-2 rounded border transition-colors ${selectedThread.is_pinned ? 'border-amber-200 bg-amber-50 text-amber-600' : 'border-[--border-strong] text-[--text-secondary] hover:bg-slate-100'}`} title="Pin Thread">
+                  <button
+                    onClick={() => handleTogglePin(selectedThread)}
+                    className={cn(
+                      'p-2 rounded-lg border transition-all text-sm',
+                      selectedThread.is_pinned
+                        ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 text-amber-600 dark:text-amber-400'
+                        : 'border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)]'
+                    )}
+                    title="Pin Thread"
+                  >
                     <Pin size={14} className={selectedThread.is_pinned ? 'fill-current' : ''} />
                   </button>
-                  <button onClick={() => handleDeleteNote(selectedThread.id)} className="p-2 rounded border border-[--border-strong] text-[--text-secondary] hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors" title="Delete Thread">
+                  <button
+                    onClick={() => handleDeleteNote(selectedThread.id)}
+                    className="p-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all"
+                    title="Delete Thread"
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>
               </div>
 
               {/* Thread Messages */}
-              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-5 bg-[var(--bg)]">
                 {/* Original Note */}
-                <div className="flex flex-col gap-3">
-                  {selectedThread.quote && (
-                    <div className="ml-4 p-3 bg-yellow-50 border-l-4 border-amber-400 rounded-r-lg shadow-sm">
-                      <div className="flex items-center justify-between mb-1">
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Quote from Page {selectedThread.page_number}</span>
-                         <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}#page=${selectedThread.page_number}`} className="text-amber-600 hover:text-amber-800"><ExternalLink size={12} /></a>
-                      </div>
-                      <p className="text-sm italic text-amber-900 leading-relaxed">"{selectedThread.quote}"</p>
+                <div className="flex gap-3">
+                  <div className={cn(
+                    'w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 mt-0.5 bg-gradient-to-br',
+                    (TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).gradient
+                  )}>
+                    {getInitials(selectedThread.author?.email || 'U')}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-2 mb-1.5">
+                      <span className="font-semibold text-sm text-[var(--text-primary)]">
+                        {selectedThread.author?.email?.split('@')[0] || 'Unknown'}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {formatDistanceToNow(new Date(selectedThread.created_at), { addSuffix: true })}
+                      </span>
                     </div>
-                  )}
 
-                  <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-full bg-[--primary]/10 flex items-center justify-center text-[--primary] font-bold shrink-0 mt-1">
-                      {selectedThread.author?.email?.[0].toUpperCase() || 'U'}
-                    </div>
-                    <div className="flex-1 flex flex-col">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="font-semibold text-[--text-primary] text-sm">{selectedThread.author?.email || 'Unknown User'}</span>
-                        <span className="text-xs text-[--text-muted]">{new Date(selectedThread.created_at).toLocaleString()}</span>
+                    {selectedThread.quote && (
+                      <div className="mb-2.5 p-3 bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-400 rounded-r-xl">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                          Quote · Page {selectedThread.page_number}
+                        </span>
+                        <p className="text-sm italic text-amber-900 dark:text-amber-200 mt-1 leading-relaxed">
+                          &ldquo;{selectedThread.quote}&rdquo;
+                        </p>
                       </div>
-                      
-                      {editingNoteId === selectedThread.id ? (
-                        <div className="flex flex-col gap-2 mt-1">
-                           <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full min-h-[100px] p-3 text-sm bg-white border border-[--border-strong] rounded focus:outline-none focus:ring-1 focus:ring-[--primary] resize-none"
-                          />
-                          <div className="flex gap-2">
-                             <Button size="sm" onClick={() => handleSaveEdit(selectedThread.id)}>Save</Button>
-                             <Button size="sm" variant="outline" onClick={() => setEditingNoteId(null)}>Cancel</Button>
+                    )}
+
+                    {editingNoteId === selectedThread.id ? (
+                      <div className="flex flex-col gap-2">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full min-h-[100px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button onClick={() => handleSaveEdit(selectedThread.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90">
+                            <Check size={12} /> Save
+                          </button>
+                          <button onClick={() => setEditingNoteId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
+                            <X size={12} /> Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative group">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-4 shadow-sm">
+                          <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                            {selectedThread.content}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => startEditing(selectedThread)}
+                          className="absolute top-2 right-2 p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]"
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Action item */}
+                    {selectedThread.is_action_item && (
+                      <div className={cn(
+                        'mt-3 p-3 rounded-xl border flex flex-col gap-2',
+                        selectedThread.action_item_resolved
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
+                          <button
+                            onClick={() => handleToggleResolve(selectedThread)}
+                            className={cn(
+                              'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors',
+                              selectedThread.action_item_resolved
+                                ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50'
+                                : 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50'
+                            )}
+                          >
+                            {selectedThread.action_item_resolved
+                              ? <><CheckCircle2 size={13} /> Resolved</>
+                              : <><Circle size={13} /> Mark Resolved</>
+                            }
+                          </button>
+                        </div>
+                        {(selectedThread.action_item_assignee || selectedThread.action_item_due_date) && (
+                          <div className="flex gap-4 text-xs text-[var(--text-muted)]">
+                            {selectedThread.action_item_assignee && <span>Assignee: <strong className="text-[var(--text-primary)]">{selectedThread.action_item_assignee}</strong></span>}
+                            {selectedThread.action_item_due_date && <span>Due: <strong className="text-[var(--text-primary)]">{new Date(selectedThread.action_item_due_date).toLocaleDateString()}</strong></span>}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-white border border-[--border-subtle] rounded-2xl rounded-tl-sm p-4 shadow-sm relative group">
-                          <p className="text-sm text-[--text-primary] whitespace-pre-wrap leading-relaxed">{selectedThread.content}</p>
-                          <button onClick={() => startEditing(selectedThread)} className="absolute top-2 right-2 p-1.5 text-[--text-muted] hover:text-[--primary] opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-md shadow-sm border border-[--border-subtle]"><Edit2 size={12} /></button>
-                        </div>
-                      )}
-
-                      {/* Action item block */}
-                      {selectedThread.is_action_item && (
-                        <div className={`mt-3 p-3 rounded-lg border flex flex-col gap-2 ${selectedThread.action_item_resolved ? 'bg-slate-50 border-slate-200' : 'bg-amber-50/50 border-amber-200'}`}>
-                           <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold uppercase tracking-wider text-[--text-secondary]">Action Item</span>
-                              <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded transition-colors ${selectedThread.action_item_resolved ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'}`}>
-                                {selectedThread.action_item_resolved ? <><CheckCircle2 size={14}/> Resolved</> : <><Circle size={14} /> Mark Resolved</>}
-                              </button>
-                           </div>
-                           <div className="flex gap-4 text-xs">
-                              {selectedThread.action_item_assignee && <span>Assignee: <strong>{selectedThread.action_item_assignee}</strong></span>}
-                              {selectedThread.action_item_due_date && <span>Due: <strong>{new Date(selectedThread.action_item_due_date).toLocaleDateString()}</strong></span>}
-                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Replies */}
                 {selectedThreadReplies.map(reply => (
-                  <div key={reply.id} className="flex gap-4 ml-8 relative">
-                    {/* Reply thread line */}
-                    <div className="absolute -left-6 top-5 bottom-0 w-px bg-[--border-subtle]" />
-                    <CornerDownRight size={16} className="absolute -left-6 top-4 text-[--border-strong]" />
+                  <div key={reply.id} className="flex gap-3 ml-8 relative">
+                    <div className="absolute -left-5 top-5 bottom-0 w-px bg-[var(--border)]" />
+                    <CornerDownRight size={14} className="absolute -left-5 top-4 text-[var(--border-strong)]" />
 
-                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0 mt-1 text-xs">
-                      {reply.author?.email?.[0].toUpperCase() || 'U'}
+                    <div className="w-8 h-8 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shrink-0 mt-0.5 text-xs">
+                      {getInitials(reply.author?.email || 'U')}
                     </div>
-                    <div className="flex-1 flex flex-col">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="font-semibold text-[--text-primary] text-sm">{reply.author?.email || 'Unknown User'}</span>
-                        <span className="text-xs text-[--text-muted]">{new Date(reply.created_at).toLocaleString()}</span>
+                    <div className="flex-1">
+                      <div className="flex items-baseline gap-2 mb-1.5">
+                        <span className="font-semibold text-sm text-[var(--text-primary)]">
+                          {reply.author?.email?.split('@')[0] || 'Unknown'}
+                        </span>
+                        <span className="text-[11px] text-[var(--text-muted)]">
+                          {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
+                        </span>
                       </div>
-                      
                       {editingNoteId === reply.id ? (
-                        <div className="flex flex-col gap-2 mt-1">
-                           <textarea
+                        <div className="flex flex-col gap-2">
+                          <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full min-h-[80px] p-3 text-sm bg-white border border-[--border-strong] rounded focus:outline-none focus:ring-1 focus:ring-[--primary] resize-none"
+                            className="w-full min-h-[80px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
                           />
                           <div className="flex gap-2">
-                             <Button size="sm" onClick={() => handleSaveEdit(reply.id)}>Save</Button>
-                             <Button size="sm" variant="outline" onClick={() => setEditingNoteId(null)}>Cancel</Button>
+                            <button onClick={() => handleSaveEdit(reply.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90">
+                              <Check size={12} /> Save
+                            </button>
+                            <button onClick={() => setEditingNoteId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
+                              <X size={12} /> Cancel
+                            </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-white border border-[--border-subtle] rounded-2xl rounded-tl-sm p-4 shadow-sm relative group">
-                          <p className="text-sm text-[--text-primary] whitespace-pre-wrap leading-relaxed">{reply.content}</p>
+                        <div className="relative group">
+                          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-3 shadow-sm">
+                            <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                              {reply.content}
+                            </p>
+                          </div>
                           <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => startEditing(reply)} className="p-1.5 text-[--text-muted] hover:text-[--primary] bg-white rounded-md shadow-sm border border-[--border-subtle]"><Edit2 size={12} /></button>
-                            <button onClick={() => handleDeleteNote(reply.id)} className="p-1.5 text-[--text-muted] hover:text-[--danger] bg-white rounded-md shadow-sm border border-[--border-subtle]"><Trash2 size={12} /></button>
+                            <button onClick={() => startEditing(reply)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
+                              <Edit2 size={11} />
+                            </button>
+                            <button onClick={() => handleDeleteNote(reply.id)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
+                              <Trash2 size={11} />
+                            </button>
                           </div>
                         </div>
                       )}
@@ -380,29 +558,28 @@ export function NotesClientView({
               </div>
 
               {/* Reply Box */}
-              <div className="p-4 border-t border-[--border-subtle] bg-slate-50 shrink-0">
-                <div className="flex items-end gap-3 max-w-4xl mx-auto">
+              <div className="p-4 border-t border-[var(--border)] bg-[var(--surface)] shrink-0">
+                <div className="flex items-end gap-3">
                   <div className="flex-1">
                     <textarea
                       value={replyContent}
                       onChange={e => setReplyContent(e.target.value)}
                       placeholder="Type a reply to this thread..."
-                      className="w-full min-h-[50px] max-h-[150px] p-3 text-sm bg-white border border-[--border-strong] rounded-lg focus:outline-none focus:ring-2 focus:ring-[--primary] resize-y"
+                      className="w-full min-h-[48px] max-h-[120px] p-3 text-sm bg-[var(--bg)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y transition-all"
                     />
                   </div>
-                  <Button 
-                    onClick={() => handleReply(selectedThread)} 
+                  <button
+                    onClick={() => handleReply(selectedThread)}
                     disabled={isPending || !replyContent.trim()}
-                    className="mb-1"
+                    className="mb-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
                   >
                     Reply
-                  </Button>
+                  </button>
                 </div>
               </div>
             </>
           )}
         </div>
-
       </div>
     </div>
   )

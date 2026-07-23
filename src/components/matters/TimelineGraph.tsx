@@ -1,13 +1,72 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { AlertCircle, Clock, Link as LinkIcon, FileText, ExternalLink } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Clock, RefreshCw, EyeOff, Eye, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { autoLinkUnlinkedDocuments } from '@/lib/actions/matter'
 import { useTransition } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import {
+  ReactFlow,
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  MarkerType,
+  Connection,
+  addEdge,
+  BackgroundVariant
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import dagre from 'dagre'
+import { TimelineGraphNode } from './TimelineGraphNode'
+import { LinkCreationDialog } from './LinkCreationDialog'
+import { LinkDeletionDialog } from './LinkDeletionDialog'
+import { TimelineHelpDialog } from './TimelineHelpDialog'
+import { useRouter } from 'next/navigation'
+import { deleteDocumentLink } from '@/lib/actions/document'
+
+const nodeTypes = {
+  document: TimelineGraphNode,
+}
+
+const dagreGraph = new dagre.graphlib.Graph()
+dagreGraph.setDefaultEdgeLabel(() => ({}))
+
+const nodeWidth = 280
+const nodeHeight = 120 // Approximate height for layout
+
+const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+  const isHorizontal = direction === 'LR'
+  dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 50 })
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
+  })
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(dagreGraph)
+
+  const newNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+    return {
+      ...node,
+      targetPosition: isHorizontal ? 'left' : 'top',
+      sourcePosition: isHorizontal ? 'right' : 'bottom',
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    }
+  })
+
+  return { nodes: newNodes, edges }
+}
 
 export function TimelineGraph({ 
   documents, 
@@ -20,312 +79,248 @@ export function TimelineGraph({
   selectedDocId?: string | null,
   onSelectDoc?: (id: string) => void
 }) {
-  const [compact, setCompact] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [showSupporting, setShowSupporting] = useState(true)
   
-  const matterId = documents.length > 0 ? documents[0].matter_id : null;
+  // Link Creation State
+  const [linkDialogState, setLinkDialogState] = useState<{
+    isOpen: boolean;
+    sourceDoc: any | null;
+    targetDoc: any | null;
+  }>({ isOpen: false, sourceDoc: null, targetDoc: null })
+
+  // Link Deletion State
+  const [deleteDialogState, setDeleteDialogState] = useState<{
+    isOpen: boolean;
+    linkId: string | null;
+    sourceDoc: any | null;
+    targetDoc: any | null;
+    linkType?: string | null;
+  }>({ isOpen: false, linkId: null, sourceDoc: null, targetDoc: null, linkType: null })
+  
+  const matterId = documents.length > 0 ? documents[0].matter_id : null
 
   const handleReevaluate = () => {
-    if (!matterId) return;
+    if (!matterId) return
     const toastId = toast.loading('Re-evaluating matter links...')
     startTransition(async () => {
       try {
-        const res = await autoLinkUnlinkedDocuments(matterId);
+        const res = await autoLinkUnlinkedDocuments(matterId)
         if (res && 'error' in res) {
-          toast.error(res.error, { id: toastId });
+          toast.error(res.error, { id: toastId })
         } else if (res && 'success' in res) {
           toast.success(`Processed ${res.count} documents successfully!`, {
             id: toastId,
             description: `If documents are still unlinked, they may be missing required metadata. Please ensure their 'Document Type' and 'Reference Number' are correct. (e.g., a DRC-07 needs an existing 'OIO' document to link to).`
-          });
+          })
         }
       } catch (err: any) {
         toast.error(err.message || 'Failed to re-evaluate links', { id: toastId })
       }
-    });
-  };
-
-  // 1. Identify roots (docs with no outgoing links to other docs)
-  // An outgoing link means from_doc_id = currentDoc.id
-  // We only count RESOLVED links to documents that are actually present in the current view
-  const docIds = useMemo(() => new Set(documents.map(d => d.id)), [documents])
-
-  const outgoingLinksByDoc = useMemo(() => {
-    const map = new Map<string, any[]>()
-    links.forEach(l => {
-      if (!map.has(l.from_doc_id)) map.set(l.from_doc_id, [])
-      map.get(l.from_doc_id)!.push(l)
     })
-    return map
-  }, [links])
-
-  const resolvedOutgoingLinksByDoc = useMemo(() => {
-    const map = new Map<string, any[]>()
-    links.forEach(l => {
-      if (l.to_doc_id && docIds.has(l.to_doc_id)) {
-        if (!map.has(l.from_doc_id)) map.set(l.from_doc_id, [])
-        map.get(l.from_doc_id)!.push(l)
-      }
-    })
-    return map
-  }, [links, docIds])
-
-  const incomingLinksByDoc = useMemo(() => {
-    const map = new Map<string, any[]>()
-    links.forEach(l => {
-      // Pending links have no to_doc_id
-      if (l.to_doc_id) {
-        if (!map.has(l.to_doc_id)) map.set(l.to_doc_id, [])
-        map.get(l.to_doc_id)!.push(l)
-      }
-    })
-    return map
-  }, [links])
-
-  const resolvedIncomingLinksByDoc = useMemo(() => {
-    const map = new Map<string, any[]>()
-    links.forEach(l => {
-      if (l.to_doc_id && docIds.has(l.to_doc_id) && docIds.has(l.from_doc_id)) {
-        if (!map.has(l.to_doc_id)) map.set(l.to_doc_id, [])
-        map.get(l.to_doc_id)!.push(l)
-      }
-    })
-    return map
-  }, [links, docIds])
-
-  const roots = useMemo(() => {
-    // A root is a document that doesn't "respond" to anything else in this matter's visible documents.
-    // Meaning it has NO resolved outgoing links.
-    return documents.filter(d => !resolvedOutgoingLinksByDoc.has(d.id) || resolvedOutgoingLinksByDoc.get(d.id)!.length === 0)
-  }, [documents, resolvedOutgoingLinksByDoc])
-
-  const unlinked = useMemo(() => {
-    // Documents that have no resolved incoming AND no resolved outgoing links
-    return documents.filter(d => 
-      (!resolvedOutgoingLinksByDoc.has(d.id) || resolvedOutgoingLinksByDoc.get(d.id)!.length === 0) &&
-      (!resolvedIncomingLinksByDoc.has(d.id) || resolvedIncomingLinksByDoc.get(d.id)!.length === 0)
-    )
-  }, [documents, resolvedOutgoingLinksByDoc, resolvedIncomingLinksByDoc])
-
-  // Filter roots to only those that actually have resolved children (so we don't duplicate unlinked docs)
-  const trueRoots = roots.filter(r => resolvedIncomingLinksByDoc.has(r.id) && resolvedIncomingLinksByDoc.get(r.id)!.length > 0)
-
-  // DAG tracking to avoid infinite loops and duplicate deep rendering
-  const renderedIds = new Set<string>()
-
-  const renderNode = (doc: any, depth: number = 0, incomingLink?: any) => {
-    const isDuplicate = renderedIds.has(doc.id)
-    if (!isDuplicate) renderedIds.add(doc.id)
-
-    const childrenLinks = incomingLinksByDoc.get(doc.id) || []
-    
-    // Also find pending links that are waiting FOR this doc? No, pending links are outgoing from the child, and they have to_doc_id = null.
-    // So to show a pending link, we look at children that have outgoing links where to_doc_id is null.
-    // Actually, pending links don't have to_doc_id. So we can't find them via incomingLinksByDoc.
-    // Let's find pending outgoing links from THIS doc to show placeholders? 
-    const pendingOutgoing = (outgoingLinksByDoc.get(doc.id) || []).filter(l => !l.to_doc_id)
-
-    return (
-      <div key={`${doc.id}-${depth}`} className="relative">
-        <div className={`flex gap-4 ${depth > 0 ? 'mt-4' : 'mt-6'}`}>
-          
-          {/* Indentation Line */}
-          {depth > 0 && (
-            <div className="w-8 shrink-0 flex flex-col items-end">
-              <div className="w-px h-full bg-[--border-subtle] -mr-[0.5px]"></div>
-              <div className="w-full h-px bg-[--border-subtle] mt-5"></div>
-            </div>
-          )}
-
-          {/* Node Card */}
-          <div className="flex-1 min-w-0">
-            {incomingLink && (
-              <div className="flex items-center gap-2 mb-1.5 ml-1">
-                <Badge variant={incomingLink.status === 'pending' ? 'warning' : 'muted'} className="text-[10px] h-5 py-0 border-dashed">
-                  {incomingLink.status === 'pending' && <AlertCircle size={10} className="mr-1" />}
-                  {incomingLink.link_type.replace('_', ' ')}
-                </Badge>
-                {incomingLink.status === 'pending' && (
-                  <Button variant="ghost" size="sm" className="h-5 text-[10px] px-2 text-[--primary]">Confirm Match</Button>
-                )}
-              </div>
-            )}
-
-            {isDuplicate ? (
-              <div 
-                className="p-3 rounded-lg border border-dashed border-[--border-strong] bg-[--bg-muted]/50 flex items-center gap-2 text-sm text-[--text-secondary] cursor-pointer hover:bg-[--bg-surface] transition-colors"
-                onClick={() => onSelectDoc?.(doc.id)}
-              >
-                <LinkIcon size={14} />
-                <span>Also linked here: <strong>{doc.reference_number || doc.doc_type || 'Document'}</strong> (see above)</span>
-              </div>
-            ) : (
-              <div 
-                className={`flex flex-col p-4 rounded-lg border shadow-sm transition-colors cursor-pointer ${
-                  selectedDocId === doc.id 
-                    ? 'border-[--primary] bg-[--primary]/5 ring-1 ring-[--primary]/20' 
-                    : doc.status === 'needs_review' 
-                      ? 'border-amber-500/40 bg-[--warning-muted]/30 hover:border-amber-500' 
-                      : 'border-[--border-subtle] bg-[--bg-surface] hover:border-[--border-default]'
-                }`}
-                onClick={() => onSelectDoc?.(doc.id)}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[--text-primary] truncate">{doc.reference_number || doc.storage_path.split('/').pop()}</span>
-                      {doc.doc_type && (
-                        <Badge variant="muted" className="text-[10px] tracking-wider uppercase h-5">{doc.doc_type}</Badge>
-                      )}
-                    </div>
-                    {!compact && (
-                      <p className="text-sm text-[--text-muted] line-clamp-2 mt-1">
-                        {doc.summary || 'No summary available.'}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <span className="text-xs font-medium text-[--text-muted]">
-                      {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={
-                        doc.status === 'processing' ? 'muted' :
-                        doc.status === 'needs_review' ? 'warning' : 'default'
-                      }>
-                        {doc.status.replace('_', ' ')}
-                      </Badge>
-                      <a 
-                        href={`/matters/${doc.matter_id}/documents/${doc.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-wider h-5 px-2 gap-1 bg-[--bg-muted] text-[--text-secondary] hover:bg-[--border-strong] hover:text-[--text-primary] transition-colors"
-                      >
-                        <ExternalLink size={10} /> View PDF
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                {doc.status === 'needs_review' && doc.review_reason && (
-                  <div className="flex items-start gap-2 mt-3 p-2.5 rounded-md bg-[--warning-muted] border border-amber-500/20 text-[--warning] text-xs">
-                    <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                    <p>{doc.review_reason}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Children (only if not duplicate) */}
-        {!isDuplicate && (
-          <div className={`ml-8 border-l border-[--border-subtle] pl-4 pb-2 ${childrenLinks.length === 0 && pendingOutgoing.length === 0 ? 'border-transparent' : ''}`}>
-            {childrenLinks.map(link => {
-              const childDoc = documents.find(d => d.id === link.from_doc_id)
-              if (!childDoc) return null
-              return renderNode(childDoc, depth + 1, link)
-            })}
-            
-            {pendingOutgoing.map(pendingLink => (
-              <div key={pendingLink.id} className="flex gap-4 mt-4 opacity-70">
-                <div className="w-8 shrink-0 flex flex-col items-end">
-                  <div className="w-px h-full bg-[--border-subtle] -mr-[0.5px]"></div>
-                  <div className="w-full h-px bg-[--border-subtle] mt-5"></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 ml-1">
-                    <Badge variant="muted" className="text-[10px] h-5 border-dashed border-[--text-muted] text-[--text-muted]">
-                      {pendingLink.link_type.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                  <div className="p-3 rounded-lg border border-dashed border-[--border-strong] bg-[--bg-muted]/50 flex items-center gap-3 text-sm text-[--text-secondary]">
-                    <Clock size={16} className="text-[--text-muted]" />
-                    <span className="italic">Waiting for document: <strong>{pendingLink.pending_ref_number}</strong></span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )
   }
 
+  // Filter documents based on toggle
+  const visibleDocuments = useMemo(() => {
+    if (showSupporting) return documents
+    return documents.filter(d => d.document_class !== 'supporting')
+  }, [documents, showSupporting])
+
+  const visibleDocIds = useMemo(() => new Set(visibleDocuments.map(d => d.id)), [visibleDocuments])
+
+  // Build nodes and edges
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+    const nodes = visibleDocuments.map(doc => ({
+      id: doc.id,
+      type: 'document',
+      data: { 
+        doc, 
+        selected: selectedDocId === doc.id,
+      },
+      position: { x: 0, y: 0 }, // Dagre will override this
+    }))
+
+    const edges = links
+      .filter(l => visibleDocIds.has(l.from_doc_id) && visibleDocIds.has(l.to_doc_id)) // Only show links between visible docs
+      .map(l => {
+        const isManual = l.match_method === 'manual'
+        const color = isManual ? '#2563eb' : (l.status === 'pending' ? '#f59e0b' : '#94a3b8')
+        return {
+          id: l.id,
+          source: l.to_doc_id, // "Responds to" means arrow goes from parent to child in a timeline (earlier to later)
+          target: l.from_doc_id, // If A responds to B, B is older. Flow goes B -> A
+          label: l.link_type?.replace('_', ' ').toUpperCase() || 'LINKS TO',
+          type: 'smoothstep',
+          animated: l.status === 'pending',
+          style: { 
+            stroke: color,
+            strokeWidth: isManual ? 3 : 2,
+            strokeDasharray: (isManual || l.status === 'pending') ? 'none' : '5, 5', // AI inferred (confirmed) is dashed
+          },
+          labelStyle: { fill: '#64748b', fontWeight: 600, fontSize: 10 },
+          labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.9 },
+          labelBgPadding: [4, 2] as [number, number],
+          labelBgBorderRadius: 4,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 15,
+            height: 15,
+            color,
+          },
+        }
+      })
+
+    return getLayoutedElements(nodes, edges, 'TB')
+  }, [visibleDocuments, visibleDocIds, links, selectedDocId])
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+
+  useEffect(() => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges, 'TB')
+    setNodes(layoutedNodes)
+    setEdges(layoutedEdges)
+  }, [initialNodes, initialEdges, setNodes, setEdges])
+
+  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
+    if (onSelectDoc) {
+      onSelectDoc(node.id)
+    }
+  }, [onSelectDoc])
+
+  const onConnect = useCallback((connection: Connection) => {
+    // Check if link already exists between these 2 nodes
+    const existingEdge = edges.find(e => 
+      (e.source === connection.source && e.target === connection.target) || 
+      (e.source === connection.target && e.target === connection.source)
+    )
+
+    const sourceDoc = visibleDocuments.find(d => d.id === connection.source)
+    const targetDoc = visibleDocuments.find(d => d.id === connection.target)
+
+    if (existingEdge) {
+      if (sourceDoc && targetDoc) {
+        setDeleteDialogState({
+          isOpen: true,
+          linkId: existingEdge.id,
+          sourceDoc,
+          targetDoc,
+          linkType: (existingEdge as any).label
+        })
+      }
+      return
+    }
+
+    if (sourceDoc && targetDoc) {
+      setLinkDialogState({
+        isOpen: true,
+        sourceDoc,
+        targetDoc
+      })
+    }
+  }, [visibleDocuments, edges])
+
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
+
+  const onEdgeClick = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation()
+    // Clicking on an edge line does nothing as requested. Deletion dialog appears ONLY when drawing an edge over an existing link.
+  }, [])
+
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between mb-4 border-b border-[--border-subtle] pb-3">
-        <div className="flex items-center gap-2">
-          <Clock size={18} className="text-[--text-muted]" />
-          <h2 className="text-lg font-medium text-[--text-primary]">Litigation Timeline</h2>
+    <div className="flex flex-col h-full border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg)] relative transition-colors">
+      {/* Graph Toolbar */}
+      <div className="p-4 bg-[var(--surface)] border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-4 shrink-0 transition-colors">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSupporting(!showSupporting)}
+            className="h-8 text-xs font-semibold bg-[var(--surface)] text-[var(--text-primary)] border-[var(--border-strong)] shadow-xs hover:border-[var(--primary)]"
+          >
+            {showSupporting ? <EyeOff size={14} className="mr-1.5 text-[var(--text-muted)]" /> : <Eye size={14} className="mr-1.5 text-blue-500" />}
+            {showSupporting ? 'Hide Supporting' : 'Show Supporting'}
+          </Button>
+          <span className="text-[12px] font-medium text-[var(--text-muted)]">
+            Showing {visibleDocuments.length} of {documents.length} documents
+          </span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setCompact(!compact)}>
-          {compact ? 'Show Details' : 'Compact View'}
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReevaluate}
+            disabled={isPending}
+            className="h-8 text-xs font-semibold bg-[var(--surface)] text-[var(--text-primary)] border-[var(--border-strong)] shadow-xs hover:border-[var(--primary)]"
+          >
+            <RefreshCw size={14} className={`mr-1.5 text-amber-500 ${isPending ? 'animate-spin' : ''}`} />
+            Re-evaluate Links
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsHelpOpen(true)}
+            className="h-8 text-xs font-semibold bg-[var(--surface)] text-[var(--text-primary)] border-[var(--border-strong)] shadow-xs hover:border-[var(--primary)]"
+          >
+            <HelpCircle size={14} className="mr-1.5 text-[var(--primary)]" />
+            Help
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-6">
-        {trueRoots.length === 0 && unlinked.length === 0 ? (
-          <div className="py-12 text-center text-[--text-muted] border border-dashed border-[--border-strong] rounded-lg">
-            <p>No proceeding documents found in this matter.</p>
-          </div>
-        ) : (
-          <>
-            {trueRoots.map(root => renderNode(root, 0))}
-            
-            {unlinked.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-[--border-subtle]">
-                <div className="flex items-center justify-between gap-2 mb-4 w-full border-b border-[--border-subtle] pb-2">
-                  <div className="flex items-center gap-2">
-                    <FileText size={16} className="text-[--text-muted]" />
-                    <h3 className="text-sm font-semibold text-[--text-secondary] uppercase tracking-wider">Unlinked Documents</h3>
-                    <Badge variant="muted" className="ml-2">{unlinked.length}</Badge>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleReevaluate} 
-                    disabled={isPending}
-                    className="h-8 text-xs shrink-0"
-                  >
-                    {isPending ? <Loader2 size={12} className="animate-spin mr-1.5" /> : <RefreshCw size={12} className="mr-1.5" />}
-                    Re-evaluate Links
-                  </Button>
-                </div>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-                  {unlinked.map(doc => (
-                    <div 
-                      key={doc.id} 
-                      className={`flex flex-col p-4 rounded-lg border transition-all cursor-pointer ${
-                        selectedDocId === doc.id
-                          ? 'border-[--primary] bg-[--primary]/5 ring-1 ring-[--primary]/20'
-                          : 'border-[--border-subtle] bg-[--bg-surface] opacity-90 hover:opacity-100 hover:border-[--border-default]'
-                      }`}
-                      onClick={() => onSelectDoc?.(doc.id)}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <span className="font-medium text-[--text-primary] text-sm truncate">{doc.reference_number || doc.storage_path.split('/').pop()}</span>
-                          {doc.doc_type && <span className="text-[10px] text-[--text-muted] font-medium">{doc.doc_type}</span>}
-                        </div>
-                        <span className="text-xs text-[--text-muted]">{doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'No date'}</span>
-                      </div>
-                      <div className="mt-3 flex justify-end">
-                        <a 
-                          href={`/matters/${doc.matter_id}/documents/${doc.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-wider h-6 px-2 gap-1 border border-[--border-strong] text-[--text-secondary] hover:bg-[--border-strong] hover:text-[--text-primary] transition-colors"
-                        >
-                          <ExternalLink size={10} /> View PDF
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+      <div className="flex-1 w-full relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          minZoom={0.1}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background color="var(--border-strong)" gap={24} size={2} variant={BackgroundVariant.Dots} />
+          <Controls className="bg-[var(--surface)] border-[var(--border)] shadow-sm rounded-md overflow-hidden" />
+          <MiniMap 
+            nodeColor={(node) => {
+              const data = node.data as any;
+              if (data?.doc?.status === 'needs_review') return '#f59e0b'
+              if (data?.doc?.document_class === 'supporting') return 'var(--border-strong)'
+              return 'var(--primary)'
+            }}
+            maskColor="var(--surface-hover)"
+            className="bg-[var(--surface)] border-[var(--border)] shadow-sm rounded-md"
+          />
+        </ReactFlow>
       </div>
+      
+      <LinkCreationDialog
+        isOpen={linkDialogState.isOpen}
+        sourceDoc={linkDialogState.sourceDoc}
+        targetDoc={linkDialogState.targetDoc}
+        onClose={() => setLinkDialogState(prev => ({ ...prev, isOpen: false }))}
+        onSuccess={() => {}}
+      />
+
+      <LinkDeletionDialog
+        isOpen={deleteDialogState.isOpen}
+        linkId={deleteDialogState.linkId}
+        sourceDoc={deleteDialogState.sourceDoc}
+        targetDoc={deleteDialogState.targetDoc}
+        linkType={deleteDialogState.linkType}
+        onClose={() => setDeleteDialogState(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      <TimelineHelpDialog
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   )
 }

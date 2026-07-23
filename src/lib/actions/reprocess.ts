@@ -36,7 +36,8 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
       orgId: doc.org_id,
       storagePath: doc.storage_path,
       uploadedBy: doc.created_by || '',
-      reprocessMode: 'full'
+      reprocessMode: 'full',
+      skipDuplicateCheck: true
     })
     
     if (doc.matter_id) {

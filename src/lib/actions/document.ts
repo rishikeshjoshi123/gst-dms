@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import type { Database } from '@/lib/supabase/database.types'
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -19,7 +20,7 @@ export async function getDocumentsByMatter(matterId: string) {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  const all = data ?? []
+  let all = data ?? []
   const docIds = all.map(d => d.id)
 
   let links: any[] = []
@@ -30,6 +31,26 @@ export async function getDocumentsByMatter(matterId: string) {
       .or(`from_doc_id.in.(${docIds.join(',')}),to_doc_id.in.(${docIds.join(',')})`)
     
     if (linksData) links = linksData
+  }
+
+  // Fetch cross-matter documents that are linked but not in this matter
+  const linkedDocIds = new Set<string>()
+  links.forEach(l => {
+    if (l.from_doc_id && !docIds.includes(l.from_doc_id)) linkedDocIds.add(l.from_doc_id)
+    if (l.to_doc_id && !docIds.includes(l.to_doc_id)) linkedDocIds.add(l.to_doc_id)
+  })
+
+  if (linkedDocIds.size > 0) {
+    const { data: crossMatterDocs } = await supabase
+      .from('documents')
+      .select('*')
+      .in('id', Array.from(linkedDocIds))
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      
+    if (crossMatterDocs) {
+      all = [...all, ...crossMatterDocs]
+    }
   }
 
   return {
@@ -373,6 +394,16 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
 
   let currentMetadata = doc.raw_metadata as any || {}
   
+  const columnMap: Record<string, string> = {
+    doc_type: 'doc_type',
+    reference_number: 'reference_number',
+    doc_date: 'doc_date',
+    financial_year: 'financial_year',
+    tax_period: 'tax_period',
+  }
+
+  const updatePayload: any = {}
+
   if (metadataKey.includes('.')) {
     // nested update for extracted_amounts
     const [parent, child] = metadataKey.split('.')
@@ -380,11 +411,16 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
     currentMetadata[parent][child] = newValue
   } else {
     currentMetadata[metadataKey] = newValue
+    if (columnMap[metadataKey]) {
+      updatePayload[columnMap[metadataKey]] = newValue
+    }
   }
+
+  updatePayload.raw_metadata = currentMetadata
 
   const { error } = await supabase
     .from('documents')
-    .update({ raw_metadata: currentMetadata })
+    .update(updatePayload)
     .eq('id', docId)
 
   if (error) return { error: error.message }
@@ -396,3 +432,136 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
   
   return { success: true }
 }
+
+export async function createManualLink(
+  fromDocId: string,
+  toDocId: string,
+  linkType: Database['public']['Enums']['link_type']
+) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  // Check if link exists
+  const { data: existing } = await supabase.from('document_links')
+    .select('id')
+    .eq('from_doc_id', fromDocId)
+    .eq('to_doc_id', toDocId)
+    .maybeSingle()
+
+  if (existing) {
+    return { error: 'Link already exists between these documents' }
+  }
+
+  const { error } = await supabase.from('document_links').insert({
+    from_doc_id: fromDocId,
+    to_doc_id: toDocId,
+    link_type: linkType,
+    confidence: 1.0,
+    status: 'confirmed',
+    match_method: 'manual',
+    created_by: user.id
+  })
+
+  if (error) return { error: error.message }
+
+  // Log activity
+  await supabase.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'manual_link_created',
+    entity_type: 'document_link',
+    description: `Manually linked document ${toDocId} to ${fromDocId} as ${linkType}`,
+    is_reversible: true
+  })
+
+  return { success: true }
+}
+
+export async function deleteDocumentLink(linkId: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('document_links')
+    .delete()
+    .eq('id', linkId)
+
+  if (error) return { error: error.message }
+
+  await supabase.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'manual_link_deleted',
+    entity_type: 'document_link',
+    description: `Deleted document link`,
+    is_reversible: false
+  })
+
+  return { success: true }
+}
+
+export async function deleteDocument(documentId: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('id, matter_id, reference_number')
+    .eq('id', documentId)
+    .eq('org_id', orgId)
+    .single()
+
+  if (!doc) return { error: 'Document not found.' }
+
+  // 1. Delete associated document_links where this document is source or target
+  await supabase
+    .from('document_links')
+    .delete()
+    .or(`source_document_id.eq.${documentId},target_document_id.eq.${documentId}`)
+
+  // 2. Soft delete document
+  const { error } = await supabase
+    .from('documents')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', documentId)
+    .eq('org_id', orgId)
+
+  if (error) {
+    console.error('Delete document error:', error)
+    return { error: error.message }
+  }
+
+  // 3. Log activity
+  await supabase.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'document_deleted',
+    entity_type: 'document',
+    entity_id: documentId,
+    description: `Deleted document ${doc.reference_number || doc.id}`,
+    is_reversible: true
+  })
+
+  // 4. Re-evaluate remaining matter links
+  if (doc.matter_id) {
+    const { reevaluateMatterLinks } = require('@/lib/actions/chaining')
+    await reevaluateMatterLinks(supabase, doc.matter_id, orgId, user.id)
+    revalidatePath(`/matters/${doc.matter_id}`)
+  }
+
+  revalidatePath('/matters')
+  return { success: true }
+}
+

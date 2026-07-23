@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'incoming' | 'outgoing' | 'muted'
+type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'incoming' | 'outgoing' | 'muted' | 'outline'
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant
@@ -15,6 +15,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   incoming: 'bg-[--incoming-muted] text-[--incoming] border-orange-500/20',
   outgoing: 'bg-[--outgoing-muted] text-[--outgoing] border-indigo-500/20',
   muted:    'bg-[--bg-overlay] text-[--text-muted] border-[--border-subtle]',
+  outline:  'bg-transparent text-[--text-primary] border-[--border-default]',
 }
 
 const dotColors: Record<BadgeVariant, string> = {
@@ -25,6 +26,7 @@ const dotColors: Record<BadgeVariant, string> = {
   incoming: 'bg-[--incoming]',
   outgoing: 'bg-[--outgoing]',
   muted:    'bg-[--text-muted]',
+  outline:  'bg-[--text-primary]',
 }
 
 export function Badge({ className, variant = 'default', dot, children, ...props }: BadgeProps) {

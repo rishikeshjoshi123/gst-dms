@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getDocumentSignedUrl } from '@/lib/actions/document'
+import { getDocumentSignedUrl, getDocumentsByMatter } from '@/lib/actions/document'
 import { getNotes } from '@/lib/actions/notes'
 import { notFound } from 'next/navigation'
 import { PdfViewer } from '@/components/ui/pdf-viewer'
@@ -28,6 +28,9 @@ export default async function DocumentPage(props: { params: Promise<{ id: string
 
   const { url, error } = await getDocumentSignedUrl('documents', doc.storage_path)
   const notes = await getNotes({ documentId: params.docId })
+  const allDocsData = await getDocumentsByMatter(params.id)
+  const allDocuments = [...allDocsData.proceedings, ...allDocsData.supporting]
+  const links = allDocsData.links
   
   if (error || !url) {
     return <div className="p-10 text-[var(--danger)]">Failed to load document: {error}</div>
@@ -58,7 +61,7 @@ export default async function DocumentPage(props: { params: Promise<{ id: string
 
         {/* Document Details Sidebar */}
         <div className="w-full lg:w-[35%] h-full">
-          <TimelineDocumentDetail doc={doc} notes={notes} />
+          <TimelineDocumentDetail doc={doc} allDocuments={allDocuments} links={links} notes={notes} />
         </div>
       </div>
     </div>

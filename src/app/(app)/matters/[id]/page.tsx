@@ -11,7 +11,6 @@ import { AlertTriangle, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { MatterTabs } from '@/components/matters/MatterTabs'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
-import { MatterHeader } from '@/components/matters/MatterHeader'
 import { Button } from '@/components/ui/button'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
@@ -19,7 +18,7 @@ export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
 export default async function MatterPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const matter = await getMatterById(params.id)
-  
+
   if (!matter) {
     notFound()
   }
@@ -54,23 +53,21 @@ export default async function MatterPage(props: { params: Promise<{ id: string }
   ]
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl flex-1 overflow-hidden animate-fade-in">
+    <div className="flex flex-col flex-1 overflow-hidden h-full animate-fade-in -mt-2 ">
       <BreadcrumbSetter breadcrumbs={breadcrumbs} />
-
-      <MatterHeader matter={matter} isClosed={isClosed} />
 
       {/* Warning Banner */}
       {isClosed && (
-        <div className="flex items-center gap-3 p-4 rounded-md bg-red-50 border border-red-200 text-[var(--danger)] shadow-[var(--shadow-sm)]">
+        <div className="flex items-center gap-3 p-3 mb-4 rounded-md bg-red-50 border border-red-200 text-[var(--danger)] shadow-[var(--shadow-sm)] shrink-0">
           <AlertTriangle size={18} />
           <p className="text-[14px] font-medium">This matter is marked as {MATTER_STATUS_LABELS[matter.status]}. Uploading new documents is disabled.</p>
         </div>
       )}
 
-      <MatterTabs 
-        matterId={matter.id}
-        proceedings={proceedings} 
-        supporting={supporting} 
+      <MatterTabs
+        matter={matter}
+        proceedings={proceedings}
+        supporting={supporting}
         links={links || []}
         wikiSections={wikiSections || []}
         notes={notes || []}

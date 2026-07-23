@@ -30,10 +30,46 @@ export async function placeDocument(
   aiResult: AIDocumentResult
 ) {
   const docType = aiResult.doc_type
-  const refToFind = aiResult.chaining_attributes.references_document
+  const refsToFind = aiResult.chaining_attributes.references_documents || []
+  
+  // Legacy support
+  if ((aiResult.chaining_attributes as any).references_document) {
+    refsToFind.push((aiResult.chaining_attributes as any).references_document)
+  }
 
-  // Default to finding a parent if refToFind is provided
-  if (refToFind) {
+  // 1. Progression Inference Fallback
+  // If there are no explicitly extracted references, we try to infer based on doc_type.
+  if (refsToFind.length === 0) {
+    if (docType === 'APL-01' || docType === 'REPLY' || docType === 'APL-02' || docType === 'APL-05' || docType === 'DRC-03' || docType === 'DRC-07') {
+      let targetType = ''
+      if (docType === 'APL-01') targetType = 'OIO'
+      if (docType === 'APL-05') targetType = 'APL-02'
+      if (docType === 'APL-02') targetType = 'APL-01'
+      if (docType === 'DRC-07') targetType = 'OIO'
+      if (docType === 'REPLY') targetType = 'DRC-01'
+
+      if (targetType) {
+        const { data: inferred } = await supabase.from('documents')
+          .select('id, doc_type')
+          .eq('matter_id', matterId)
+          .eq('doc_type', targetType)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        
+        if (inferred) {
+          await createLink(supabase, docId, inferred.id, docType, inferred.doc_type, 0.55, 'progression_inference', 'pending', null)
+          await queueNotification(supabase, orgId, uploadedBy, docId, inferred.id, 'inference')
+        }
+      }
+    }
+    return
+  }
+
+  // 2. Loop through explicitly extracted references and build links
+  for (const refToFind of refsToFind) {
+    if (!refToFind) continue
     // 1. Exact Match
     const { data: exactMatch } = await supabase
       .from('documents')
@@ -45,7 +81,7 @@ export async function placeDocument(
 
     if (exactMatch) {
       await createLink(supabase, docId, exactMatch.id, docType, exactMatch.doc_type, 0.95, 'exact_reference', 'confirmed', null)
-      return
+      continue
     }
 
     // 2. Fuzzy Match
@@ -55,44 +91,13 @@ export async function placeDocument(
     })
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!fuzzyError && fuzzyMatch && (fuzzyMatch as any).length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!fuzzyError && fuzzyMatch && (fuzzyMatch as any).length > 0) {
       const match = (fuzzyMatch as any)[0]
       await createLink(supabase, docId, match.id, docType, match.doc_type, 0.70, 'fuzzy_reference', 'pending', null)
       await queueNotification(supabase, orgId, uploadedBy, docId, match.id, 'fuzzy')
-      return
+      continue
     }
-  }
-
-  // 3. Progression Inference Fallback
-  if (docType === 'APL-01' || docType === 'REPLY' || docType === 'APL-02' || docType === 'APL-05' || docType === 'DRC-03' || docType === 'DRC-07') {
-    let targetType = ''
-    if (docType === 'APL-01') targetType = 'OIO'
-    if (docType === 'APL-05') targetType = 'APL-02'
-    if (docType === 'APL-02') targetType = 'APL-01'
-    if (docType === 'DRC-07') targetType = 'OIO'
-    if (docType === 'REPLY') targetType = 'DRC-01'
-
-    if (targetType) {
-      const { data: inferred } = await supabase.from('documents')
-        .select('id, doc_type')
-        .eq('matter_id', matterId)
-        .eq('doc_type', targetType)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      
-      if (inferred) {
-        await createLink(supabase, docId, inferred.id, docType, inferred.doc_type, 0.55, 'progression_inference', 'pending', null)
-        await queueNotification(supabase, orgId, uploadedBy, docId, inferred.id, 'inference')
-        return
-      }
-    }
-  }
-
-  // 4. Cross-Matter Search (Warning only)
-  if (refToFind) {
+    // 3. Cross-Matter Search (Warning only)
     const { data: crossMatch } = await supabase
       .from('documents')
       .select('id')
@@ -111,12 +116,10 @@ export async function placeDocument(
       }).eq('id', docId) 
       
       await queueNotification(supabase, orgId, uploadedBy, docId, null, 'cross_matter', refToFind)
-      return
+      continue
     }
-  }
 
-  // 5. Pending Link
-  if (refToFind) {
+    // 4. Pending Link
     await createLink(supabase, docId, null, docType, null, null, 'pending', 'pending', refToFind)
   }
 }
@@ -193,6 +196,16 @@ async function createLink(
 ) {
   const linkType = inferLinkType(fromDocType, toDocType)
   
+  if (toDocId) {
+    const { data: existing } = await supabase.from('document_links')
+      .select('id')
+      .eq('from_doc_id', fromDocId)
+      .eq('to_doc_id', toDocId)
+      .maybeSingle()
+      
+    if (existing) return;
+  }
+  
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('document_links').insert({
     from_doc_id: fromDocId,
@@ -247,37 +260,20 @@ export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, 
 
   if (!documents || documents.length === 0) return { success: true, count: 0 }
 
-  // 2. Get all links
+  // 2. Delete ALL links EXCEPT manual ones
   const { data: links } = await supabase
     .from('document_links')
-    .select('id, from_doc_id, to_doc_id, status')
+    .select('id, match_method')
     .in('from_doc_id', documents.map(d => d.id))
-
-  const resolvedLinkedDocIds = new Set<string>()
-  if (links) {
-    links.forEach(l => {
-      if (l.status === 'confirmed' || l.to_doc_id) {
-        resolvedLinkedDocIds.add(l.from_doc_id)
-        if (l.to_doc_id) resolvedLinkedDocIds.add(l.to_doc_id)
-      }
-    })
-  }
-
-  // 3. Find unlinked documents (those with no resolved links)
-  const unlinkedDocs = documents.filter(d => !resolvedLinkedDocIds.has(d.id))
-  
-  if (unlinkedDocs.length === 0) return { success: true, count: 0 }
-
-  // 4. Delete pending links for these unlinked docs to avoid duplicates
-  const unlinkedDocIds = new Set(unlinkedDocs.map(d => d.id))
-  const linksToDelete = links?.filter(l => l.status === 'pending' && unlinkedDocIds.has(l.from_doc_id)).map(l => l.id) || []
+    
+  const linksToDelete = links?.filter(l => l.match_method !== 'manual').map(l => l.id) || []
   
   if (linksToDelete.length > 0) {
     await supabase.from('document_links').delete().in('id', linksToDelete)
   }
 
   let count = 0
-  for (const doc of unlinkedDocs) {
+  for (const doc of documents) {
     if (doc.raw_metadata) {
       const aiResult = doc.raw_metadata as unknown as AIDocumentResult
       if (!aiResult.chaining_attributes) aiResult.chaining_attributes = {} as any

@@ -2,11 +2,13 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 
+import { LandingPage } from './LandingPage'
+
 export default async function RootPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  if (!user) return <LandingPage />
 
   // Check if user has an org
   const cookieStore = await cookies()

@@ -120,25 +120,47 @@ export async function createMatter(formData: FormData) {
 
 // ── Update Matter ─────────────────────────────────────────────────
 
-export async function updateMatter(id: string, formData: FormData) {
+export async function updateMatterDetails(
+  matterId: string,
+  payload: {
+    title?: string
+    financialYear?: string
+    description?: string | null
+    status?: MatterStatus
+  }
+) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
 
-  const title = (formData.get('title') as string)?.trim()
-  const description = (formData.get('description') as string)?.trim() || null
-  const status = formData.get('status') as MatterStatus | null
+  if (payload.title !== undefined && payload.title.trim().length < 2) {
+    return { error: 'Title must be at least 2 characters.' }
+  }
 
-  if (!title || title.length < 2) return { error: 'Title must be at least 2 characters.' }
+  if (payload.financialYear !== undefined && payload.financialYear !== 'Unknown FY') {
+    if (!FINANCIAL_YEARS.includes(payload.financialYear)) {
+      return { error: 'Invalid financial year selected.' }
+    }
+  }
+
+  // Fetch current matter to get client_id for revalidation
+  const { data: existingMatter } = await supabase
+    .from('matters')
+    .select('client_id')
+    .eq('id', matterId)
+    .eq('org_id', orgId)
+    .single()
+
+  const updateFields: any = {}
+  if (payload.title !== undefined) updateFields.title = payload.title.trim()
+  if (payload.financialYear !== undefined) updateFields.financial_year = payload.financialYear
+  if (payload.description !== undefined) updateFields.description = payload.description?.trim() || null
+  if (payload.status !== undefined) updateFields.status = payload.status
 
   const { error } = await supabase
     .from('matters')
-    .update({
-      title,
-      description,
-      ...(status ? { status } : {}),
-    })
-    .eq('id', id)
+    .update(updateFields)
+    .eq('id', matterId)
     .eq('org_id', orgId)
 
   if (error) {
@@ -146,9 +168,34 @@ export async function updateMatter(id: string, formData: FormData) {
     return { error: error.message }
   }
 
+  // If financial year was updated, synchronize documents with 'Unknown FY' or missing FY
+  if (payload.financialYear && payload.financialYear !== 'Unknown FY') {
+    await supabase
+      .from('documents')
+      .update({ financial_year: payload.financialYear })
+      .eq('matter_id', matterId)
+      .eq('org_id', orgId)
+      .or(`financial_year.eq.Unknown FY,financial_year.is.null`)
+  }
+
   revalidatePath('/matters')
-  revalidatePath(`/matters/${id}`)
+  revalidatePath(`/matters/${matterId}`)
+  if (existingMatter?.client_id) {
+    revalidatePath(`/clients/${existingMatter.client_id}`)
+  }
   return { success: true }
+}
+
+export async function updateMatter(id: string, formData: FormData) {
+  const title = (formData.get('title') as string)?.trim()
+  const description = (formData.get('description') as string)?.trim() || null
+  const status = formData.get('status') as MatterStatus | null
+
+  return updateMatterDetails(id, {
+    title,
+    description,
+    ...(status ? { status } : {})
+  })
 }
 
 // ── Archive / Close Matter ────────────────────────────────────────
@@ -192,20 +239,62 @@ export async function autoLinkUnlinkedDocuments(matterId: string) {
 
 
 export async function updateMatterTitle(matterId: string, newTitle: string) {
+  return updateMatterDetails(matterId, { title: newTitle })
+}
+
+export async function deleteMatterAction(matterId: string) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation' }
+  if (!orgId) return { error: 'No active organisation.' }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: matter } = await supabase
+    .from('matters')
+    .select('id, client_id, title')
+    .eq('id', matterId)
+    .eq('org_id', orgId)
+    .single()
+
+  if (!matter) return { error: 'Matter not found.' }
+
+  const nowStr = new Date().toISOString()
+
+  // 1. Soft delete all documents in this matter
+  await supabase
+    .from('documents')
+    .update({ deleted_at: nowStr })
+    .eq('matter_id', matterId)
+    .eq('org_id', orgId)
+
+  // 2. Soft delete the matter
   const { error } = await supabase
     .from('matters')
-    .update({ title: newTitle })
+    .update({ deleted_at: nowStr })
     .eq('id', matterId)
     .eq('org_id', orgId)
 
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('Delete matter error:', error)
+    return { error: error.message }
+  }
 
-  const { revalidatePath } = require('next/cache')
-  revalidatePath(`/matters/${matterId}`)
-  
+  // 3. Log activity
+  await supabase.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'matter_deleted',
+    entity_type: 'matter',
+    entity_id: matterId,
+    description: `Deleted matter "${matter.title}"`,
+    is_reversible: true
+  })
+
+  revalidatePath('/matters')
+  if (matter.client_id) {
+    revalidatePath(`/clients/${matter.client_id}`)
+  }
   return { success: true }
 }
+
