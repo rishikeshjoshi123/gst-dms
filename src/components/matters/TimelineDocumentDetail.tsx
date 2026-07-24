@@ -403,15 +403,34 @@ export function TimelineDocumentDetail({
               </h4>
               <div className="grid grid-cols-1 gap-2">
                 {linkedDocs.map(ldoc => {
-                  const linkType = links.find(l => (l.from_doc_id === doc.id && l.to_doc_id === ldoc.id) || (l.to_doc_id === doc.id && l.from_doc_id === ldoc.id))?.link_type || 'linked'
+                  // Determine the direction of the link from the current document's perspective
+                  // DB convention: from_doc_id = CHILD, to_doc_id = PARENT
+                  const link = links.find(l =>
+                    (l.from_doc_id === doc.id && l.to_doc_id === ldoc.id) ||
+                    (l.to_doc_id === doc.id && l.from_doc_id === ldoc.id)
+                  )
+                  const rawType = link?.link_type || 'linked'
+                  const isCurrentDocChild = link?.from_doc_id === doc.id
+                  
+                  // Build a readable, directional label
+                  // If current doc is child: "This doc [responds_to] [ldoc]"  → show: "[responds to] →"
+                  // If current doc is parent: "[ldoc] [responds_to] this doc" → show: "← [responds to]"
+                  const typeLabel = rawType.replace(/_/g, ' ')
+                  const relationLabel = isCurrentDocChild
+                    ? `${typeLabel} →`          // "This doc responds to → [ldoc]" (ldoc is parent)
+                    : `← ${typeLabel}`           // "[ldoc] responds to ← this doc" (ldoc is child)
+                  const roleLabel = isCurrentDocChild ? 'Parent' : 'Child'
                   
                   return (
                     <div key={ldoc.id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] transition-colors">
                       <div className="flex flex-col gap-1 min-w-0">
                         <span className="text-sm font-medium text-[--text-primary] truncate">{ldoc.reference_number || ldoc.storage_path.split('/').pop()}</span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="muted" className="text-[9px] uppercase tracking-wider py-0 px-1 border-dashed">
-                            {linkType.replace('_', ' ')}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="muted" className={`text-[9px] uppercase tracking-wider py-0 px-1 font-semibold ${isCurrentDocChild ? 'text-[var(--primary)] border-[var(--primary)]/30' : 'text-emerald-600 dark:text-emerald-400 border-emerald-200'}`}>
+                            {relationLabel}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 text-[var(--text-muted)]">
+                            {roleLabel}
                           </Badge>
                           {ldoc.document_class === 'supporting' && (
                             <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 bg-slate-100 text-slate-600">Supporting</Badge>
