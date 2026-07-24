@@ -529,7 +529,7 @@ export async function deleteDocument(documentId: string) {
   await supabase
     .from('document_links')
     .delete()
-    .or(`source_document_id.eq.${documentId},target_document_id.eq.${documentId}`)
+    .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
 
   // 2. Soft delete document
   const { error } = await supabase
