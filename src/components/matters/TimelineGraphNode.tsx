@@ -54,91 +54,93 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <div
-          className={`flex flex-col rounded-xl border-l-4 shadow-md transition-all cursor-pointer w-56 relative overflow-hidden ${colors.borderClass} ${
-            selected
-              ? 'border-t border-r border-b border-[var(--primary)] bg-blue-50/80 dark:bg-blue-950/50 ring-2 ring-blue-500/30 shadow-[0_4px_20px_rgba(37,99,235,0.2)]'
-              : isNeedsReview
-                ? 'border-t border-r border-b border-amber-400/60 bg-amber-50/70 dark:bg-amber-950/30 hover:shadow-[0_4px_16px_rgba(245,158,11,0.2)] hover:-translate-y-0.5'
-                : isSupporting
-                  ? 'border-t border-r border-b border-[var(--border-strong)] bg-slate-50 dark:bg-[var(--surface-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:-translate-y-0.5'
-                  : 'border-t border-r border-b border-[var(--border)] bg-[var(--surface)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:-translate-y-0.5'
-          }`}
-          style={{ transition: 'box-shadow 0.2s, transform 0.15s' }}
-        >
-          {/* Doc fold corner */}
-          <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-[var(--surface-hover)] border-b border-l border-[var(--border-strong)] rounded-bl-sm" />
-
-          {/* TARGET handle — top center, large & easy to grab */}
+        {/*
+          CRITICAL: The outermost div must NOT have overflow:hidden.
+          ReactFlow positions handles relative to this element and they must
+          visually extend outside the card boundary (top: -7, bottom: -7).
+          overflow:hidden clips them and makes them invisible + unclickable.
+        */}
+        <div className="relative w-56" style={{ transition: 'transform 0.15s' }}>
+          {/* TARGET handle — top center, easy to grab */}
           <Handle
             type="target"
             position={Position.Top}
             isConnectable={isConnectable}
             style={{
-              width: 14,
-              height: 14,
+              width: 16,
+              height: 16,
               background: colors.accent,
-              border: '2px solid white',
+              border: '3px solid white',
               borderRadius: '50%',
-              top: -7,
-              boxShadow: `0 0 0 3px ${colors.accent}30`,
+              top: -8,
+              boxShadow: `0 0 0 3px ${colors.accent}40, 0 2px 6px rgba(0,0,0,0.2)`,
               cursor: 'crosshair',
+              zIndex: 10,
             }}
           />
 
-          <div className="p-3 pb-2.5">
-            {/* Doc type chip + title row */}
-            <div className="flex items-start justify-between gap-2 pr-3 mb-1.5">
-              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                {/* Colored document type label */}
-                <span className={`font-black text-sm uppercase tracking-wider truncate leading-none ${colors.textClass}`}>
-                  {doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
-                </span>
-                {isSupporting && (
-                  <Badge variant="outline" className="text-[9px] tracking-wider uppercase h-4 px-1 py-0 w-fit bg-slate-100 text-slate-500 border-slate-300 mt-0.5">
-                    Supporting
-                  </Badge>
+          {/* Card — inner div handles overflow-hidden for fold corner */}
+          <div
+            className={`flex flex-col rounded-xl border-l-4 shadow-md overflow-hidden ${colors.borderClass} ${
+              selected
+                ? 'border-t border-r border-b border-[var(--primary)] bg-blue-50/80 dark:bg-blue-950/50 ring-2 ring-blue-500/30 shadow-[0_4px_20px_rgba(37,99,235,0.2)]'
+                : isNeedsReview
+                  ? 'border-t border-r border-b border-amber-400/60 bg-amber-50/70 dark:bg-amber-950/30 hover:shadow-[0_4px_16px_rgba(245,158,11,0.2)]'
+                  : isSupporting
+                    ? 'border-t border-r border-b border-[var(--border-strong)] bg-slate-50 dark:bg-[var(--surface-hover)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)]'
+                    : 'border-t border-r border-b border-[var(--border)] bg-[var(--surface)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)]'
+            }`}
+          >
+            {/* Doc fold corner */}
+            <div className="absolute top-0 right-0 w-3.5 h-3.5 bg-[var(--surface-hover)] border-b border-l border-[var(--border-strong)] rounded-bl-sm" />
+
+            <div className="p-3 pb-2.5">
+              {/* Doc type chip + title row */}
+              <div className="flex items-start justify-between gap-2 pr-3 mb-1.5">
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  {/* Colored document type label */}
+                  <span className={`font-black text-sm uppercase tracking-wider truncate leading-none ${colors.textClass}`}>
+                    {doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
+                  </span>
+                  {isSupporting && (
+                    <Badge variant="outline" className="text-[9px] tracking-wider uppercase h-4 px-1 py-0 w-fit bg-slate-100 text-slate-500 border-slate-300 mt-0.5">
+                      Supporting
+                    </Badge>
+                  )}
+                </div>
+                {isNeedsReview && (
+                  <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
                 )}
               </div>
-              {isNeedsReview && (
-                <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
-              )}
-            </div>
 
-            {/* Reference number */}
-            <span className="text-[11px] text-[--text-secondary] font-mono truncate block leading-snug">
-              {doc.reference_number || doc.storage_path?.split('/').pop() || 'No reference'}
-            </span>
+              {/* Reference number */}
+              <span className="text-[11px] text-[--text-secondary] font-mono truncate block leading-snug">
+                {doc.reference_number || doc.storage_path?.split('/').pop() || 'No reference'}
+              </span>
 
-            {/* Date row */}
-            <div className="flex items-center gap-1.5 text-[10px] text-[--text-muted] mt-2 font-medium">
-              <Calendar size={10} className="text-slate-400 shrink-0" />
-              <span>{doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}</span>
-              {doc.raw_metadata?.financial_year && (
-                <>
-                  <span className="text-[var(--border-strong)]">·</span>
-                  <span className={`text-[9px] font-bold uppercase ${colors.textClass} opacity-70`}>
-                    {doc.raw_metadata.financial_year}
-                  </span>
-                </>
-              )}
+              {/* Date row — no FY */}
+              <div className="flex items-center gap-1.5 text-[10px] text-[--text-muted] mt-2 font-medium">
+                <Calendar size={10} className="text-slate-400 shrink-0" />
+                <span>{doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}</span>
+              </div>
             </div>
           </div>
 
-          {/* SOURCE handle — bottom center, large & easy to grab */}
+          {/* SOURCE handle — bottom center, easy to grab */}
           <Handle
             type="source"
             position={Position.Bottom}
             isConnectable={isConnectable}
             style={{
-              width: 14,
-              height: 14,
+              width: 16,
+              height: 16,
               background: '#64748b',
-              border: '2px solid white',
+              border: '3px solid white',
               borderRadius: '50%',
-              bottom: -7,
-              boxShadow: '0 0 0 3px rgba(100,116,139,0.25)',
+              bottom: -8,
+              boxShadow: '0 0 0 3px rgba(100,116,139,0.35), 0 2px 6px rgba(0,0,0,0.2)',
               cursor: 'crosshair',
+              zIndex: 10,
             }}
           />
         </div>
