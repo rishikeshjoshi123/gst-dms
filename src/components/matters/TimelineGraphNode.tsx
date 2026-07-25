@@ -54,118 +54,154 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
-        {/*
-          CRITICAL: outer wrapper must NOT have overflow:hidden — handles extend
-          outside the card boundary and overflow:hidden clips them invisible.
-        */}
-        <div className="relative w-52 group" style={{ filter: selected ? `drop-shadow(0 0 8px ${colors.accent}50)` : undefined }}>
+        {/* Outer wrapper: NO overflow:hidden — handles must extend past card edge */}
+        <div className="relative" style={{ width: 192 }}>
 
-          {/* TARGET handle — top, appears as a subtle notch/port */}
+          {/* ── TOP HANDLE (target / child input) ── */}
           <Handle
             type="target"
             position={Position.Top}
             isConnectable={isConnectable}
             style={{
-              width: 20,
-              height: 6,
+              width: 28,
+              height: 5,
               background: colors.accent,
               border: 'none',
               borderRadius: '0 0 4px 4px',
               top: 0,
-              opacity: 0.7,
+              opacity: 0.55,
               cursor: 'crosshair',
               zIndex: 10,
-              transition: 'opacity 0.2s, height 0.2s',
             }}
           />
 
-          {/* Card — paper document aesthetic */}
+          {/* ── CARD: document paper look ── */}
           <div
-            className={`flex flex-col overflow-hidden shadow-md transition-shadow duration-200 ${
-              selected
-                ? 'shadow-[0_4px_20px_rgba(0,0,0,0.15)] ring-2 ring-offset-0'
-                : 'hover:shadow-[0_6px_24px_rgba(0,0,0,0.13)]'
-            }`}
             style={{
-              borderRadius: '6px 2px 6px 6px', // slight sharp on top-right for fold effect
+              position: 'relative',
+              borderRadius: '5px 0 5px 5px',   // sharp top-right = fold corner
               background: 'var(--surface)',
               border: `1px solid ${selected ? colors.accent : 'var(--border)'}`,
-              marginTop: '0px',
+              boxShadow: selected
+                ? `0 4px 18px ${colors.accent}35, 0 1px 4px rgba(0,0,0,0.08)`
+                : '0 1px 6px rgba(0,0,0,0.07), 0 0 0 0 transparent',
+              overflow: 'hidden',
+              transition: 'box-shadow 0.2s, border-color 0.2s',
             }}
           >
-            {/* Colored header stripe with doc type */}
-            <div
-              className="flex items-center justify-between px-3 py-2 relative"
-              style={{ background: `${colors.accent}18` }}
-            >
-              {/* Thin left accent bar */}
-              <div
-                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l"
-                style={{ background: colors.accent }}
-              />
-
-              <span
-                className="text-[11px] font-black uppercase tracking-widest pl-1 truncate"
-                style={{ color: colors.accent }}
-              >
-                {doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
-              </span>
-
-              <div className="flex items-center gap-1 shrink-0 ml-2">
-                {isNeedsReview && <AlertTriangle size={11} className="text-amber-500" />}
-                {isSupporting && (
-                  <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500 px-1 rounded">
-                    SUP
-                  </span>
-                )}
-                {/* Paper fold corner */}
-                <div
-                  className="w-3 h-3 shrink-0"
-                  style={{
-                    background: `conic-gradient(from 225deg at 100% 0%, var(--surface) 90deg, ${colors.accent}25 90deg)`,
-                    borderBottom: '1px solid var(--border)',
-                    borderLeft: '1px solid var(--border)',
-                    borderBottomLeftRadius: '3px',
-                  }}
-                />
-              </div>
+            {/* ── Paper fold corner (top-right) ──
+                Technique: a small overflow:hidden container holds a square div
+                rotated 45°. The rotated square's edges become the fold crease,
+                and its face color matches --surface-hover (slightly off from the
+                card background), creating a realistic dog-ear without needing
+                to know the canvas background color. */}
+            <div style={{
+              position: 'absolute', top: 0, right: 0,
+              width: 20, height: 20,
+              overflow: 'hidden',
+              zIndex: 2,
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: -10, right: -10,
+                width: 28, height: 28,
+                background: 'var(--bg)',
+                borderLeft: '1px solid var(--border)',
+                borderBottom: '1px solid var(--border-strong)',
+                transform: 'rotate(45deg)',
+                transformOrigin: 'center',
+                boxShadow: '-1px 1px 3px rgba(0,0,0,0.09)',
+              }} />
             </div>
 
+            {/* Colored accent stripe — leaves 20px gap for the fold */}
+            <div style={{
+              height: 3,
+              background: colors.accent,
+              marginRight: 20,
+            }} />
+
             {/* Body */}
-            <div className="px-3 py-2.5">
-              {/* Reference number — the main identifier */}
-              <p className="text-[13px] font-semibold text-[var(--text-primary)] font-mono truncate leading-tight">
+            <div style={{ padding: '8px 12px 10px' }}>
+
+              {/* Doc type + alert row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: colors.accent,
+                  lineHeight: 1,
+                }}>
+                  {doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {isNeedsReview && <AlertTriangle size={10} color="#F59E0B" />}
+                  {isSupporting && (
+                    <span style={{
+                      fontSize: 8, fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                      color: 'var(--text-muted)',
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
+                      padding: '1px 3px', borderRadius: 3,
+                    }}>SUP</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Reference number — normal weight, monospace */}
+              <p style={{
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                color: 'var(--text-primary)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.4,
+                marginBottom: 6,
+              }}>
                 {doc.reference_number || doc.storage_path?.split('/').pop() || '—'}
               </p>
 
               {/* Date */}
-              <div className="flex items-center gap-1 mt-1.5 text-[10px] text-[var(--text-muted)]">
-                <Calendar size={9} className="shrink-0" style={{ color: colors.accent, opacity: 0.6 }} />
-                <span>{doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Calendar size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                <span style={{
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '0.01em',
+                }}>
+                  {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}
+                </span>
               </div>
+
             </div>
           </div>
 
-          {/* SOURCE handle — bottom, appears as a subtle port */}
+          {/* ── BOTTOM HANDLE (source / parent output) ── */}
           <Handle
             type="source"
             position={Position.Bottom}
             isConnectable={isConnectable}
             style={{
-              width: 20,
-              height: 6,
+              width: 28,
+              height: 5,
               background: 'var(--text-muted)',
               border: 'none',
               borderRadius: '4px 4px 0 0',
               bottom: 0,
-              opacity: 0.45,
+              opacity: 0.35,
               cursor: 'crosshair',
               zIndex: 10,
-              transition: 'opacity 0.2s',
             }}
           />
         </div>
       </HoverCardTrigger>
+
 
       
       <HoverCardContent side="right" align="start" className="w-80 p-4 shadow-[var(--shadow-xl)] z-[100] bg-[var(--surface)] border-[var(--border-strong)] rounded-xl">
