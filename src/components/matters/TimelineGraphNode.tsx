@@ -76,44 +76,43 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
           />
 
           {/*
-            FILTER WRAPPER: drop-shadow here follows the clip-path shape of the
-            inner card. This is how we get a correct border + shadow on a
-            non-rectangular shape without knowing the canvas background color.
+            FILTER WRAPPER: drop-shadow applied here follows the clip-path
+            pentagon shape of the inner card.
+            Syntax: drop-shadow(offset-x offset-y blur color) — no spread param.
+            Use a very small blur (0.5px) for the border effect.
           */}
           <div style={{
             filter: selected
-              ? `drop-shadow(0 0 0 1.5px ${colors.accent}) drop-shadow(0 4px 14px ${colors.accent}45)`
-              : 'drop-shadow(0 0 0 1px var(--border)) drop-shadow(0 2px 8px rgba(0,0,0,0.10))',
+              ? `drop-shadow(0 0 0.5px ${colors.accent}) drop-shadow(0 4px 14px ${colors.accent}45)`
+              : 'drop-shadow(0 0 0.5px rgba(0,0,0,0.28)) drop-shadow(0 2px 8px rgba(0,0,0,0.10))',
             transition: 'filter 0.2s',
           }}>
-            {/*
-              CLIPPED CARD: pentagon clip creates the real dog-ear corner.
-              polygon: TL → (TR - FOLD) → fold-tip → BR → BL
-              FOLD = 22px
-            */}
+            {/* CLIPPED CARD: pentagon clip = real dog-ear corner */}
             <div style={{
-              clipPath: 'polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%)',
+              clipPath: 'polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%)',
               background: 'var(--surface)',
               position: 'relative',
             }}>
 
-              {/* Fold crease shadow — linear-gradient triangle at top-right.
-                  The gradient runs from bottom-left (transparent) → top-right (shadow),
-                  drawing only the upper-right triangle of this 22×22 div.
-                  This sits inside the clip-path so it's already clipped to the
-                  pentagon shape — no canvas color needed. */}
+              {/*
+                FOLD CREASE — a 24×24 div at top-right with a strong diagonal
+                gradient. `to bottom left` means: top-right = first color (dark),
+                bottom-left = transparent. The 50% hard stop creates a clean edge.
+                This div is inside the clip so it's already constrained to the
+                pentagon — no canvas background color needed.
+              */}
               <div style={{
                 position: 'absolute', top: 0, right: 0,
-                width: 22, height: 22,
-                background: 'linear-gradient(to bottom left, rgba(0,0,0,0.08) 50%, transparent 50%)',
+                width: 24, height: 24,
+                background: 'linear-gradient(to bottom left, rgba(0,0,0,0.20) 50%, transparent 50%)',
                 zIndex: 1,
               }} />
 
-              {/* Colored accent stripe — width stops before the fold */}
+              {/* Colored accent stripe — stops before the fold */}
               <div style={{
                 height: 3,
                 background: colors.accent,
-                width: 'calc(100% - 22px)',
+                width: 'calc(100% - 24px)',
               }} />
 
               {/* Card body */}
@@ -139,13 +138,13 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                   color: 'var(--text-primary)',
                   overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', lineHeight: 1.4,
-                  marginBottom: 5,
+                  marginBottom: 6,
                 }}>
                   {doc.reference_number || doc.storage_path?.split('/').pop() || '—'}
                 </p>
 
-                {/* Date */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 10 }}>
+                {/* Date + supporting badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Calendar size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                     {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown'}
@@ -158,17 +157,6 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                       padding: '0 3px', borderRadius: 2, marginLeft: 2,
                     }}>SUP</span>
                   )}
-                </div>
-
-                {/* Document content lines — mimics the horizontal lines in a document icon */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {[1, 0.8, 0.95, 0.65].map((w, i) => (
-                    <div key={i} style={{
-                      height: 2, borderRadius: 2,
-                      background: `${colors.accent}28`,
-                      width: `${w * 100}%`,
-                    }} />
-                  ))}
                 </div>
 
               </div>
@@ -190,6 +178,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             }}
           />
         </div>
+
       </HoverCardTrigger>
 
 
