@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { UserPlus, Mail, ShieldCheck, User, UserMinus, Crown } from 'lucide-react'
+import { UserPlus, Mail, ShieldCheck, User, UserMinus, Crown, Building2, Users, Settings as SettingsIcon } from 'lucide-react'
 import { inviteMember } from '@/lib/actions/org'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/label'
+import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import {
   Dialog,
   DialogContent,
@@ -41,16 +42,10 @@ interface SettingsClientProps {
   currentUserRole: string
 }
 
-const roleVariant: Record<string, 'default' | 'warning' | 'muted'> = {
-  admin:     'default',
-  associate: 'muted',
-  viewer:    'muted',
-}
-
 const roleIcon: Record<string, React.ElementType> = {
-  admin:     Crown,
+  admin: Crown,
   associate: User,
-  viewer:    UserMinus,
+  viewer: UserMinus,
 }
 
 export function SettingsClient({
@@ -83,112 +78,140 @@ export function SettingsClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-8 py-8 space-y-8 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-      {/* Page header */}
-      <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-[--text-primary]">Settings</h1>
-        <p className="mt-1 text-sm text-[--text-muted]">Manage your organisation and team</p>
-      </div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar animate-fade-in -mt-2">
+      <BreadcrumbSetter breadcrumbs={[{ label: 'Settings' }]} />
 
-      {/* Org info */}
-      <section className="animate-fade-in bg-[--bg-surface] rounded-[--radius-xl] border border-[--border-subtle] p-6">
-        <h2 className="text-sm font-semibold text-[--text-primary] mb-4">Organisation</h2>
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[--radius-lg] bg-[--accent-muted] text-lg font-bold text-[--accent]">
-            {orgName.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-semibold text-[--text-primary]">{orgName}</p>
-            <p className="text-xs text-[--text-muted]">{members.length} member{members.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Members */}
-      <section className="animate-fade-in bg-[--bg-surface] rounded-[--radius-xl] border border-[--border-subtle] p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-[--text-primary]">Members</h2>
-          {currentUserRole === 'admin' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
-            >
-              <UserPlus size={14} />
-              Invite member
-            </Button>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          {members.map((member) => {
-            const RoleIcon = roleIcon[member.role] ?? User
-            return (
-              <div
-                key={member.user_id}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-[--radius-md] hover:bg-[--bg-overlay] transition-colors"
-              >
-                <Avatar
-                  name={member.full_name || member.email}
-                  size="sm"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[--text-primary] truncate">
-                    {member.full_name ?? member.email}
-                  </p>
-                  {member.full_name && (
-                    <p className="text-xs text-[--text-muted] truncate">{member.email}</p>
-                  )}
-                </div>
-                <Badge variant={roleVariant[member.role]}>
-                  <RoleIcon size={10} />
-                  {member.role}
-                </Badge>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Pending invites */}
-        {pendingInvites.length > 0 && (
-          <div className="mt-5 pt-5 border-t border-[--border-subtle]">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[--text-muted] mb-3">
-              Pending invites
-            </p>
-            <div className="space-y-2">
-              {pendingInvites.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="flex items-center gap-3 py-2.5 px-3 rounded-md bg-[--bg-overlay]"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--bg-muted]">
-                    <Mail size={14} className="text-[--text-muted]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[--text-secondary] truncate">{invite.invited_email}</p>
-                    <p className="text-[10px] text-[--text-muted]">
-                      Expires {new Date(invite.expires_at).toLocaleDateString('en-IN')}
-                    </p>
-                  </div>
-                  <Badge variant="warning" dot>pending</Badge>
-                </div>
-              ))}
+      <div className="max-w-4xl w-full mx-auto space-y-6 pb-12">
+        {/* Organisation Info Card */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
+          <div className="flex items-center gap-4 mb-6 pb-4 border-b border-[var(--border)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 shrink-0">
+              <Building2 size={24} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">Organisation Details</h2>
+              <p className="text-xs text-[var(--text-muted)]">Active workspace profile and membership overview</p>
             </div>
           </div>
-        )}
-      </section>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Organisation Name</span>
+              <span className="text-base font-semibold text-[var(--text-primary)]">{orgName}</span>
+            </div>
+            <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col gap-1">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Active Members</span>
+              <span className="text-base font-semibold text-[var(--text-primary)]">{members.length} member{members.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Team Members Card */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border)]">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                <Users size={24} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-[var(--text-primary)]">Team Members</h2>
+                <p className="text-xs text-[var(--text-muted)]">People with access to this organisation</p>
+              </div>
+            </div>
+
+            {currentUserRole === 'admin' && (
+              <Button
+                onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
+                className="bg-[var(--primary)] text-white hover:opacity-90 shadow-sm gap-2"
+              >
+                <UserPlus size={15} />
+                Invite Member
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {members.map((member) => {
+              const RoleIcon = roleIcon[member.role] ?? User
+              return (
+                <div
+                  key={member.user_id}
+                  className="flex items-center justify-between p-3.5 px-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <Avatar
+                      name={member.full_name || member.email}
+                      size="sm"
+                    />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                        {member.full_name ?? member.email}
+                      </span>
+                      {member.full_name && (
+                        <span className="text-xs text-[var(--text-muted)] truncate">{member.email}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                    member.role === 'admin'
+                      ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
+                      : 'bg-[var(--surface-hover)] text-[var(--text-secondary)] border border-[var(--border)]'
+                  }`}>
+                    <RoleIcon size={12} />
+                    {member.role}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Pending invites */}
+          {pendingInvites.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-[var(--border)]">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">
+                Pending Invitations ({pendingInvites.length})
+              </h3>
+              <div className="space-y-2.5">
+                {pendingInvites.map((invite) => (
+                  <div
+                    key={invite.id}
+                    className="flex items-center justify-between p-3 px-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 shrink-0">
+                        <Mail size={15} />
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs font-medium text-[var(--text-primary)] truncate">{invite.invited_email}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">
+                          Expires {new Date(invite.expires_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                      Pending
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Invite dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)]">
           <DialogHeader>
-            <DialogTitle>Invite team member</DialogTitle>
-            <DialogDescription>
-              They will receive an email with instructions to join {orgName}.
+            <DialogTitle className="text-lg font-bold text-[var(--text-primary)]">Invite Team Member</DialogTitle>
+            <DialogDescription className="text-xs text-[var(--text-muted)]">
+              Send an email invitation to add a new colleague to {orgName}.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleInvite} className="flex flex-col gap-4">
+          <form onSubmit={handleInvite} className="flex flex-col gap-4 mt-2">
             <FormField label="Email address" required error={inviteError ?? undefined}>
               <Input
                 id="invite-email"
@@ -198,6 +221,7 @@ export function SettingsClient({
                 required
                 autoFocus
                 disabled={isPending}
+                className="bg-[var(--bg)] border-[var(--border-strong)] text-[var(--text-primary)]"
               />
             </FormField>
 
@@ -207,7 +231,7 @@ export function SettingsClient({
                 name="role"
                 defaultValue="associate"
                 disabled={isPending}
-                className="w-full h-10 px-3.5 rounded-md text-sm bg-[--bg-overlay] text-[--text-primary] border border-[--border-default] focus:border-[--accent] focus:ring-2 focus:ring-[--accent-ring] outline-none transition-all"
+                className="w-full h-10 px-3.5 rounded-md text-sm bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none transition-all cursor-pointer"
               >
                 <option value="associate">Associate — can view and edit</option>
                 <option value="viewer">Viewer — read-only access</option>
@@ -216,18 +240,18 @@ export function SettingsClient({
             </FormField>
 
             {inviteSuccess && (
-              <div className="flex items-center gap-2 text-sm text-[--success] bg-[--success-muted] rounded-md px-4 py-3 animate-fade-in">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
                 <ShieldCheck size={16} />
                 Invitation sent successfully!
               </div>
             )}
 
-            <DialogFooter>
-              <Button variant="secondary" type="button" onClick={() => setInviteOpen(false)}>
+            <DialogFooter className="mt-2">
+              <Button variant="outline" type="button" onClick={() => setInviteOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" loading={isPending}>
-                Send invite
+              <Button type="submit" disabled={isPending} className="bg-[var(--primary)] text-white">
+                {isPending ? 'Sending...' : 'Send Invite'}
               </Button>
             </DialogFooter>
           </form>
