@@ -120,13 +120,14 @@ export function SettingsClient({
             </div>
 
             {currentUserRole === 'admin' && (
-              <Button
+              <button
+                type="button"
                 onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
-                className="bg-[var(--primary)] text-white hover:opacity-90 shadow-sm gap-2"
+                className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:via-indigo-500 hover:to-blue-600 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 cursor-pointer border border-blue-400/30"
               >
-                <UserPlus size={15} />
-                Invite Member
-              </Button>
+                <UserPlus size={14} className="transition-transform duration-200 group-hover:scale-110" />
+                <span>Invite Member</span>
+              </button>
             )}
           </div>
 
