@@ -368,7 +368,7 @@ export function DashboardContent({
                               <Icon size={12} className="text-white" />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                              <span className="text-xs font-bold text-[var(--text-primary)] truncate">
                                 {log.description || label}
                               </span>
                               <span className="text-[10px] text-[var(--text-muted)] mt-0.2 flex items-center gap-1.5 truncate">

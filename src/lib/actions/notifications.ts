@@ -83,14 +83,39 @@ export async function getRecentActivityLogs(limit = 50) {
 
   try {
     const db = createServiceClient()
-    
-    // 1. Collect all referenced document IDs across logs for dynamic resolution
+
+    // 1. Collect all link IDs where entity_type === 'document_link'
+    const linkIds = new Set<string>()
+    logs.forEach(log => {
+      if (log.entity_type === 'document_link' && log.entity_id) {
+        linkIds.add(log.entity_id)
+      }
+    })
+
+    let linkMap = new Map<string, { from_doc_id: string; to_doc_id: string | null }>()
+    if (linkIds.size > 0) {
+      const { data: links } = await db
+        .from('document_links')
+        .select('id, from_doc_id, to_doc_id')
+        .in('id', Array.from(linkIds))
+
+      if (links) {
+        linkMap = new Map(links.map(l => [l.id, { from_doc_id: l.from_doc_id, to_doc_id: l.to_doc_id }]))
+      }
+    }
+
+    // 2. Collect all referenced document IDs across logs for dynamic resolution
     const docIds = new Set<string>()
     logs.forEach(log => {
       const meta = log.metadata as Record<string, any> | null
-      if (meta) {
-        if (meta.from_doc_id) docIds.add(meta.from_doc_id)
-        if (meta.to_doc_id) docIds.add(meta.to_doc_id)
+      if (meta?.from_doc_id) docIds.add(meta.from_doc_id)
+      if (meta?.to_doc_id) docIds.add(meta.to_doc_id)
+      if (log.entity_type === 'document_link' && log.entity_id) {
+        const link = linkMap.get(log.entity_id)
+        if (link) {
+          if (link.from_doc_id) docIds.add(link.from_doc_id)
+          if (link.to_doc_id) docIds.add(link.to_doc_id)
+        }
       }
       if (log.entity_type === 'document' && log.entity_id) {
         docIds.add(log.entity_id)
@@ -110,7 +135,7 @@ export async function getRecentActivityLogs(limit = 50) {
       }
     }
 
-    // 2. Fetch auth users
+    // 3. Fetch auth users
     const { data: { users: authUsers } } = await db.auth.admin.listUsers()
     const userMap = new Map((authUsers || []).map(u => [
       u.id,
@@ -122,10 +147,20 @@ export async function getRecentActivityLogs(limit = 50) {
       const meta = (log.metadata as Record<string, any>) || {}
       let resolvedMeta: Record<string, any> = { ...meta }
 
+      let fromDocId = meta.from_doc_id
+      let toDocId = meta.to_doc_id
+      if (!fromDocId && log.entity_type === 'document_link' && log.entity_id) {
+        const link = linkMap.get(log.entity_id)
+        if (link) {
+          fromDocId = link.from_doc_id
+          toDocId = link.to_doc_id
+        }
+      }
+
       // Dynamically resolve document link descriptions & metadata from live DB records
-      if (log.entity_type === 'document_link' && meta.from_doc_id && meta.to_doc_id) {
-        const fromDoc = docMap.get(meta.from_doc_id)
-        const toDoc = docMap.get(meta.to_doc_id)
+      if (log.entity_type === 'document_link' && fromDocId && toDocId) {
+        const fromDoc = docMap.get(fromDocId)
+        const toDoc = docMap.get(toDocId)
         const fromType = fromDoc?.doc_type || fromDoc?.reference_number || meta.from_doc_type || 'Document'
         const toType = toDoc?.doc_type || toDoc?.reference_number || meta.to_doc_type || 'Document'
         const caseName = (fromDoc?.matters as any)?.title || (toDoc?.matters as any)?.title || meta.case_name || 'Matter'
