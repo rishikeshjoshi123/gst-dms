@@ -529,20 +529,14 @@ export async function deleteDocument(documentId: string) {
 
   if (!doc) return { error: 'Document not found.' }
 
-  // 1. Delete associated document_links where this document is source or target
-  await db
-    .from('document_links')
-    .delete()
-    .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
-
-  // 2. Soft delete associated case notes
+  // 1. Soft delete associated case notes
   await db
     .from('case_notes')
     .update({ deleted_at: new Date().toISOString() })
     .eq('document_id', documentId)
     .eq('org_id', orgId)
 
-  // 3. Soft delete document
+  // 2. Soft delete document (links remain in system for future restoration)
   const { error } = await db
     .from('documents')
     .update({ deleted_at: new Date().toISOString() })
