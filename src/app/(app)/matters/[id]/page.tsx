@@ -15,8 +15,13 @@ import { Button } from '@/components/ui/button'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
 
-export default async function MatterPage(props: { params: Promise<{ id: string }> }) {
+export default async function MatterPage(props: { 
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
+  const fromReview = searchParams?.from === 'review'
   const matter = await getMatterById(params.id)
 
   if (!matter) {
@@ -46,11 +51,17 @@ export default async function MatterPage(props: { params: Promise<{ id: string }
 
   const isClosed = matter.status === 'closed'
 
-  const breadcrumbs = [
-    { label: 'Clients', href: '/clients' },
-    { label: matter.clients?.name || 'Unknown', href: `/clients/${matter.client_id}` },
-    { label: matter.title }
-  ]
+  const breadcrumbs = fromReview
+    ? [
+        { label: 'Pending Review', href: '/review' },
+        { label: matter.clients?.name || 'Unknown', href: `/clients/${matter.client_id}` },
+        { label: matter.title }
+      ]
+    : [
+        { label: 'Clients', href: '/clients' },
+        { label: matter.clients?.name || 'Unknown', href: `/clients/${matter.client_id}` },
+        { label: matter.title }
+      ]
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden h-full animate-fade-in -mt-2 ">

@@ -83,8 +83,8 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
           */}
           <div style={{
             filter: selected
-              ? `drop-shadow(0 0 0.5px ${colors.accent}) drop-shadow(0 4px 14px ${colors.accent}45)`
-              : 'drop-shadow(0 0 0.5px rgba(0,0,0,0.28)) drop-shadow(0 2px 8px rgba(0,0,0,0.10))',
+              ? `drop-shadow(0 0 1px ${colors.accent}) drop-shadow(0 4px 14px ${colors.accent}55)`
+              : 'drop-shadow(0 0 0.75px rgba(255,255,255,0.45)) drop-shadow(0 0 0.5px rgba(0,0,0,0.5)) drop-shadow(0 2px 8px rgba(0,0,0,0.25))',
             transition: 'filter 0.2s',
           }}>
             {/* CLIPPED CARD: pentagon clip = real dog-ear corner */}

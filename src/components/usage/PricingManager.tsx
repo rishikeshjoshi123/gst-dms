@@ -54,14 +54,14 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
   }
 
   return (
-    <Card className="shadow-sm border-[--border] bg-white mt-8">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-[16px] font-[600] text-[--text-primary]">Model Pricing ($ USD per 1M tokens)</CardTitle>
+    <Card className="shadow-sm border-[var(--border)] bg-[var(--surface)] mt-8 text-[var(--text-primary)]">
+      <CardHeader className="pb-2 border-b border-[var(--border)]">
+        <CardTitle className="text-[16px] font-[600] text-[var(--text-primary)]">Model Pricing ($ USD per 1M tokens)</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 font-medium">
+            <thead className="bg-[var(--bg)] text-[var(--text-muted)] font-medium border-b border-[var(--border)]">
               <tr>
                 <th className="px-6 py-3 rounded-tl-lg">Model Name</th>
                 <th className="px-6 py-3">Input Price</th>
@@ -69,35 +69,35 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
                 <th className="px-6 py-3 rounded-tr-lg w-24">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--border)]">
               {pricing.map((p) => {
                 const isEditing = editingModel === p.model_name
                 return (
-                  <tr key={p.model_name} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-[--text-primary]">
+                  <tr key={p.model_name} className="hover:bg-[var(--surface-hover)] transition-colors">
+                    <td className="px-6 py-4 font-medium text-[var(--text-primary)]">
                       {p.model_name}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-[var(--text-secondary)]">
                       {isEditing ? (
                         <input
                           type="number"
                           step="0.0001"
                           value={editValues.input}
                           onChange={(e) => setEditValues(prev => ({ ...prev, input: e.target.value }))}
-                          className="w-24 text-sm bg-white border border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none rounded px-2 py-1 shadow-sm"
+                          className="w-24 text-sm bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--primary)] outline-none rounded px-2 py-1 shadow-sm"
                         />
                       ) : (
                         `$${Number(p.input_price_per_1m).toFixed(4)}`
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 text-[var(--text-secondary)]">
                       {isEditing ? (
                         <input
                           type="number"
                           step="0.0001"
                           value={editValues.output}
                           onChange={(e) => setEditValues(prev => ({ ...prev, output: e.target.value }))}
-                          className="w-24 text-sm bg-white border border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none rounded px-2 py-1 shadow-sm"
+                          className="w-24 text-sm bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border-strong)] focus:ring-2 focus:ring-[var(--primary)] outline-none rounded px-2 py-1 shadow-sm"
                         />
                       ) : (
                         `$${Number(p.output_price_per_1m).toFixed(4)}`
@@ -116,7 +116,7 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
                       ) : (
                         <button 
                           onClick={() => startEdit(p)}
-                          className="text-[--primary] hover:bg-[--primary]/10 p-1.5 rounded transition-colors"
+                          className="text-[var(--primary)] hover:bg-[var(--primary)]/10 p-1.5 rounded transition-colors"
                           title="Edit pricing"
                         >
                           <Edit2 size={14} />
@@ -129,7 +129,7 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
             </tbody>
           </table>
           {pricing.length === 0 && (
-             <div className="p-4 text-center text-sm text-[--text-muted]">No pricing data found.</div>
+             <div className="p-4 text-center text-sm text-[var(--text-muted)]">No pricing data found.</div>
           )}
         </div>
       </CardContent>
