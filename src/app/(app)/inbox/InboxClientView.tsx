@@ -257,7 +257,7 @@ export function InboxClientView({
 
       <div className="flex flex-1 gap-6 overflow-hidden pt-2">
         {/* Left Pane: Queue (40%) */}
-        <div className="w-[40%] flex flex-col gap-2 overflow-y-auto pr-3 custom-scrollbar">
+        <div className="w-[40%] flex flex-col gap-2 overflow-y-auto p-1 pr-3 custom-scrollbar">
           {documents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-12 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-center shadow-[var(--shadow-sm)]">
               <FolderOpen size={32} className="text-[var(--text-muted)] mb-3" />
@@ -285,7 +285,7 @@ export function InboxClientView({
                   }}
                   className={`group rounded-lg transition-all duration-150 cursor-pointer relative ${
                     isSelected
-                      ? 'ring-2 ring-[var(--primary)] bg-[var(--surface)] shadow-sm'
+                      ? 'border-2 border-[var(--primary)] bg-[var(--surface)] shadow-sm'
                       : 'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]'
                   } ${isAnalyzing ? 'animated-gradient-border' : ''}`}
                 >
