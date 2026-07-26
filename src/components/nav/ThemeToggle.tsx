@@ -4,6 +4,59 @@ import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import { Sun, Moon } from 'lucide-react'
 
+function playSoothingBellSound(switchingToDark: boolean) {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+
+    const now = ctx.currentTime
+
+    // Main fundamental sine wave (pure bell tone)
+    const osc1 = ctx.createOscillator()
+    // Sub harmonic overtone (adds warmth)
+    const osc2 = ctx.createOscillator()
+
+    const gain1 = ctx.createGain()
+    const gain2 = ctx.createGain()
+
+    osc1.type = 'sine'
+    osc2.type = 'sine'
+
+    // Tuning: Switching to Dark = E5 -> A5 (gentle ascending night chime); Switching to Light = A5 -> E5 (gentle dawn chime)
+    const fundamentalFreq = switchingToDark ? 659.25 : 880
+    const overtoneFreq = fundamentalFreq * 2.005 // Subtle harmonic shimmer
+
+    osc1.frequency.setValueAtTime(fundamentalFreq, now)
+    osc1.frequency.exponentialRampToValueAtTime(switchingToDark ? 880 : 659.25, now + 0.12)
+
+    osc2.frequency.setValueAtTime(overtoneFreq, now)
+
+    // Soft bell envelope: fast smooth attack, long natural exponential decay
+    gain1.gain.setValueAtTime(0.0001, now)
+    gain1.gain.linearRampToValueAtTime(0.12, now + 0.015)
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.9)
+
+    gain2.gain.setValueAtTime(0.0001, now)
+    gain2.gain.linearRampToValueAtTime(0.04, now + 0.01)
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.5)
+
+    osc1.connect(gain1)
+    osc2.connect(gain2)
+
+    gain1.connect(ctx.destination)
+    gain2.connect(ctx.destination)
+
+    osc1.start(now)
+    osc2.start(now)
+
+    osc1.stop(now + 1.0)
+    osc2.stop(now + 0.6)
+  } catch {
+    // Ignore audio context autoplay restrictions gracefully
+  }
+}
+
 export function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -17,7 +70,9 @@ export function ThemeToggle() {
   const isDark = resolvedTheme === 'dark' || theme === 'dark'
 
   const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark')
+    const switchingToDark = !isDark
+    playSoothingBellSound(switchingToDark)
+    setTheme(switchingToDark ? 'dark' : 'light')
   }
 
   return (
