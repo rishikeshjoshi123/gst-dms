@@ -110,20 +110,6 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
           </Link>
         </DropdownMenuItem>
 
-        {mounted && (
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault()
-              const nextTheme = (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) ? 'light' : 'dark'
-              setTheme(nextTheme)
-            }}
-            className="cursor-pointer flex items-center gap-2"
-          >
-            {theme === 'dark' ? <Sun size={14} className="text-amber-500" /> : <Moon size={14} className="text-blue-500" />}
-            <span>{theme === 'dark' ? 'Switch to Light mode' : 'Switch to Dark mode'}</span>
-          </DropdownMenuItem>
-        )}
-
         <DropdownMenuSeparator />
 
         <DropdownMenuItem destructive onClick={handleSignOut}>

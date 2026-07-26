@@ -7,6 +7,7 @@ import { getStagedDocumentCount } from '@/lib/actions/inbox'
 import { getUnreadNotificationCount } from '@/lib/actions/notifications'
 import { SidebarNav } from '@/components/nav/SidebarNav'
 import { UserMenu } from '@/components/nav/UserMenu'
+import { ThemeToggle } from '@/components/nav/ThemeToggle'
 import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
 import { BreadcrumbNav } from '@/components/nav/BreadcrumbNav'
 import type { Metadata } from 'next'
@@ -85,7 +86,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Topbar */}
           <header className="h-[48px] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 shadow-xs z-10 transition-colors duration-200">
             <BreadcrumbNav activeOrgName={activeOrg.name} />
-            <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />
+            <div className="flex items-center gap-3.5">
+              <ThemeToggle />
+              <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />
+            </div>
           </header>
 
           {/* Page Content */}
