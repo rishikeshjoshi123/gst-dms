@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { revalidatePath } from 'next/cache'
 
@@ -72,14 +72,33 @@ export async function getRecentActivityLogs(limit = 50) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
 
-  const { data } = await supabase
+  const { data: logs } = await supabase
     .from('activity_logs')
     .select('*')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  return data ?? []
+  if (!logs || logs.length === 0) return []
+
+  try {
+    const db = createServiceClient()
+    const { data: { users: authUsers } } = await db.auth.admin.listUsers()
+    if (authUsers) {
+      const userMap = new Map(authUsers.map(u => [
+        u.id,
+        u.user_metadata?.full_name || u.email || `User (${u.id.slice(0, 8)})`
+      ]))
+      return logs.map(log => ({
+        ...log,
+        user_email: (log.user_id ? userMap.get(log.user_id) : null) || 'System'
+      }))
+    }
+  } catch (err) {
+    console.error('Failed to resolve activity log user names:', err)
+  }
+
+  return logs
 }
 
 export async function getUpcomingDeadlines(limit = 5) {

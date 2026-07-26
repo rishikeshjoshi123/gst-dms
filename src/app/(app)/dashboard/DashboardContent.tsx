@@ -5,8 +5,8 @@ import { searchAll, SearchResultItem } from '@/lib/actions/search'
 import { NeedsAttentionPanel } from './NeedsAttentionPanel'
 import {
   ArrowUpRight, FileText, Search, Users, FolderOpen,
-  Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronDown, ChevronLeft,
-  AlertCircle, Zap, Link2, FileCheck, ShieldAlert, Code, Filter, Info, User
+  Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronLeft,
+  Zap, Link2, FileCheck, Info, User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -24,7 +24,7 @@ interface DashboardContentProps {
   upcomingDeadlines: any[]
 }
 
-const LOGS_PER_PAGE = 8
+const LOGS_PER_PAGE = 10
 
 const ENTITY_META: Record<string, { icon: React.FC<any>; color: string; gradient: string }> = {
   document:          { icon: FileText,   color: 'text-blue-500',   gradient: 'from-blue-500 to-indigo-500' },
@@ -51,6 +51,8 @@ const ACTION_LABELS: Record<string, string> = {
   client_created:          'Client created',
   client_updated:          'Client updated',
   client_deleted:          'Client deleted',
+  manual_link_created:     'Manual link created',
+  manual_link_deleted:     'Manual link deleted',
   link_created:            'Document link created',
   link_deleted:            'Document link deleted',
   link_confirmed:          'Document link confirmed',
@@ -122,17 +124,15 @@ export function DashboardContent({
   // Filtered Activity Logs
   const filteredLogs = useMemo(() => {
     return (activityLogs || []).filter(log => {
-      // Filter by Entity Type
       if (activityEntityFilter !== 'all' && log.entity_type !== activityEntityFilter) {
         return false
       }
-      // Filter by Search Query
       if (activitySearch.trim()) {
         const q = activitySearch.toLowerCase()
         const desc = (log.description || '').toLowerCase()
         const action = (log.action || '').toLowerCase()
-        const entity = (log.entity_type || '').toLowerCase()
-        if (!desc.includes(q) && !action.includes(q) && !entity.includes(q)) {
+        const userEmail = (log.user_email || '').toLowerCase()
+        if (!desc.includes(q) && !action.includes(q) && !userEmail.includes(q)) {
           return false
         }
       }
@@ -225,13 +225,13 @@ export function DashboardContent({
         </div>
       </div>
 
-      {/* ── Stat Cards Grid ──────────────────────────────────────── */}
+      {/* ── Stat Cards Grid (Restored Original Exact Styling) ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {statCards.map((card, idx) => (
           <Link
             key={idx}
             href={card.href}
-            className="group relative p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all shadow-xs overflow-hidden"
+            className="group p-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all shadow-xs"
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
@@ -256,11 +256,11 @@ export function DashboardContent({
         <div className="space-y-8 pb-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Upcoming Deadlines Widget */}
-            <div className="lg:col-span-1 flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+            <div className="lg:col-span-1 flex flex-col rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center">
-                    <Calendar size={15} />
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center">
+                    <Calendar size={14} />
                   </div>
                   <span className="text-sm font-bold text-[var(--text-primary)]">Upcoming Deadlines</span>
                 </div>
@@ -280,7 +280,7 @@ export function DashboardContent({
                       'bg-blue-500/10 text-blue-600 border border-blue-500/20'
 
                     return (
-                      <div key={d.id} className="p-4 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
+                      <div key={d.id} className="p-3.5 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
                         <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
                             {d.title || DEADLINE_TYPE_LABELS[d.deadline_type] || 'Deadline'}
@@ -299,38 +299,38 @@ export function DashboardContent({
               </div>
             </div>
 
-            {/* ── Recent Activity Section (Robust Filterable, Paginated, Accordion) ── */}
-            <div className="lg:col-span-2 flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+            {/* ── Recent Activity Section (Compact Thin Rows, User Mentions, Accordion, Filters) ── */}
+            <div className="lg:col-span-2 flex flex-col rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
               {/* Activity Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-[var(--border)] shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
-                    <Activity size={15} />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                    <Activity size={13} />
                   </div>
-                  <span className="text-sm font-bold text-[var(--text-primary)]">Recent Activity</span>
-                  <span className="ml-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-bold text-[var(--text-primary)]">Recent Activity</span>
+                  <span className="ml-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Live
                   </span>
                 </div>
 
-                {/* Filter & Search Bar */}
+                {/* Filter & Search Controls */}
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <Search size={13} className="absolute left-2.5 top-2.5 text-[var(--text-muted)]" />
+                    <Search size={12} className="absolute left-2.5 top-2 text-[var(--text-muted)]" />
                     <input
                       type="text"
                       value={activitySearch}
                       onChange={e => { setActivitySearch(e.target.value); setActivityPage(1) }}
                       placeholder="Filter logs..."
-                      className="h-8 pl-8 pr-2.5 rounded-lg text-xs bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] w-36 sm:w-44"
+                      className="h-7 pl-7 pr-2 rounded-md text-[11px] bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] w-32 sm:w-40"
                     />
                   </div>
 
                   <select
                     value={activityEntityFilter}
                     onChange={e => { setActivityEntityFilter(e.target.value); setActivityPage(1) }}
-                    className="h-8 px-2.5 rounded-lg text-xs bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] cursor-pointer"
+                    className="h-7 px-2 rounded-md text-[11px] bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] cursor-pointer"
                   >
                     <option value="all">All Entities</option>
                     <option value="client">Clients</option>
@@ -342,10 +342,10 @@ export function DashboardContent({
                 </div>
               </div>
 
-              {/* Activity Log Items (Accordion list — 1 item expanded at a time) */}
+              {/* Activity Log Compact Thin Rows */}
               <div className="divide-y divide-[var(--border)] flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                 {paginatedLogs.length === 0 ? (
-                  <div className="px-5 py-12 text-center text-xs text-[var(--text-muted)]">
+                  <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
                     No activity logs match your filter criteria
                   </div>
                 ) : (
@@ -354,84 +354,67 @@ export function DashboardContent({
                     const Icon = meta.icon
                     const label = ACTION_LABELS[log.action] ?? log.action.replace(/_/g, ' ')
                     const isExpanded = expandedLogId === log.id
+                    const userMention = log.user_email || 'System'
 
                     return (
                       <div key={log.id} className="flex flex-col border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors">
                         <button
                           type="button"
                           onClick={() => toggleLogExpand(log.id)}
-                          className="w-full text-left flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer outline-none"
+                          className="w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer outline-none"
                         >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-xs`}>
-                              <Icon size={14} className="text-white" />
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className={`w-6 h-6 rounded-md bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-xs`}>
+                              <Icon size={12} className="text-white" />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                              <span className="text-xs font-medium text-[var(--text-primary)] truncate">
                                 {log.description || label}
                               </span>
-                              <span className="text-[11px] text-[var(--text-muted)] mt-0.5 capitalize flex items-center gap-1.5">
-                                <span className="font-medium text-[var(--text-secondary)]">{log.entity_type?.replace(/_/g, ' ')}</span>
+                              <span className="text-[10px] text-[var(--text-muted)] mt-0.2 flex items-center gap-1.5 truncate">
+                                <span className="font-semibold text-[var(--text-secondary)]">by {userMention}</span>
                                 <span>·</span>
-                                <span>{label}</span>
+                                <span>{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</span>
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3 shrink-0 text-xs text-[var(--text-muted)]">
-                            <span>{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</span>
-                            <div className={`w-6 h-6 rounded-md border border-[var(--border)] bg-[var(--bg)] flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90 text-[var(--primary)]' : ''}`}>
-                              <ChevronRight size={14} />
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className={`w-5 h-5 rounded border border-[var(--border)] bg-[var(--bg)] flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90 text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
+                              <ChevronRight size={12} />
                             </div>
                           </div>
                         </button>
 
-                        {/* Accordion Detail Drawer (Expanded View) */}
+                        {/* Accordion Detail Drawer (Streamlined & Clean) */}
                         {isExpanded && (
-                          <div className="px-5 pb-4 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
-                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-                              <div className="flex items-center justify-between text-xs border-b border-[var(--border)] pb-2.5">
+                          <div className="px-4 pb-3 pt-0.5 animate-in slide-in-from-top-1 fade-in duration-150">
+                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 space-y-2 text-xs">
+                              <div className="flex items-center justify-between text-[11px] border-b border-[var(--border)] pb-2">
                                 <span className="font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
-                                  <Info size={13} className="text-[var(--primary)]" />
-                                  Log Audit Details
+                                  <User size={12} className="text-[var(--primary)]" />
+                                  Performed by <span className="text-[var(--text-primary)] font-bold">{userMention}</span>
                                 </span>
-                                <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded">
-                                  ID: {log.id}
+                                <span className="text-[10px] text-[var(--text-muted)]">
+                                  {new Date(log.created_at).toLocaleString()}
                                 </span>
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Action</span>
-                                  <p className="font-medium text-[var(--text-primary)] mt-0.5">{label}</p>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Entity Type</span>
-                                  <p className="font-medium text-[var(--text-primary)] mt-0.5 capitalize">{log.entity_type?.replace(/_/g, ' ')}</p>
-                                </div>
-                                {log.entity_id && (
-                                  <div>
-                                    <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Entity Reference</span>
-                                    <p className="font-mono text-[11px] text-[var(--text-secondary)] mt-0.5 truncate">{log.entity_id}</p>
-                                  </div>
-                                )}
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Timestamp</span>
-                                  <p className="font-medium text-[var(--text-primary)] mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
-                                </div>
-                              </div>
-
-                              {/* Metadata Payload if present */}
-                              {log.metadata && Object.keys(log.metadata).length > 0 && (
-                                <div className="pt-2 border-t border-[var(--border)]">
-                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider flex items-center gap-1.5 mb-1.5">
-                                    <Code size={12} />
-                                    Metadata Payload
+                              {/* Document Link Context Details */}
+                              {log.metadata?.from_doc_type && (
+                                <div className="text-[11px] text-[var(--text-secondary)] pt-1 flex items-center gap-1.5 font-medium">
+                                  <Link2 size={12} className="text-amber-500 shrink-0" />
+                                  <span>
+                                    Linked <strong className="text-[var(--text-primary)]">{log.metadata.from_doc_type} ({log.metadata.from_ref || 'Ref'})</strong> → <strong className="text-[var(--text-primary)]">{log.metadata.to_doc_type} ({log.metadata.to_ref || 'Ref'})</strong> in <strong className="text-[var(--text-primary)]">{log.metadata.case_name || 'Matter'}</strong>
                                   </span>
-                                  <pre className="text-[11px] font-mono bg-[var(--surface)] border border-[var(--border)] p-2.5 rounded-lg text-[var(--text-secondary)] whitespace-pre-wrap break-all max-h-36 overflow-y-auto custom-scrollbar">
-                                    {JSON.stringify(log.metadata, null, 2)}
-                                  </pre>
                                 </div>
+                              )}
+
+                              {/* Description detail */}
+                              {!log.metadata?.from_doc_type && (
+                                <p className="text-[11px] text-[var(--text-secondary)]">
+                                  {log.description}
+                                </p>
                               )}
                             </div>
                           </div>
@@ -444,7 +427,7 @@ export function DashboardContent({
 
               {/* Activity Pagination Footer */}
               {filteredLogs.length > LOGS_PER_PAGE && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--border)] shrink-0 text-xs text-[var(--text-muted)] bg-[var(--surface)]">
+                <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)] shrink-0 text-[11px] text-[var(--text-muted)] bg-[var(--surface)]">
                   <span>
                     Showing {((activityPage - 1) * LOGS_PER_PAGE) + 1} to {Math.min(activityPage * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} logs
                   </span>
@@ -453,9 +436,9 @@ export function DashboardContent({
                     <button
                       onClick={() => setActivityPage(prev => Math.max(1, prev - 1))}
                       disabled={activityPage === 1}
-                      className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="p-1 px-2 rounded border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                     >
-                      <ChevronLeft size={13} /> Prev
+                      <ChevronLeft size={12} /> Prev
                     </button>
                     <span className="font-semibold text-[var(--text-primary)]">
                       Page {activityPage} of {totalPages}
@@ -463,9 +446,9 @@ export function DashboardContent({
                     <button
                       onClick={() => setActivityPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={activityPage === totalPages}
-                      className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="p-1 px-2 rounded border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                     >
-                      Next <ChevronRight size={13} />
+                      Next <ChevronRight size={12} />
                     </button>
                   </div>
                 </div>
