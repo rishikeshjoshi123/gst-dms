@@ -11,6 +11,9 @@ import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
 import { BreadcrumbNav } from '@/components/nav/BreadcrumbNav'
 import type { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export const metadata: Metadata = {
   title: 'Dashboard',
 }

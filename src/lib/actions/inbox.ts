@@ -111,6 +111,7 @@ export async function uploadToInbox(formData: FormData) {
   }
 
   revalidatePath('/inbox')
+  revalidatePath('/', 'layout')
   return { success: true, id: data.id }
 }
 
@@ -238,6 +239,7 @@ export async function assignStagedDocument(
   }
 
   revalidatePath('/inbox')
+  revalidatePath('/', 'layout')
   revalidatePath(`/matters/${matterId}`)
   return { success: true, documentId: doc.id }
 }
@@ -396,6 +398,7 @@ export async function discardStagedDocument(stagedId: string) {
   }
 
   revalidatePath('/inbox')
+  revalidatePath('/', 'layout')
   return { success: true }
 }
 
@@ -479,5 +482,6 @@ export async function reevaluateStagedDocuments() {
 
   if (revalidated) {
     revalidatePath('/inbox')
+    revalidatePath('/', 'layout')
   }
 }
