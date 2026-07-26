@@ -107,7 +107,7 @@ export function ReviewClientView({
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden mt-2 animate-fade-in">
       <BreadcrumbSetter breadcrumbs={[{ label: 'Pending Review' }]} />
 
-      {/* Tabs directly below breadcrumbs (identical to MatterTabs layout) */}
+      {/* Tabs directly below breadcrumbs (exact match with MatterTabs layout) */}
       <div className="flex items-center gap-6 border-b border-[var(--border)] mb-6 px-2 shrink-0 overflow-x-auto custom-scrollbar">
         {sections.map(({ key, count }) => {
           const meta = SECTION_META[key]
@@ -119,7 +119,7 @@ export function ReviewClientView({
               onClick={() => setActiveSection(key)}
               className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors shrink-0 text-sm ${
                 isActive
-                  ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
+                  ? 'border-[var(--primary)] text-[var(--text-primary)] font-semibold'
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -127,7 +127,7 @@ export function ReviewClientView({
               <span>{meta.label}</span>
               <Badge
                 variant="muted"
-                className="ml-1 px-1.5 py-0 text-[10px] h-4 border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)] font-medium"
+                className="ml-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)]"
               >
                 {count}
               </Badge>
@@ -136,9 +136,9 @@ export function ReviewClientView({
         })}
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+      {/* Main Panel Box (enclosed card matching Matter workspace panel) */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-3">
           {paginatedItems.length === 0 ? (
             <EmptyState text={SECTION_META[activeSection].emptyText} />
           ) : (
@@ -146,7 +146,7 @@ export function ReviewClientView({
               if (activeSection === 'docs') {
                 const doc = item
                 return (
-                  <div key={doc.id} className="group relative flex items-center justify-between gap-4 p-3.5 px-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs transition-all">
+                  <div key={doc.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <FileText size={16} className="text-amber-500 shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
@@ -155,7 +155,7 @@ export function ReviewClientView({
                             {doc.doc_type || doc.storage_path?.split('/').pop() || 'Unknown document'}
                           </span>
                           {doc.reference_number && (
-                            <span className="text-[10px] font-mono bg-[var(--bg)] border border-[var(--border)] px-1.5 py-0.2 rounded text-[var(--text-muted)] shrink-0">
+                            <span className="text-[10px] font-mono bg-[var(--surface)] border border-[var(--border)] px-1.5 py-0.2 rounded text-[var(--text-muted)] shrink-0">
                               {doc.reference_number}
                             </span>
                           )}
@@ -176,7 +176,7 @@ export function ReviewClientView({
                       <button
                         onClick={() => handleDismissDoc(doc.id)}
                         disabled={isPending}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border border-[var(--border)] transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border border-[var(--border)] transition-colors"
                       >
                         <X size={12} />
                         Dismiss
@@ -184,7 +184,7 @@ export function ReviewClientView({
                       {doc.matters?.id && (
                         <a
                           href={`/matters/${doc.matters.id}?from=review`}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"
                         >
                           View <ChevronRight size={12} />
                         </a>
@@ -198,15 +198,15 @@ export function ReviewClientView({
                 const link = item
                 const confidence = link.confidence ? Math.round(link.confidence * 100) : null
                 return (
-                  <div key={link.id} className="group relative flex items-center justify-between gap-4 p-3.5 px-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs transition-all">
+                  <div key={link.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Link2 size={16} className="text-violet-500 shrink-0" />
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md">
                           {link.from_doc?.doc_type || 'DOC'} ({link.from_doc?.reference_number || 'Ref'})
                         </span>
                         <ChevronRight size={13} className="text-[var(--text-muted)] shrink-0" />
-                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--bg)] border border-[var(--border)] px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md">
                           {link.to_doc?.doc_type || 'DOC'} ({link.to_doc?.reference_number || 'Ref'})
                         </span>
                         {confidence !== null && (
@@ -224,7 +224,7 @@ export function ReviewClientView({
                     {link.from_doc?.matter_id && (
                       <a
                         href={`/matters/${link.from_doc.matter_id}?from=review`}
-                        className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
                       >
                         View Graph <ExternalLink size={11} />
                       </a>
@@ -236,7 +236,7 @@ export function ReviewClientView({
               if (activeSection === 'tasks') {
                 const task = item
                 return (
-                  <div key={task.id} className="group relative flex items-center justify-between gap-4 p-3.5 px-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs transition-all">
+                  <div key={task.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <CheckSquare size={16} className="text-blue-500 shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
@@ -253,7 +253,7 @@ export function ReviewClientView({
                     {task.matters?.id && (
                       <a
                         href={`/matters/${task.matters.id}?from=review`}
-                        className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
                       >
                         View Matter <ChevronRight size={12} />
                       </a>
@@ -265,7 +265,7 @@ export function ReviewClientView({
               if (activeSection === 'staged') {
                 const staged = item
                 return (
-                  <div key={staged.id} className="group relative flex items-center justify-between gap-4 p-3.5 px-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-xs transition-all">
+                  <div key={staged.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Inbox size={16} className="text-emerald-500 shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
@@ -280,7 +280,7 @@ export function ReviewClientView({
 
                     <a
                       href="/inbox"
-                      className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
+                      className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
                     >
                       Assign <ChevronRight size={12} />
                     </a>
@@ -295,7 +295,7 @@ export function ReviewClientView({
 
         {/* Pagination Footer */}
         {items.length > ITEMS_PER_PAGE && (
-          <div className="flex items-center justify-between pt-3 pb-1 px-1 border-t border-[var(--border)] shrink-0 text-xs text-[var(--text-muted)]">
+          <div className="flex items-center justify-between pt-4 px-1 border-t border-[var(--border)] shrink-0 text-xs text-[var(--text-muted)] mt-2">
             <span>
               Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, items.length)} of {items.length} items
             </span>
@@ -304,7 +304,7 @@ export function ReviewClientView({
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-1 px-2 rounded border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <ChevronLeft size={14} /> Prev
               </button>
@@ -314,7 +314,7 @@ export function ReviewClientView({
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-1 px-2 rounded border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 Next <ChevronRight size={14} />
               </button>
@@ -328,7 +328,7 @@ export function ReviewClientView({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
       <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
         <Check size={18} className="text-emerald-500" />
       </div>
