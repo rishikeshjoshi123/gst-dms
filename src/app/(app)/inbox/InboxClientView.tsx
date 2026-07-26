@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw } from 'lucide-react'
+import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { assignStagedDocument, discardStagedDocument, autoCreateClientAndMatterForStagedDocument, getStagedDocuments, reevaluateStagedDocuments } from '@/lib/actions/inbox'
 import { getDocumentSignedUrl } from '@/lib/actions/document'
@@ -39,6 +39,7 @@ export function InboxClientView({
   const [isReprocessing, setIsReprocessing] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
   const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
@@ -256,7 +257,7 @@ export function InboxClientView({
 
       <div className="flex flex-1 gap-6 overflow-hidden pt-2">
         {/* Left Pane: Queue (40%) */}
-        <div className="w-[40%] flex flex-col gap-3 overflow-y-auto pr-4 custom-scrollbar">
+        <div className="w-[40%] flex flex-col gap-2 overflow-y-auto pr-3 custom-scrollbar">
           {documents.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-12 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-center shadow-[var(--shadow-sm)]">
               <FolderOpen size={32} className="text-[var(--text-muted)] mb-3" />
@@ -282,63 +283,61 @@ export function InboxClientView({
                       setSelectedMatterId(doc.suggested_matter.id)
                     }
                   }}
-                  className={`group rounded-[var(--radius-md)] transition-all duration-200 cursor-pointer relative ${
+                  className={`group rounded-lg transition-all duration-150 cursor-pointer relative ${
                     isSelected
-                      ? 'ring-2 ring-[var(--primary)] shadow-[var(--shadow-md)] bg-[var(--surface)]'
-                      : 'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)] hover:-translate-y-0.5'
+                      ? 'ring-2 ring-[var(--primary)] bg-[var(--surface)] shadow-sm'
+                      : 'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]'
                   } ${isAnalyzing ? 'animated-gradient-border' : ''}`}
                 >
-                  <div className="p-4 flex items-start justify-between gap-3 relative overflow-hidden z-10">
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileText size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
-                        <h4 className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
-                          {fileName}
-                        </h4>
-                      </div>
-                      
-                      <span className="text-[12px] text-[var(--text-muted)]">
-                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
-                      </span>
+                  <div className="p-2.5 px-3 flex items-center justify-between gap-2 overflow-hidden">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <FileText size={15} className={`shrink-0 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`} />
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                            {fileName}
+                          </h4>
+                          
+                          {/* Status Badge */}
+                          {isAnalyzing ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold animated-gradient-badge shrink-0">
+                              <Loader2 size={10} className="animate-spin" />
+                              Engine
+                            </span>
+                          ) : isPending ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--border-subtle)] text-[var(--text-secondary)] shrink-0">
+                              Queued
+                            </span>
+                          ) : doc.status === 'failed' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-500 border border-red-500/20 shrink-0">
+                              <AlertCircle size={10} />
+                              Failed
+                            </span>
+                          ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                              <AlertCircle size={10} />
+                              Duplicate
+                            </span>
+                          ) : hasSuggestion ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Ready
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--border-subtle)] text-[var(--text-secondary)] border border-[var(--border)] shrink-0">
+                              <AlertCircle size={10} />
+                              Review
+                            </span>
+                          )}
+                        </div>
 
-                      {/* Status Badges */}
-                      <div className="mt-3">
-                        {isAnalyzing ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold animated-gradient-badge shadow-[var(--shadow-sm)]">
-                            <Loader2 size={12} className="animate-spin" />
-                            Processing in Engine...
-                          </div>
-                        ) : isPending ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--border-subtle)] text-[var(--text-secondary)]">
-                            Queued for analysis
-                          </span>
-                        ) : doc.status === 'failed' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
-                            <AlertCircle size={12} />
-                            Analysis failed
-                          </span>
-                        ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
-                            <AlertCircle size={12} />
-                            Duplicate detected
-                          </span>
-                        ) : hasSuggestion ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Ready to assign
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-[var(--border-subtle)] text-[var(--text-secondary)]">
-                            <AlertCircle size={12} />
-                            Manual review needed
-                          </span>
-                        )}
+                        <span className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                          Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
-                    
-                    <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
-                      <ChevronRight size={18} />
-                    </div>
+
+                    <ChevronRight size={14} className={`shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-disabled)]'}`} />
                   </div>
                 </div>
               )
@@ -361,7 +360,7 @@ export function InboxClientView({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 justify-end">
-                  <Button variant="outline" size="sm" onClick={() => handleReprocess(activeDoc.id)} disabled={isReprocessing === activeDoc.id} className="h-8 text-xs shrink-0 text-[--text-secondary]">
+                  <Button variant="outline" size="sm" onClick={() => handleReprocess(activeDoc.id)} disabled={isReprocessing === activeDoc.id} className="h-8 text-xs shrink-0 text-[var(--text-secondary)]">
                     {isReprocessing === activeDoc.id ? <RotateCcw size={14} className="mr-1.5 animate-spin" /> : <RotateCcw size={14} className="mr-1.5" />}
                     Reprocess
                   </Button>
@@ -378,26 +377,26 @@ export function InboxClientView({
 
               {/* Analysis Result */}
               {activeDoc.status === 'analyzing' ? (
-                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-surface border border-border-strong shadow-[var(--shadow-sm)] text-center text-primary">
-                  <Loader2 size={32} className="animate-spin mb-3 text-[var(--accent)]" />
+                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-[var(--surface)] border border-[var(--border)] shadow-sm text-center">
+                  <Loader2 size={32} className="animate-spin mb-3 text-[var(--primary)]" />
                   <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Extracting Metadata...</h3>
                   <p className="text-[12px] text-[var(--text-secondary)] mt-1">System engine is analyzing the document context.</p>
                 </div>
               ) : activeDoc.status === 'failed' ? (
-                <div className="flex flex-col gap-4 p-5 rounded-md border border-red-200 bg-red-50">
-                  <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--danger)]">
+                <div className="flex flex-col gap-3 p-5 rounded-md border border-red-500/20 bg-red-500/10">
+                  <div className="flex items-center gap-2 text-[14px] font-semibold text-red-500">
                     <AlertCircle size={16} />
                     Analysis Failed
                   </div>
-                  <p className="text-[14px] text-red-900 leading-relaxed">
+                  <p className="text-[14px] text-[var(--text-primary)] leading-relaxed">
                     {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
                   </p>
-                  <p className="text-[12px] text-red-700 font-medium">
+                  <p className="text-[12px] text-[var(--text-secondary)] font-medium">
                     You can still assign this document manually using the "Take Action" button.
                   </p>
                 </div>
               ) : !hasExtractedMetadata ? (
-                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-surface border border-border shadow-[var(--shadow-sm)] text-center">
+                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-[var(--surface)] border border-[var(--border)] shadow-sm text-center">
                   <AlertCircle size={32} className="text-[var(--text-muted)] mb-3" />
                   <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">AI could not extract data from this document</h3>
                   <Button onClick={() => setIsActionModalOpen(true)} variant="secondary" className="mt-4">
@@ -408,12 +407,12 @@ export function InboxClientView({
                 /* Extracted Metadata Card */
                 <div className="flex flex-col gap-4">
                   {activeDoc.suggestion_reason?.startsWith('DUPLICATE:') && (
-                    <div className="flex flex-col gap-2 p-4 rounded-[var(--radius-md)] border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 text-[14px] shadow-[var(--shadow-sm)]">
-                      <div className="flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
+                    <div className="flex flex-col gap-2 p-4 rounded-[var(--radius-md)] border border-amber-500/20 bg-amber-500/10 text-[14px] shadow-sm">
+                      <div className="flex items-center gap-2 font-semibold text-amber-500">
                         <AlertCircle size={16} />
                         Duplicate Document Detected
                       </div>
-                      <p className="text-red-900 dark:text-red-300 leading-relaxed font-medium">
+                      <p className="text-[var(--text-primary)] leading-relaxed font-medium">
                         {activeDoc.suggestion_reason}
                       </p>
                     </div>
@@ -459,13 +458,41 @@ export function InboxClientView({
                         </div>
                       </div>
 
-                      {/* Summary */}
+                      {/* AI Synopsis (Collapsible) */}
                       {activeDoc.raw_metadata?.summary && (
-                        <div className="pt-5 border-t border-[var(--border-subtle)]">
-                          <h4 className="text-[12px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">AI Synopsis</h4>
-                          <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg)] p-4 rounded-md border border-[var(--border-subtle)]">
-                            {activeDoc.raw_metadata.summary}
-                          </p>
+                        <div className="pt-4 border-t border-[var(--border-subtle)]">
+                          <button
+                            type="button"
+                            onClick={() => setIsSynopsisExpanded(!isSynopsisExpanded)}
+                            className="w-full flex items-center justify-between text-left p-3 rounded-md bg-[var(--bg)] border border-[var(--border-subtle)] hover:border-[var(--border)] transition-colors group"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Sparkles size={14} className="text-[var(--primary)] shrink-0" />
+                              <span className="text-[12px] font-bold text-[var(--text-primary)] uppercase tracking-wider">AI Synopsis</span>
+                              {!isSynopsisExpanded && (
+                                <span className="text-[12px] text-[var(--text-muted)] truncate max-w-[280px] font-normal ml-1">
+                                  — {activeDoc.raw_metadata.summary}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] shrink-0 ml-2">
+                              {isSynopsisExpanded ? (
+                                <>
+                                  Hide <ChevronUp size={14} />
+                                </>
+                              ) : (
+                                <>
+                                  Expand <ChevronDown size={14} />
+                                </>
+                              )}
+                            </div>
+                          </button>
+
+                          {isSynopsisExpanded && (
+                            <div className="mt-2 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg)] p-4 rounded-md border border-[var(--border-subtle)] animate-fade-in">
+                              {activeDoc.raw_metadata.summary}
+                            </div>
+                          )}
                         </div>
                       )}
 
