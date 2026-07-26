@@ -417,15 +417,7 @@ export function MatterNotesTab({
                     <textarea
                       value={replyContent}
                       onChange={e => setReplyContent(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          if (replyContent.trim() && !isPending) {
-                            handleReply(selectedThread)
-                          }
-                        }
-                      }}
-                      placeholder="Reply to this thread... (Press Enter to send, Shift+Enter for new line)"
+                      placeholder="Reply to this thread..."
                       className="w-full min-h-[40px] max-h-[120px] p-2.5 text-sm bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
                     />
                   </div>
