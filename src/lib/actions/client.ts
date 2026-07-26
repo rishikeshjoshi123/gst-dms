@@ -18,17 +18,7 @@ export async function getClients() {
     .is('deleted_at', null)
     .order('name')
 
-  // Calculate counts for UI
-  const clientsWithCounts = (data ?? []).map(client => {
-    const matters = client.matters ?? []
-    return {
-      ...client,
-      totalMatters: matters.length,
-      openMatters: matters.filter(m => m.status === 'active' || m.status === 'appeal_pending' || m.status === 'high_court' || m.status === 'supreme_court' || m.status === 'stayed' || m.status === 'tribunal').length
-    }
-  })
-
-  return clientsWithCounts
+  return data ?? []
 }
 
 export async function getClientById(id: string) {
@@ -55,6 +45,9 @@ export async function createClientAction(formData: FormData) {
   
   if (!orgId) return { error: 'No active organisation.' }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
   const name = (formData.get('name') as string)?.trim()
   const gstin = (formData.get('gstin') as string)?.trim() || null
   const pan = (formData.get('pan') as string)?.trim() || null
@@ -63,7 +56,9 @@ export async function createClientAction(formData: FormData) {
     return { error: 'Client name must be at least 2 characters.' }
   }
 
-  const { data, error } = await supabase
+  const db = createServiceClient()
+
+  const { data, error } = await db
     .from('clients')
     .insert({
       org_id: orgId,
@@ -79,6 +74,16 @@ export async function createClientAction(formData: FormData) {
     return { error: error?.message ?? 'Failed to create client.' }
   }
 
+  // Log activity
+  await db.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'client_created',
+    entity_type: 'client',
+    entity_id: data.id,
+    description: `Created client "${name}"`,
+  })
+
   revalidatePath('/clients')
   return { success: true, id: data.id }
 }
@@ -91,6 +96,9 @@ export async function updateClientAction(id: string, formData: FormData) {
   
   if (!orgId) return { error: 'No active organisation.' }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
   const name = (formData.get('name') as string)?.trim()
   const gstin = (formData.get('gstin') as string)?.trim() || null
   const pan = (formData.get('pan') as string)?.trim() || null
@@ -99,7 +107,9 @@ export async function updateClientAction(id: string, formData: FormData) {
     return { error: 'Client name must be at least 2 characters.' }
   }
 
-  const { error } = await supabase
+  const db = createServiceClient()
+
+  const { error } = await db
     .from('clients')
     .update({
       name,
@@ -114,6 +124,16 @@ export async function updateClientAction(id: string, formData: FormData) {
     console.error('Update client error:', error)
     return { error: error.message }
   }
+
+  // Log activity
+  await db.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'client_updated',
+    entity_type: 'client',
+    entity_id: id,
+    description: `Updated client "${name}"`,
+  })
 
   revalidatePath('/clients')
   revalidatePath(`/clients/${id}`)
@@ -134,6 +154,16 @@ export async function deleteClientAction(id: string) {
   const nowStr = new Date().toISOString()
   const db = createServiceClient()
 
+  // Fetch client details for logging
+  const { data: client } = await db
+    .from('clients')
+    .select('name')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .single()
+
+  const clientName = client?.name || 'Client'
+
   // 1. Get client's matters
   const { data: matters } = await db
     .from('matters')
@@ -141,7 +171,7 @@ export async function deleteClientAction(id: string) {
     .eq('client_id', id)
     .eq('org_id', orgId)
 
-  const matterIds = (matters || []).map(m => m.id)
+  const matterIds = (matters || []).map((m: any) => m.id)
 
   // 2. Soft delete associated documents
   if (matterIds.length > 0) {
@@ -177,6 +207,17 @@ export async function deleteClientAction(id: string) {
     console.error('Delete client error:', error)
     return { error: 'Failed to delete client.' }
   }
+
+  // 6. Log activity
+  await db.from('activity_logs').insert({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'client_deleted',
+    entity_type: 'client',
+    entity_id: id,
+    description: `Deleted client "${clientName}"`,
+    is_reversible: true
+  })
 
   revalidatePath('/clients')
   revalidatePath('/matters')

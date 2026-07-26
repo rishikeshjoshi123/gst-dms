@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition, useMemo } from 'react'
 import { searchAll, SearchResultItem } from '@/lib/actions/search'
 import { NeedsAttentionPanel } from './NeedsAttentionPanel'
 import {
   ArrowUpRight, FileText, Search, Users, FolderOpen,
-  Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronDown,
-  AlertCircle, Zap, Link2, FileCheck, ShieldAlert, Code
+  Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronDown, ChevronLeft,
+  AlertCircle, Zap, Link2, FileCheck, ShieldAlert, Code, Filter, Info, User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -23,6 +23,8 @@ interface DashboardContentProps {
   activityLogs: any[]
   upcomingDeadlines: any[]
 }
+
+const LOGS_PER_PAGE = 8
 
 const ENTITY_META: Record<string, { icon: React.FC<any>; color: string; gradient: string }> = {
   document:          { icon: FileText,   color: 'text-blue-500',   gradient: 'from-blue-500 to-indigo-500' },
@@ -81,7 +83,12 @@ export function DashboardContent({
   const [results, setResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
+  
+  // Recent Activity Accordion, Filtering & Pagination state
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
+  const [activitySearch, setActivitySearch] = useState('')
+  const [activityEntityFilter, setActivityEntityFilter] = useState('all')
+  const [activityPage, setActivityPage] = useState(1)
 
   const { setBreadcrumbs } = useBreadcrumbs()
 
@@ -108,217 +115,179 @@ export function DashboardContent({
         }
       })
     }, 250)
+
     return () => clearTimeout(delayDebounce)
   }, [query])
 
-  const handleSemanticSearch = () => {
-    if (!query || query.trim().length < 2) return
-    setIsSearching(true)
-    startTransition(async () => {
-      try {
-        const res = await searchAll(query, true)
-        setResults(res)
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setIsSearching(false)
+  // Filtered Activity Logs
+  const filteredLogs = useMemo(() => {
+    return (activityLogs || []).filter(log => {
+      // Filter by Entity Type
+      if (activityEntityFilter !== 'all' && log.entity_type !== activityEntityFilter) {
+        return false
       }
+      // Filter by Search Query
+      if (activitySearch.trim()) {
+        const q = activitySearch.toLowerCase()
+        const desc = (log.description || '').toLowerCase()
+        const action = (log.action || '').toLowerCase()
+        const entity = (log.entity_type || '').toLowerCase()
+        if (!desc.includes(q) && !action.includes(q) && !entity.includes(q)) {
+          return false
+        }
+      }
+      return true
     })
+  }, [activityLogs, activityEntityFilter, activitySearch])
+
+  // Pagination for Activity Logs
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE))
+  const paginatedLogs = useMemo(() => {
+    const start = (activityPage - 1) * LOGS_PER_PAGE
+    return filteredLogs.slice(start, start + LOGS_PER_PAGE)
+  }, [filteredLogs, activityPage])
+
+  const toggleLogExpand = (logId: string) => {
+    setExpandedLogId(prev => (prev === logId ? null : logId))
   }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); handleSemanticSearch() }
-  }
-
-  const toggleLogExpand = (id: string) => {
-    setExpandedLogs(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const clients = results.filter(r => r.type === 'client')
-  const matters = results.filter(r => r.type === 'matter')
-  const documents = results.filter(r => r.type === 'document')
-  const showResults = query.trim().length >= 2
-
-  const pendingReviewCount = needsReviewDocs.length
 
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto pr-1 custom-scrollbar">
-      {/* Page header + search */}
-      <div className="mb-6 animate-fade-in flex flex-col md:flex-row md:items-center md:justify-between gap-4 shrink-0">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar animate-fade-in">
+      {/* ── Greeting & Search Header ─────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
             {greeting}, {firstName} 👋
           </h1>
-          <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-            Welcome to <span className="text-[var(--text-secondary)] font-semibold">{orgName}</span> workspace
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Overview of <span className="font-semibold text-[var(--text-primary)]">{orgName}</span>
           </p>
         </div>
-        <div className="relative w-full md:max-w-xl">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search clients, matters, documents..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full h-10 pl-10 pr-24 rounded-xl text-sm bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none transition-all shadow-sm"
-          />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] px-1.5 py-0.5 rounded pointer-events-none">
-            <span className="font-semibold">Enter</span> for deep search
+
+        {/* Global Search input */}
+        <div className="relative w-full md:w-80">
+          <div className="relative flex items-center">
+            <Search size={15} className="absolute left-3.5 text-[var(--text-muted)] pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search clients, matters, documents..."
+              className="w-full h-10 pl-10 pr-9 rounded-xl text-xs bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none transition-all shadow-xs"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute right-28 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--surface-hover)] transition-colors"
-            >
-              <X size={14} />
-            </button>
+
+          {/* Search Dropdown Results */}
+          {query.trim().length >= 2 && (
+            <div className="absolute top-12 left-0 right-0 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden max-h-96 overflow-y-auto custom-scrollbar animate-fade-in">
+              {isSearching ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)] flex items-center justify-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-[var(--primary)]" />
+                  Searching...
+                </div>
+              ) : results.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+                  No results found for &quot;{query}&quot;
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--border)]">
+                  {results.map(item => (
+                    <Link
+                      key={`${item.type}-${item.id}`}
+                      href={item.href}
+                      onClick={() => setQuery('')}
+                      className="flex items-center gap-3 p-3 hover:bg-[var(--surface-hover)] transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                        {item.type === 'client' && <Users size={14} className="text-emerald-500" />}
+                        {item.type === 'matter' && <FolderOpen size={14} className="text-indigo-500" />}
+                        {item.type === 'document' && <FileText size={14} className="text-blue-500" />}
+                      </div>
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.title}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] truncate">{item.subtitle}</span>
+                      </div>
+                      <ChevronRight size={14} className="text-[var(--text-muted)] shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      {showResults ? (
-        /* ── Search results ── */
-        <div className="mt-2 animate-fade-in">
-          {isPending || (query.trim().length >= 2 && results.length === 0 && isSearching) ? (
-            <div className="flex flex-col items-center justify-center py-20 text-[var(--text-muted)] gap-3">
-              <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
-              <p className="text-sm">Searching...</p>
+      {/* ── Stat Cards Grid ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {statCards.map((card, idx) => (
+          <Link
+            key={idx}
+            href={card.href}
+            className="group relative p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-all shadow-xs overflow-hidden"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
+              <ArrowUpRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
             </div>
-          ) : results.length === 0 ? (
-            <div className="rounded-xl bg-[var(--surface)] border border-[var(--border)] p-12 text-center shadow-sm">
-              <p className="text-sm text-[var(--text-muted)]">
-                No results for &ldquo;<span className="text-[var(--text-primary)] font-semibold">{query}</span>&rdquo;
-              </p>
+            <div className="mt-3 text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
+              {card.value}
             </div>
-          ) : (
-            <div className="flex flex-col gap-6">
-              <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-                <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                  Results for &ldquo;{query}&rdquo;
-                </h2>
-                <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-medium">
-                  {results.length} match{results.length !== 1 && 'es'}
-                </span>
-              </div>
+          </Link>
+        ))}
+      </div>
 
-              {[
-                { label: 'Clients', items: clients, iconBg: 'bg-blue-500/10', icon: <Users size={16} className="text-blue-500" /> },
-                { label: 'Matters', items: matters, iconBg: 'bg-amber-500/10', icon: <FolderOpen size={16} className="text-amber-500" /> },
-                { label: 'Documents', items: documents, iconBg: 'bg-slate-500/10', icon: <FileText size={16} className="text-slate-500" /> },
-              ].map(({ label, items, iconBg, icon }) => items.length > 0 && (
-                <div key={label}>
-                  <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2.5">
-                    {label} ({items.length})
-                  </h3>
-                  <div className="flex flex-col gap-2">
-                    {items.map(item => (
-                      <Link key={item.id} href={item.href}
-                        className="group flex items-center justify-between p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-sm transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>{icon}</div>
-                          <div>
-                            <p className="text-sm font-medium text-[var(--text-primary)]">{item.title}</p>
-                            <p className="text-xs text-[var(--text-muted)]">{item.subtitle}</p>
-                          </div>
-                        </div>
-                        <ArrowUpRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* ── Default Dashboard ── */
-        <div className="animate-fade-in flex flex-col gap-6">
-
-          {/* Stat cards */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {statCards.map(({ label, value, href }) => {
-              const isPendingReview = label === 'Pending Review'
-              const theme =
-                label === 'Open Matters' ? { icon: FolderOpen, gradient: 'from-indigo-500/10 to-transparent', iconBg: 'bg-indigo-600 shadow-indigo-500/25' } :
-                label === 'Documents'    ? { icon: FileText,   gradient: 'from-emerald-500/10 to-transparent', iconBg: 'bg-emerald-600 shadow-emerald-500/25' } :
-                isPendingReview         ? { icon: ShieldAlert,  gradient: 'from-amber-500/10 to-transparent', iconBg: 'bg-amber-500 shadow-amber-500/25' } :
-                                          { icon: Users,       gradient: 'from-blue-500/10 to-transparent', iconBg: 'bg-blue-600 shadow-blue-500/25' }
-              const IconComp = theme.icon
-              const cardHref = isPendingReview ? '/review' : href
-
-              return (
-                <Link
-                  key={label}
-                  href={cardHref}
-                  className="group relative flex flex-col justify-between p-5 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${theme.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
-                  <div className="relative z-10 flex items-center justify-between mb-4">
-                    <div className={`flex items-center justify-center h-10 w-10 rounded-xl ${theme.iconBg} text-white shadow-md`}>
-                      <IconComp size={20} />
-                    </div>
-                    <ArrowUpRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                  </div>
-                  <div className="relative z-10">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] block mb-1">{label}</span>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">{value}</span>
-                      {isPendingReview && value > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
-                          Action needed
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-
-          {/* Needs Attention */}
+      {/* Needs Attention Banner if documents need review */}
+      {needsReviewDocs.length > 0 && (
+        <div className="mb-8">
           <NeedsAttentionPanel documents={needsReviewDocs} />
+        </div>
+      )}
 
-          {/* Deadlines + Activity — 2 column layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-
-            {/* Upcoming Deadlines */}
-            <div className="lg:col-span-2 rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
+      {/* ── Main Dashboard Layout ─────────────────────────────────── */}
+      {stats.clients > 0 && (
+        <div className="space-y-8 pb-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Upcoming Deadlines Widget */}
+            <div className="lg:col-span-1 flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center">
-                    <Calendar size={13} className="text-white" />
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center">
+                    <Calendar size={15} />
                   </div>
                   <span className="text-sm font-bold text-[var(--text-primary)]">Upcoming Deadlines</span>
                 </div>
-                <Link href="/matters" className="text-xs text-[var(--primary)] hover:underline font-medium">
-                  All matters
-                </Link>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                  {upcomingDeadlines.length}
+                </span>
               </div>
-              <div className="divide-y divide-[var(--border)]">
+
+              <div className="divide-y divide-[var(--border)] flex-1 overflow-y-auto custom-scrollbar max-h-[420px]">
                 {upcomingDeadlines.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-[var(--text-muted)]">No upcoming deadlines</div>
+                  <div className="p-8 text-center text-xs text-[var(--text-muted)]">No upcoming deadlines</div>
                 ) : (
                   upcomingDeadlines.map((d: any) => {
                     const days = differenceInDays(new Date(d.due_date), new Date())
-                    const urgency = days <= 3 ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40' :
-                                    days <= 7 ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40' :
-                                                'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
+                    const urgency = days <= 3 ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                      days <= 7 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+                      'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+
                     return (
-                      <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--surface-hover)] transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                            {DEADLINE_TYPE_LABELS[d.type] ?? d.type}
-                          </p>
-                          <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
+                      <div key={d.id} className="p-4 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                            {d.title || DEADLINE_TYPE_LABELS[d.deadline_type] || 'Deadline'}
+                          </span>
+                          <span className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
                             {d.matters?.clients?.name} · {d.matters?.title}
-                          </p>
+                          </span>
                         </div>
                         <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0', urgency)}>
                           {days === 0 ? 'Today' : days === 1 ? '1 day' : `${days}d`}
@@ -330,63 +299,140 @@ export function DashboardContent({
               </div>
             </div>
 
-            {/* Live Activity Feed */}
-            <div className="lg:col-span-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[var(--border)]">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                  <Activity size={13} className="text-white" />
+            {/* ── Recent Activity Section (Robust Filterable, Paginated, Accordion) ── */}
+            <div className="lg:col-span-2 flex flex-col rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+              {/* Activity Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-[var(--border)] shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                    <Activity size={15} />
+                  </div>
+                  <span className="text-sm font-bold text-[var(--text-primary)]">Recent Activity</span>
+                  <span className="ml-2 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live
+                  </span>
                 </div>
-                <span className="text-sm font-bold text-[var(--text-primary)]">Recent Activity</span>
-                <span className="ml-auto flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
-                </span>
+
+                {/* Filter & Search Bar */}
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-2.5 top-2.5 text-[var(--text-muted)]" />
+                    <input
+                      type="text"
+                      value={activitySearch}
+                      onChange={e => { setActivitySearch(e.target.value); setActivityPage(1) }}
+                      placeholder="Filter logs..."
+                      className="h-8 pl-8 pr-2.5 rounded-lg text-xs bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] w-36 sm:w-44"
+                    />
+                  </div>
+
+                  <select
+                    value={activityEntityFilter}
+                    onChange={e => { setActivityEntityFilter(e.target.value); setActivityPage(1) }}
+                    className="h-8 px-2.5 rounded-lg text-xs bg-[var(--bg)] text-[var(--text-primary)] border border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] cursor-pointer"
+                  >
+                    <option value="all">All Entities</option>
+                    <option value="client">Clients</option>
+                    <option value="matter">Matters</option>
+                    <option value="document">Documents</option>
+                    <option value="case_note">Notes</option>
+                    <option value="document_link">Links</option>
+                  </select>
+                </div>
               </div>
-              <div className="divide-y divide-[var(--border)]">
-                {activityLogs.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-[var(--text-muted)]">No activity yet</div>
+
+              {/* Activity Log Items (Accordion list — 1 item expanded at a time) */}
+              <div className="divide-y divide-[var(--border)] flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                {paginatedLogs.length === 0 ? (
+                  <div className="px-5 py-12 text-center text-xs text-[var(--text-muted)]">
+                    No activity logs match your filter criteria
+                  </div>
                 ) : (
-                  activityLogs.slice(0, 10).map((log: any) => {
+                  paginatedLogs.map((log: any) => {
                     const meta = ENTITY_META[log.entity_type] ?? ENTITY_META.document
                     const Icon = meta.icon
                     const label = ACTION_LABELS[log.action] ?? log.action.replace(/_/g, ' ')
-                    const isExpanded = expandedLogs.has(log.id)
-                    const hasMetadata = log.metadata && Object.keys(log.metadata).length > 0
+                    const isExpanded = expandedLogId === log.id
 
                     return (
                       <div key={log.id} className="flex flex-col border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors">
-                        <div 
-                          className={`flex items-center gap-3 px-5 py-3 ${hasMetadata ? 'cursor-pointer' : ''}`}
-                          onClick={() => hasMetadata && toggleLogExpand(log.id)}
+                        <button
+                          type="button"
+                          onClick={() => toggleLogExpand(log.id)}
+                          className="w-full text-left flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer outline-none"
                         >
-                          <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0`}>
-                            <Icon size={12} className="text-white" />
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-xs`}>
+                              <Icon size={14} className="text-white" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                                {log.description || label}
+                              </span>
+                              <span className="text-[11px] text-[var(--text-muted)] mt-0.5 capitalize flex items-center gap-1.5">
+                                <span className="font-medium text-[var(--text-secondary)]">{log.entity_type?.replace(/_/g, ' ')}</span>
+                                <span>·</span>
+                                <span>{label}</span>
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-[var(--text-primary)] truncate">
-                              {log.description || label}
-                            </p>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5 capitalize flex items-center gap-2">
-                              <span>{log.entity_type?.replace(/_/g, ' ')}</span>
-                            </p>
+
+                          <div className="flex items-center gap-3 shrink-0 text-xs text-[var(--text-muted)]">
+                            <span>{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</span>
+                            <div className={`w-6 h-6 rounded-md border border-[var(--border)] bg-[var(--bg)] flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90 text-[var(--primary)]' : ''}`}>
+                              <ChevronRight size={14} />
+                            </div>
                           </div>
-                          <span className="text-[11px] text-[var(--text-muted)] whitespace-nowrap shrink-0 flex items-center gap-2">
-                            {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                            {hasMetadata && (
-                              isExpanded ? <ChevronDown size={14} className="text-[var(--text-muted)]" /> : <ChevronRight size={14} className="text-[var(--text-disabled)]" />
-                            )}
-                          </span>
-                        </div>
-                        {isExpanded && hasMetadata && (
-                          <div className="px-5 pb-4 animate-in slide-in-from-top-1 fade-in duration-200">
-                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3">
-                              <div className="flex items-center gap-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                                <Code size={12} />
-                                Metadata Payload
+                        </button>
+
+                        {/* Accordion Detail Drawer (Expanded View) */}
+                        {isExpanded && (
+                          <div className="px-5 pb-4 pt-1 animate-in slide-in-from-top-1 fade-in duration-200">
+                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+                              <div className="flex items-center justify-between text-xs border-b border-[var(--border)] pb-2.5">
+                                <span className="font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
+                                  <Info size={13} className="text-[var(--primary)]" />
+                                  Log Audit Details
+                                </span>
+                                <span className="text-[10px] font-mono text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded">
+                                  ID: {log.id}
+                                </span>
                               </div>
-                              <pre className="text-[11px] font-mono text-[var(--text-secondary)] whitespace-pre-wrap break-all custom-scrollbar overflow-y-auto max-h-40">
-                                {JSON.stringify(log.metadata, null, 2)}
-                              </pre>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Action</span>
+                                  <p className="font-medium text-[var(--text-primary)] mt-0.5">{label}</p>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Entity Type</span>
+                                  <p className="font-medium text-[var(--text-primary)] mt-0.5 capitalize">{log.entity_type?.replace(/_/g, ' ')}</p>
+                                </div>
+                                {log.entity_id && (
+                                  <div>
+                                    <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Entity Reference</span>
+                                    <p className="font-mono text-[11px] text-[var(--text-secondary)] mt-0.5 truncate">{log.entity_id}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Timestamp</span>
+                                  <p className="font-medium text-[var(--text-primary)] mt-0.5">{new Date(log.created_at).toLocaleString()}</p>
+                                </div>
+                              </div>
+
+                              {/* Metadata Payload if present */}
+                              {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                <div className="pt-2 border-t border-[var(--border)]">
+                                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider flex items-center gap-1.5 mb-1.5">
+                                    <Code size={12} />
+                                    Metadata Payload
+                                  </span>
+                                  <pre className="text-[11px] font-mono bg-[var(--surface)] border border-[var(--border)] p-2.5 rounded-lg text-[var(--text-secondary)] whitespace-pre-wrap break-all max-h-36 overflow-y-auto custom-scrollbar">
+                                    {JSON.stringify(log.metadata, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -395,30 +441,37 @@ export function DashboardContent({
                   })
                 )}
               </div>
+
+              {/* Activity Pagination Footer */}
+              {filteredLogs.length > LOGS_PER_PAGE && (
+                <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--border)] shrink-0 text-xs text-[var(--text-muted)] bg-[var(--surface)]">
+                  <span>
+                    Showing {((activityPage - 1) * LOGS_PER_PAGE) + 1} to {Math.min(activityPage * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} logs
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setActivityPage(prev => Math.max(1, prev - 1))}
+                      disabled={activityPage === 1}
+                      className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <ChevronLeft size={13} /> Prev
+                    </button>
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      Page {activityPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setActivityPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={activityPage === totalPages}
+                      className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      Next <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Getting started — only shown when empty */}
-          {stats.clients === 0 && (
-            <div className="rounded-xl bg-[var(--surface)] border border-[var(--border)] p-8 text-center shadow-sm">
-              <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                <FileText size={24} className="text-white" />
-              </div>
-              <h2 className="text-lg font-bold text-[var(--text-primary)]">Welcome to GST DMS</h2>
-              <p className="mt-2 text-sm text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
-                Your workspace is ready. Start by adding your first client to begin tracking their matters.
-              </p>
-              <div className="mt-6 flex justify-center gap-3">
-                <Link
-                  href="/clients"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium hover:opacity-90 transition-opacity shadow-md shadow-blue-500/25"
-                >
-                  Add your first client
-                  <ArrowUpRight size={14} />
-                </Link>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

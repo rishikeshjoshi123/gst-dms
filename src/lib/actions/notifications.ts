@@ -67,7 +67,7 @@ export async function getUnreadNotificationCount(): Promise<number> {
   return count ?? 0
 }
 
-export async function getRecentActivityLogs(limit = 15) {
+export async function getRecentActivityLogs(limit = 50) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
