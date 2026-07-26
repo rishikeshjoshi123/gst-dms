@@ -569,7 +569,15 @@ export function NotesClientView({
                     <textarea
                       value={replyContent}
                       onChange={e => setReplyContent(e.target.value)}
-                      placeholder="Type a reply to this thread..."
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          if (replyContent.trim() && !isPending) {
+                            handleReply(selectedThread)
+                          }
+                        }
+                      }}
+                      placeholder="Type a reply to this thread... (Press Enter to send, Shift+Enter for new line)"
                       className="w-full min-h-[48px] max-h-[120px] p-3 text-sm bg-[var(--bg)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y transition-all"
                     />
                   </div>
