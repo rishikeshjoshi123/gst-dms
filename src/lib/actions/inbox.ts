@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { tasks } from '@trigger.dev/sdk/v3'
@@ -369,12 +369,17 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
 
 // ── Discard Staged Document ───────────────────────────────────────
 
-export async function discardStagedDocument(stagedId: string) {
+export async function deleteStagedDocument(stagedId: string) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
 
-  const { data: staged } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const db = createServiceClient()
+
+  const { data: staged } = await db
     .from('staged_documents')
     .select('id, storage_path')
     .eq('id', stagedId)
@@ -384,10 +389,10 @@ export async function discardStagedDocument(stagedId: string) {
   if (!staged) return { error: 'Staged document not found.' }
 
   // Delete from storage
-  await supabase.storage.from('staging').remove([staged.storage_path])
+  await db.storage.from('staging').remove([staged.storage_path])
 
   // Delete record
-  const { error } = await supabase
+  const { error } = await db
     .from('staged_documents')
     .delete()
     .eq('id', stagedId)
@@ -401,6 +406,8 @@ export async function discardStagedDocument(stagedId: string) {
   revalidatePath('/', 'layout')
   return { success: true }
 }
+
+export const discardStagedDocument = deleteStagedDocument
 
 
 // ── Re-evaluate Staged Documents ─────────────────────────────────────────

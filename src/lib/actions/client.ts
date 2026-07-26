@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 
@@ -132,9 +132,10 @@ export async function deleteClientAction(id: string) {
   if (!user) return { error: 'Not authenticated' }
 
   const nowStr = new Date().toISOString()
+  const db = createServiceClient()
 
   // 1. Get client's matters
-  const { data: matters } = await supabase
+  const { data: matters } = await db
     .from('matters')
     .select('id')
     .eq('client_id', id)
@@ -144,22 +145,29 @@ export async function deleteClientAction(id: string) {
 
   // 2. Soft delete associated documents
   if (matterIds.length > 0) {
-    await supabase
+    await db
       .from('documents')
       .update({ deleted_at: nowStr })
       .in('matter_id', matterIds)
       .eq('org_id', orgId)
 
-    // 3. Soft delete associated matters
-    await supabase
+    // 3. Soft delete associated case notes
+    await db
+      .from('case_notes')
+      .update({ deleted_at: nowStr })
+      .in('matter_id', matterIds)
+      .eq('org_id', orgId)
+
+    // 4. Soft delete associated matters
+    await db
       .from('matters')
       .update({ deleted_at: nowStr })
       .in('id', matterIds)
       .eq('org_id', orgId)
   }
 
-  // 4. Soft delete client
-  const { error } = await supabase
+  // 5. Soft delete client
+  const { error } = await db
     .from('clients')
     .update({ deleted_at: nowStr })
     .eq('id', id)

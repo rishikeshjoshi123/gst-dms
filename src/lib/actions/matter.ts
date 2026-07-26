@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
@@ -250,7 +250,9 @@ export async function deleteMatterAction(matterId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const { data: matter } = await supabase
+  const db = createServiceClient()
+
+  const { data: matter } = await db
     .from('matters')
     .select('id, client_id, title')
     .eq('id', matterId)
@@ -262,14 +264,27 @@ export async function deleteMatterAction(matterId: string) {
   const nowStr = new Date().toISOString()
 
   // 1. Soft delete all documents in this matter
-  await supabase
+  await db
     .from('documents')
     .update({ deleted_at: nowStr })
     .eq('matter_id', matterId)
     .eq('org_id', orgId)
 
-  // 2. Soft delete the matter
-  const { error } = await supabase
+  // 2. Soft delete case notes in this matter
+  await db
+    .from('case_notes')
+    .update({ deleted_at: nowStr })
+    .eq('matter_id', matterId)
+    .eq('org_id', orgId)
+
+  // 3. Delete wiki sections in this matter
+  await db
+    .from('wiki_sections')
+    .delete()
+    .eq('matter_id', matterId)
+
+  // 4. Soft delete the matter
+  const { error } = await db
     .from('matters')
     .update({ deleted_at: nowStr })
     .eq('id', matterId)
@@ -280,21 +295,21 @@ export async function deleteMatterAction(matterId: string) {
     return { error: error.message }
   }
 
-  // 3. Log activity
-  await supabase.from('activity_logs').insert({
+  // 5. Log activity
+  await db.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'matter_deleted',
     entity_type: 'matter',
     entity_id: matterId,
     description: `Deleted matter "${matter.title}"`,
-    is_reversible: true
+    metadata: { client_id: matter.client_id }
   })
 
   revalidatePath('/matters')
   if (matter.client_id) {
     revalidatePath(`/clients/${matter.client_id}`)
   }
+
   return { success: true }
 }
-

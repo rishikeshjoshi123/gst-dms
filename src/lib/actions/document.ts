@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import type { Database } from '@/lib/supabase/database.types'
@@ -489,14 +489,16 @@ export async function deleteDocumentLink(linkId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const { error } = await supabase
+  const db = createServiceClient()
+
+  const { error } = await db
     .from('document_links')
     .delete()
     .eq('id', linkId)
 
   if (error) return { error: error.message }
 
-  await supabase.from('activity_logs').insert({
+  await db.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_deleted',
@@ -516,7 +518,9 @@ export async function deleteDocument(documentId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const { data: doc } = await supabase
+  const db = createServiceClient()
+
+  const { data: doc } = await db
     .from('documents')
     .select('id, matter_id, reference_number')
     .eq('id', documentId)
@@ -526,13 +530,20 @@ export async function deleteDocument(documentId: string) {
   if (!doc) return { error: 'Document not found.' }
 
   // 1. Delete associated document_links where this document is source or target
-  await supabase
+  await db
     .from('document_links')
     .delete()
     .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
 
-  // 2. Soft delete document
-  const { error } = await supabase
+  // 2. Soft delete associated case notes
+  await db
+    .from('case_notes')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('document_id', documentId)
+    .eq('org_id', orgId)
+
+  // 3. Soft delete document
+  const { error } = await db
     .from('documents')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', documentId)
@@ -543,8 +554,8 @@ export async function deleteDocument(documentId: string) {
     return { error: error.message }
   }
 
-  // 3. Log activity
-  await supabase.from('activity_logs').insert({
+  // 4. Log activity
+  await db.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'document_deleted',
@@ -554,10 +565,10 @@ export async function deleteDocument(documentId: string) {
     is_reversible: true
   })
 
-  // 4. Re-evaluate remaining matter links
+  // 5. Re-evaluate remaining matter links
   if (doc.matter_id) {
     const { reevaluateMatterLinks } = require('@/lib/actions/chaining')
-    await reevaluateMatterLinks(supabase, doc.matter_id, orgId, user.id)
+    await reevaluateMatterLinks(db, doc.matter_id, orgId, user.id)
     revalidatePath(`/matters/${doc.matter_id}`)
   }
 

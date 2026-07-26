@@ -188,6 +188,11 @@ export async function deleteNote(noteId: string) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation' }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const db = createServiceClient()
+
   const { data: existingNote } = await supabase
     .from('case_notes')
     .select('matter_id, document_id')
@@ -195,7 +200,7 @@ export async function deleteNote(noteId: string) {
     .single()
 
   // Soft delete
-  const { error } = await supabase
+  const { error } = await db
     .from('case_notes')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', noteId)
