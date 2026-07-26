@@ -10,7 +10,7 @@ import {
   FileText, FolderOpen, ExternalLink, Check, X,
   ChevronRight, ChevronLeft
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 type Section = 'docs' | 'links' | 'tasks' | 'staged'
 
@@ -19,30 +19,22 @@ const ITEMS_PER_PAGE = 10
 const SECTION_META = {
   docs: {
     icon: AlertTriangle,
-    color: 'text-amber-600 dark:text-amber-500',
     label: 'Documents Needing Review',
-    desc: 'Documents the engine could not automatically place or classify',
     emptyText: 'No documents need manual review',
   },
   links: {
     icon: Link2,
-    color: 'text-violet-600 dark:text-violet-500',
     label: 'Low-Confidence Links',
-    desc: 'Document relationships suggested by the engine with confidence below 70%',
     emptyText: 'No pending link suggestions',
   },
   tasks: {
     icon: CheckSquare,
-    color: 'text-blue-600 dark:text-blue-500',
     label: 'Open Action Items',
-    desc: 'Unresolved tasks from case notes assigned across matters',
     emptyText: 'No open action items',
   },
   staged: {
     icon: Inbox,
-    color: 'text-emerald-600 dark:text-emerald-500',
     label: 'Staged Documents',
-    desc: 'Documents analysed by the engine but not yet assigned to a matter',
     emptyText: 'No staged documents waiting',
   },
 } as const
@@ -112,46 +104,36 @@ export function ReviewClientView({
   }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden animate-fade-in -mt-2">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden mt-2 animate-fade-in">
       <BreadcrumbSetter breadcrumbs={[{ label: 'Pending Review' }]} />
 
-      {/* Tabs directly below breadcrumbs (no page header or solid icons) */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] mb-4 shrink-0 px-1">
-        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
-          {sections.map(({ key, count }) => {
-            const meta = SECTION_META[key]
-            const Icon = meta.icon
-            const isActive = activeSection === key
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveSection(key)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 border-b-2 font-medium text-sm transition-all shrink-0 -mb-px',
-                  isActive
-                    ? 'border-[var(--primary)] text-[var(--primary)]'
-                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
-                )}
+      {/* Tabs directly below breadcrumbs (identical to MatterTabs layout) */}
+      <div className="flex items-center gap-6 border-b border-[var(--border)] mb-6 px-2 shrink-0 overflow-x-auto custom-scrollbar">
+        {sections.map(({ key, count }) => {
+          const meta = SECTION_META[key]
+          const Icon = meta.icon
+          const isActive = activeSection === key
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key)}
+              className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors shrink-0 text-sm ${
+                isActive
+                  ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Icon size={16} />
+              <span>{meta.label}</span>
+              <Badge
+                variant="muted"
+                className="ml-1 px-1.5 py-0 text-[10px] h-4 border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)] font-medium"
               >
-                <Icon size={16} className={isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
-                <span>{meta.label}</span>
-                <span className={cn(
-                  'text-[11px] font-bold px-2 py-0.5 rounded-full ml-1',
-                  isActive
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-secondary)]'
-                )}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Section item count summary */}
-        <div className="hidden md:flex items-center gap-2 text-xs text-[var(--text-muted)] shrink-0 pr-2">
-          <span>{SECTION_META[activeSection].desc}</span>
-        </div>
+                {count}
+              </Badge>
+            </button>
+          )
+        })}
       </div>
 
       {/* Main Content Area */}
@@ -228,12 +210,11 @@ export function ReviewClientView({
                           {link.to_doc?.doc_type || 'DOC'} ({link.to_doc?.reference_number || 'Ref'})
                         </span>
                         {confidence !== null && (
-                          <span className={cn(
-                            'text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 shrink-0',
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 shrink-0 ${
                             confidence < 50 ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
                             confidence < 70 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
                             'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                          )}>
+                          }`}>
                             {confidence}% confidence
                           </span>
                         )}
