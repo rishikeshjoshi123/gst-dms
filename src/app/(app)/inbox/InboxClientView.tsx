@@ -92,13 +92,25 @@ export function InboxClientView({
 
     const interval = setInterval(async () => {
       const latestDocs = await getStagedDocuments()
+      
+      // Check if any analyzing documents disappeared (meaning they were auto-assigned and deleted from staged)
+      documents.forEach(oldDoc => {
+        if ((oldDoc.status === 'analyzing' || oldDoc.status === 'pending_assignment') && !latestDocs.some((d: any) => d.id === oldDoc.id)) {
+          toast.success(`Automated Processing Complete`, {
+            description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
+          })
+        }
+      })
+
       setDocuments(latestDocs)
       
       // Update selected doc ref if it is no longer in list
       if (selectedDocId) {
-        const stillExists = latestDocs.some(d => d.id === selectedDocId)
+        const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
         if (!stillExists && latestDocs.length > 0) {
           setSelectedDocId(latestDocs[0].id)
+        } else if (!stillExists) {
+          setSelectedDocId(null)
         }
       }
     }, 4000)
@@ -270,64 +282,62 @@ export function InboxClientView({
                       setSelectedMatterId(doc.suggested_matter.id)
                     }
                   }}
-                  className={isAnalyzing ? 'animated-gradient-border' : ''}
+                  className={`group rounded-[var(--radius-md)] transition-all duration-200 cursor-pointer relative ${
+                    isSelected
+                      ? 'ring-2 ring-[var(--primary)] shadow-[var(--shadow-md)] bg-[var(--surface)]'
+                      : 'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-sm)] hover:-translate-y-0.5'
+                  } ${isAnalyzing ? 'animated-gradient-border' : ''}`}
                 >
-                  <div
-                    className={`p-4 rounded-md border text-left cursor-pointer transition-all duration-150 relative ${
-                      isSelected
-                        ? 'border-[#1D4ED8] bg-white dark:bg-[#1E293B] dark:border-[#3B82F6] shadow-md ring-1 ring-[#1D4ED8]'
-                        : 'border-[#E5E2DC] dark:border-[#1F293D] bg-white dark:bg-[#161E2E] hover:border-[#C9C5BE] dark:hover:border-[#334155] hover:shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <FileText size={16} className={isSelected ? 'text-[#1D4ED8] dark:text-[#60A5FA]' : 'text-[#78716C] dark:text-[#94A3B8]'} />
-                          <h4 className="text-[14px] font-semibold text-[var(--text-primary)] dark:text-[#F8FAFC] truncate">
-                            {doc.storage_path.split('/').pop()}
-                          </h4>
-                        </div>
-                        
-                        <span className="text-[12px] text-[var(--text-muted)] dark:text-[#64748B]">
-                          Uploaded {new Date(doc.created_at).toLocaleDateString()}
-                        </span>
-
-                        {/* Status Badges */}
-                        <div className="mt-2.5">
-                          {isAnalyzing ? (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold animated-gradient-badge shadow-xs">
-                              <Loader2 size={12} className="animate-spin" />
-                              Processing in Engine...
-                            </div>
-                          ) : isPending ? (
-                            <span className="text-[12px] font-medium text-[#78716C] dark:text-[#94A3B8]">Queued for analysis</span>
-                          ) : doc.status === 'failed' ? (
-                            <span className="text-[12px] font-medium text-[#DC2626] dark:text-red-400 flex items-center gap-1">
-                              <AlertCircle size={14} />
-                              Analysis failed
-                            </span>
-                          ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
-                            <span className="text-[12px] font-medium text-[#DC2626] dark:text-red-400 flex items-center gap-1">
-                              <AlertCircle size={14} />
-                              Duplicate detected
-                            </span>
-                          ) : hasSuggestion ? (
-                            <span className="text-[12px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse" />
-                              Ready to assign
-                            </span>
-                          ) : (
-                            <span className="text-[12px] font-medium text-[#78716C] dark:text-[#94A3B8] flex items-center gap-1">
-                              <AlertCircle size={14} />
-                              Manual review needed
-                            </span>
-                          )}
-                        </div>
+                  <div className="p-4 flex items-start justify-between gap-3 relative overflow-hidden z-10">
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileText size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
+                        <h4 className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
+                          {fileName}
+                        </h4>
                       </div>
                       
-                      <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[#1D4ED8] dark:text-[#60A5FA]' : 'text-[#C9C5BE] dark:text-[#475569]'}`}>
-                        <ChevronRight size={18} />
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                      </span>
+
+                      {/* Status Badges */}
+                      <div className="mt-3">
+                        {isAnalyzing ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold animated-gradient-badge shadow-[var(--shadow-sm)]">
+                            <Loader2 size={12} className="animate-spin" />
+                            Processing in Engine...
+                          </div>
+                        ) : isPending ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-[var(--border-subtle)] text-[var(--text-secondary)]">
+                            Queued for analysis
+                          </span>
+                        ) : doc.status === 'failed' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+                            <AlertCircle size={12} />
+                            Analysis failed
+                          </span>
+                        ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
+                            <AlertCircle size={12} />
+                            Duplicate detected
+                          </span>
+                        ) : hasSuggestion ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Ready to assign
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-[var(--border-subtle)] text-[var(--text-secondary)]">
+                            <AlertCircle size={12} />
+                            Manual review needed
+                          </span>
+                        )}
                       </div>
+                    </div>
+                    
+                    <div className={`shrink-0 pt-2 transition-transform duration-200 group-hover:translate-x-0.5 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
+                      <ChevronRight size={18} />
                     </div>
                   </div>
                 </div>
@@ -398,83 +408,89 @@ export function InboxClientView({
                 /* Extracted Metadata Card */
                 <div className="flex flex-col gap-4">
                   {activeDoc.suggestion_reason?.startsWith('DUPLICATE:') && (
-                    <div className="flex flex-col gap-2 p-4 rounded-md border border-red-200 bg-red-50 text-[14px]">
-                      <div className="flex items-center gap-2 font-semibold text-[#DC2626]">
+                    <div className="flex flex-col gap-2 p-4 rounded-[var(--radius-md)] border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 text-[14px] shadow-[var(--shadow-sm)]">
+                      <div className="flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
                         <AlertCircle size={16} />
                         Duplicate Document Detected
                       </div>
-                      <p className="text-red-900 leading-relaxed font-medium">
+                      <p className="text-red-900 dark:text-red-300 leading-relaxed font-medium">
                         {activeDoc.suggestion_reason}
                       </p>
                     </div>
                   )}
-                  <div className="flex flex-col gap-5 p-6 rounded-md border border-border bg-surface shadow-[var(--shadow-sm)]">
-                    <div className="flex items-center gap-2 text-[14px] font-semibold text-[var(--text-primary)]">
-                    <Info size={16} className="text-[var(--accent)]" />
-                    AI-Extracted Metadata
-                  </div>
-
-                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-[14px]">
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">Client Name</dt>
-                      <dd className="font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.client_name || '-'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">GSTIN / PAN</dt>
-                      <dd className="font-mono text-[var(--text-primary)]">
-                        {activeDoc.raw_metadata?.gstin || '-'} 
-                        {activeDoc.raw_metadata?.pan && ` / ${activeDoc.raw_metadata.pan}`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">Document Type</dt>
-                      <dd className="font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.doc_type || '-'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">Ref / Case Number</dt>
-                      <dd className="font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.reference_number || '-'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">Financial Year</dt>
-                      <dd className="font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.financial_year || '-'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[var(--text-muted)] text-[12px] font-semibold uppercase mb-1">Tax Period</dt>
-                      <dd className="font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.tax_period || '-'}</dd>
-                    </div>
-                  </dl>
-
-                  {/* Summary */}
-                  {activeDoc.raw_metadata?.summary && (
-                    <div className="border-t border-[var(--border-subtle)] pt-4 mt-1">
-                      <h4 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase mb-2">AI Synopsis</h4>
-                      <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed">
-                        {activeDoc.raw_metadata.summary}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Extracted Amounts */}
-                  {activeDoc.raw_metadata?.extracted_amounts && Object.values(activeDoc.raw_metadata.extracted_amounts).some(v => v !== null) && (
-                    <div className="border-t border-[var(--border-subtle)] pt-4 mt-1">
-                      <h4 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase mb-3">Financials</h4>
-                      <div className="grid grid-cols-2 gap-3 text-[14px] font-mono">
-                        {Object.entries(activeDoc.raw_metadata.extracted_amounts).map(([key, val]) => {
-                          if (val === null || val === undefined) return null
-                          return (
-                            <div key={key} className="flex justify-between border-b border-[var(--border-subtle)] pb-1">
-                              <span className="text-[var(--text-secondary)] text-[12px]">{humanizeKey(key)}</span>
-                              <span className="text-[var(--text-primary)] font-medium">
-                                ₹{Number(val).toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          )
-                        })}
+                  
+                  <div className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)] overflow-hidden relative">
+                    {/* Decorative Top Accent */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[var(--primary)] to-purple-500" />
+                    
+                    <div className="p-6 flex flex-col gap-6">
+                      <div className="flex items-center gap-2 text-[15px] font-semibold text-[var(--text-primary)]">
+                        <Info size={18} className="text-[var(--primary)]" />
+                        AI-Extracted Metadata
                       </div>
+
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Client Name</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.client_name || '-'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">GSTIN / PAN</span>
+                          <span className="text-[14px] font-mono font-medium text-[var(--text-primary)]">
+                            {activeDoc.raw_metadata?.gstin || '-'} 
+                            {activeDoc.raw_metadata?.pan && ` / ${activeDoc.raw_metadata.pan}`}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Document Type</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.doc_type || '-'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Ref / Case Number</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.reference_number || '-'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Financial Year</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.financial_year || '-'}</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Tax Period</span>
+                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.tax_period || '-'}</span>
+                        </div>
+                      </div>
+
+                      {/* Summary */}
+                      {activeDoc.raw_metadata?.summary && (
+                        <div className="pt-5 border-t border-[var(--border-subtle)]">
+                          <h4 className="text-[12px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">AI Synopsis</h4>
+                          <p className="text-[14px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg)] p-4 rounded-md border border-[var(--border-subtle)]">
+                            {activeDoc.raw_metadata.summary}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Extracted Amounts */}
+                      {activeDoc.raw_metadata?.extracted_amounts && Object.values(activeDoc.raw_metadata.extracted_amounts).some(v => v !== null) && (
+                        <div className="pt-5 border-t border-[var(--border-subtle)]">
+                          <h4 className="text-[12px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Financials</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            {Object.entries(activeDoc.raw_metadata.extracted_amounts).map(([key, val]) => {
+                              if (val === null || val === undefined) return null
+                              return (
+                                <div key={key} className="flex flex-col p-3 rounded-md bg-[var(--bg)] border border-[var(--border-subtle)]">
+                                  <span className="text-[var(--text-secondary)] text-[12px] mb-1">{humanizeKey(key)}</span>
+                                  <span className="text-[var(--text-primary)] font-mono font-semibold text-[15px]">
+                                    ₹{Number(val).toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
             )}
             </div>
           ) : (
@@ -513,15 +529,15 @@ export function InboxClientView({
             <div className="p-5 flex flex-col gap-5">
               {/* AI suggestion panel */}
               {activeDoc.suggested_client && activeDoc.suggested_matter && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-md flex flex-col gap-2">
-                  <span className="text-[12px] font-semibold text-[var(--success)] uppercase flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-md flex flex-col gap-2">
+                  <span className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Recommended Match
                   </span>
-                  <div className="text-[14px] text-green-900 font-medium">
+                  <div className="text-[14px] text-emerald-900 dark:text-emerald-100 font-medium">
                     Client: {activeDoc.suggested_client.name}
                   </div>
-                  <div className="text-[14px] text-green-900">
+                  <div className="text-[14px] text-emerald-800 dark:text-emerald-200">
                     Matter: {activeDoc.suggested_matter.title} ({activeDoc.suggested_matter.matter_code})
                   </div>
                 </div>
@@ -529,11 +545,11 @@ export function InboxClientView({
 
               {/* Dropdown search manual assignment */}
               <div className="flex flex-col gap-2">
-                <label className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase">
+                <label className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                   Select Matter
                 </label>
                 <select 
-                  className="w-full bg-surface border border-border-strong rounded-md px-3 py-2.5 text-[14px] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-shadow"
+                  className="w-full bg-[var(--bg)] border border-[var(--border-strong)] rounded-md px-3 py-2.5 text-[14px] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-shadow cursor-pointer"
                   value={selectedMatterId}
                   onChange={(e) => setSelectedMatterId(e.target.value)}
                 >

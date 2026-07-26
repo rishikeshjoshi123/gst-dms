@@ -145,7 +145,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
           {!isClosed && (
             <Link
               href={`/inbox?matterId=${matter.id}`}
-              className="inline-flex items-center justify-center rounded-md text-[14px] font-semibold h-10 px-5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-sm transition-colors"
+              className="inline-flex items-center justify-center rounded-md text-[14px] font-semibold h-10 px-5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-sm transition-colors"
             >
               <Plus size={16} className="mr-2" />
               Upload Documents
@@ -379,7 +379,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
                 type="button"
                 onClick={handleSave}
                 disabled={isPending}
-                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-md transition-colors shadow-sm"
+                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-md transition-colors shadow-sm"
               >
                 {isPending ? (
                   <>

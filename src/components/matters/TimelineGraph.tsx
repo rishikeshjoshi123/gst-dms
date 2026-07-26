@@ -157,8 +157,8 @@ export function TimelineGraph({
             strokeWidth: isManual ? 3 : 2,
             strokeDasharray: (isManual || l.status === 'pending') ? 'none' : '5, 5', // AI inferred (confirmed) is dashed
           },
-          labelStyle: { fill: '#64748b', fontWeight: 600, fontSize: 10 },
-          labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.9 },
+          labelStyle: { fill: 'var(--text-secondary)', fontWeight: 600, fontSize: 10 },
+          labelBgStyle: { fill: 'var(--surface)', fillOpacity: 0.95, stroke: 'var(--border)', strokeWidth: 1 },
           labelBgPadding: [4, 2] as [number, number],
           labelBgBorderRadius: 4,
           markerEnd: {

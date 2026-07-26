@@ -48,66 +48,66 @@ export function LinkDeletionDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[440px] bg-white border border-[#E5E2DC] shadow-xl p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-2 border-b border-[#E5E2DC]">
-          <div className="flex items-center gap-3 text-red-600 mb-1">
-            <div className="p-2 bg-red-50 rounded-md border border-red-100">
-              <Link2Off size={20} className="text-red-600" />
+      <DialogContent className="sm:max-w-[440px] bg-[var(--surface)] border border-[var(--border)] shadow-xl p-0 overflow-hidden text-[var(--text-primary)]">
+        <DialogHeader className="p-6 pb-2 border-b border-[var(--border)]">
+          <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-1">
+            <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-md border border-red-200 dark:border-red-800">
+              <Link2Off size={20} className="text-red-600 dark:text-red-400" />
             </div>
-            <DialogTitle className="text-[18px] font-semibold text-[#1C1917]">
+            <DialogTitle className="text-[18px] font-semibold text-[var(--text-primary)]">
               Link Already Exists
             </DialogTitle>
           </div>
-          <DialogDescription className="text-[14px] text-[#78716C] pt-1">
+          <DialogDescription className="text-[14px] text-[var(--text-secondary)] pt-1">
             A relationship link is already established between these two documents. Would you like to delete this link?
           </DialogDescription>
         </DialogHeader>
         
         <div className="p-6 flex flex-col gap-4">
           {/* Document Relationship Card */}
-          <div className="flex items-center justify-between gap-3 p-4 bg-[#FAFAF9] rounded-lg border border-[#E5E2DC]">
+          <div className="flex items-center justify-between gap-3 p-4 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
             <div className="flex flex-col flex-1 overflow-hidden">
-              <span className="text-[11px] font-semibold text-[#78716C] uppercase tracking-wider mb-0.5">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-0.5">
                 From
               </span>
-              <span className="text-[14px] font-semibold text-[#1C1917] truncate">
+              <span className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
                 {sourceDoc.doc_type || 'Document'}
               </span>
-              <span className="text-[12px] text-[#78716C] truncate font-mono">
+              <span className="text-[12px] text-[var(--text-secondary)] truncate font-mono">
                 {sourceDoc.reference_number || sourceDoc.storage_path?.split('/').pop() || 'Doc A'}
               </span>
             </div>
             
             <div className="flex flex-col items-center justify-center shrink-0 px-2">
               {linkType && (
-                <span className="text-[9px] font-bold uppercase tracking-wider bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded mb-1">
+                <span className="text-[9px] font-bold uppercase tracking-wider bg-[var(--border-subtle)] text-[var(--text-secondary)] border border-[var(--border)] px-1.5 py-0.5 rounded mb-1">
                   {linkType.replace('_', ' ')}
                 </span>
               )}
-              <ArrowRight className="text-[#A8A29E]" size={16} />
+              <ArrowRight className="text-[var(--text-muted)]" size={16} />
             </div>
             
             <div className="flex flex-col flex-1 overflow-hidden items-end text-right">
-              <span className="text-[11px] font-semibold text-[#78716C] uppercase tracking-wider mb-0.5">
+              <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-0.5">
                 To
               </span>
-              <span className="text-[14px] font-semibold text-[#1C1917] truncate">
+              <span className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
                 {targetDoc.doc_type || 'Document'}
               </span>
-              <span className="text-[12px] text-[#78716C] truncate font-mono">
+              <span className="text-[12px] text-[var(--text-secondary)] truncate font-mono">
                 {targetDoc.reference_number || targetDoc.storage_path?.split('/').pop() || 'Doc B'}
               </span>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[#E5E2DC] bg-[#FAFAF9]">
+        <DialogFooter className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
           <Button
             type="button"
             variant="ghost"
             onClick={onClose}
             disabled={isDeleting}
-            className="text-[14px] font-medium text-[#1C1917] hover:bg-stone-200/60"
+            className="text-[14px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
           >
             Cancel
           </Button>

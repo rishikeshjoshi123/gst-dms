@@ -487,7 +487,7 @@ export function TimelineDocumentDetail({
             {/* Quick Add Note Form */}
             <div className="flex flex-col gap-2 p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-sm">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#78716C]">Quick Note</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Quick Note</span>
                 <select
                   value={newNoteType}
                   onChange={(e: any) => setNewNoteType(e.target.value)}
@@ -501,19 +501,19 @@ export function TimelineDocumentDetail({
               </div>
               
               {activeQuote && (
-                <div className="flex flex-col gap-1.5 p-2.5 bg-yellow-50/50 border-l-2 border-amber-400 rounded-r text-xs text-[--text-secondary] relative group mt-1 shadow-sm">
+                <div className="flex flex-col gap-1.5 p-2.5 bg-amber-500/10 border-l-2 border-amber-500 rounded-r text-xs text-[var(--text-secondary)] relative group mt-1 shadow-sm">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-amber-700/80 text-[10px] uppercase tracking-wide flex items-center gap-1.5">
+                    <span className="font-bold text-amber-600 dark:text-amber-400 text-[10px] uppercase tracking-wide flex items-center gap-1.5">
                       <FileText size={10} /> Selected from Page {activeQuote.pageNumber}
                     </span>
                     <button 
                       onClick={() => setActiveQuote(null)}
-                      className="text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-amber-100"
+                      className="text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-amber-500/20"
                     >
                       <X size={12} />
                     </button>
                   </div>
-                  <p className="italic font-medium text-amber-900/90 leading-relaxed">"{activeQuote.text}"</p>
+                  <p className="italic font-medium text-[var(--text-primary)] leading-relaxed">"{activeQuote.text}"</p>
                 </div>
               )}
 
@@ -527,7 +527,7 @@ export function TimelineDocumentDetail({
                 onClick={handleAddNote} 
                 disabled={isPending || !newNoteContent.trim()} 
                 size="sm" 
-                className="self-end bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold h-8 px-4 mt-2 shadow-sm"
+                className="self-end bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold h-8 px-4 mt-2 shadow-sm"
               >
                 {isPending ? <Loader2 size={12} className="animate-spin mr-1.5" /> : <Plus size={12} className="mr-1.5" />} Save Note
               </Button>
@@ -535,9 +535,9 @@ export function TimelineDocumentDetail({
 
             {/* Notes List */}
             {docNotes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-[--border-strong] rounded-lg mt-2">
-                <StickyNote size={24} className="text-slate-300 mb-2" />
-                <span className="text-[--text-muted] text-sm font-medium">No notes attached.</span>
+              <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-[var(--border-strong)] rounded-lg mt-2">
+                <StickyNote size={24} className="text-[var(--text-disabled)] mb-2" />
+                <span className="text-[var(--text-muted)] text-sm font-medium">No notes attached.</span>
               </div>
             ) : (
               <div className="flex flex-col gap-4 overflow-y-auto pr-1">
@@ -550,14 +550,14 @@ export function TimelineDocumentDetail({
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <button
                           onClick={() => handleTogglePin(note)}
-                          className={`p-1 rounded text-[#A8A29E] hover:text-amber-500 hover:bg-amber-50`}
+                          className={`p-1 rounded text-[var(--text-muted)] hover:text-amber-500 hover:bg-amber-500/10`}
                           title="Pin Note"
                         >
                           <Pin size={11} className={note.is_pinned ? 'fill-current text-amber-500' : ''} />
                         </button>
                         <button
                           onClick={() => handleDeleteNote(note.id)}
-                          className="p-1 rounded text-[#A8A29E] hover:text-red-500 hover:bg-red-50"
+                          className="p-1 rounded text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
                           title="Delete Note"
                         >
                           <Trash2 size={11} />

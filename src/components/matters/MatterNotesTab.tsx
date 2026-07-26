@@ -428,10 +428,10 @@ export function MatterNotesTab({
 
       {/* Create Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="bg-white rounded-lg shadow-xl max-w-lg p-6">
+        <DialogContent className="bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded-lg shadow-xl max-w-lg p-6">
           <DialogHeader>
-            <DialogTitle className="text-[18px] font-semibold text-[#1C1917]">Create Case Note Thread</DialogTitle>
-            <DialogDescription className="text-[14px] text-[#78716C]">
+            <DialogTitle className="text-[18px] font-semibold text-[var(--text-primary)]">Create Case Note Thread</DialogTitle>
+            <DialogDescription className="text-[14px] text-[var(--text-secondary)]">
               Add a new note or action item scoped to this Matter.
             </DialogDescription>
           </DialogHeader>
@@ -439,13 +439,13 @@ export function MatterNotesTab({
           <div className="flex flex-col gap-4 mt-2">
             {/* Document Select */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium uppercase tracking-wider text-[#78716C]">
+              <label className="text-[12px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                 Attach to Document (Optional)
               </label>
               <select
                 value={formDoc}
                 onChange={(e) => setFormDoc(e.target.value)}
-                className="w-full p-2 bg-white border border-[--border-strong] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[--primary]"
+                className="w-full p-2 bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               >
                 <option value="">-- No Document --</option>
                 {documents.map(d => (
@@ -458,13 +458,13 @@ export function MatterNotesTab({
 
             {/* Template type */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium uppercase tracking-wider text-[#78716C]">
+              <label className="text-[12px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                 Note Type
               </label>
               <select
                 value={formType}
                 onChange={(e) => setFormType(e.target.value as any)}
-                className="w-full p-2 bg-white border border-[--border-strong] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[--primary]"
+                className="w-full p-2 bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               >
                 {Object.entries(TEMPLATE_LABELS).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
@@ -474,14 +474,14 @@ export function MatterNotesTab({
 
             {/* Note Content */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium uppercase tracking-wider text-[#78716C]">
+              <label className="text-[12px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
                 Note Content <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
                 placeholder="Write note or legal analysis here..."
-                className="w-full min-h-[120px] p-3 bg-white border border-[--border-strong] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[--primary] resize-y"
+                className="w-full min-h-[120px] p-3 bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
               />
             </div>
 
@@ -492,24 +492,24 @@ export function MatterNotesTab({
                 id="is-action-item"
                 checked={formIsAction}
                 onChange={(e) => setFormIsAction(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-[--primary] focus:ring-[--primary]"
+                className="h-4 w-4 rounded border-[var(--border-strong)] text-[var(--primary)] focus:ring-[var(--primary)]"
               />
-              <label htmlFor="is-action-item" className="text-sm font-semibold text-[#1C1917]">
+              <label htmlFor="is-action-item" className="text-sm font-semibold text-[var(--text-primary)]">
                 Mark as Action Item (Task)
               </label>
             </div>
 
             {/* Action Item Assignee & Due Date */}
             {formIsAction && (
-              <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 border border-slate-200 rounded-lg animate-fade-in">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg animate-fade-in">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#78716C]">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                     Assignee
                   </label>
                   <select
                     value={formAssignee}
                     onChange={(e) => setFormAssignee(e.target.value)}
-                    className="p-1.5 bg-white border border-[--border-strong] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[--primary]"
+                    className="p-1.5 bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                   >
                     <option value="">Unassigned</option>
                     {users.map(u => (
@@ -518,21 +518,21 @@ export function MatterNotesTab({
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[#78716C]">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                     Due Date
                   </label>
                   <input
                     type="date"
                     value={formDueDate}
                     onChange={(e) => setFormDueDate(e.target.value)}
-                    className="p-1.5 bg-white border border-[--border-strong] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[--primary]"
+                    className="p-1.5 bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                   />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-[var(--border)]">
             <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isPending}>
               Cancel
             </Button>

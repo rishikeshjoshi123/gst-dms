@@ -37,23 +37,23 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-lg shadow-xl border border-[#E5E2DC] w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-[var(--surface)] text-[var(--text-primary)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             <div className="p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-3 text-red-600">
+              <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
                 <AlertTriangle size={24} className="shrink-0" />
-                <h3 className="text-[18px] font-semibold text-[#1C1917]">Delete Client?</h3>
+                <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">Delete Client?</h3>
               </div>
-              <p className="text-[14px] font-normal text-[#78716C] leading-relaxed">
-                Are you sure you want to delete <strong className="text-[#1C1917]">"{clientName}"</strong>? This will soft-delete the client, along with all of their matters and documents.
+              <p className="text-[14px] font-normal text-[var(--text-secondary)] leading-relaxed">
+                Are you sure you want to delete <strong className="text-[var(--text-primary)]">"{clientName}"</strong>? This will soft-delete the client, along with all of their matters and documents.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[#E5E2DC] bg-[#FAFAF9]">
+            <div className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
                 disabled={isDeleting}
-                className="px-4 py-2 text-[14px] font-medium text-[#1C1917] hover:bg-stone-200/60 rounded-md transition-colors"
+                className="px-4 py-2 text-[14px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] rounded-md transition-colors"
               >
                 Cancel
               </button>

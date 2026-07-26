@@ -1059,6 +1059,19 @@ export type Database = {
       }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      match_all_documents: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          p_org_id: string
+          query_embedding: string
+        }
+        Returns: {
+          id: string
+          reference_number: string
+          similarity: number
+        }[]
+      }
       match_documents: {
         Args: {
           match_count: number
@@ -1073,6 +1086,10 @@ export type Database = {
         }[]
       }
       my_org_ids: { Args: never; Returns: string[] }
+      recalculate_model_costs: {
+        Args: { p_in_price: number; p_model_name: string; p_out_price: number }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
@@ -1147,6 +1164,7 @@ export type Database = {
         | "analyzing"
         | "ready_to_assign"
         | "assigned"
+        | "failed"
       supporting_doc_category:
         | "invoices"
         | "bank_statements"
@@ -1360,6 +1378,7 @@ export const Constants = {
         "analyzing",
         "ready_to_assign",
         "assigned",
+        "failed",
       ],
       supporting_doc_category: [
         "invoices",

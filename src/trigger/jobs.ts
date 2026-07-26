@@ -453,6 +453,36 @@ export const analyzeStagedDocument = task({
         const { data } = await supabase.from('clients').select('id, name').eq('org_id', orgId).ilike('name', `%${aiResult.client_name}%`).is('deleted_at', null).maybeSingle();
         if (data) matchedClient = data;
       }
+
+      // Auto-create client if still no match but we have a name
+      if (!matchedClient && aiResult.client_name) {
+        console.log('[analyze-staged-document] Auto-creating client:', aiResult.client_name)
+        const gstin = aiResult.gstin || null
+        const pan = (aiResult.client_identifiers && aiResult.client_identifiers.length > 0) ? aiResult.client_identifiers[0] : null
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newClient, error: newClientErr } = await (supabase as any).from('clients').insert({
+          org_id: orgId,
+          name: aiResult.client_name,
+          gstin: gstin,
+          pan: pan
+        }).select('id, name').single()
+
+        if (!newClientErr && newClient) {
+          matchedClient = newClient
+          
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('activity_logs').insert({
+            org_id: orgId,
+            user_id: uploadedBy,
+            action: 'client_created',
+            entity_type: 'client',
+            entity_id: newClient.id,
+            description: `Auto-created client from document: ${aiResult.client_name}`,
+            is_reversible: false
+          })
+        }
+      }
     }
 
     if (matchedClient) {
