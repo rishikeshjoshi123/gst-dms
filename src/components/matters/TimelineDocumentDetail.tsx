@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 function humanizeKey(key: string) {
   return key
@@ -157,12 +158,14 @@ export function TimelineDocumentDetail({
   const [activeQuote, setActiveQuote] = useState<{ text: string, pageNumber: number } | null>(null)
 
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
+  const [pendingNoteDeleteId, setPendingNoteDeleteId] = useState<string | null>(null)
 
   const handleDeleteDocument = async () => {
-    if (!confirm('Are you sure you want to delete this document? This will remove it from the matter timeline.')) return
     setIsDeleting(true)
     const res = await deleteDocument(doc.id)
     setIsDeleting(false)
+    setIsDocConfirmOpen(false)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -221,9 +224,11 @@ export function TimelineDocumentDetail({
     })
   }
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Are you sure you want to delete this note?')) return
+  const handleDeleteNote = async () => {
+    if (!pendingNoteDeleteId) return
+    const noteId = pendingNoteDeleteId
     const res = await deleteNote(noteId)
+    setPendingNoteDeleteId(null)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -295,7 +300,7 @@ export function TimelineDocumentDetail({
           <Button variant="outline" size="icon" onClick={handleReprocess} disabled={isReprocessing || isDeleting} className="h-7 w-7 text-[--text-secondary]" title="Reprocess Document">
             {isReprocessing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           </Button>
-          <Button variant="outline" size="icon" onClick={handleDeleteDocument} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" title="Delete Document">
+          <Button variant="outline" size="icon" onClick={() => setIsDocConfirmOpen(true)} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-red-950/20 dark:border-red-800" title="Delete Document">
             {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
           </Button>
           <a href={viewUrl} className="inline-flex items-center justify-center rounded-md text-[11px] font-medium h-7 px-2.5 gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors">
@@ -556,7 +561,7 @@ export function TimelineDocumentDetail({
                           <Pin size={11} className={note.is_pinned ? 'fill-current text-amber-500' : ''} />
                         </button>
                         <button
-                          onClick={() => handleDeleteNote(note.id)}
+                          onClick={() => setPendingNoteDeleteId(note.id)}
                           className="p-1 rounded text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
                           title="Delete Note"
                         >
@@ -587,6 +592,27 @@ export function TimelineDocumentDetail({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={isDocConfirmOpen}
+        onClose={() => setIsDocConfirmOpen(false)}
+        onConfirm={handleDeleteDocument}
+        title="Delete Document?"
+        description="Are you sure you want to delete this document? This will permanently remove it from the matter timeline."
+        confirmText="Delete Document"
+        variant="destructive"
+        isPending={isDeleting}
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingNoteDeleteId}
+        onClose={() => setPendingNoteDeleteId(null)}
+        onConfirm={handleDeleteNote}
+        title="Delete Note?"
+        description="Are you sure you want to delete this note? This action cannot be undone."
+        confirmText="Delete Note"
+        variant="destructive"
+      />
     </div>
   )
 }

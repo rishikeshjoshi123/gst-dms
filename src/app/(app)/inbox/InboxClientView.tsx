@@ -11,6 +11,7 @@ import { reprocessDocument } from '@/lib/actions/reprocess'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
 import { DocumentViewerModal } from './DocumentViewerModal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 function humanizeKey(key: string) {
   return key
@@ -39,6 +40,7 @@ export function InboxClientView({
   const [isReprocessing, setIsReprocessing] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false)
   const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
   const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
   const router = useRouter()
@@ -166,7 +168,6 @@ export function InboxClientView({
 
   function handleDiscard() {
     if (!selectedDocId) return
-    if (!confirm('Are you sure you want to discard this document? It will be permanently deleted.')) return
     
     startTransition(async () => {
       const res = await discardStagedDocument(selectedDocId)
@@ -174,6 +175,7 @@ export function InboxClientView({
         toast.error(res.error)
       } else {
         toast.success('Document discarded')
+        setIsDiscardConfirmOpen(false)
         setIsActionModalOpen(false)
         // Select next doc if available
         const remainingDocs = documents.filter(d => d.id !== selectedDocId)
@@ -617,7 +619,7 @@ export function InboxClientView({
                 <Button 
                   variant="destructive" 
                   className="w-full" 
-                  onClick={handleDiscard}
+                  onClick={() => setIsDiscardConfirmOpen(true)}
                   disabled={isPending}
                 >
                   <X size={16} className="mr-2" />
@@ -628,6 +630,17 @@ export function InboxClientView({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={isDiscardConfirmOpen}
+        onClose={() => setIsDiscardConfirmOpen(false)}
+        onConfirm={handleDiscard}
+        title="Discard Document?"
+        description="Are you sure you want to discard this document? It will be permanently deleted from the staging queue."
+        confirmText="Discard Document"
+        variant="destructive"
+        isPending={isPending}
+      />
 
       {viewDocumentUrl && activeDoc && (
         <DocumentViewerModal 

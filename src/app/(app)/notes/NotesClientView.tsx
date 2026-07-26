@@ -9,6 +9,7 @@ import {
   StickyNote, Filter, X
 } from 'lucide-react'
 import { updateNote, deleteNote, createNote } from '@/lib/actions/notes'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -116,9 +117,13 @@ export function NotesClientView({
     toast.success(newResolved ? 'Task resolved' : 'Task reopened')
   }
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Delete this note?')) return
+  const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
+
+  const handleDeleteNote = async () => {
+    if (!pendingDeleteNoteId) return
+    const noteId = pendingDeleteNoteId
     const res = await deleteNote(noteId)
+    setPendingDeleteNoteId(null)
     if (res.error) { toast.error(res.error); return }
     setNotes(prev => prev.filter(n => n.id !== noteId))
     if (selectedThreadId === noteId) setSelectedThreadId(null)
@@ -393,7 +398,7 @@ export function NotesClientView({
                     <Pin size={14} className={selectedThread.is_pinned ? 'fill-current' : ''} />
                   </button>
                   <button
-                    onClick={() => handleDeleteNote(selectedThread.id)}
+                    onClick={() => setPendingDeleteNoteId(selectedThread.id)}
                     className="p-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all"
                     title="Delete Thread"
                   >
@@ -546,7 +551,7 @@ export function NotesClientView({
                             <button onClick={() => startEditing(reply)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
                               <Edit2 size={11} />
                             </button>
-                            <button onClick={() => handleDeleteNote(reply.id)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
+                            <button onClick={() => setPendingDeleteNoteId(reply.id)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--border)]">
                               <Trash2 size={11} />
                             </button>
                           </div>
@@ -581,6 +586,16 @@ export function NotesClientView({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteNoteId}
+        onClose={() => setPendingDeleteNoteId(null)}
+        onConfirm={handleDeleteNote}
+        title="Delete Note?"
+        description="Are you sure you want to delete this note? This action cannot be undone."
+        confirmText="Delete Note"
+        variant="destructive"
+      />
     </div>
   )
 }

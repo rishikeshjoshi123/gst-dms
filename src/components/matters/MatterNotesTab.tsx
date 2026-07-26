@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -138,9 +139,13 @@ export function MatterNotesTab({
     }
   }
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Are you sure you want to delete this note?')) return
+  const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
+
+  const handleDeleteNote = async () => {
+    if (!pendingDeleteNoteId) return
+    const noteId = pendingDeleteNoteId
     const res = await deleteNote(noteId)
+    setPendingDeleteNoteId(null)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -296,7 +301,7 @@ export function MatterNotesTab({
                   <button onClick={() => handleTogglePin(selectedThread)} className={`p-1.5 rounded transition-colors ${selectedThread.is_pinned ? 'text-amber-600' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`} title="Pin Thread">
                     <Pin size={14} className={selectedThread.is_pinned ? 'fill-current' : ''} />
                   </button>
-                  <button onClick={() => handleDeleteNote(selectedThread.id)} className="p-1.5 rounded text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Delete Thread">
+                  <button onClick={() => setPendingDeleteNoteId(selectedThread.id)} className="p-1.5 rounded text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Delete Thread">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -396,7 +401,7 @@ export function MatterNotesTab({
                           <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{reply.content}</p>
                           <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => startEditing(reply)} className="p-1 text-[var(--text-muted)] hover:text-[var(--primary)] bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>
-                            <button onClick={() => handleDeleteNote(reply.id)} className="p-1 text-[var(--text-muted)] hover:text-red-500 bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Trash2 size={12} /></button>
+                            <button onClick={() => setPendingDeleteNoteId(reply.id)} className="p-1 text-[var(--text-muted)] hover:text-red-500 bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Trash2 size={12} /></button>
                           </div>
                         </div>
                       )}
@@ -542,6 +547,16 @@ export function MatterNotesTab({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        isOpen={!!pendingDeleteNoteId}
+        onClose={() => setPendingDeleteNoteId(null)}
+        onConfirm={handleDeleteNote}
+        title="Delete Note?"
+        description="Are you sure you want to delete this note? This action cannot be undone."
+        confirmText="Delete Note"
+        variant="destructive"
+      />
     </div>
   )
 }
