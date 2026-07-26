@@ -482,19 +482,16 @@ export async function createManualLink(
   const toType = toDoc?.doc_type || toDoc?.reference_number || 'Document'
   const caseName = (fromDoc?.matters as any)?.title || (toDoc?.matters as any)?.title || 'Matter'
 
-  // Log activity
+  // Log activity with normalized IDs (dynamic resolution)
   await db.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_created',
     entity_type: 'document_link',
-    description: `Manually linked ${fromType} and ${toType} of ${caseName}`,
+    description: `Manually linked documents`,
     metadata: {
-      from_doc_type: fromDoc?.doc_type,
-      from_ref: fromDoc?.reference_number,
-      to_doc_type: toDoc?.doc_type,
-      to_ref: toDoc?.reference_number,
-      case_name: caseName,
+      from_doc_id: fromDocId,
+      to_doc_id: toDocId,
       link_type: linkType
     },
     is_reversible: true
@@ -513,18 +510,12 @@ export async function deleteDocumentLink(linkId: string) {
 
   const db = createServiceClient()
 
-  // Fetch link details before deletion for audit log
+  // Fetch link IDs before deletion
   const { data: link } = await db
     .from('document_links')
-    .select('id, from_doc_id, to_doc_id, documents!from_doc_id(doc_type, reference_number, matters(title)), to_doc:documents!to_doc_id(doc_type, reference_number)')
+    .select('id, from_doc_id, to_doc_id')
     .eq('id', linkId)
     .single()
-
-  const fromDoc = (link as any)?.documents
-  const toDoc = (link as any)?.to_doc
-  const fromType = fromDoc?.doc_type || fromDoc?.reference_number || 'Document'
-  const toType = toDoc?.doc_type || toDoc?.reference_number || 'Document'
-  const caseName = fromDoc?.matters?.title || 'Matter'
 
   const { error } = await db
     .from('document_links')
@@ -538,13 +529,10 @@ export async function deleteDocumentLink(linkId: string) {
     user_id: user.id,
     action: 'manual_link_deleted',
     entity_type: 'document_link',
-    description: `Deleted link between ${fromType} and ${toType} of ${caseName}`,
+    description: `Deleted document link`,
     metadata: {
-      from_doc_type: fromDoc?.doc_type,
-      from_ref: fromDoc?.reference_number,
-      to_doc_type: toDoc?.doc_type,
-      to_ref: toDoc?.reference_number,
-      case_name: caseName
+      from_doc_id: link?.from_doc_id,
+      to_doc_id: link?.to_doc_id
     },
     is_reversible: false
   })

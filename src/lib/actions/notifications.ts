@@ -83,19 +83,77 @@ export async function getRecentActivityLogs(limit = 50) {
 
   try {
     const db = createServiceClient()
-    const { data: { users: authUsers } } = await db.auth.admin.listUsers()
-    if (authUsers) {
-      const userMap = new Map(authUsers.map(u => [
-        u.id,
-        u.user_metadata?.full_name || u.email || `User (${u.id.slice(0, 8)})`
-      ]))
-      return logs.map(log => ({
-        ...log,
-        user_email: (log.user_id ? userMap.get(log.user_id) : null) || 'System'
-      }))
+    
+    // 1. Collect all referenced document IDs across logs for dynamic resolution
+    const docIds = new Set<string>()
+    logs.forEach(log => {
+      const meta = log.metadata as Record<string, any> | null
+      if (meta) {
+        if (meta.from_doc_id) docIds.add(meta.from_doc_id)
+        if (meta.to_doc_id) docIds.add(meta.to_doc_id)
+      }
+      if (log.entity_type === 'document' && log.entity_id) {
+        docIds.add(log.entity_id)
+      }
+    })
+
+    // Fetch live document details
+    let docMap = new Map<string, any>()
+    if (docIds.size > 0) {
+      const { data: docs } = await db
+        .from('documents')
+        .select('id, doc_type, reference_number, matters(title)')
+        .in('id', Array.from(docIds))
+
+      if (docs) {
+        docMap = new Map(docs.map(d => [d.id, d]))
+      }
     }
+
+    // 2. Fetch auth users
+    const { data: { users: authUsers } } = await db.auth.admin.listUsers()
+    const userMap = new Map((authUsers || []).map(u => [
+      u.id,
+      u.user_metadata?.full_name || u.email || `User (${u.id.slice(0, 8)})`
+    ]))
+
+    return logs.map(log => {
+      let description = log.description
+      const meta = (log.metadata as Record<string, any>) || {}
+      let resolvedMeta: Record<string, any> = { ...meta }
+
+      // Dynamically resolve document link descriptions & metadata from live DB records
+      if (log.entity_type === 'document_link' && meta.from_doc_id && meta.to_doc_id) {
+        const fromDoc = docMap.get(meta.from_doc_id)
+        const toDoc = docMap.get(meta.to_doc_id)
+        const fromType = fromDoc?.doc_type || fromDoc?.reference_number || meta.from_doc_type || 'Document'
+        const toType = toDoc?.doc_type || toDoc?.reference_number || meta.to_doc_type || 'Document'
+        const caseName = (fromDoc?.matters as any)?.title || (toDoc?.matters as any)?.title || meta.case_name || 'Matter'
+
+        const isDelete = log.action.includes('deleted')
+        description = isDelete
+          ? `Deleted link between ${fromType} and ${toType} of ${caseName}`
+          : `Manually linked ${fromType} and ${toType} of ${caseName}`
+
+        resolvedMeta = {
+          ...resolvedMeta,
+          from_doc_type: fromType,
+          from_ref: fromDoc?.reference_number,
+          to_doc_type: toType,
+          to_ref: toDoc?.reference_number,
+          case_name: caseName
+        }
+      }
+
+      return {
+        ...log,
+        description,
+        metadata: resolvedMeta,
+        user_email: (log.user_id ? userMap.get(log.user_id) : null) || 'System'
+      }
+    })
   } catch (err) {
-    console.error('Failed to resolve activity log user names:', err)
+    console.error('Failed to resolve activity log details:', err)
   }
 
   return logs
