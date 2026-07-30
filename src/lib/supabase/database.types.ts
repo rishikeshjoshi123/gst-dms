@@ -1086,10 +1086,6 @@ export type Database = {
         }[]
       }
       my_org_ids: { Args: never; Returns: string[] }
-      recalculate_model_costs: {
-        Args: { p_in_price: number; p_model_name: string; p_out_price: number }
-        Returns: undefined
-      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
