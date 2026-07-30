@@ -113,7 +113,7 @@ export async function createMatter(formData: FormData) {
     return { error: error?.message ?? 'Failed to create matter.' }
   }
 
-  revalidatePath('/matters')
+  revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/clients/${clientId}`)
   return { success: true, id: data.id, matterCode: data.matter_code }
 }
@@ -178,7 +178,7 @@ export async function updateMatterDetails(
       .or(`financial_year.eq.Unknown FY,financial_year.is.null`)
   }
 
-  revalidatePath('/matters')
+  revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/matters/${matterId}`)
   if (existingMatter?.client_id) {
     revalidatePath(`/clients/${existingMatter.client_id}`)
@@ -216,7 +216,7 @@ export async function setMatterStatus(id: string, status: MatterStatus) {
     return { error: error.message }
   }
 
-  revalidatePath('/matters')
+  revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/matters/${id}`)
   return { success: true }
 }
@@ -306,7 +306,7 @@ export async function deleteMatterAction(matterId: string) {
     metadata: { client_id: matter.client_id }
   })
 
-  revalidatePath('/matters')
+  revalidatePath('/matters'); revalidatePath('/dashboard')
   if (matter.client_id) {
     revalidatePath(`/clients/${matter.client_id}`)
   }

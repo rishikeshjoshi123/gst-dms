@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
@@ -41,6 +41,10 @@ export function MatterNotesTab({
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    setNotes(initialNotes)
+  }, [initialNotes])
 
   // Form State
   const [formDoc, setFormDoc] = useState('')

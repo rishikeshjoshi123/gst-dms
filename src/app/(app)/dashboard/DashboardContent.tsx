@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition, useMemo } from 'react'
 import { searchAll, SearchResultItem } from '@/lib/actions/search'
 import { NeedsAttentionPanel } from './NeedsAttentionPanel'
 import {
-  ArrowUpRight, FileText, Search, Users, FolderOpen,
+  ArrowUpRight, FileText, Search, Users, FolderOpen, ShieldAlert,
   Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronLeft,
   Zap, Link2, FileCheck, Info, User
 } from 'lucide-react'
@@ -27,48 +27,48 @@ interface DashboardContentProps {
 const LOGS_PER_PAGE = 10
 
 const ENTITY_META: Record<string, { icon: React.FC<any>; color: string; gradient: string }> = {
-  document:          { icon: FileText,   color: 'text-blue-500',   gradient: 'from-blue-500 to-indigo-500' },
-  matter:            { icon: FolderOpen, color: 'text-indigo-500', gradient: 'from-indigo-500 to-violet-500' },
-  client:            { icon: Users,      color: 'text-emerald-500',gradient: 'from-emerald-500 to-teal-500' },
-  case_note:         { icon: FileCheck,  color: 'text-violet-500', gradient: 'from-violet-500 to-purple-500' },
-  document_link:     { icon: Link2,      color: 'text-amber-500',  gradient: 'from-amber-500 to-orange-500' },
-  deadline:          { icon: Calendar,   color: 'text-rose-500',   gradient: 'from-rose-500 to-pink-500' },
-  staged_document:   { icon: Zap,        color: 'text-cyan-500',   gradient: 'from-cyan-500 to-blue-500' },
-  organisation:      { icon: Users,      color: 'text-slate-500',  gradient: 'from-slate-400 to-slate-600' },
-  user:              { icon: Users,      color: 'text-pink-500',   gradient: 'from-pink-500 to-rose-500' },
-  supporting_document: { icon: FileText, color: 'text-teal-500',   gradient: 'from-teal-500 to-cyan-500' },
-  wiki_section:      { icon: FileText,   color: 'text-purple-500', gradient: 'from-purple-500 to-indigo-500' },
+  document: { icon: FileText, color: 'text-blue-500', gradient: 'from-blue-500 to-indigo-500' },
+  matter: { icon: FolderOpen, color: 'text-indigo-500', gradient: 'from-indigo-500 to-violet-500' },
+  client: { icon: Users, color: 'text-emerald-500', gradient: 'from-emerald-500 to-teal-500' },
+  case_note: { icon: FileCheck, color: 'text-violet-500', gradient: 'from-violet-500 to-purple-500' },
+  document_link: { icon: Link2, color: 'text-amber-500', gradient: 'from-amber-500 to-orange-500' },
+  deadline: { icon: Calendar, color: 'text-rose-500', gradient: 'from-rose-500 to-pink-500' },
+  staged_document: { icon: Zap, color: 'text-cyan-500', gradient: 'from-cyan-500 to-blue-500' },
+  organisation: { icon: Users, color: 'text-slate-500', gradient: 'from-slate-400 to-slate-600' },
+  user: { icon: Users, color: 'text-pink-500', gradient: 'from-pink-500 to-rose-500' },
+  supporting_document: { icon: FileText, color: 'text-teal-500', gradient: 'from-teal-500 to-cyan-500' },
+  wiki_section: { icon: FileText, color: 'text-purple-500', gradient: 'from-purple-500 to-indigo-500' },
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  document_reassigned:     'Document reassigned',
-  document_deleted:        'Document deleted',
-  document_placed:         'Document placed in matter',
-  document_processed:      'Document processed',
-  matter_created:          'Matter created',
-  matter_updated:          'Matter updated',
-  matter_deleted:          'Matter deleted',
-  client_created:          'Client created',
-  client_updated:          'Client updated',
-  client_deleted:          'Client deleted',
-  manual_link_created:     'Manual link created',
-  manual_link_deleted:     'Manual link deleted',
-  link_created:            'Document link created',
-  link_deleted:            'Document link deleted',
-  link_confirmed:          'Document link confirmed',
-  note_created:            'Note added',
-  note_deleted:            'Note deleted',
-  deadline_created:        'Deadline added',
-  deadline_resolved:       'Deadline resolved',
+  document_reassigned: 'Document reassigned',
+  document_deleted: 'Document deleted',
+  document_placed: 'Document placed in matter',
+  document_processed: 'Document processed',
+  matter_created: 'Matter created',
+  matter_updated: 'Matter updated',
+  matter_deleted: 'Matter deleted',
+  client_created: 'Client created',
+  client_updated: 'Client updated',
+  client_deleted: 'Client deleted',
+  manual_link_created: 'Manual link created',
+  manual_link_deleted: 'Manual link deleted',
+  link_created: 'Document link created',
+  link_deleted: 'Document link deleted',
+  link_confirmed: 'Document link confirmed',
+  note_created: 'Note added',
+  note_deleted: 'Note deleted',
+  deadline_created: 'Deadline added',
+  deadline_resolved: 'Deadline resolved',
 }
 
 const DEADLINE_TYPE_LABELS: Record<string, string> = {
-  appeal_window:   'Appeal Window',
-  pre_deposit:     'Pre-Deposit',
-  hearing_date:    'Hearing Date',
-  reply_deadline:  'Reply Deadline',
-  stay_application:'Stay Application',
-  other:           'Deadline',
+  appeal_window: 'Appeal Window',
+  pre_deposit: 'Pre-Deposit',
+  hearing_date: 'Hearing Date',
+  reply_deadline: 'Reply Deadline',
+  stay_application: 'Stay Application',
+  other: 'Deadline',
 }
 
 export function DashboardContent({
@@ -85,7 +85,7 @@ export function DashboardContent({
   const [results, setResults] = useState<SearchResultItem[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isPending, startTransition] = useTransition()
-  
+
   // Recent Activity Accordion, Filtering & Pagination state
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
   const [activitySearch, setActivitySearch] = useState('')
@@ -225,7 +225,7 @@ export function DashboardContent({
         </div>
       </div>
 
-      {/* ── Stat Cards Grid (Restored Original Exact Styling) ── */}
+      {/* ── Stat Cards Grid ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {statCards.map((card, idx) => (
           <Link
@@ -277,7 +277,7 @@ export function DashboardContent({
                     const days = differenceInDays(new Date(d.due_date), new Date())
                     const urgency = days <= 3 ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
                       days <= 7 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
-                      'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+                        'bg-blue-500/10 text-blue-600 border border-blue-500/20'
 
                     return (
                       <div key={d.id} className="p-3.5 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
@@ -355,67 +355,85 @@ export function DashboardContent({
                     const label = ACTION_LABELS[log.action] ?? log.action.replace(/_/g, ' ')
                     const isExpanded = expandedLogId === log.id
                     const userMention = log.user_email || 'System'
+                    const hasDetails = !!log.metadata?.from_doc_type
+
+                    const renderRichTitle = () => {
+                      if (log.entity_type === 'document_link' && log.metadata?.from_doc_type) {
+                        const isDelete = log.action.includes('deleted')
+                        const actionText = isDelete ? 'Deleted link between ' : 'Manually linked '
+                        return (
+                          <span className="truncate">
+                            <span>{actionText}</span>
+                            <span className="font-semibold ">{log.metadata.from_doc_type}</span>
+                            <span> and </span>
+                            <span className="font-semibold">{log.metadata.to_doc_type}</span>
+                            <span> in </span>
+                            <span className="font-semibold">{log.metadata.case_name}</span>
+                          </span>
+                        )
+                      }
+
+                      const text = log.description || label
+                      const parts = text.split(/(".*?")/g)
+                      if (parts.length > 1) {
+                        return (
+                          <span className="truncate">
+                            {parts.map((part: string, i: number) => {
+                              if (part.startsWith('"') && part.endsWith('"')) {
+                                return <span key={i} className="text-[var(--primary)] font-bold">{part.slice(1, -1)}</span>
+                              }
+                              return <span key={i}>{part}</span>
+                            })}
+                          </span>
+                        )
+                      }
+                      return <span className="truncate">{text}</span>
+                    }
 
                     return (
-                      <div key={log.id} className="flex flex-col border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors">
-                        <button
-                          type="button"
-                          onClick={() => toggleLogExpand(log.id)}
-                          className="w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer outline-none"
+                      <div key={log.id} className="group flex flex-col border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-hover)] transition-colors relative">
+                        <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-transparent group-hover:bg-[var(--primary)] transition-colors" />
+
+                        <div
+                          onClick={() => hasDetails && toggleLogExpand(log.id)}
+                          className={`w-full text-left flex items-center justify-between gap-4 px-5 py-3 outline-none ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className={`w-6 h-6 rounded-md bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-xs`}>
-                              <Icon size={12} className="text-white" />
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta.gradient} flex items-center justify-center shrink-0 shadow-xs`}>
+                              <Icon size={14} className="text-white" />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-xs font-bold text-[var(--text-primary)] truncate">
-                                {log.description || label}
+                              <span className="text-[13px] text-[var(--text-primary)] truncate">
+                                {renderRichTitle()}
                               </span>
-                              <span className="text-[10px] text-[var(--text-muted)] mt-0.2 flex items-center gap-1.5 truncate">
-                                <span className="font-semibold text-[var(--text-secondary)]">by {userMention}</span>
-                                <span>·</span>
+                              <span className="text-[11px] text-[var(--text-secondary)] mt-0.5 flex items-center gap-1.5 truncate">
+                                <span>{userMention}</span>
+                                <span className="text-[var(--border-strong)]">•</span>
                                 <span>{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</span>
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className={`w-5 h-5 rounded border border-[var(--border)] bg-[var(--bg)] flex items-center justify-center transition-transform ${isExpanded ? 'rotate-90 text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
-                              <ChevronRight size={12} />
+                          {hasDetails && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className={`w-6 h-6 rounded-md border border-transparent group-hover:border-[var(--border)] group-hover:bg-[var(--bg)] flex items-center justify-center transition-all ${isExpanded ? 'rotate-90 text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
+                                <ChevronRight size={14} />
+                              </div>
                             </div>
-                          </div>
-                        </button>
+                          )}
+                        </div>
 
-                        {/* Accordion Detail Drawer (Streamlined & Clean) */}
-                        {isExpanded && (
-                          <div className="px-4 pb-3 pt-0.5 animate-in slide-in-from-top-1 fade-in duration-150">
-                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 space-y-2 text-xs">
-                              <div className="flex items-center justify-between text-[11px] border-b border-[var(--border)] pb-2">
-                                <span className="font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
-                                  <User size={12} className="text-[var(--primary)]" />
-                                  Performed by <span className="text-[var(--text-primary)] font-bold">{userMention}</span>
-                                </span>
-                                <span className="text-[10px] text-[var(--text-muted)]">
-                                  {new Date(log.created_at).toLocaleString()}
+                        {/* Accordion Detail Drawer (Premium Inset) */}
+                        {hasDetails && isExpanded && (
+                          <div className="pl-[60px] pr-5 pb-3 pt-0 animate-in slide-in-from-top-1 fade-in duration-200">
+                            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-md p-3 text-[12px] shadow-inner shadow-[var(--border)]/10">
+                              {/* Document Link Context Details */}
+                              <div className="text-[var(--text-secondary)] flex items-center gap-2">
+                                <Link2 size={14} className="text-[var(--primary)] shrink-0" />
+                                <span>
+                                  {log.action.includes('deleted') ? 'Unlinked' : 'Linked'} <strong className="text-[var(--text-primary)] font-semibold">{log.metadata.from_doc_type} ({log.metadata.from_ref || 'N/A'})</strong> and <strong className="text-[var(--text-primary)] font-semibold">{log.metadata.to_doc_type} ({log.metadata.to_ref || 'N/A'})</strong>
                                 </span>
                               </div>
-
-                              {/* Document Link Context Details */}
-                              {log.metadata?.from_doc_type && (
-                                <div className="text-[11px] text-[var(--text-secondary)] pt-1 flex items-center gap-1.5 font-medium">
-                                  <Link2 size={12} className="text-amber-500 shrink-0" />
-                                  <span>
-                                    Linked <strong className="text-[var(--text-primary)]">{log.metadata.from_doc_type} ({log.metadata.from_ref || 'Ref'})</strong> → <strong className="text-[var(--text-primary)]">{log.metadata.to_doc_type} ({log.metadata.to_ref || 'Ref'})</strong> in <strong className="text-[var(--text-primary)]">{log.metadata.case_name || 'Matter'}</strong>
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Description detail */}
-                              {!log.metadata?.from_doc_type && (
-                                <p className="text-[11px] text-[var(--text-secondary)]">
-                                  {log.description}
-                                </p>
-                              )}
                             </div>
                           </div>
                         )}
@@ -427,7 +445,7 @@ export function DashboardContent({
 
               {/* Activity Pagination Footer */}
               {filteredLogs.length > LOGS_PER_PAGE && (
-                <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)] shrink-0 text-[11px] text-[var(--text-muted)] bg-[var(--surface)]">
+                <div className="flex items-center justify-between px-3 py-1.5 border-t border-[var(--border)] shrink-0 text-[11px] text-[var(--text-muted)] bg-[var(--surface)]">
                   <span>
                     Showing {((activityPage - 1) * LOGS_PER_PAGE) + 1} to {Math.min(activityPage * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} logs
                   </span>

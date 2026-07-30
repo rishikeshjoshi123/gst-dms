@@ -107,9 +107,9 @@ export async function getRecentActivityLogs(limit = 50) {
     // 2. Collect all referenced document IDs across logs for dynamic resolution
     const docIds = new Set<string>()
     logs.forEach(log => {
-      const meta = log.metadata as Record<string, any> | null
-      if (meta?.from_doc_id) docIds.add(meta.from_doc_id)
-      if (meta?.to_doc_id) docIds.add(meta.to_doc_id)
+      const meta = (log.metadata || {}) as Record<string, any>
+      if (meta.from_doc_id) docIds.add(meta.from_doc_id)
+      if (meta.to_doc_id) docIds.add(meta.to_doc_id)
       if (log.entity_type === 'document_link' && log.entity_id) {
         const link = linkMap.get(log.entity_id)
         if (link) {
@@ -117,6 +117,16 @@ export async function getRecentActivityLogs(limit = 50) {
           if (link.to_doc_id) docIds.add(link.to_doc_id)
         }
       }
+      
+      // Extract from legacy description: "Manually linked document <uuid> to <uuid>"
+      if (log.description?.includes('Manually linked document')) {
+        const match = log.description.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) to ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
+        if (match) {
+          docIds.add(match[1])
+          docIds.add(match[2])
+        }
+      }
+
       if (log.entity_type === 'document' && log.entity_id) {
         docIds.add(log.entity_id)
       }
@@ -149,6 +159,15 @@ export async function getRecentActivityLogs(limit = 50) {
 
       let fromDocId = meta.from_doc_id
       let toDocId = meta.to_doc_id
+
+      // Extract from legacy description if missing in metadata
+      if (!fromDocId && !toDocId && description?.includes('Manually linked document')) {
+        const match = description.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) to ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
+        if (match) {
+          fromDocId = match[1]
+          toDocId = match[2]
+        }
+      }
       if (!fromDocId && log.entity_type === 'document_link' && log.entity_id) {
         const link = linkMap.get(log.entity_id)
         if (link) {
@@ -163,12 +182,20 @@ export async function getRecentActivityLogs(limit = 50) {
         const toDoc = docMap.get(toDocId)
         const fromType = fromDoc?.doc_type || fromDoc?.reference_number || meta.from_doc_type || 'Document'
         const toType = toDoc?.doc_type || toDoc?.reference_number || meta.to_doc_type || 'Document'
-        const caseName = (fromDoc?.matters as any)?.title || (toDoc?.matters as any)?.title || meta.case_name || 'Matter'
+        
+        let caseName = meta.case_name
+        if (!caseName) {
+           const fromMatter = fromDoc?.matters
+           const toMatter = toDoc?.matters
+           caseName = (Array.isArray(fromMatter) ? fromMatter[0]?.title : fromMatter?.title) || 
+                      (Array.isArray(toMatter) ? toMatter[0]?.title : toMatter?.title) || 
+                      'Case'
+        }
 
         const isDelete = log.action.includes('deleted')
         description = isDelete
-          ? `Deleted link between ${fromType} and ${toType} of ${caseName}`
-          : `Manually linked ${fromType} and ${toType} of ${caseName}`
+          ? `Deleted document link in ${caseName}`
+          : `Manually linked ${fromType} and ${toType} in ${caseName}`
 
         resolvedMeta = {
           ...resolvedMeta,
@@ -177,6 +204,19 @@ export async function getRecentActivityLogs(limit = 50) {
           to_doc_type: toType,
           to_ref: toDoc?.reference_number,
           case_name: caseName
+        }
+      }
+
+      // Clean up raw UUIDs in description from older logs if any
+      if (description) {
+        // Fix old "Manually linked document <uuid> to <uuid> as <type>"
+        if (description.includes('Manually linked document') && description.match(/[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+          const match = description.match(/as (.+)$/i)
+          const relType = match ? match[1] : 'related'
+          description = `Manually linked documents as ${relType}`
+        } else {
+          // Fallback for other legacy logs with UUIDs
+          description = description.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '(deleted)')
         }
       }
 

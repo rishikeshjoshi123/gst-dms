@@ -16,9 +16,19 @@ export async function getClients() {
     .select('*, matters(id, status)')
     .eq('org_id', orgId)
     .is('deleted_at', null)
+    .is('matters.deleted_at', null)
     .order('name')
 
-  return data ?? []
+  if (!data) return []
+
+  return data.map((client: any) => {
+    const activeMatters = client.matters || []
+    return {
+      ...client,
+      totalMatters: activeMatters.length,
+      openMatters: activeMatters.filter((m: any) => m.status !== 'closed' && m.status !== 'disposed').length
+    }
+  })
 }
 
 export async function getClientById(id: string) {
@@ -84,7 +94,7 @@ export async function createClientAction(formData: FormData) {
     description: `Created client "${name}"`,
   })
 
-  revalidatePath('/clients')
+  revalidatePath('/clients'); revalidatePath('/dashboard')
   return { success: true, id: data.id }
 }
 
@@ -135,7 +145,7 @@ export async function updateClientAction(id: string, formData: FormData) {
     description: `Updated client "${name}"`,
   })
 
-  revalidatePath('/clients')
+  revalidatePath('/clients'); revalidatePath('/dashboard')
   revalidatePath(`/clients/${id}`)
   return { success: true }
 }
@@ -219,7 +229,7 @@ export async function deleteClientAction(id: string) {
     is_reversible: true
   })
 
-  revalidatePath('/clients')
+  revalidatePath('/clients'); revalidatePath('/dashboard')
   revalidatePath('/matters')
   return { success: true }
 }

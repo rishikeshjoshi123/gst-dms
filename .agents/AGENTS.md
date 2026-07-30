@@ -43,3 +43,6 @@ The app supports seamless Light and Dark mode themes:
 ## 5. Sidebar & Topbar
 - **Sidebar**: Fixed navigation with active amber accent border (`2px #F97316`).
 - **Topbar**: Fixed `48px` header with breadcrumbs, org switcher, and one-click Theme Toggle (Light / Dark mode).
+
+## 6. Agent Rules
+- **NEVER** make `git` commits without the user's explicit permission.

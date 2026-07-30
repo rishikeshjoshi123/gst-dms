@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, Edit2, Check, X, RefreshCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -12,6 +12,10 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
+
+  useEffect(() => {
+    setSections(initialSections)
+  }, [initialSections])
 
   const handleGenerate = async () => {
     setIsGenerating(true)

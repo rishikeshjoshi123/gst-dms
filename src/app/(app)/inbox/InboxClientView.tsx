@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 import { assignStagedDocument, discardStagedDocument, autoCreateClientAndMatterForStagedDocument, getStagedDocuments, reevaluateStagedDocuments } from '@/lib/actions/inbox'
 import { getDocumentSignedUrl } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
@@ -88,41 +89,56 @@ export function InboxClientView({
   // Keep track of intentionally discarded docs to prevent false positive success toasts
   const discardedDocIds = useRef<Set<string>>(new Set())
 
-  // Polling for live status updates if any document is analyzing or pending
-  const hasRunningJobs = documents.some(
-    d => d.status === 'analyzing' || d.status === 'pending_assignment'
-  )
-
   useEffect(() => {
-    if (!hasRunningJobs) return
-
-    const interval = setInterval(async () => {
-      const latestDocs = await getStagedDocuments()
-      
-      // Check if any analyzing documents disappeared (meaning they were auto-assigned and deleted from staged)
-      documents.forEach(oldDoc => {
-        if (!discardedDocIds.current.has(oldDoc.id) && (oldDoc.status === 'analyzing' || oldDoc.status === 'pending_assignment') && !latestDocs.some((d: any) => d.id === oldDoc.id)) {
-          toast.success(`Automated Processing Complete`, {
-            description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
-          })
+    // Only subscribe if there are running jobs, or we can just always subscribe to be safe.
+    // Let's always subscribe so if a job starts, we get updates.
+    const supabase = createClient()
+    
+    const channel = supabase.channel('staged_docs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'staged_documents'
+        },
+        async (payload) => {
+          // Re-fetch latest documents to ensure we have full state (or we could mutate state manually)
+          const latestDocs = await getStagedDocuments()
+          
+          if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old.id
+            if (!discardedDocIds.current.has(deletedId)) {
+              // It was deleted by the backend (assigned to a matter)
+              // We don't have the storage_path in payload.old for sure unless replica identity is full,
+              // but we can just show a generic success toast or find it in our current state.
+              const oldDoc = documents.find(d => d.id === deletedId)
+              if (oldDoc) {
+                toast.success(`Automated Processing Complete`, {
+                  description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
+                })
+              }
+            }
+          }
+          
+          setDocuments(latestDocs)
+          
+          if (selectedDocId) {
+            const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
+            if (!stillExists && latestDocs.length > 0) {
+              setSelectedDocId(latestDocs[0].id)
+            } else if (!stillExists) {
+              setSelectedDocId(null)
+            }
+          }
         }
-      })
+      )
+      .subscribe()
 
-      setDocuments(latestDocs)
-      
-      // Update selected doc ref if it is no longer in list
-      if (selectedDocId) {
-        const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
-        if (!stillExists && latestDocs.length > 0) {
-          setSelectedDocId(latestDocs[0].id)
-        } else if (!stillExists) {
-          setSelectedDocId(null)
-        }
-      }
-    }, 4000)
-
-    return () => clearInterval(interval)
-  }, [hasRunningJobs, selectedDocId])
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [selectedDocId, documents])
 
   const handleSelectDoc = (doc: any) => {
     setSelectedDocId(doc.id)
