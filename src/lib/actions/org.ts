@@ -35,8 +35,12 @@ export async function createOrganisation(formData: FormData) {
   const { data: { user }, error: userErr } = await supabase.auth.getUser()
   if (userErr || !user) return { error: 'Not authenticated.' }
 
-  // Create org
-  const { data: org, error: orgErr } = await supabase
+  // Create org using service client to bypass RLS chicken-and-egg issues
+  // (We already authenticated the user and force created_by to their ID)
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+  
+  const { data: org, error: orgErr } = await supabaseAdmin
     .from('organisations')
     .insert({ name, created_by: user.id })
     .select('id')
