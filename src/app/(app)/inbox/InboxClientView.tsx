@@ -85,6 +85,9 @@ export function InboxClientView({
     }
   }, [activeDoc, preselectedMatterId])
 
+  // Keep track of intentionally discarded docs to prevent false positive success toasts
+  const discardedDocIds = useRef<Set<string>>(new Set())
+
   // Polling for live status updates if any document is analyzing or pending
   const hasRunningJobs = documents.some(
     d => d.status === 'analyzing' || d.status === 'pending_assignment'
@@ -98,7 +101,7 @@ export function InboxClientView({
       
       // Check if any analyzing documents disappeared (meaning they were auto-assigned and deleted from staged)
       documents.forEach(oldDoc => {
-        if ((oldDoc.status === 'analyzing' || oldDoc.status === 'pending_assignment') && !latestDocs.some((d: any) => d.id === oldDoc.id)) {
+        if (!discardedDocIds.current.has(oldDoc.id) && (oldDoc.status === 'analyzing' || oldDoc.status === 'pending_assignment') && !latestDocs.some((d: any) => d.id === oldDoc.id)) {
           toast.success(`Automated Processing Complete`, {
             description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
           })
@@ -168,6 +171,9 @@ export function InboxClientView({
 
   function handleDiscard() {
     if (!selectedDocId) return
+    
+    // Add to ignored list for polling
+    discardedDocIds.current.add(selectedDocId)
     
     startTransition(async () => {
       const res = await discardStagedDocument(selectedDocId)
