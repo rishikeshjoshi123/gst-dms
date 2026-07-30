@@ -14,7 +14,7 @@ INSERT INTO model_pricing (model_name, input_price_per_1m, output_price_per_1m) 
 ('text-embedding-004', 0.025, 0.0);
 
 CREATE TABLE ai_usage_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
