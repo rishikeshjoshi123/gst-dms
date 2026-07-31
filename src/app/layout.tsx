@@ -10,12 +10,17 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'GST Litigation DMS',
-    template: '%s — GST Litigation DMS',
+    default: 'CaseChain — GST Litigation DMS',
+    template: '%s — CaseChain',
   },
   description:
     'Manage GST litigation cases, chain legal documents into a visual timeline, and track proceedings with AI-powered extraction.',
-  robots: 'noindex, nofollow', // private enterprise app
+  robots: 'noindex, nofollow',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 import { ThemeProvider } from '@/components/theme-provider'
