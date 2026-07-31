@@ -63,11 +63,11 @@ export default function ContactPage() {
               <h2 className="text-xl font-bold text-[var(--text-primary)] mb-1">Shailendra Mathur</h2>
               <p className="text-sm text-[var(--primary)] font-semibold mb-4 flex items-center gap-1.5">
                 <Briefcase size={14} />
-                Founder & Technology Architect
+                Design Owner, SPOC
               </p>
 
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-6">
-                With extensive experience in enterprise software development at TCS, Shailendra Mathur has built robust banking and financial systems used by major institutions across India. His deep expertise in architecting large-scale data management platforms — combined with a firsthand understanding of the documentation chaos in indirect taxation — led to the creation of CaseChain.
+                Enterprise technology leader with over three decades of experience in TCS, designing large-scale business solutions across Banking, Capital Markets, Cloud Transformation and AI-powered enterprise platforms. Enjoys building products and mentoring startups in AI and Fintech.
               </p>
 
               <div className="space-y-3 pt-4 border-t border-[var(--border)]">
@@ -75,19 +75,19 @@ export default function ContactPage() {
                   <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center group-hover:border-[var(--primary)]/30 transition-colors">
                     <Mail size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)]" />
                   </div>
-                  shailendra@example.com
+                  sh_mathur@yahoo.com
                 </a>
                 <a href="tel:+919800000000" className="flex items-center gap-3 text-sm text-[var(--text-secondary)] hover:text-[var(--primary)] transition-colors group">
                   <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center group-hover:border-[var(--primary)]/30 transition-colors">
                     <Phone size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)]" />
                   </div>
-                  +91 98XXX XXXXX
+                  +91 92500 07903
                 </a>
                 <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
                   <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center">
                     <MapPin size={14} className="text-[var(--text-muted)]" />
                   </div>
-                  New Delhi, India
+                  Gurugram, India
                 </div>
               </div>
             </div>
