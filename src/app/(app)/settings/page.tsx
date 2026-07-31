@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   // Fetch org details
   const { data: org } = await supabase
     .from('organisations')
-    .select('id, name')
+    .select('id, name, created_by')
     .eq('id', orgId)
     .single()
 
@@ -50,13 +50,16 @@ export default async function SettingsPage() {
     .from('org_invites')
     .select('id, invited_email, role, status, expires_at')
     .eq('org_id', orgId)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'rejected'])
     .order('created_at', { ascending: false })
 
   return (
     <SettingsClient
       orgId={orgId}
       orgName={org.name}
+      ownerId={org.created_by}
+      currentUserId={user.id}
+      currentUserRole={currentUserRole}
       members={members}
       pendingInvites={(pendingInvites ?? []).map(i => ({
         id: i.id,
@@ -65,7 +68,6 @@ export default async function SettingsPage() {
         status: i.status,
         expires_at: i.expires_at,
       }))}
-      currentUserRole={currentUserRole}
     />
   )
 }

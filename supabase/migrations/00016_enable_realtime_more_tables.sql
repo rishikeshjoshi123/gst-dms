@@ -4,4 +4,4 @@
 
 ALTER PUBLICATION supabase_realtime ADD TABLE wiki_sections;
 ALTER PUBLICATION supabase_realtime ADD TABLE document_links;
-ALTER PUBLICATION supabase_realtime ADD TABLE notes;
+ALTER PUBLICATION supabase_realtime ADD TABLE case_notes;

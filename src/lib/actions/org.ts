@@ -35,11 +35,20 @@ export async function createOrganisation(formData: FormData) {
   const { data: { user }, error: userErr } = await supabase.auth.getUser()
   if (userErr || !user) return { error: 'Not authenticated.' }
 
-  // Create org using service client to bypass RLS chicken-and-egg issues
-  // (We already authenticated the user and force created_by to their ID)
   const { createServiceClient } = await import('@/lib/supabase/server')
   const supabaseAdmin = createServiceClient()
-  
+
+  // Check if user is already in an org
+  const { data: existingMember } = await supabaseAdmin
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingMember) {
+    return { error: 'You are already a member of an organization. You must leave it before creating a new one.' }
+  }
+
   const { data: org, error: orgErr } = await supabaseAdmin
     .from('organisations')
     .insert({ name, created_by: user.id })
@@ -90,8 +99,11 @@ export async function inviteMember(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
   // Check caller is admin
-  const { data: caller } = await supabase
+  const { data: caller } = await supabaseAdmin
     .from('org_members')
     .select('role')
     .eq('org_id', orgId)
@@ -102,21 +114,27 @@ export async function inviteMember(formData: FormData) {
     return { error: 'Only admins can invite members.' }
   }
 
-  // Check existing invite
-  const { data: existingInvite } = await supabase
+  // 1. Check if the invited email is already in ANY organization
+  const { data: isAlreadyInOrg } = await supabaseAdmin.rpc('is_email_in_any_org', { search_email: email })
+  if (isAlreadyInOrg) {
+    return { error: 'This user is already a member of an organization and cannot be invited.' }
+  }
+
+  // 2. Check for an existing pending invite
+  const { data: existingInvite } = await supabaseAdmin
     .from('org_invites')
     .select('id, status')
     .eq('org_id', orgId)
     .eq('invited_email', email)
     .eq('status', 'pending')
-    .single()
+    .maybeSingle()
 
   if (existingInvite) {
     return { error: 'A pending invite already exists for this email.' }
   }
 
-  // Create invite (token is auto-generated in DB with DEFAULT)
-  const { data: invite, error: inviteErr } = await supabase
+  // Create invite
+  const { data: invite, error: inviteErr } = await supabaseAdmin
     .from('org_invites')
     .insert({
       org_id: orgId,
@@ -124,7 +142,7 @@ export async function inviteMember(formData: FormData) {
       invited_by: user.id,
       role: role as 'admin' | 'associate' | 'viewer',
     })
-    .select('token')
+    .select('id, token')
     .single()
 
   if (inviteErr || !invite) {
@@ -132,7 +150,7 @@ export async function inviteMember(formData: FormData) {
   }
 
   // Get org name for email
-  const { data: org } = await supabase
+  const { data: org } = await supabaseAdmin
     .from('organisations')
     .select('name')
     .eq('id', orgId)
@@ -150,48 +168,115 @@ export async function inviteMember(formData: FormData) {
   return { success: true }
 }
 
-// ── Accept Invite ─────────────────────────────────────────────────
+// ── Get Pending Invites For User (Onboarding) ─────────────────────
 
-export async function acceptInvite(token: string) {
+export async function getMyPendingInvites() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'You must be logged in to accept an invite.' }
+  if (!user || !user.email) return []
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  const { data, error } = await supabaseAdmin
+    .from('org_invites')
+    .select('id, role, expires_at, organisations(id, name)')
+    .ilike('invited_email', user.email.trim())
+    .eq('status', 'pending')
+
+  if (error) {
+    console.error('Error fetching pending invites:', error)
+    return []
+  }
+
+  return (data ?? []).filter(inv => new Date(inv.expires_at) > new Date()).map(inv => ({
+    id: inv.id,
+    role: inv.role,
+    orgName: (inv.organisations as { id: string; name: string })?.name ?? 'Organisation',
+  }))
+}
+
+// ── Accept / Reject Invite (Tokenless) ────────────────────────────
+
+export async function acceptInvite(inviteId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !user.email) return { error: 'You must be logged in to accept an invite.' }
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  // Check if user is already in an org
+  const { data: existingMember } = await supabaseAdmin
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingMember) {
+    return { error: 'You are already a member of an organization. You must leave it before joining a new one.' }
+  }
 
   // Find valid invite
-  const { data: invite, error: inviteErr } = await supabase
+  const { data: invite, error: inviteErr } = await supabaseAdmin
     .from('org_invites')
     .select('id, org_id, invited_email, role, expires_at, status')
-    .eq('token', token)
+    .eq('id', inviteId)
     .single()
 
-  if (inviteErr || !invite) return { error: 'Invalid or expired invite link.' }
+  if (inviteErr || !invite) return { error: 'Invalid invite.' }
   if (invite.status !== 'pending') return { error: `Invite is already ${invite.status}.` }
-  if (new Date(invite.expires_at) < new Date()) return { error: 'This invite link has expired.' }
-  if (invite.invited_email !== user.email) {
-    return { error: `This invite was sent to ${invite.invited_email}. Please log in with that email.` }
+  if (new Date(invite.expires_at) < new Date()) return { error: 'This invite has expired.' }
+  if (invite.invited_email.toLowerCase() !== user.email.toLowerCase()) {
+    return { error: `This invite was sent to ${invite.invited_email}.` }
   }
 
   // Add to org
-  const { error: memberErr } = await supabase
+  const { error: memberErr } = await supabaseAdmin
     .from('org_members')
     .insert({ org_id: invite.org_id, user_id: user.id, role: invite.role })
 
   if (memberErr) {
-    // Could be duplicate — check if already member
     if (memberErr.code === '23505') {
-      return { error: 'You are already a member of this organisation.' }
+      return { error: 'You are already a member of an organization.' }
     }
     return { error: memberErr.message }
   }
 
   // Update invite status
-  await supabase
+  await supabaseAdmin
     .from('org_invites')
     .update({ status: 'accepted' })
     .eq('id', invite.id)
 
   await setCurrentOrg(invite.org_id)
   redirect('/dashboard')
+}
+
+export async function rejectInvite(inviteId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !user.email) return { error: 'Not logged in.' }
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  const { data: invite, error: inviteErr } = await supabaseAdmin
+    .from('org_invites')
+    .select('id, invited_email, status')
+    .eq('id', inviteId)
+    .single()
+
+  if (inviteErr || !invite) return { error: 'Invalid invite.' }
+  if (invite.invited_email.toLowerCase() !== user.email.toLowerCase()) return { error: 'Access denied.' }
+  if (invite.status !== 'pending') return { error: `Invite is already ${invite.status}.` }
+
+  await supabaseAdmin
+    .from('org_invites')
+    .update({ status: 'rejected' })
+    .eq('id', invite.id)
+
+  return { success: true }
 }
 
 // ── Get user's organisations ──────────────────────────────────────
@@ -210,4 +295,109 @@ export async function getUserOrgs() {
     ...(m.organisations as { id: string; name: string; created_at: string }),
     role: m.role,
   }))
+}
+
+// ── Admin: Get Pending Invites for Settings ───────────────────────
+
+export async function getPendingInvitesForOrg() {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return []
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  const { data } = await supabaseAdmin
+    .from('org_invites')
+    .select('id, invited_email, role, status, created_at')
+    .eq('org_id', orgId)
+    .in('status', ['pending', 'rejected'])
+    .order('created_at', { ascending: false })
+
+  return data ?? []
+}
+
+export async function deleteInvite(inviteId: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active org.' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  const { data: caller } = await supabaseAdmin
+    .from('org_members')
+    .select('role')
+    .eq('org_id', orgId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!caller || caller.role !== 'admin') return { error: 'Only admins can delete invites.' }
+
+  await supabaseAdmin
+    .from('org_invites')
+    .delete()
+    .eq('id', inviteId)
+    .eq('org_id', orgId)
+
+  return { success: true }
+}
+
+// ── Admin: Remove Member (Kickout Flow) ───────────────────────────
+
+export async function removeMember(userIdToRemove: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active org.' }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { createServiceClient } = await import('@/lib/supabase/server')
+  const supabaseAdmin = createServiceClient()
+
+  // Get caller's role, org details, and target member via admin client
+  const [{ data: caller }, { data: org }, { data: target }] = await Promise.all([
+    supabaseAdmin.from('org_members').select('role').eq('org_id', orgId).eq('user_id', user.id).single(),
+    supabaseAdmin.from('organisations').select('created_by').eq('id', orgId).single(),
+    supabaseAdmin.from('org_members').select('role').eq('org_id', orgId).eq('user_id', userIdToRemove).single()
+  ])
+
+  if (!caller || caller.role !== 'admin') {
+    return { error: 'Only admins can remove members.' }
+  }
+  if (!org) return { error: 'Org not found.' }
+  if (!target) return { error: 'User is not a member of this org.' }
+
+  const isCallerOwner = org.created_by === user.id
+  const isTargetOwner = org.created_by === userIdToRemove
+
+  if (isTargetOwner) {
+    return { error: 'The Owner of the organization cannot be removed.' }
+  }
+
+  // Admins cannot remove other Admins (unless caller is the Owner)
+  if (target.role === 'admin' && !isCallerOwner) {
+    return { error: 'Only the Owner can remove another Admin.' }
+  }
+
+  // Cannot remove yourself via this button
+  if (user.id === userIdToRemove) {
+    return { error: 'You cannot kick out yourself using this action.' }
+  }
+
+  const { error: removeErr } = await supabaseAdmin
+    .from('org_members')
+    .delete()
+    .eq('org_id', orgId)
+    .eq('user_id', userIdToRemove)
+
+  if (removeErr) {
+    return { error: removeErr.message }
+  }
+
+  return { success: true }
 }
