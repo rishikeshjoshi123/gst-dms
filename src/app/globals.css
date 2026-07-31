@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
 
 /* ================================================================
    Design Tokens — GST Litigation DMS
@@ -7,9 +8,9 @@
 
 :root {
   /* Premium Design Tokens — GST Litigation DMS (Light Theme) */
-  --bg: #F8FAFC;
+  --bg: #F1F5F9;
   --surface: #FFFFFF;
-  --surface-hover: #F1F5F9;
+  --surface-hover: #F8FAFC;
   
   --border: #E2E8F0;
   --border-strong: #CBD5E1;
@@ -30,14 +31,14 @@
   --success: #10B981;
   
   --text-primary: #0F172A;
-  --text-secondary: #334155;
-  --text-muted: #475569;
-  --text-disabled: #94A3B8;
+  --text-secondary: #1E293B;
+  --text-muted: #334155;
+  --text-disabled: #64748B;
 
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 1px 4px -1px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 8px 16px -4px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 1px 4px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 8px 16px -4px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -52,9 +53,9 @@
 
 .dark {
   /* Premium Design Tokens — GST Litigation DMS (Dark Theme) */
-  --bg: #090D16;
-  --surface: #111827;
-  --surface-hover: #1F2937;
+  --bg: #0B0F17;
+  --surface: #141C2E;
+  --surface-hover: #1E293B;
   
   --border: #1F293D;
   --border-strong: #374151;
@@ -411,4 +412,118 @@ body {
 }
 .dark .react-flow__minimap {
   background-color: var(--surface);
+}
+
+/* ── Landing Page ─────────────────────────────────────────────── */
+
+/* Animated mesh gradient background */
+@keyframes meshGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.mesh-gradient-bg {
+  background: linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--primary) 6%, var(--bg)),
+    color-mix(in srgb, #6366F1 5%, var(--bg)),
+    color-mix(in srgb, #8B5CF6 4%, var(--bg)),
+    var(--bg)
+  );
+  background-size: 400% 400%;
+  animation: meshGradient 20s ease infinite;
+}
+
+/* Floating badge animation */
+@keyframes floatBadge {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+
+.float-badge {
+  animation: floatBadge 3s ease-in-out infinite;
+}
+
+.float-badge-delayed {
+  animation: floatBadge 3.5s ease-in-out infinite;
+  animation-delay: 0.8s;
+}
+
+.float-badge-delayed-2 {
+  animation: floatBadge 4s ease-in-out infinite;
+  animation-delay: 1.6s;
+}
+
+/* Feature card accent bar */
+.feature-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-gradient, var(--primary-gradient));
+  transition: height var(--duration-base) var(--ease-smooth);
+}
+
+.feature-card-accent:hover::before {
+  height: 3px;
+}
+
+/* Expandable content smooth transition */
+.expandable-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-slow) var(--ease-smooth);
+}
+
+.expandable-content.expanded {
+  grid-template-rows: 1fr;
+}
+
+.expandable-content > div {
+  overflow: hidden;
+}
+
+/* How-it-works connector line */
+@keyframes dashFlow {
+  0%   { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.dash-flow-line {
+  stroke-dasharray: 6 4;
+  animation: dashFlow 1.5s linear infinite;
+}
+
+/* ── Auth Split Screen ────────────────────────────────────────── */
+
+/* Auth brand panel rotating highlights */
+@keyframes authHighlightFade {
+  0%, 100% { opacity: 0; transform: translateY(4px); }
+  15%, 85% { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Landing / Auth glassmorphic card ─────────────────────────── */
+.glass-surface {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+/* ── Contact page ─────────────────────────────────────────────── */
+@keyframes contactGlow {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+.contact-glow {
+  animation: contactGlow 4s ease-in-out infinite;
 }

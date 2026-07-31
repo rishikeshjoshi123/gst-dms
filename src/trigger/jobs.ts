@@ -23,6 +23,7 @@ import type { Database } from '@/lib/supabase/database.types'
 import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
 import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
 import { logUsage } from '@/lib/actions/usage'
+import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 import { VERTEX_DOCUMENT_MODEL, VERTEX_EMBEDDING_MODEL } from '@/lib/ai/vertex'
 
 export interface ProcessDocumentPayload {
@@ -254,10 +255,11 @@ export const processDocument = task({
     console.log('[Step 10] Updating deadlines')
 
     if (aiResult.deadlines && aiResult.deadlines.length > 0) {
+      const validTypes = ['appeal_window', 'pre_deposit', 'hearing_date', 'reply_deadline', 'stay_application', 'other']
       const deadlineRows = aiResult.deadlines.map(dl => ({
         matter_id: matterId,
         document_id: docId,
-        type: 'other' as const, // Map safely to enum
+        type: validTypes.includes(dl.type) ? (dl.type as any) : 'other',
         due_date: dl.due_date,
         description: dl.description || dl.type
       }))
@@ -497,11 +499,12 @@ export const analyzeStagedDocument = task({
         let { data: matter } = await supabase.from('matters').select('id').eq('org_id', orgId).eq('client_id', matchedClient.id).eq('financial_year', fy).is('deleted_at', null).maybeSingle();
         
         if (!matter) {
+          const autoTitle = await generateDefaultMatterTitle(supabase, orgId, matchedClient.id, matchedClient.name, fy)
           const { data: newMatter } = await supabase.from('matters').insert({
             org_id: orgId,
             client_id: matchedClient.id,
             financial_year: fy,
-            title: fy === 'Unknown FY' ? 'General Matter' : `FY ${fy}`,
+            title: autoTitle,
             status: 'active'
           }).select('id').single();
           matter = newMatter;

@@ -1,162 +1,986 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Shield, Zap, Users, Cloud, Network, Briefcase, FileSearch, Clock, ChevronRight } from 'lucide-react'
+import {
+  ArrowRight, FileSearch, Network, Users, Clock, Search, Cloud,
+  ChevronDown, ChevronRight, Upload, Cpu, Eye, FileText, CheckCircle2,
+  XCircle, ShieldCheck, Building2, Sparkles, AlertCircle,
+  Scale, FileCheck2, Play, Pause, GitFork, Share2
+} from 'lucide-react'
+import { ThemeToggle } from '@/components/nav/ThemeToggle'
 
+/* ─── 1. Hero Case Chain Demo Data (Uses REAL DB attributes) ──────── */
+const MOCK_CHAIN = [
+  {
+    id: 'scn',
+    shortTitle: 'Show Cause Notice (Form DRC-01)',
+    ref: 'SCN/2023-24/091',
+    date: '14 Jul 2023',
+    fy: 'FY 2021-22',
+    direction: 'Incoming',
+    directionColor: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    issuer: 'Superintendent, Range-IV, Mumbai',
+    demand: '₹42,50,000',
+    tax: '₹35,00,000',
+    penalty: '₹3,50,000',
+    interest: '₹4,00,000',
+    deadline: 'Reply due within 30 days',
+    linkedTo: 'Initiated Matter (Root Notice)',
+    summary: 'Demand alleging ITC mismatch between GSTR-3B monthly returns and GSTR-2A statement.',
+    icon: AlertCircle,
+  },
+  {
+    id: 'reply',
+    shortTitle: 'Taxpayer Reply (Form DRC-06)',
+    ref: 'AG/GST/2023/412',
+    date: '12 Aug 2023',
+    fy: 'FY 2021-22',
+    direction: 'Outgoing',
+    directionColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    issuer: 'M/s Apex Global Industries',
+    demand: 'Disputed in Full',
+    tax: '₹0 (Disputed)',
+    penalty: '₹0',
+    interest: '₹0',
+    deadline: 'Filed 2 days before due date',
+    linkedTo: 'Responds to SCN/2023-24/091',
+    summary: 'Written submission attaching GSTR-1 supplier filings and reconciliation statements.',
+    icon: FileText,
+  },
+  {
+    id: 'order',
+    shortTitle: 'Order-in-Original (Form DRC-07)',
+    ref: 'OIO/MUM/2023/512',
+    date: '20 Oct 2023',
+    fy: 'FY 2021-22',
+    direction: 'Incoming',
+    directionColor: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    issuer: 'Assistant Commissioner, CGST',
+    demand: '₹14,20,000',
+    tax: '₹10,00,000',
+    penalty: '₹2,20,000',
+    interest: '₹2,00,000',
+    deadline: 'Appeal due within 90 days',
+    linkedTo: 'Adjudicates SCN & Reply',
+    summary: 'Adjudication order confirming partial demand of ₹14.2L. Balance ₹28.3L dropped.',
+    icon: Scale,
+  },
+  {
+    id: 'appeal',
+    shortTitle: 'Appeal to Appellate Authority (Form APL-01)',
+    ref: 'APL/MUM/2023/881',
+    date: '18 Dec 2023',
+    fy: 'FY 2021-22',
+    direction: 'Outgoing',
+    directionColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+    issuer: 'M/s Apex Global Industries',
+    demand: '₹14,20,000 (Challenged)',
+    tax: '₹1,00,000 (Pre-Deposit Paid)',
+    penalty: '₹2,20,000',
+    interest: '₹2,00,000',
+    deadline: 'Awaiting hearing notification',
+    linkedTo: 'Challenges OIO/MUM/2023/512',
+    summary: 'Appeal filed challenging the confirmed demand before Joint Commissioner (Appeals).',
+    icon: FileCheck2,
+  },
+]
+
+/* ─── 2. Original 4 Points — Simplified & Plain Language ─────────── */
+const COMPARISON_ITEMS = [
+  {
+    id: 0,
+    tabLabel: '01. Scattered Files',
+    title: 'Scattered Case Documents',
+    painDesc:
+      'Case notices, replies, and orders get saved in different folders, sent over WhatsApp, or buried in email attachments. When you need a file quickly, you spend hours searching across multiple places.',
+    solutionDesc:
+      'Upload your documents once. CaseChain automatically tags and organizes every file by client, matter, and financial year in a single centralized space.',
+    painPoints: [
+      'Files scattered across emails, WhatsApp, and folders',
+      'No single place to view all documents of a client',
+      'High risk of losing key attachments or draft replies',
+    ],
+    solutionPoints: [
+      'All files auto-organized by client, matter, and financial year',
+      'One clean workspace for your entire legal team',
+      'Instant access to any case document from any device',
+    ],
+  },
+  {
+    id: 1,
+    tabLabel: '02. Tracing Case History',
+    title: 'Tracing Case History',
+    painDesc:
+      'A single case can stretch over years with multiple notices, replies, and orders. Trying to figure out which reply responds to which notice requires digging through pages of old files.',
+    solutionDesc:
+      'CaseChain connects related documents automatically into a visual timeline. You can see the full story of a case — from the first notice to the latest order — at a glance.',
+    painPoints: [
+      'Hours spent piecing together chronological case history',
+      'Hard to see which reply corresponds to which notice',
+      'Difficulty explaining case status before hearings',
+    ],
+    solutionPoints: [
+      'Visual case timeline shows the complete sequence in seconds',
+      'Clear parent-child links between notices, replies, and orders',
+      'Instant clarity for partners and clients before court',
+    ],
+  },
+  {
+    id: 2,
+    tabLabel: '03. Tracking Due Dates',
+    title: 'Tracking Due Dates',
+    painDesc:
+      'Important reply and appeal due dates are easy to miss when they are hidden inside lengthy PDF notices, especially during busy tax filing months.',
+    solutionDesc:
+      'Due dates are detected automatically when you upload a notice. CaseChain tracks upcoming deadlines and alerts your team so nothing gets missed.',
+    painPoints: [
+      'Due dates hidden inside multi-page PDF documents',
+      'Manual calendar entries that get forgotten during busy months',
+      'Risk of missing statutory reply or appeal deadlines',
+    ],
+    solutionPoints: [
+      'Due dates extracted and logged automatically on upload',
+      'Centralized deadline tracker for your whole practice',
+      'Timely reminder alerts keep your team ahead of schedule',
+    ],
+  },
+  {
+    id: 3,
+    tabLabel: '04. Finding Past Work',
+    title: 'Finding Past Work',
+    painDesc:
+      'When starting a new case or onboarding a team member, finding previous replies or similar case arguments means asking around or opening files one by one.',
+    solutionDesc:
+      'Search across all your cases instantly. Type a GST number, financial year, or document type to find exact files and past submissions in seconds.',
+    painPoints: [
+      'Hard to find previous legal replies and case precedents',
+      'Repeated effort re-drafting similar submissions',
+      'Time-consuming onboarding for new team members',
+    ],
+    solutionPoints: [
+      'Instant search across all clients, matters, and documents',
+      'Reuse successful arguments from previous matters easily',
+      'Shared case knowledge that stays with your firm',
+    ],
+  },
+]
+
+/* ─── 3. Features Data ───────────────────────────────────────────── */
+const FEATURES_LARGE = [
+  {
+    icon: FileSearch,
+    color: 'text-blue-500',
+    title: 'Smart Document Parsing',
+    summary: 'Upload a GST notice and get structured data in seconds.',
+    detail:
+      'CaseChain parses every uploaded document — SCNs, orders, replies, appeals — and automatically extracts reference numbers, GSTINs, financial years, tax amounts, and deadlines. No manual data entry. Documents are tagged, categorized, and linked to the correct client and matter.',
+    parseFields: [
+      { label: 'GSTIN', value: '27AAACA123411Z' },
+      { label: 'Notice Type', value: 'Form DRC-01 (Section 73)' },
+      { label: 'Financial Year', value: 'FY 2021-22' },
+      { label: 'Demand Amount', value: '₹42,50,000' },
+      { label: 'Extracted Due Date', value: '13 Aug 2023 (30 Days)' },
+    ],
+  },
+  {
+    icon: Network,
+    color: 'text-indigo-500',
+    title: 'Visual Litigation Timeline',
+    summary: 'See how every document in a case connects.',
+    detail:
+      'Traditional file management shows documents as a flat list. CaseChain builds a visual graph — a chain — showing exactly how an SCN led to a Reply, which led to an Order-in-Original, which was challenged by an Appeal. You see the entire litigation lifecycle at a glance.',
+  },
+]
+
+const FEATURES_SMALL = [
+  {
+    icon: Users,
+    color: 'text-emerald-500',
+    title: 'Client & Matter Hub',
+    summary: 'Organize everything by client, matter, and financial year.',
+  },
+  {
+    icon: Clock,
+    color: 'text-amber-500',
+    title: 'Deadline Tracking',
+    summary: 'Auto-extracted due dates with countdown alerts.',
+  },
+  {
+    icon: Search,
+    color: 'text-cyan-500',
+    title: 'Smart Search',
+    summary: 'Find any document across all cases in one search.',
+  },
+  {
+    icon: Cloud,
+    color: 'text-violet-500',
+    title: 'Cloud-Native',
+    summary: 'Secure, always-synced access from anywhere.',
+  },
+]
+
+/* ─── 4. How It Works Data ────────────────────────────────────────── */
+const HOW_IT_WORKS = [
+  {
+    step: '01',
+    title: '1. Ingestion',
+    desc: 'Drop your GST PDFs — SCNs, replies, orders, appeals. System ingests them instantly.',
+    icon: Upload,
+    demoAction: 'PDF File Dropped → Staged for Parsing',
+  },
+  {
+    step: '02',
+    title: '2. Auto-Parsing & Chaining',
+    desc: 'Extract GSTIN, FY, notice type, amounts, and auto-link to parent case documents.',
+    icon: Cpu,
+    demoAction: 'Extracted: DRC-01 · ₹42.5L Demand · Linked to Matter',
+  },
+  {
+    step: '03',
+    title: '3. Chain & Alerts',
+    desc: 'Browse the visual case graph, track appeal windows, and search across matters.',
+    icon: Eye,
+    demoAction: 'Visual Graph Built · 30-Day Reply Clock Active',
+  },
+]
+
+/* ─── 5. Graph Animation Node Data for Feature Card 2 ─────────────── */
+const GRAPH_NODES = [
+  { id: 'scn', label: 'Form DRC-01', type: 'SCN', x: 20, y: 30, color: 'border-rose-500 text-rose-600 dark:text-rose-400 bg-rose-500/10' },
+  { id: 'reply', label: 'Form DRC-06', type: 'REPLY', x: 80, y: 30, color: 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10' },
+  { id: 'order', label: 'Form DRC-07', type: 'ORDER', x: 80, y: 80, color: 'border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10' },
+  { id: 'appeal', label: 'Form APL-01', type: 'APPEAL', x: 20, y: 80, color: 'border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10' },
+]
+
+const GRAPH_LINKS = [
+  { from: 0, to: 1, label: 'responds_to', step: 1 },
+  { from: 1, to: 2, label: 'adjudicates', step: 2 },
+  { from: 2, to: 3, label: 'challenges', step: 3 },
+]
+
+const GRAPH_STATUS_MESSAGES = [
+  '⚡ Step 1: Root Show Cause Notice (Form DRC-01) Ingested',
+  '⚡ Step 2: Linked Taxpayer Reply (Form DRC-06) ➔ SCN',
+  '⚡ Step 3: Linked Adjudication Order (Form DRC-07) ➔ Reply',
+  '⚡ Step 4: Linked Statutory Appeal (Form APL-01) ➔ Order',
+]
+
+/* ─── Landing Page Main Component ────────────────────────────────── */
 export function LandingPage() {
+  // Hero Auto-play state
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('order')
+  const [isHeroPlaying, setIsHeroPlaying] = useState<boolean>(true)
+
+  // Problem vs Solution Auto-play state
+  const [activeCompareIdx, setActiveCompareIdx] = useState<number>(0)
+  const [isComparePlaying, setIsComparePlaying] = useState<boolean>(true)
+
+  // Features Parsing Auto-play state
+  const [activeParseFieldIdx, setActiveParseFieldIdx] = useState<number>(0)
+
+  // Card 2 Animated Graph State
+  const [activeGraphStep, setActiveGraphStep] = useState<number>(0)
+  const [isGraphPlaying, setIsGraphPlaying] = useState<boolean>(true)
+
+  // How-It-Works Pipeline Auto-play state
+  const [activeStepIdx, setActiveStepIdx] = useState<number>(0)
+  const [isPipelinePlaying, setIsPipelinePlaying] = useState<boolean>(true)
+
+  // 1. Hero Auto-cycle (4s)
+  useEffect(() => {
+    if (!isHeroPlaying) return
+    const timer = setInterval(() => {
+      setSelectedNodeId(prev => {
+        const idx = MOCK_CHAIN.findIndex(n => n.id === prev)
+        return MOCK_CHAIN[(idx + 1) % MOCK_CHAIN.length].id
+      })
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [isHeroPlaying])
+
+  // 2. Compare Section Auto-cycle (5s)
+  useEffect(() => {
+    if (!isComparePlaying) return
+    const timer = setInterval(() => {
+      setActiveCompareIdx(prev => (prev + 1) % COMPARISON_ITEMS.length)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [isComparePlaying])
+
+  // 3. Feature Parsing Field Highlight Auto-cycle (2.5s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveParseFieldIdx(prev => (prev + 1) % 5)
+    }, 2500)
+    return () => clearInterval(timer)
+  }, [])
+
+  // 4. Card 2 Animated Graph Linker Auto-cycle (3s)
+  useEffect(() => {
+    if (!isGraphPlaying) return
+    const timer = setInterval(() => {
+      setActiveGraphStep(prev => (prev + 1) % 4)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [isGraphPlaying])
+
+  // 5. How It Works Pipeline Auto-cycle (3.5s)
+  useEffect(() => {
+    if (!isPipelinePlaying) return
+    const timer = setInterval(() => {
+      setActiveStepIdx(prev => (prev + 1) % HOW_IT_WORKS.length)
+    }, 3500)
+    return () => clearInterval(timer)
+  }, [isPipelinePlaying])
+
+  const selectedNode = MOCK_CHAIN.find(n => n.id === selectedNodeId) || MOCK_CHAIN[2]
+  const activeCompare = COMPARISON_ITEMS[activeCompareIdx]
+
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-200 overflow-hidden selection:bg-blue-500/30 font-sans relative">
-      {/* Animated Background Gradients */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[40%] -left-[10%] w-[70%] h-[70%] rounded-full bg-blue-900/20 blur-[120px] mix-blend-screen animate-pulse duration-[8000ms]" />
-        <div className="absolute top-[20%] -right-[20%] w-[60%] h-[60%] rounded-full bg-indigo-900/20 blur-[120px] mix-blend-screen animate-pulse duration-[10000ms] delay-700" />
-        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[60%] rounded-full bg-violet-900/20 blur-[120px] mix-blend-screen animate-pulse duration-[12000ms] delay-1000" />
-      </div>
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)] overflow-x-hidden selection:bg-blue-500/20 font-sans">
+      {/* ── Background Mesh ───────────────────────────────────────── */}
+      <div className="fixed inset-0 z-0 mesh-gradient-bg pointer-events-none" />
 
-      {/* Grid Pattern Overlay */}
-      <div className="fixed inset-0 z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] opacity-50" />
-
-      {/* Navigation */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-top-4 duration-1000">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Shield size={18} className="text-white" />
-          </div>
-          <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-            Project GST-DMS
+      {/* ── Navigation ────────────────────────────────────────────── */}
+      <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-7xl mx-auto">
+        <Link href="/" className="flex items-center gap-2 group">
+          <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+            CaseChain
           </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">
+          <span className="text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border-strong)] rounded px-1.5 py-0.5 leading-none">
+            working title
+          </span>
+        </Link>
+
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link href="/login" className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors hidden sm:inline-flex">
             Sign In
           </Link>
-          <Link href="/login" className="text-sm font-semibold bg-white text-slate-900 px-5 py-2 rounded-full hover:bg-slate-100 transition-transform hover:scale-105 shadow-[0_0_15px_rgba(255,255,255,0.15)]">
+          <Link href="/login" className="text-sm font-semibold px-5 py-2 rounded-full transition-all hover:scale-105 shadow-sm text-white" style={{ background: 'var(--primary-gradient)' }}>
             Get Started
           </Link>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <main className="relative z-10 flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <Zap size={14} className="animate-pulse" />
-          The Future of Litigation Management
-        </div>
-        
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 max-w-4xl leading-[1.1] animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
-          Transform Chaos into <br className="hidden md:block" />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
-            Strategic Clarity.
-          </span>
-        </h1>
-        
-        <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-10 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-          An intelligent, cloud-based document management system built exclusively for complex GST litigation. Automate parsing, visualize case timelines, and collaborate seamlessly.
-        </p>
-        
-        <div className="flex flex-col sm:flex-row items-center gap-4 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
-          <Link href="/login" className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] transition-all hover:-translate-y-1 group">
-            Start Your Workspace
-            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-          <a href="#features" className="flex items-center gap-2 px-8 py-4 rounded-full font-semibold text-lg text-slate-300 bg-slate-800/50 border border-slate-700 hover:bg-slate-800 transition-colors">
-            Explore Features
-          </a>
-        </div>
-
-        {/* Hero Image Mockup (CSS Representation) */}
-        <div className="mt-16 w-full max-w-5xl relative animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-700 group perspective-1000">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F17] via-transparent to-transparent z-10" />
-          <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000" />
-          <div className="relative rounded-xl border border-slate-800 bg-[#161E2E] shadow-2xl overflow-hidden transform-gpu transition-transform duration-700 group-hover:rotate-x-2 group-hover:scale-[1.01]">
-            <div className="h-8 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500/80" />
-              <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-              <div className="w-3 h-3 rounded-full bg-green-500/80" />
+      {/* ── HERO SECTION: Live Case Chain Showcase ───────────────── */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-20 md:pt-14 md:pb-28">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+          {/* Left Text */}
+          <div className="lg:col-span-5 animate-fade-in">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--primary)] mb-3 flex items-center gap-1.5">
+              <Sparkles size={14} />
+              GST Litigation Document Management System
+            </p>
+            <h1 className="text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tight leading-[1.15] mb-5 text-[var(--text-primary)]">
+              Every GST Case Document.{' '}
+              <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'var(--primary-gradient)' }}>
+                One Chain.
+              </span>{' '}
+              Zero Chaos.
+            </h1>
+            <p className="text-sm md:text-base text-[var(--text-secondary)] leading-relaxed mb-8">
+              In a typical GST litigation office, case documents live across scattered folders, email threads, WhatsApp groups, and physical files. Finding an SCN or tracing its reply takes hours.
+              <strong className="text-[var(--text-primary)] font-bold"> CaseChain puts every document in its place</strong> — automatically linked, chronologically ordered, instantly retrievable.
+            </p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <Link href="/login" className="flex items-center gap-2 text-white px-7 py-3 rounded-full font-semibold text-sm hover:shadow-lg hover:-translate-y-0.5 transition-all group" style={{ background: 'var(--primary-gradient)' }}>
+                Get Started
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link href="/contact" className="flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm border border-[var(--border-strong)] text-[var(--text-secondary)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-all shadow-xs">
+                Contact Us
+              </Link>
             </div>
-            <div className="p-8 aspect-video flex flex-col gap-4">
-              <div className="w-1/3 h-6 bg-slate-800 rounded animate-pulse" />
-              <div className="flex gap-4 h-full">
-                <div className="w-1/4 h-full bg-slate-800/50 rounded-lg border border-slate-700/50" />
-                <div className="flex-1 h-full bg-slate-800/30 rounded-lg border border-slate-700/50 flex items-center justify-center relative overflow-hidden">
-                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.1)_0,transparent_100%)]" />
-                   <Network size={64} className="text-blue-500/20" />
+          </div>
+
+          {/* Right Live Interactive Demo Widget */}
+          <div className="lg:col-span-7 animate-fade-in">
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] shadow-xl overflow-hidden">
+              {/* Widget Top App Header */}
+              <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--bg)] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-bold text-[var(--text-primary)] ml-2 flex items-center gap-1.5">
+                    <Building2 size={14} className="text-[var(--primary)] shrink-0" />
+                    M/s Apex Global Industries
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsHeroPlaying(!isHeroPlaying)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md transition-colors"
+                    title={isHeroPlaying ? 'Pause auto-cycle' : 'Play auto-cycle'}
+                  >
+                    {isHeroPlaying ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+                        <Pause size={10} />
+                        Auto-playing
+                      </>
+                    ) : (
+                      <>
+                        <Play size={10} />
+                        Paused
+                      </>
+                    )}
+                  </button>
+                  <span className="text-[10px] font-mono text-[var(--text-muted)] font-semibold hidden sm:inline">GSTIN: 27AAACA123411Z</span>
+                </div>
+              </div>
+
+              {/* Widget Body */}
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-12 gap-5 bg-[var(--surface)]">
+                {/* Left Timeline Nodes Column */}
+                <div className="sm:col-span-6 flex flex-col gap-2">
+                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] mb-1 flex items-center justify-between">
+                    <span>Litigation Timeline</span>
+                    <span className="text-[10px] font-bold text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded border border-[var(--primary)]/20">
+                      4 Linked Docs
+                    </span>
+                  </div>
+
+                  {MOCK_CHAIN.map((node, index) => {
+                    const isSelected = node.id === selectedNodeId
+                    const NodeIcon = node.icon
+                    return (
+                      <div key={node.id} className="relative">
+                        {/* Connected Vertical Line */}
+                        {index < MOCK_CHAIN.length - 1 && (
+                          <div className="absolute left-[22px] top-9 bottom-0 w-[2px] bg-[var(--border-strong)] z-0" />
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setSelectedNodeId(node.id)
+                            setIsHeroPlaying(false)
+                          }}
+                          className={`w-full text-left p-3 rounded-xl border transition-all duration-200 relative z-10 flex items-center gap-3 ${
+                            isSelected
+                              ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)]/30 shadow-xs'
+                              : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                            isSelected ? 'bg-[var(--surface)] border-[var(--primary)]' : 'bg-[var(--surface)] border-[var(--border)]'
+                          }`}>
+                            <NodeIcon size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
+                          </div>
+
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <span className="text-xs font-bold text-[var(--text-primary)] truncate">{node.shortTitle}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">{node.ref} · {node.date}</span>
+                          </div>
+
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${node.directionColor}`}>
+                            {node.direction}
+                          </span>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Right Document Metadata Inspector */}
+                <div className="sm:col-span-6 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 flex flex-col justify-between shadow-xs">
+                  <div>
+                    {/* Inspector Header */}
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--border)]">
+                      <span className="text-[10px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider">Document Inspector</span>
+                      <span className="text-[10px] font-bold text-[var(--primary)] bg-[var(--surface)] border border-[var(--border-strong)] px-2 py-0.5 rounded">
+                        {selectedNode.ref}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h4 className="text-xs font-extrabold text-[var(--text-primary)] mb-0.5 leading-snug">{selectedNode.shortTitle}</h4>
+                    <p className="text-[10px] font-mono text-[var(--text-muted)] font-semibold mb-3">{selectedNode.issuer}</p>
+
+                    {/* Spec Attributes */}
+                    <div className="space-y-1.5 text-[11px] mb-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5">
+                      <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                        <span className="text-[10px] font-semibold">Doc Direction:</span>
+                        <span className={`font-bold text-[9px] px-1.5 py-0.2 rounded border ${selectedNode.directionColor}`}>
+                          {selectedNode.direction}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                        <span className="text-[10px] font-semibold">Financial Year:</span>
+                        <span className="font-bold text-[var(--text-primary)] text-[10px]">{selectedNode.fy}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-secondary)]">
+                        <span className="text-[10px] font-semibold">Demand Amount:</span>
+                        <span className="font-extrabold text-[11px] text-amber-600 dark:text-amber-400">{selectedNode.demand}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[var(--text-secondary)] pt-1 border-t border-[var(--border)]">
+                        <span className="text-[10px] font-semibold">Statutory Deadline:</span>
+                        <span className="font-bold text-[10px] text-blue-600 dark:text-blue-400 truncate max-w-[120px]" title={selectedNode.deadline}>
+                          {selectedNode.deadline}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="p-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[10px] text-[var(--text-secondary)] leading-relaxed font-medium">
+                      <span className="font-bold text-[var(--text-primary)]">Summary: </span>
+                      {selectedNode.summary}
+                    </div>
+                  </div>
+
+                  {/* Chain Relationship */}
+                  <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-between text-[10px] text-[var(--text-muted)] font-semibold">
+                    <span className="flex items-center gap-1 text-[var(--primary)] font-bold truncate max-w-[180px]">
+                      <Network size={12} className="shrink-0" />
+                      {selectedNode.linkedTo}
+                    </span>
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+                      <ShieldCheck size={12} />
+                      Verified
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </section>
 
-      {/* Features Grid */}
-      <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-32">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Everything you need to win.</h2>
-          <p className="text-slate-400 max-w-2xl mx-auto">Project GST-DMS replaces scattered folders and spreadsheets with a single, intelligent engine that understands your case.</p>
-        </div>
+      {/* ── PROBLEM vs SOLUTION: High Contrast & Simple Text ─────── */}
+      <section className="relative z-10 py-16 md:py-24 border-t border-[var(--border)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--primary)] mb-2">
+                Why Traditional Folders Fail
+              </p>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[var(--text-primary)]">
+                The Problem We Solve
+              </h2>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <FeatureCard 
-            icon={<FileSearch size={24} className="text-blue-400" />}
-            title="System Document Parsing"
-            desc="Automatically extract financial years, reference numbers, tax amounts, and summary context from complex GST notices."
-          />
-          <FeatureCard 
-            icon={<Network size={24} className="text-indigo-400" />}
-            title="Litigation Graph"
-            desc="Visualize the entire lifecycle of a matter. See how SCNs connect to Replies, Appeals, and Orders in a dynamic timeline."
-          />
-          <FeatureCard 
-            icon={<Briefcase size={24} className="text-purple-400" />}
-            title="Client & Matter Hub"
-            desc="Organize documents by client and specific matters. Never lose track of which file belongs to which financial year."
-          />
-          <FeatureCard 
-            icon={<Users size={24} className="text-emerald-400" />}
-            title="Team Collaboration"
-            desc="Share CaseWikis, attach context-aware notes to specific pages in documents, and assign action items across your team."
-          />
-          <FeatureCard 
-            icon={<Clock size={24} className="text-amber-400" />}
-            title="Deadline Tracking"
-            desc="Auto-extract due dates from notices and track all open action items from a centralized pending review dashboard."
-          />
-          <FeatureCard 
-            icon={<Cloud size={24} className="text-cyan-400" />}
-            title="Cloud-Native"
-            desc="Access your entire litigation repository securely from anywhere. Scalable, lightning-fast, and always synced."
-          />
+            {/* Auto-play toggle */}
+            <button
+              onClick={() => setIsComparePlaying(!isComparePlaying)}
+              className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--surface)] border border-[var(--border-strong)] px-3 py-1.5 rounded-lg shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
+            >
+              {isComparePlaying ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-dot" />
+                  <Pause size={12} />
+                  Auto-spotlight On
+                </>
+              ) : (
+                <>
+                  <Play size={12} />
+                  Auto-spotlight Paused
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Clean 4 Point Navigation Tabs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+            {COMPARISON_ITEMS.map((item, idx) => {
+              const isActive = idx === activeCompareIdx
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setActiveCompareIdx(idx)
+                    setIsComparePlaying(false)
+                  }}
+                  className={`p-4 rounded-xl border text-left transition-all duration-200 flex flex-col justify-between ${
+                    isActive
+                      ? 'border-[var(--primary)] bg-[var(--surface)] shadow-md ring-2 ring-[var(--primary)]/20'
+                      : 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span className={`text-[10px] font-mono font-bold block mb-1 ${isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
+                    {item.tabLabel}
+                  </span>
+                  <h4 className={`text-xs font-bold leading-snug ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+                    {item.title}
+                  </h4>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* High-Contrast Side-by-Side Comparison Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Card: The Reality Today */}
+            <div className="lg:col-span-6 rounded-2xl border border-rose-500/40 bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[var(--border)]">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center font-extrabold text-sm">
+                    ✗
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-rose-600 dark:text-rose-400">The Reality Today</h3>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">Traditional File Management</span>
+                  </div>
+                </div>
+
+                <h4 className="text-lg font-extrabold text-[var(--text-primary)] mb-3">
+                  {activeCompare.title}
+                </h4>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed font-medium mb-6">
+                  {activeCompare.painDesc}
+                </p>
+
+                <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+                  {activeCompare.painPoints.map((pt, pIdx) => (
+                    <div key={pIdx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] font-semibold">
+                      <XCircle size={16} className="text-rose-600 dark:text-rose-500 shrink-0 mt-0.5" />
+                      <span>{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Card: With CaseChain */}
+            <div className="lg:col-span-6 rounded-2xl border border-emerald-500/40 bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[var(--border)]">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-extrabold text-sm">
+                    ✓
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">With CaseChain</h3>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">Organized Litigation Workspace</span>
+                  </div>
+                </div>
+
+                <h4 className="text-lg font-extrabold text-[var(--text-primary)] mb-3">
+                  How CaseChain Solves It
+                </h4>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed font-semibold mb-6">
+                  {activeCompare.solutionDesc}
+                </p>
+
+                <div className="space-y-3 pt-4 border-t border-[var(--border)]">
+                  {activeCompare.solutionPoints.map((pt, sIdx) => (
+                    <div key={sIdx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] font-bold">
+                      <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{pt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="relative z-10 border-t border-slate-800 bg-slate-900/50 py-24">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold mb-6">Ready to upgrade your practice?</h2>
-          <Link href="/login" className="inline-flex items-center gap-2 bg-white text-slate-900 px-8 py-4 rounded-full font-bold text-lg hover:scale-105 hover:bg-slate-100 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-            Get Started Now
-            <ChevronRight size={20} />
-          </Link>
+      {/* ── FEATURES BENTO GRID: Auto-Animated Field Parsing & Dynamic Interactive Graph ──── */}
+      <section id="features" className="relative z-10 py-16 md:py-24 border-t border-[var(--border)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3 text-[var(--text-primary)]">
+              Built for GST Litigation Workflows
+            </h2>
+            <p className="text-sm font-medium text-[var(--text-secondary)] max-w-2xl mx-auto">
+              Designed specifically around how GST litigation practitioners manage notices, replies, and tribunal appeals.
+            </p>
+          </div>
+
+          {/* Large feature cards with interactive highlights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Card 1 — Auto Field Parsing Demo */}
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all">
+              <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4">
+                <FileSearch size={18} className="text-blue-500" />
+              </div>
+              <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">{FEATURES_LARGE[0].title}</h3>
+              <p className="text-xs text-[var(--text-secondary)] mb-5 leading-relaxed font-medium">{FEATURES_LARGE[0].detail}</p>
+
+              {/* Dynamic Auto-highlighting parsed fields preview */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center justify-between">
+                  <span>Auto-Extracted Data Spec</span>
+                  <span className="text-blue-500 font-bold">Live Parsing Engine</span>
+                </div>
+                {FEATURES_LARGE[0].parseFields?.map((field, fIdx) => {
+                  const isHighlighted = fIdx === activeParseFieldIdx
+                  return (
+                    <div
+                      key={fIdx}
+                      className={`flex items-center justify-between p-2 rounded-lg text-xs transition-all duration-500 ${
+                        isHighlighted
+                          ? 'bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 font-extrabold translate-x-1'
+                          : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] font-medium'
+                      }`}
+                    >
+                      <span className="text-[11px] font-semibold">{field.label}</span>
+                      <span className="font-mono text-[11px] font-bold">{field.value}</span>
+                    </div>
+                  )}
+                )}
+              </div>
+            </div>
+
+            {/* Card 2 — DYNAMIC AUTO-PLAYING GRAPH CANVAS (Requested feature!) */}
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center">
+                    <Network size={18} className="text-indigo-500" />
+                  </div>
+                  <button
+                    onClick={() => setIsGraphPlaying(!isGraphPlaying)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] px-2 py-1 rounded-md"
+                  >
+                    {isGraphPlaying ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse-dot" />
+                        <Pause size={10} />
+                        Auto-linking
+                      </>
+                    ) : (
+                      <>
+                        <Play size={10} />
+                        Paused
+                      </>
+                    )}
+                  </button>
+                </div>
+                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">{FEATURES_LARGE[1].title}</h3>
+                <p className="text-xs text-[var(--text-secondary)] mb-4 leading-relaxed font-medium">{FEATURES_LARGE[1].detail}</p>
+              </div>
+
+              {/* Dynamic Interactive SVG Graph Canvas */}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 relative overflow-hidden">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3 flex items-center justify-between">
+                  <span>Interactive Litigation Graph</span>
+                  <span className="text-indigo-500 font-bold text-[9px] font-mono">
+                    {GRAPH_STATUS_MESSAGES[activeGraphStep]}
+                  </span>
+                </div>
+
+                {/* SVG Graph Canvas with Animated Links */}
+                <div className="relative h-44 border border-[var(--border)] rounded-lg bg-[var(--surface)] p-3">
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                    {/* SVG Connector Lines between graph nodes */}
+                    {/* Link 1: SCN -> Reply */}
+                    <line
+                      x1="30%" y1="28%" x2="70%" y2="28%"
+                      stroke={activeGraphStep >= 1 ? '#6366F1' : 'var(--border-strong)'}
+                      strokeWidth={activeGraphStep >= 1 ? '2.5' : '1.5'}
+                      strokeDasharray={activeGraphStep >= 1 ? 'none' : '4 4'}
+                      className="transition-all duration-500"
+                    />
+                    {/* Link 2: Reply -> Order */}
+                    <line
+                      x1="70%" y1="28%" x2="70%" y2="72%"
+                      stroke={activeGraphStep >= 2 ? '#F59E0B' : 'var(--border-strong)'}
+                      strokeWidth={activeGraphStep >= 2 ? '2.5' : '1.5'}
+                      strokeDasharray={activeGraphStep >= 2 ? 'none' : '4 4'}
+                      className="transition-all duration-500"
+                    />
+                    {/* Link 3: Order -> Appeal */}
+                    <line
+                      x1="70%" y1="72%" x2="30%" y2="72%"
+                      stroke={activeGraphStep >= 3 ? '#6366F1' : 'var(--border-strong)'}
+                      strokeWidth={activeGraphStep >= 3 ? '2.5' : '1.5'}
+                      strokeDasharray={activeGraphStep >= 3 ? 'none' : '4 4'}
+                      className="transition-all duration-500"
+                    />
+                  </svg>
+
+                  {/* Graph Nodes positioned in Canvas */}
+                  {GRAPH_NODES.map((node, nIdx) => {
+                    const isNodeActive = activeGraphStep >= nIdx
+                    return (
+                      <button
+                        key={node.id}
+                        onClick={() => {
+                          setActiveGraphStep(nIdx)
+                          setIsGraphPlaying(false)
+                        }}
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 p-2 rounded-xl border text-center transition-all duration-500 z-10 flex flex-col items-center shadow-xs cursor-pointer ${
+                          isNodeActive
+                            ? `${node.color} ring-2 ring-indigo-500/20 scale-105`
+                            : 'border-[var(--border)] bg-[var(--bg)] text-[var(--text-muted)] scale-95 opacity-60'
+                        }`}
+                        style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                      >
+                        <span className="text-[8px] font-mono font-bold uppercase tracking-wider block">
+                          {node.type}
+                        </span>
+                        <span className="text-[10px] font-bold whitespace-nowrap block">
+                          {node.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-2 text-center text-[10px] text-[var(--text-muted)] font-medium">
+                  Click any node or watch auto-linking animation in real time
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Small feature cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {FEATURES_SMALL.map(f => (
+              <SmallFeatureCard key={f.title} {...f} />
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-slate-800 py-8 text-center text-slate-500 text-sm">
-        <p>© 2026 Project GST-DMS. All rights reserved.</p>
+      {/* ── HOW IT WORKS: Auto-Playing 3-Step Pipeline Showcase ── */}
+      <section className="relative z-10 py-16 md:py-24 border-t border-[var(--border)] bg-[var(--surface)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--primary)] mb-2">
+                Automated Processing Flow
+              </p>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[var(--text-primary)]">
+                How It Works
+              </h2>
+            </div>
+
+            <button
+              onClick={() => setIsPipelinePlaying(!isPipelinePlaying)}
+              className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg)] border border-[var(--border-strong)] px-3 py-1.5 rounded-lg shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
+            >
+              {isPipelinePlaying ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-dot" />
+                  <Pause size={12} />
+                  Auto-tour On
+                </>
+              ) : (
+                <>
+                  <Play size={12} />
+                  Auto-tour Paused
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Pipeline 3-step cards with active step highlighting */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {HOW_IT_WORKS.map((step, idx) => {
+              const StepIcon = step.icon
+              const isActive = idx === activeStepIdx
+              return (
+                <div
+                  key={step.step}
+                  onClick={() => {
+                    setActiveStepIdx(idx)
+                    setIsPipelinePlaying(false)
+                  }}
+                  className={`rounded-2xl border p-6 flex flex-col justify-between relative cursor-pointer transition-all duration-300 ${
+                    isActive
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)]/30 shadow-md scale-[1.02]'
+                      : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+                        isActive ? 'bg-[var(--surface)] border-[var(--primary)]' : 'bg-[var(--surface)] border-[var(--border-strong)]'
+                      }`}>
+                        <StepIcon size={20} className={isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
+                      </div>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                        isActive ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]'
+                      }`}>
+                        Step {step.step}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">{step.title}</h3>
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-4 font-medium">{step.desc}</p>
+                  </div>
+
+                  {/* Active Action Preview Badge */}
+                  <div className={`p-2.5 rounded-lg border text-[11px] font-mono font-bold transition-all ${
+                    isActive
+                      ? 'bg-[var(--surface)] border-[var(--primary)] text-[var(--primary)] shadow-xs'
+                      : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
+                  }`}>
+                    ⚡ {step.demoAction}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA SECTION ───────────────────────────────────────────── */}
+      <section className="relative z-10 py-20 border-t border-[var(--border)]">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-10 md:p-14 text-center shadow-xl relative overflow-hidden">
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4 text-[var(--text-primary)]">
+              Stop searching. Start finding.
+            </h2>
+            <p className="text-sm font-medium text-[var(--text-secondary)] mb-8 max-w-md mx-auto">
+              Get your litigation documents organized into an automated case chain in minutes.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link href="/login" className="flex items-center gap-2 text-white px-8 py-3.5 rounded-full font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all group text-sm" style={{ background: 'var(--primary-gradient)' }}>
+                Get Started
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link href="/contact" className="flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold border border-[var(--border-strong)] text-[var(--text-secondary)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-all text-sm shadow-xs">
+                Contact Us
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ────────────────────────────────────────────────── */}
+      <footer className="relative z-10 border-t border-[var(--border)] py-8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col items-center md:items-start gap-1">
+            <span className="text-sm font-bold text-[var(--text-primary)]">CaseChain</span>
+            <span className="text-xs text-[var(--text-muted)] font-medium">GST Litigation Document Management System</span>
+          </div>
+          <div className="flex items-center gap-6 text-xs font-medium text-[var(--text-muted)]">
+            <Link href="/login" className="hover:text-[var(--text-primary)] transition-colors">Login</Link>
+            <Link href="/signup" className="hover:text-[var(--text-primary)] transition-colors">Sign Up</Link>
+            <Link href="/contact" className="hover:text-[var(--text-primary)] transition-colors">Contact</Link>
+          </div>
+          <p className="text-xs text-[var(--text-muted)] font-medium">© 2026 Project CaseChain. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   )
 }
 
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+/* ─── Sub-components ────────────────────────────────────────────── */
+
+function SmallFeatureCard({
+  icon: Icon,
+  color,
+  title,
+  summary,
+}: {
+  icon: React.FC<any>
+  color: string
+  title: string
+  summary: string
+}) {
   return (
-    <div className="group relative p-8 rounded-2xl bg-[#161E2E]/80 border border-slate-800 hover:border-slate-700 transition-colors overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
-      <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500 shadow-lg">
-        {icon}
+    <div className="rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-6 hover:shadow-md hover:border-[var(--primary)]/50 transition-all duration-300 group">
+      <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+        <Icon size={18} className={color} />
       </div>
-      <h3 className="text-xl font-bold text-slate-100 mb-3">{title}</h3>
-      <p className="text-slate-400 leading-relaxed text-sm">{desc}</p>
+      <h3 className="text-base font-bold text-[var(--text-primary)] mb-1.5">{title}</h3>
+      <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{summary}</p>
     </div>
   )
 }

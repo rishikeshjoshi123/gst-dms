@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { tasks } from '@trigger.dev/sdk/v3'
 import { placeDocument } from './chaining'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
+import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 
 // ── Read Staged Documents ─────────────────────────────────────────
 
@@ -340,10 +341,14 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
   }
 
   // 3. Create Matter
-  const docTypeStr = metadata.doc_type || 'Document';
-  const fyStr = metadata.financial_year || new Date().getFullYear();
-  const title = `${docTypeStr} - FY ${fyStr}`;
+  let clientName = metadata.client_name || 'Client'
+  if (clientId) {
+    const { data: clientObj } = await supabase.from('clients').select('name').eq('id', clientId).maybeSingle()
+    if (clientObj?.name) clientName = clientObj.name
+  }
+
   const financialYear = metadata.financial_year || '2023-24'
+  const title = await generateDefaultMatterTitle(supabase, orgId, clientId, clientName, financialYear)
   const description = metadata.summary || null
 
   const { data: newMatter, error: matterErr } = await supabase

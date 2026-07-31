@@ -1,40 +1,119 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { Scale } from 'lucide-react'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Sign In',
-}
+import Link from 'next/link'
+import { ArrowLeft, FileText, Network, Clock, ShieldCheck } from 'lucide-react'
+import { ThemeToggle } from '@/components/nav/ThemeToggle'
+
+const HIGHLIGHT_POINTS = [
+  {
+    icon: FileText,
+    title: 'Smart Document Parsing',
+    desc: 'Extract GSTINs, financial years, notice reference numbers, and demand amounts automatically upon upload.',
+  },
+  {
+    icon: Network,
+    title: 'Visual Case Timelines',
+    desc: 'See how every Show Cause Notice, reply, and adjudication order connects in a visual case graph.',
+  },
+  {
+    icon: Clock,
+    title: 'Automated Deadline Alerts',
+    desc: 'Never miss an appeal window or hearing date with proactive automated due date tracking.',
+  },
+]
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen flex items-center justify-center auth-grid-bg overflow-hidden">
-      {/* Glow orbs */}
-      <div className="auth-glow" style={{ top: '-100px', left: '-100px' }} />
-      <div
-        className="auth-glow"
-        style={{
-          bottom: '-100px',
-          right: '-100px',
-          background:
-            'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="relative w-full max-w-md mx-auto px-4 py-12">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 justify-center mb-8">
-          <span className="text-lg font-bold text-[--text-primary]">GST Litigation DMS</span>
-        </Link>
-
-        {/* Content card */}
-        <div className="glass-card rounded-[--radius-xl] p-8 animate-fade-in">
-          {children}
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--bg)]">
+      {/* ── Left Brand Panel (Simple, Theme-Aware, Clean) ─────────── */}
+      <div className="hidden lg:flex w-[380px] xl:w-[420px] shrink-0 relative flex-col justify-between p-10 bg-[var(--surface)] border-r border-[var(--border)] text-[var(--text-primary)]">
+        {/* Top — Brand Header */}
+        <div>
+          <Link href="/" className="inline-flex items-center gap-2 mb-2 group">
+            <span className="text-xl font-extrabold tracking-tight text-[var(--text-primary)]">
+              CaseChain
+            </span>
+            <span className="text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border-strong)] rounded px-1.5 py-0.5 leading-none">
+              working title
+            </span>
+          </Link>
+          <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">
+            GST Litigation Document Management System
+          </p>
         </div>
 
-        <p className="text-center text-xs text-[--text-muted] mt-6">
-          Secure legal document management for GST proceedings
-        </p>
+        {/* Center — Clean Feature Highlights */}
+        <div className="my-auto py-6 space-y-6">
+          <div className="mb-2">
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">
+              Organize Your Litigation Practice
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed font-medium">
+              Built specifically for tax advocates and legal teams to manage Indirect Tax proceedings without folder chaos.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {HIGHLIGHT_POINTS.map((item, idx) => {
+              const Icon = item.icon
+              return (
+                <div key={idx} className="flex items-start gap-3 p-3.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xs">
+                  <div className="w-8 h-8 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] flex items-center justify-center shrink-0">
+                    <Icon size={16} className="text-[var(--primary)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-[var(--text-primary)] mb-0.5">{item.title}</h3>
+                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed font-medium">{item.desc}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Bottom — Clean Security Note */}
+        <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-[var(--text-muted)] font-medium">
+          <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+            <ShieldCheck size={14} />
+            Secure Legal Workspace
+          </span>
+          <span>© 2026 CaseChain</span>
+        </div>
+      </div>
+
+      {/* ── Right Main Form Panel ─────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-[var(--bg)]">
+        {/* Top bar — back to home button + theme toggle */}
+        <div className="flex items-center justify-between px-6 py-4 shrink-0">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-3 py-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] shadow-xs"
+          >
+            <ArrowLeft size={14} />
+            <span>Back to Home</span>
+          </Link>
+          <ThemeToggle />
+        </div>
+
+        {/* Center Form Card Container */}
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8">
+          <div className="w-full max-w-md">
+            {/* Logo for mobile */}
+            <div className="flex lg:hidden items-center gap-2 justify-center mb-6">
+              <span className="text-lg font-bold text-[var(--text-primary)]">CaseChain</span>
+              <span className="text-[9px] font-mono text-[var(--text-muted)] border border-[var(--border-strong)] rounded px-1.5 py-0.5">working title</span>
+            </div>
+
+            {/* Form card */}
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-8 shadow-sm animate-fade-in">
+              {children}
+            </div>
+
+            <p className="text-center text-xs text-[var(--text-muted)] font-medium mt-6">
+              CaseChain · GST Litigation Document Management System
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -44,7 +44,7 @@ export default function SignupPage() {
             id="full_name"
             name="full_name"
             type="text"
-            placeholder="Rishikesh Joshi"
+            placeholder="John Doe"
             autoComplete="name"
             required
             minLength={2}
@@ -107,7 +107,7 @@ export default function SignupPage() {
 
       <p className="mt-6 text-center text-sm text-[--text-muted]">
         Already have an account?{' '}
-        <Link href="/login" className="text-[--accent-hover] hover:underline font-medium">
+        <Link href="/login" className="text-[var(--primary)] hover:underline font-medium">
           Sign in
         </Link>
       </p>

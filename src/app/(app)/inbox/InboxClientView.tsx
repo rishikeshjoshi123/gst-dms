@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
