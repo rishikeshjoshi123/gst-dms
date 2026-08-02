@@ -3,10 +3,21 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { FileText, AlertCircle, Building2, FolderOpen, X, Check, Loader2, Plus, ExternalLink, Calendar, DollarSign, Users, Info, ChevronRight, Settings2, RefreshCw, RotateCcw, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+import {
+  FileText, AlertCircle, X, Check, Loader2, Plus, ExternalLink,
+  Info, RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
+  FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot, Building2,
+  FolderPlus, Copy, AlertTriangle
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
-import { assignStagedDocument, discardStagedDocument, autoCreateClientAndMatterForStagedDocument, getStagedDocuments, reevaluateStagedDocuments } from '@/lib/actions/inbox'
+import {
+  assignStagedDocument, discardStagedDocument,
+  autoCreateClientAndMatterForStagedDocument,
+  getStagedDocuments, reevaluateStagedDocuments
+} from '@/lib/actions/inbox'
 import { getDocumentSignedUrl } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
@@ -23,11 +34,149 @@ function humanizeKey(key: string) {
     .join(' ')
 }
 
-export function InboxClientView({ 
-  initialDocuments, 
+function StatusBadge({ doc }: { doc: any }) {
+  const isAnalyzing = doc.status === 'analyzing'
+  const isPending = doc.status === 'pending_assignment'
+  const hasSuggestion = doc.suggested_client && doc.suggested_matter
+
+  if (isAnalyzing) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold animated-gradient-badge shrink-0">
+      <Bot size={9} className="animate-pulse" /> AI
+    </span>
+  )
+  if (isPending) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20 shrink-0">
+      Queued
+    </span>
+  )
+  if (doc.status === 'failed') return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25 shrink-0">
+      <AlertCircle size={9} /> Failed
+    </span>
+  )
+  if (doc.suggestion_reason?.startsWith('DUPLICATE:')) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
+      <Copy size={9} /> Duplicate
+    </span>
+  )
+  if (hasSuggestion) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      Ready
+    </span>
+  )
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-400 border border-violet-500/25 shrink-0">
+      <AlertCircle size={9} /> Review
+    </span>
+  )
+}
+
+// Searchable combobox for matters in the action modal
+function MatterSearchBox({
+  matters,
+  selectedMatterId,
+  onSelect
+}: {
+  matters: any[]
+  selectedMatterId: string
+  onSelect: (id: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selectedMatter = matters.find(m => m.id === selectedMatterId)
+
+  const filtered = matters.filter(m => {
+    const q = search.toLowerCase()
+    return (
+      m.title?.toLowerCase().includes(q) ||
+      m.matter_code?.toLowerCase().includes(q) ||
+      m.clients?.name?.toLowerCase().includes(q)
+    )
+  })
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all ${
+          isOpen
+            ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--surface)]'
+            : 'border-[var(--border-strong)] bg-[var(--surface)] hover:border-[var(--primary)]/50'
+        }`}
+      >
+        <span className={`truncate ${selectedMatter ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+          {selectedMatter
+            ? `${selectedMatter.clients?.name} · ${selectedMatter.title}`
+            : 'Choose a matter...'}
+        </span>
+        <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="p-2 border-b border-[var(--border)]">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                autoFocus
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by client, matter or code..."
+                className="w-full pl-8 pr-3 py-1.5 text-[13px] bg-[var(--surface-hover)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+              />
+            </div>
+          </div>
+          <div className="max-h-52 overflow-y-auto custom-scrollbar">
+            {filtered.length === 0 ? (
+              <div className="p-4 text-[12px] text-[var(--text-muted)] text-center">No matters found</div>
+            ) : (
+              filtered.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { onSelect(m.id); setIsOpen(false); setSearch('') }}
+                  className={`w-full text-left flex items-center justify-between px-3 py-2.5 transition-colors border-l-2 ${
+                    m.id === selectedMatterId
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]'
+                      : 'border-transparent hover:bg-[var(--surface-hover)] text-[var(--text-primary)]'
+                  }`}
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-medium truncate">{m.title}</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      {m.clients?.name} · {m.matter_code} · {m.financial_year || 'No FY'}
+                    </span>
+                  </div>
+                  {m.id === selectedMatterId && <Check size={13} className="shrink-0 ml-2" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function InboxClientView({
+  initialDocuments,
   matters,
   preselectedMatterId
-}: { 
+}: {
   initialDocuments: any[]
   matters: any[]
   preselectedMatterId?: string
@@ -47,16 +196,10 @@ export function InboxClientView({
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
 
-  useEffect(() => {
-    reevaluateStagedDocuments()
-  }, [])
+  useEffect(() => { reevaluateStagedDocuments() }, [])
 
-  
-  // Sync state when Server Component re-fetches data (e.g. after upload)
-  useEffect(() => {
-    setDocuments(initialDocuments)
-  }, [initialDocuments])
-  
+  useEffect(() => { setDocuments(initialDocuments) }, [initialDocuments])
+
   const preselectedMatter = matters.find(m => m.id === preselectedMatterId)
 
   useEffect(() => {
@@ -73,12 +216,8 @@ export function InboxClientView({
 
   const activeDoc = documents.find(d => d.id === selectedDocId)
 
-  // Auto-fill suggested matter if available (and if no preselected)
   useEffect(() => {
-    if (preselectedMatterId) {
-      setSelectedMatterId(preselectedMatterId)
-      return
-    }
+    if (preselectedMatterId) { setSelectedMatterId(preselectedMatterId); return }
     if (activeDoc?.suggested_matter?.id) {
       setSelectedMatterId(activeDoc.suggested_matter.id)
     } else {
@@ -86,69 +225,40 @@ export function InboxClientView({
     }
   }, [activeDoc, preselectedMatterId])
 
-  // Keep track of intentionally discarded docs to prevent false positive success toasts
   const discardedDocIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    // Only subscribe if there are running jobs, or we can just always subscribe to be safe.
-    // Let's always subscribe so if a job starts, we get updates.
     const supabase = createClient()
-    
     const channel = supabase.channel('staged_docs_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'staged_documents'
-        },
-        async (payload) => {
-          // Re-fetch latest documents to ensure we have full state (or we could mutate state manually)
-          const latestDocs = await getStagedDocuments()
-          
-          if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old.id
-            if (!discardedDocIds.current.has(deletedId)) {
-              // It was deleted by the backend (assigned to a matter)
-              // We don't have the storage_path in payload.old for sure unless replica identity is full,
-              // but we can just show a generic success toast or find it in our current state.
-              const oldDoc = documents.find(d => d.id === deletedId)
-              if (oldDoc) {
-                toast.success(`Automated Processing Complete`, {
-                  description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
-                })
-              }
-            }
-          }
-          
-          setDocuments(latestDocs)
-          
-          if (selectedDocId) {
-            const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
-            if (!stillExists && latestDocs.length > 0) {
-              setSelectedDocId(latestDocs[0].id)
-            } else if (!stillExists) {
-              setSelectedDocId(null)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staged_documents' }, async (payload) => {
+        const latestDocs = await getStagedDocuments()
+        if (payload.eventType === 'UPDATE' && payload.new.status === 'auto_assigned') {
+          const updatedId = payload.new.id
+          if (!discardedDocIds.current.has(updatedId)) {
+            const oldDoc = documents.find(d => d.id === updatedId)
+            if (oldDoc) {
+              toast.success(`Automated Processing Complete`, {
+                description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
+              })
             }
           }
         }
-      )
+        setDocuments(latestDocs)
+        if (selectedDocId) {
+          const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
+          if (!stillExists && latestDocs.length > 0) setSelectedDocId(latestDocs[0].id)
+          else if (!stillExists) setSelectedDocId(null)
+        }
+      })
       .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [selectedDocId, documents])
 
   const handleSelectDoc = (doc: any) => {
     setSelectedDocId(doc.id)
-    if (preselectedMatterId) {
-      setSelectedMatterId(preselectedMatterId)
-    } else if (doc.suggested_matter?.id) {
-      setSelectedMatterId(doc.suggested_matter.id)
-    } else {
-      setSelectedMatterId('')
-    }
+    if (preselectedMatterId) setSelectedMatterId(preselectedMatterId)
+    else if (doc.suggested_matter?.id) setSelectedMatterId(doc.suggested_matter.id)
+    else setSelectedMatterId('')
   }
 
   function handleAssign() {
@@ -187,10 +297,7 @@ export function InboxClientView({
 
   function handleDiscard() {
     if (!selectedDocId) return
-    
-    // Add to ignored list for polling
     discardedDocIds.current.add(selectedDocId)
-    
     startTransition(async () => {
       const res = await discardStagedDocument(selectedDocId)
       if (res.error) {
@@ -199,13 +306,9 @@ export function InboxClientView({
         toast.success('Document discarded')
         setIsDiscardConfirmOpen(false)
         setIsActionModalOpen(false)
-        // Select next doc if available
         const remainingDocs = documents.filter(d => d.id !== selectedDocId)
-        if (remainingDocs.length > 0) {
-          handleSelectDoc(remainingDocs[0])
-        } else {
-          setSelectedDocId(null)
-        }
+        if (remainingDocs.length > 0) handleSelectDoc(remainingDocs[0])
+        else setSelectedDocId(null)
         router.refresh()
       }
     })
@@ -226,311 +329,373 @@ export function InboxClientView({
     toast.info('Triggering AI reprocessing for this document...')
     const res = await reprocessDocument(docId, true)
     setIsReprocessing(null)
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      toast.success('Reprocessing triggered. Processing with AI in the background...')
-    }
+    if (res.error) toast.error(res.error)
+    else toast.success('Reprocessing triggered. AI engine is working in the background...')
   }
 
   const hasExtractedMetadata = activeDoc && activeDoc.raw_metadata && Object.keys(activeDoc.raw_metadata).length > 0 && (
-    activeDoc.raw_metadata.client_name || 
-    activeDoc.raw_metadata.gstin || 
+    activeDoc.raw_metadata.client_name ||
+    activeDoc.raw_metadata.gstin ||
     activeDoc.raw_metadata.reference_number ||
     activeDoc.raw_metadata.doc_type ||
     activeDoc.raw_metadata.financial_year ||
     activeDoc.raw_metadata.tax_period
   )
 
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden gap-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-[var(--border)] shrink-0">
-        <div>
-          <h1 className="text-page-title text-[var(--text-primary)]">
-            {preselectedMatter ? `Uploading to ${preselectedMatter.title}` : 'Document Hub'}
-          </h1>
-          <p className="text-body text-[var(--text-muted)] mt-0.5">
-            {preselectedMatter && preselectedMatter.clients?.name
-              ? `Client: ${preselectedMatter.clients.name} | FY: ${preselectedMatter.financial_year}`
-              : 'Centralized processing and assignment queue'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button onClick={async () => {
-            const toastId = toast.loading('Re-evaluating client and matter matching for queue documents...')
-            try {
-              await reevaluateStagedDocuments()
-              const latestDocs = await getStagedDocuments()
-              setDocuments(latestDocs)
-              router.refresh()
-              toast.success('Queue refreshed. Matching recommendations updated.', { id: toastId })
-            } catch (err: any) {
-              toast.error(err.message || 'Failed to refresh queue', { id: toastId })
-            }
-          }} variant="outline" className="text-[var(--text-secondary)]">
-            <RefreshCw size={16} className="mr-2" />
-            Refresh
-          </Button>
-          <Button onClick={() => setIsUploadModalOpen(true)} variant="default">
-            <Plus size={16} className="mr-2" />
-            Add Document
-          </Button>
-        </div>
-      </div>
+  const isDuplicate = activeDoc?.suggestion_reason?.startsWith('DUPLICATE:')
+  const hasSuggestion = activeDoc?.suggested_client && activeDoc?.suggested_matter
 
-      <div className="flex flex-1 gap-6 overflow-hidden pt-2">
-        {/* Left Pane: Queue (40%) */}
-        <div className="w-[40%] flex flex-col gap-2 overflow-y-auto p-1 pr-3 custom-scrollbar">
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden animate-fade-in">
+      {/* ── Body ─────────────────────────────────── */}
+      <div className="flex flex-1 gap-0 overflow-hidden pt-2">
+
+        {/* ── Left Queue Panel ──────────────────── */}
+        <div className="w-[38%] flex flex-col gap-2.5 overflow-y-auto pl-1 pr-3 py-1 custom-scrollbar shrink-0">
+          {/* Action buttons at top of LHS */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const toastId = toast.loading('Re-evaluating queue...')
+                try {
+                  await reevaluateStagedDocuments()
+                  const latestDocs = await getStagedDocuments()
+                  setDocuments(latestDocs)
+                  router.refresh()
+                  toast.success('Queue refreshed', { id: toastId })
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to refresh', { id: toastId })
+                }
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 text-[13px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <RefreshCw size={13} />
+              Refresh
+            </button>
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 text-[13px] font-semibold rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shadow-sm"
+            >
+              <Plus size={14} />
+              Add Document
+            </button>
+          </div>
+
           {documents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-12 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] text-center shadow-[var(--shadow-sm)]">
-              <FolderOpen size={32} className="text-[var(--text-muted)] mb-3" />
-              <h3 className="text-section-heading text-[var(--text-primary)]">Queue is empty</h3>
-              <p className="text-caption text-[var(--text-muted)] mt-1 max-w-xs">
-                Upload files using the 'Add Document' button to stage them for analysis.
+            <div className="flex flex-col items-center justify-center h-full p-12 rounded-2xl border border-dashed border-[var(--border)] text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center mb-4">
+                <FolderOpen size={24} className="text-[var(--primary)]" />
+              </div>
+              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Queue is empty</h3>
+              <p className="text-[13px] text-[var(--text-muted)] mt-1.5 max-w-xs leading-relaxed">
+                Upload files using the 'Add Document' button to stage them for AI analysis.
               </p>
             </div>
           ) : (
-            documents.map((doc, index) => {
-              const fileName = doc.storage_path.split('/').pop()
-              const isSelected = doc.id === selectedDocId
-              const isAnalyzing = doc.status === 'analyzing'
-              const isPending = doc.status === 'pending_assignment'
-              const hasSuggestion = doc.suggested_client && doc.suggested_matter
+            <>
+              <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
+                Queue · {documents.length} document{documents.length !== 1 ? 's' : ''}
+              </div>
+              {documents.map((doc) => {
+                const fileName = doc.storage_path.split('/').pop()
+                const isSelected = doc.id === selectedDocId
+                const isAnalyzing = doc.status === 'analyzing'
+                const isDup = doc.suggestion_reason?.startsWith('DUPLICATE:')
+                const isFailed = doc.status === 'failed'
+                const isReady = doc.suggested_client && doc.suggested_matter
 
-              return (
-                <div
-                  key={doc.id}
-                  onClick={() => {
-                    setSelectedDocId(doc.id)
-                    if (doc.suggested_matter?.id) {
-                      setSelectedMatterId(doc.suggested_matter.id)
-                    }
-                  }}
-                  className={`group rounded-lg transition-all duration-150 cursor-pointer relative ${
-                    isSelected
-                      ? 'border-2 border-[var(--primary)] bg-[var(--surface)] shadow-sm'
-                      : 'border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]'
-                  } ${isAnalyzing ? 'animated-gradient-border' : ''}`}
-                >
-                  <div className="p-2.5 px-3 flex items-center justify-between gap-2 overflow-hidden">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <FileText size={15} className={`shrink-0 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`} />
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="text-[13px] font-medium text-[var(--text-primary)] truncate">
+                return (
+                  <div
+                    key={doc.id}
+                    onClick={() => handleSelectDoc(doc)}
+                    className={cn(
+                      'group relative cursor-pointer rounded-xl overflow-hidden transition-colors border duration-150',
+                      isSelected
+                        ? 'border-[var(--primary)] bg-[var(--surface)] shadow-[0_2px_12px_rgba(59,130,246,0.12)]'
+                        : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]/40 hover:bg-[var(--surface-hover)]',
+                      isAnalyzing && 'animated-gradient-border'
+                    )}
+                  >
+                    {/* selected left glow bar */}
+                    <div className={cn(
+                      "absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[var(--primary)] to-purple-500 rounded-l-xl transition-opacity duration-150",
+                      isSelected ? "opacity-100" : "opacity-0"
+                    )} />
+
+                    <div className="p-3 pl-4 flex items-center gap-3 bg-[var(--surface)]">
+                      {/* File Icon */}
+                      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                        isSelected ? 'bg-[var(--primary)]/10' : 'bg-[var(--surface-hover)]'
+                      }`}>
+                        <FileText size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[12px] font-semibold text-[var(--text-primary)] truncate leading-tight">
                             {fileName}
-                          </h4>
-                          
-                          {/* Status Badge */}
-                          {isAnalyzing ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold animated-gradient-badge shrink-0">
-                              <Loader2 size={10} className="animate-spin" />
-                              Engine
-                            </span>
-                          ) : isPending ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--border-subtle)] text-[var(--text-secondary)] shrink-0">
-                              Queued
-                            </span>
-                          ) : doc.status === 'failed' ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-500 border border-red-500/20 shrink-0">
-                              <AlertCircle size={10} />
-                              Failed
-                            </span>
-                          ) : doc.suggestion_reason?.startsWith('DUPLICATE:') ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                              <AlertCircle size={10} />
-                              Duplicate
-                            </span>
-                          ) : hasSuggestion ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Ready
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--border-subtle)] text-[var(--text-secondary)] border border-[var(--border)] shrink-0">
-                              <AlertCircle size={10} />
-                              Review
-                            </span>
-                          )}
+                          </span>
+                          <StatusBadge doc={doc} />
                         </div>
-
-                        <span className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                          Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                        <span className="text-[11px] text-[var(--text-muted)]">
+                          {new Date(doc.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          {doc.raw_metadata?.doc_type && (
+                            <> · <span className="font-mono">{doc.raw_metadata.doc_type}</span></>
+                          )}
                         </span>
                       </div>
+
+                      <ArrowRight size={12} className={`shrink-0 transition-all duration-200 ${
+                        isSelected ? 'text-[var(--primary)] translate-x-0' : 'text-[var(--text-disabled)] -translate-x-0.5 group-hover:translate-x-0 group-hover:text-[var(--text-muted)]'
+                      }`} />
                     </div>
 
-                    <ChevronRight size={14} className={`shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-disabled)]'}`} />
+                    {/* bottom hint strip for ready docs */}
+                    {isReady && !isDup && !isFailed && (
+                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-emerald-500/5 text-emerald-500 text-[10px] font-semibold">
+                        <Zap size={9} /> AI matched · {doc.suggested_client?.name}
+                      </div>
+                    )}
+                    {isDup && (
+                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-amber-500/5 text-amber-500 text-[10px] font-semibold">
+                        <Copy size={9} /> Duplicate detected
+                      </div>
+                    )}
+                    {isFailed && (
+                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-red-500/5 text-red-400 text-[10px] font-semibold">
+                        <AlertCircle size={9} /> AI extraction failed · click to reprocess
+                      </div>
+                    )}
                   </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </>
           )}
         </div>
 
-        {/* Right Pane: Extracted Info & Action Panel (60%) */}
-        <div className="w-[60%] flex flex-col overflow-y-auto pl-2 custom-scrollbar">
+        {/* ── Vertical Divider ─── */}
+        <div className="w-px bg-[var(--border)] shrink-0 mx-2" />
+
+        {/* ── Right Detail Panel ─────────────────── */}
+        <div className="flex-1 flex flex-col overflow-y-auto pl-4 custom-scrollbar">
           {activeDoc ? (
-            <div className="flex flex-col gap-6">
-              {/* Document Header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-[18px] font-semibold text-[var(--text-primary)] truncate max-w-[350px]">
+            <div className="flex flex-col gap-5">
+
+              {/* Document title + action strip */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-[16px] font-bold text-[var(--text-primary)] leading-snug truncate max-w-[380px]">
                     {activeDoc.storage_path.split('/').pop()}
                   </h2>
-                  <span className="text-[12px] text-[var(--text-muted)] uppercase tracking-wide font-medium">
-                    Staged Document Details
-                  </span>
+                  <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-semibold mt-0.5">
+                    Staged Document · {activeDoc.status?.replace(/_/g, ' ')}
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 justify-end">
-                  <Button variant="outline" size="sm" onClick={() => handleReprocess(activeDoc.id)} disabled={isReprocessing === activeDoc.id} className="h-8 text-xs shrink-0 text-[var(--text-secondary)]">
-                    {isReprocessing === activeDoc.id ? <RotateCcw size={14} className="mr-1.5 animate-spin" /> : <RotateCcw size={14} className="mr-1.5" />}
-                    Reprocess
-                  </Button>
-                  <Button onClick={handleViewDocument} variant="secondary" size="sm" className="h-8 text-xs shrink-0">
-                    <ExternalLink size={14} className="mr-1.5" />
-                    Original PDF
-                  </Button>
-                  <Button onClick={() => setIsActionModalOpen(true)} variant="default" size="sm" className="h-8 text-xs shrink-0 whitespace-nowrap">
-                    <Check size={14} className="mr-1.5" />
-                    Take Action
-                  </Button>
+
+                {/* Action Buttons row */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleReprocess(activeDoc.id)}
+                    disabled={isReprocessing === activeDoc.id}
+                    title="Re-run AI extraction"
+                    className="h-8 w-8 rounded-lg border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all disabled:opacity-50"
+                  >
+                    <RotateCcw size={13} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} />
+                  </button>
+                  <button
+                    onClick={handleViewDocument}
+                    title="View original PDF"
+                    className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+                  >
+                    <ExternalLink size={12} /> PDF
+                  </button>
+                  <button
+                    onClick={() => setIsActionModalOpen(true)}
+                    className="h-8 px-4 flex items-center gap-1.5 rounded-lg text-[13px] font-bold text-white transition-all shadow-lg hover:opacity-90 active:scale-95"
+                    style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
+                  >
+                    <Zap size={13} /> Take Action
+                  </button>
                 </div>
               </div>
 
-              {/* Analysis Result */}
+              {/* ── State panels ── */}
               {activeDoc.status === 'analyzing' ? (
-                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-[var(--surface)] border border-[var(--border)] shadow-sm text-center">
-                  <Loader2 size={32} className="animate-spin mb-3 text-[var(--primary)]" />
-                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">Extracting Metadata...</h3>
-                  <p className="text-[12px] text-[var(--text-secondary)] mt-1">System engine is analyzing the document context.</p>
+                <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-[var(--primary)]/30 bg-[var(--primary)]/5 text-center">
+                  <div className="relative mb-5">
+                    <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center">
+                      <Bot size={24} className="text-[var(--primary)]" />
+                    </div>
+                    <Loader2 size={14} className="animate-spin text-[var(--primary)] absolute -bottom-1 -right-1" />
+                  </div>
+                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">AI Engine Running…</h3>
+                  <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 max-w-xs">
+                    Extracting metadata, classifying document type and matching client records.
+                  </p>
                 </div>
               ) : activeDoc.status === 'failed' ? (
-                <div className="flex flex-col gap-3 p-5 rounded-md border border-red-500/20 bg-red-500/10">
-                  <div className="flex items-center gap-2 text-[14px] font-semibold text-red-500">
-                    <AlertCircle size={16} />
-                    Analysis Failed
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 overflow-hidden">
+                  <div className="flex items-center gap-3 p-4 border-b border-red-500/15">
+                    <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                      <AlertTriangle size={16} className="text-red-400" />
+                    </div>
+                    <div>
+                      <div className="text-[14px] font-bold text-red-400">AI Extraction Failed</div>
+                      <div className="text-[12px] text-red-400/70 mt-0.5">The document could not be processed automatically</div>
+                    </div>
                   </div>
-                  <p className="text-[14px] text-[var(--text-primary)] leading-relaxed">
-                    {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
-                  </p>
-                  <p className="text-[12px] text-[var(--text-secondary)] font-medium">
-                    You can still assign this document manually using the "Take Action" button.
-                  </p>
+                  <div className="p-4 flex flex-col gap-3">
+                    <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                      {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReprocess(activeDoc.id)}
+                        disabled={isReprocessing === activeDoc.id}
+                        className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                      >
+                        <RotateCcw size={12} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} />
+                        Retry AI
+                      </button>
+                      <button
+                        onClick={() => setIsActionModalOpen(true)}
+                        className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-all"
+                      >
+                        <FolderPlus size={12} />
+                        Assign Manually
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : !hasExtractedMetadata ? (
-                <div className="flex flex-col items-center justify-center p-12 rounded-md bg-[var(--surface)] border border-[var(--border)] shadow-sm text-center">
-                  <AlertCircle size={32} className="text-[var(--text-muted)] mb-3" />
-                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">AI could not extract data from this document</h3>
-                  <Button onClick={() => setIsActionModalOpen(true)} variant="secondary" className="mt-4">
+                <div className="flex flex-col items-center justify-center py-14 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-center">
+                  <AlertCircle size={28} className="text-[var(--text-muted)] mb-3" />
+                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">No data could be extracted</h3>
+                  <p className="text-[13px] text-[var(--text-muted)] mt-1 max-w-xs">AI could not identify key fields from this document. Assign it manually.</p>
+                  <button
+                    onClick={() => setIsActionModalOpen(true)}
+                    className="mt-4 h-8 px-4 text-[13px] font-semibold rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+                  >
                     Assign Manually
-                  </Button>
+                  </button>
                 </div>
               ) : (
-                /* Extracted Metadata Card */
                 <div className="flex flex-col gap-4">
-                  {activeDoc.suggestion_reason?.startsWith('DUPLICATE:') && (
-                    <div className="flex flex-col gap-2 p-4 rounded-[var(--radius-md)] border border-amber-500/20 bg-amber-500/10 text-[14px] shadow-sm">
-                      <div className="flex items-center gap-2 font-semibold text-amber-500">
-                        <AlertCircle size={16} />
-                        Duplicate Document Detected
+
+                  {/* Duplicate warning banner */}
+                  {isDuplicate && (
+                    <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <Copy size={14} className="text-amber-400" />
                       </div>
-                      <p className="text-[var(--text-primary)] leading-relaxed font-medium">
-                        {activeDoc.suggestion_reason}
-                      </p>
+                      <div>
+                        <div className="text-[13px] font-bold text-amber-400 mb-1">Duplicate Document Detected</div>
+                        <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+                          {activeDoc.suggestion_reason?.replace('DUPLICATE: ', '')}
+                        </p>
+                      </div>
                     </div>
                   )}
-                  
-                  <div className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-md)] overflow-hidden relative">
-                    {/* Decorative Top Accent */}
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[var(--primary)] to-purple-500" />
-                    
-                    <div className="p-6 flex flex-col gap-6">
-                      <div className="flex items-center gap-2 text-[15px] font-semibold text-[var(--text-primary)]">
-                        <Info size={18} className="text-[var(--primary)]" />
-                        AI-Extracted Metadata
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Client Name</span>
-                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.client_name || '-'}</span>
+                  {/* AI Match suggestion */}
+                  {hasSuggestion && !isDuplicate && (
+                    <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                          <Zap size={12} className="text-emerald-400" />
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">GSTIN / PAN</span>
-                          <span className="text-[14px] font-mono font-medium text-[var(--text-primary)]">
-                            {activeDoc.raw_metadata?.gstin || '-'} 
-                            {activeDoc.raw_metadata?.pan && ` / ${activeDoc.raw_metadata.pan}`}
+                        <div>
+                          <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-wide">AI Recommended Match</div>
+                          <div className="text-[13px] font-medium text-[var(--text-primary)] mt-0.5">
+                            {activeDoc.suggested_client?.name} · {activeDoc.suggested_matter?.title}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIsActionModalOpen(true)}
+                        className="shrink-0 h-7 px-3 text-[11px] font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Metadata Card */}
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-sm">
+                    {/* accent top line */}
+                    <div className="h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500" />
+
+                    <div className="p-5 flex flex-col gap-5">
+                      <div className="flex items-center gap-2">
+                        <Bot size={15} className="text-[var(--primary)]" />
+                        <span className="text-[13px] font-bold text-[var(--text-primary)]">AI-Extracted Metadata</span>
+                        {activeDoc.raw_metadata?.confidence && (
+                          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
+                            {Math.round(activeDoc.raw_metadata.confidence * 100)}% confidence
                           </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Document Type</span>
-                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.doc_type || '-'}</span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Ref / Case Number</span>
-                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.reference_number || '-'}</span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Financial Year</span>
-                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.financial_year || '-'}</span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Tax Period</span>
-                          <span className="text-[14px] font-medium text-[var(--text-primary)]">{activeDoc.raw_metadata?.tax_period || '-'}</span>
-                        </div>
+                        )}
                       </div>
 
-                      {/* AI Synopsis (Collapsible) */}
+                      {/* Fields grid */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { label: 'Client Name', value: activeDoc.raw_metadata?.client_name },
+                          { label: 'GSTIN / PAN', value: [activeDoc.raw_metadata?.gstin, activeDoc.raw_metadata?.pan].filter(Boolean).join(' / ') || null, mono: true },
+                          { label: 'Document Type', value: activeDoc.raw_metadata?.doc_type },
+                          { label: 'Ref / Case No.', value: activeDoc.raw_metadata?.reference_number, mono: true },
+                          { label: 'Financial Year', value: activeDoc.raw_metadata?.financial_years?.join(', ') || activeDoc.raw_metadata?.financial_year },
+                          { label: 'Tax Period', value: activeDoc.raw_metadata?.tax_period },
+                        ].map(({ label, value, mono }) => (
+                          <div key={label} className="flex flex-col gap-1 p-2.5 rounded-xl bg-[var(--surface-hover)]">
+                            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</span>
+                            <span className={`text-[13px] font-semibold text-[var(--text-primary)] ${mono ? 'font-mono' : ''}`}>
+                              {value || <span className="text-[var(--text-muted)] font-normal">—</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Synopsis */}
                       {activeDoc.raw_metadata?.summary && (
-                        <div className="pt-4 border-t border-[var(--border-subtle)]">
+                        <div className="border-t border-[var(--border)] pt-4">
                           <button
                             type="button"
                             onClick={() => setIsSynopsisExpanded(!isSynopsisExpanded)}
-                            className="w-full flex items-center justify-between text-left p-3 rounded-md bg-[var(--bg)] border border-[var(--border-subtle)] hover:border-[var(--border)] transition-colors group"
+                            className="w-full flex items-center justify-between gap-2 text-left group"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Sparkles size={14} className="text-[var(--primary)] shrink-0" />
-                              <span className="text-[12px] font-bold text-[var(--text-primary)] uppercase tracking-wider">AI Synopsis</span>
+                            <div className="flex items-center gap-2">
+                              <Sparkles size={13} className="text-violet-400 shrink-0" />
+                              <span className="text-[12px] font-bold text-[var(--text-primary)]">AI Synopsis</span>
                               {!isSynopsisExpanded && (
-                                <span className="text-[12px] text-[var(--text-muted)] truncate max-w-[280px] font-normal ml-1">
-                                  — {activeDoc.raw_metadata.summary}
+                                <span className="text-[12px] text-[var(--text-muted)] truncate max-w-[220px]">
+                                  — {activeDoc.raw_metadata.summary.slice(0, 80)}…
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--primary)] shrink-0 ml-2">
-                              {isSynopsisExpanded ? (
-                                <>
-                                  Hide <ChevronUp size={14} />
-                                </>
-                              ) : (
-                                <>
-                                  Expand <ChevronDown size={14} />
-                                </>
-                              )}
-                            </div>
+                            <span className="text-[11px] font-bold text-[var(--primary)] shrink-0 flex items-center gap-0.5">
+                              {isSynopsisExpanded ? (<>Hide <ChevronUp size={12} /></>) : (<>Expand <ChevronDown size={12} /></>)}
+                            </span>
                           </button>
-
                           {isSynopsisExpanded && (
-                            <div className="mt-2 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg)] p-4 rounded-md border border-[var(--border-subtle)] animate-fade-in">
+                            <div className="mt-3 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--surface-hover)] p-4 rounded-xl border border-[var(--border)] animate-in fade-in duration-150">
                               {activeDoc.raw_metadata.summary}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Extracted Amounts */}
+                      {/* Financials */}
                       {activeDoc.raw_metadata?.extracted_amounts && Object.values(activeDoc.raw_metadata.extracted_amounts).some(v => v !== null) && (
-                        <div className="pt-5 border-t border-[var(--border-subtle)]">
-                          <h4 className="text-[12px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Financials</h4>
-                          <div className="grid grid-cols-2 gap-4">
+                        <div className="border-t border-[var(--border)] pt-4">
+                          <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">Financials</div>
+                          <div className="grid grid-cols-2 gap-2.5">
                             {Object.entries(activeDoc.raw_metadata.extracted_amounts).map(([key, val]) => {
                               if (val === null || val === undefined) return null
                               return (
-                                <div key={key} className="flex flex-col p-3 rounded-md bg-[var(--bg)] border border-[var(--border-subtle)]">
-                                  <span className="text-[var(--text-secondary)] text-[12px] mb-1">{humanizeKey(key)}</span>
-                                  <span className="text-[var(--text-primary)] font-mono font-semibold text-[15px]">
+                                <div key={key} className="flex flex-col p-3 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]">
+                                  <span className="text-[11px] text-[var(--text-muted)] mb-1">{humanizeKey(key)}</span>
+                                  <span className="text-[15px] font-bold font-mono text-[var(--text-primary)]">
                                     ₹{Number(val).toLocaleString('en-IN')}
                                   </span>
                                 </div>
@@ -542,111 +707,122 @@ export function InboxClientView({
                     </div>
                   </div>
                 </div>
-            )}
+              )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
-              <FileText size={48} className="mb-4 text-slate-200" />
-              <p className="text-[14px] font-medium">No document selected</p>
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+              <div className="w-16 h-16 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center">
+                <FileText size={28} className="text-[var(--text-muted)]" />
+              </div>
+              <p className="text-[14px] font-medium">Select a document to inspect</p>
             </div>
           )}
         </div>
       </div>
 
+      {/* ── Upload Modal ── */}
       {isUploadModalOpen && (
-        <UploadModal 
-          onClose={() => setIsUploadModalOpen(false)} 
-          matterId={preselectedMatterId}
-        />
+        <UploadModal onClose={() => setIsUploadModalOpen(false)} matterId={preselectedMatterId} />
       )}
 
-      {/* Action Modal */}
+      {/* ── Action Modal ── */}
       {isActionModalOpen && activeDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface rounded-lg shadow-xl border border-border w-[90%] max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-border bg-[var(--bg)]">
-              <div>
-                <h2 className="text-[18px] font-semibold text-[var(--text-primary)] leading-none">Assign Document</h2>
-                <p className="text-[14px] text-[var(--text-muted)] mt-1">Route to a matter timeline.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="relative w-[92%] max-w-[460px] overflow-hidden flex flex-col rounded-2xl shadow-2xl border border-[var(--border)] animate-in zoom-in-95 duration-200"
+            style={{ background: 'var(--surface)' }}
+          >
+            {/* gradient top bar */}
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 shrink-0" />
+
+            {/* Header */}
+            <div className="flex items-start justify-between p-5 pb-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: 'linear-gradient(135deg, #2563EB20, #7C3AED20)' }}>
+                  <Zap size={18} style={{ color: '#6366F1' }} />
+                </div>
+                <div>
+                  <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-none">Assign Document</h2>
+                  <p className="text-[13px] text-[var(--text-muted)] mt-1">Route this document to a matter timeline</p>
+                </div>
               </div>
-              <button 
+              <button
                 onClick={() => setIsActionModalOpen(false)}
-                className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--border-subtle)] transition-colors"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
-            
-            <div className="p-5 flex flex-col gap-5">
-              {/* AI suggestion panel */}
-              {activeDoc.suggested_client && activeDoc.suggested_matter && (
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-md flex flex-col gap-2">
-                  <span className="text-[12px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Recommended Match
-                  </span>
-                  <div className="text-[14px] text-emerald-900 dark:text-emerald-100 font-medium">
-                    Client: {activeDoc.suggested_client.name}
+
+            <div className="px-5 pb-5 flex flex-col gap-4">
+              {/* Document name chip */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]">
+                <FileText size={13} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-[12px] font-medium text-[var(--text-secondary)] truncate">
+                  {activeDoc.storage_path.split('/').pop()}
+                </span>
+              </div>
+
+              {/* AI recommendation chip */}
+              {hasSuggestion && !isDuplicate && (
+                <div className="flex items-center gap-2.5 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">AI Recommended</div>
+                    <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
+                      {activeDoc.suggested_client?.name} · {activeDoc.suggested_matter?.title}
+                    </div>
                   </div>
-                  <div className="text-[14px] text-emerald-800 dark:text-emerald-200">
-                    Matter: {activeDoc.suggested_matter.title} ({activeDoc.suggested_matter.matter_code})
-                  </div>
+                  <Check size={14} className="text-emerald-400 shrink-0" />
                 </div>
               )}
 
-              {/* Dropdown search manual assignment */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[12px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+              {/* Searchable Matter Picker */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
                   Select Matter
                 </label>
-                <select 
-                  className="w-full bg-[var(--bg)] border border-[var(--border-strong)] rounded-md px-3 py-2.5 text-[14px] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-shadow cursor-pointer"
-                  value={selectedMatterId}
-                  onChange={(e) => setSelectedMatterId(e.target.value)}
-                >
-                  <option value="">-- Choose an existing matter --</option>
-                  {matters.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.clients?.name} - {m.title} ({m.matter_code || 'no code'})
-                    </option>
-                  ))}
-                </select>
+                <MatterSearchBox
+                  matters={matters}
+                  selectedMatterId={selectedMatterId}
+                  onSelect={setSelectedMatterId}
+                />
               </div>
 
-              {/* Dynamic Action Buttons */}
-              {/* There should be exactly ONE primary button here: "Confirm Assignment". */}
-              <div className="flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-5 mt-1">
-                <Button 
-                  onClick={handleAssign} 
+              {/* Action buttons */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
+                {/* Primary: Confirm Assignment */}
+                <button
+                  onClick={handleAssign}
                   disabled={!selectedMatterId || isPending}
-                  variant="default"
-                  className="w-full"
+                  className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[14px] font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
                 >
-                  {isPending && <Loader2 size={16} className="animate-spin mr-2" />}
-                  Confirm Assignment
-                </Button>
+                  {isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                  {isPending ? 'Assigning…' : 'Confirm Assignment'}
+                </button>
 
+                {/* Auto-create */}
                 {activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
-                  <Button 
+                  <button
                     onClick={handleAutoCreate}
-                    variant="secondary"
                     disabled={isPending}
-                    className="w-full"
+                    className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
                   >
-                    {isPending ? <Loader2 size={16} className="animate-spin mr-2" /> : <Plus size={16} className="mr-2" />}
+                    {isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
                     Auto-Create Client & Matter
-                  </Button>
+                  </button>
                 )}
 
-                <Button 
-                  variant="destructive" 
-                  className="w-full" 
+                {/* Discard */}
+                <button
                   onClick={() => setIsDiscardConfirmOpen(true)}
                   disabled={isPending}
+                  className="w-full h-9 flex items-center justify-center gap-2 rounded-xl text-[12px] font-semibold text-red-400 hover:bg-red-500/8 transition-all disabled:opacity-50"
                 >
-                  <X size={16} className="mr-2" />
-                  Discard Document
-                </Button>
+                  <Trash2 size={13} /> Discard Document
+                </button>
               </div>
             </div>
           </div>
@@ -665,8 +841,8 @@ export function InboxClientView({
       />
 
       {viewDocumentUrl && activeDoc && (
-        <DocumentViewerModal 
-          url={viewDocumentUrl} 
+        <DocumentViewerModal
+          url={viewDocumentUrl}
           title={activeDoc.storage_path.split('/').pop()}
           onClose={() => setViewDocumentUrl(null)}
         />

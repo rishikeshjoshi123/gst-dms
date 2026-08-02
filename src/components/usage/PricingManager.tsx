@@ -13,13 +13,14 @@ type PricingRow = {
   output_price_per_1m: number
 }
 
-export function PricingManager({ initialPricing }: { initialPricing: PricingRow[] }) {
+export function PricingManager({ initialPricing, readOnly = false }: { initialPricing: PricingRow[], readOnly?: boolean }) {
   const [pricing, setPricing] = useState<PricingRow[]>(initialPricing)
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [editValues, setEditValues] = useState<{ input: string, output: string }>({ input: '', output: '' })
 
   const startEdit = (p: PricingRow) => {
+    if (readOnly) return
     setEditingModel(p.model_name)
     setEditValues({
       input: p.input_price_per_1m.toString(),
@@ -65,13 +66,13 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
               <tr>
                 <th className="px-6 py-3 rounded-tl-lg">Model Name</th>
                 <th className="px-6 py-3">Input Price</th>
-                <th className="px-6 py-3">Output Price</th>
-                <th className="px-6 py-3 rounded-tr-lg w-24">Actions</th>
+                <th className={`px-6 py-3 ${readOnly ? 'rounded-tr-lg' : ''}`}>Output Price</th>
+                {!readOnly && <th className="px-6 py-3 rounded-tr-lg w-24">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {pricing.map((p) => {
-                const isEditing = editingModel === p.model_name
+                const isEditing = !readOnly && editingModel === p.model_name
                 return (
                   <tr key={p.model_name} className="hover:bg-[var(--surface-hover)] transition-colors">
                     <td className="px-6 py-4 font-medium text-[var(--text-primary)]">
@@ -103,26 +104,28 @@ export function PricingManager({ initialPricing }: { initialPricing: PricingRow[
                         `$${Number(p.output_price_per_1m).toFixed(4)}`
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => saveEdit(p.model_name)} disabled={isSaving} className="text-green-600 hover:text-green-700">
-                            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    {!readOnly && (
+                      <td className="px-6 py-4">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => saveEdit(p.model_name)} disabled={isSaving} className="text-green-600 hover:text-green-700">
+                              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            </button>
+                            <button onClick={cancelEdit} disabled={isSaving} className="text-red-500 hover:text-red-600">
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => startEdit(p)}
+                            className="text-[var(--primary)] hover:bg-[var(--primary)]/10 p-1.5 rounded transition-colors"
+                            title="Edit pricing"
+                          >
+                            <Edit2 size={14} />
                           </button>
-                          <button onClick={cancelEdit} disabled={isSaving} className="text-red-500 hover:text-red-600">
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => startEdit(p)}
-                          className="text-[var(--primary)] hover:bg-[var(--primary)]/10 p-1.5 rounded transition-colors"
-                          title="Edit pricing"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      )}
-                    </td>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               })}

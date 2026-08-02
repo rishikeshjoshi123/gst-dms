@@ -10,6 +10,8 @@ import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ReassignDocumentDialog } from './ReassignDocumentDialog'
+import { MoveRight } from 'lucide-react'
 
 function humanizeKey(key: string) {
   return key
@@ -159,6 +161,7 @@ export function TimelineDocumentDetail({
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
+  const [isReassignOpen, setIsReassignOpen] = useState(false)
   const [pendingNoteDeleteId, setPendingNoteDeleteId] = useState<string | null>(null)
 
   const handleDeleteDocument = async () => {
@@ -297,6 +300,9 @@ export function TimelineDocumentDetail({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          <Button variant="outline" size="icon" onClick={() => setIsReassignOpen(true)} className="h-7 w-7 text-[--text-secondary]" title="Reassign Document">
+            <MoveRight size={12} />
+          </Button>
           <Button variant="outline" size="icon" onClick={handleReprocess} disabled={isReprocessing || isDeleting} className="h-7 w-7 text-[--text-secondary]" title="Reprocess Document">
             {isReprocessing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           </Button>
@@ -612,6 +618,15 @@ export function TimelineDocumentDetail({
         description="Are you sure you want to delete this note? This action cannot be undone."
         confirmText="Delete Note"
         variant="destructive"
+      />
+
+      <ReassignDocumentDialog
+        isOpen={isReassignOpen}
+        onClose={() => {
+          setIsReassignOpen(false)
+        }}
+        documentId={doc.id}
+        currentMatterId={doc.matter_id}
       />
     </div>
   )

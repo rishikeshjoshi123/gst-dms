@@ -7,7 +7,7 @@ import { Loader2, ArrowDown } from 'lucide-react'
 import { createManualLink } from '@/lib/actions/document'
 import { toast } from 'sonner'
 import type { Database } from '@/lib/supabase/database.types'
-import { useRouter } from 'next/navigation'
+import type { Connection } from '@xyflow/react'
 
 type LinkType = Database['public']['Enums']['link_type']
 
@@ -25,17 +25,19 @@ export function LinkCreationDialog({
   onClose,
   sourceDoc,  // ReactFlow source = node where drag started = bottom handle = PARENT
   targetDoc,  // ReactFlow target = node where drag ended = top handle = CHILD
+  connection,
   onSuccess
 }: {
   isOpen: boolean
   onClose: () => void
   sourceDoc: any | null  // This is the PARENT document
   targetDoc: any | null  // This is the CHILD document
-  onSuccess: () => void
+  connection?: Connection | null
+  // onSuccess receives the newly created link object for optimistic edge replacement
+  onSuccess: (realLink: any | null) => void
 }) {
   const [selectedType, setSelectedType] = useState<LinkType | ''>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const router = useRouter()
 
   if (!sourceDoc || !targetDoc) return null
 
@@ -55,19 +57,36 @@ export function LinkCreationDialog({
     setIsSubmitting(false)
     if (res.error) {
       toast.error(res.error)
+      // Signal failure — parent will remove the optimistic edge via onSuccess(null) not being called
+      // We call onClose which triggers handleLinkDialogClose (removes optimistic edge)
+      onClose()
     } else {
       toast.success('Link created successfully')
-      onSuccess()
-      router.refresh()
-      onClose()
+      // Build a real-link-like object for the optimistic edge replacement
+      // The actual DB record will arrive via realtime, but this covers the gap
+      const realLink = {
+        id: `temp_confirmed_${Date.now()}`, // Will be replaced by realtime push
+        from_doc_id: childDoc.id,
+        to_doc_id: parentDoc.id,
+        link_type: selectedType,
+        match_method: 'manual',
+        status: 'confirmed',
+        confidence: 1.0,
+      }
+      onSuccess(realLink)
       setSelectedType('')
     }
+  }
+
+  const handleCancel = () => {
+    setSelectedType('')
+    onClose()
   }
 
   const selectedTypeInfo = LINK_TYPES.find(t => t.value === selectedType)
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleCancel}>
       <DialogContent className="sm:max-w-[460px] bg-[var(--surface)] border border-[var(--border)]">
         <DialogHeader>
           <DialogTitle className="text-[var(--text-primary)]">Create Document Link</DialogTitle>
@@ -131,7 +150,7 @@ export function LinkCreationDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="text-[var(--text-secondary)]">Cancel</Button>
+          <Button variant="outline" onClick={handleCancel} disabled={isSubmitting} className="text-[var(--text-secondary)]">Cancel</Button>
           <Button onClick={handleCreate} disabled={!selectedType || isSubmitting}>
             {isSubmitting ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
             Create Link

@@ -6,43 +6,58 @@ import { Button } from '@/components/ui/button'
 import { Loader2, ArrowRight, Link2Off, Trash2 } from 'lucide-react'
 import { deleteDocumentLink } from '@/lib/actions/document'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
 
 export function LinkDeletionDialog({
   isOpen,
   onClose,
   linkId,
+  edgeId,
   sourceDoc,
   targetDoc,
   linkType,
+  onOptimisticDelete,
   onSuccess
 }: {
   isOpen: boolean
   onClose: () => void
   linkId: string | null
+  edgeId: string | null
   sourceDoc: any | null
   targetDoc: any | null
   linkType?: string | null
+  /** Called immediately when user confirms deletion — removes edge from graph before server responds */
+  onOptimisticDelete?: (edgeId: string) => void
   onSuccess?: () => void
 }) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const router = useRouter()
 
-  if (!isOpen || !sourceDoc || !targetDoc || !linkId) return null
+  if (!isOpen || !sourceDoc || !targetDoc) return null
 
   const handleDelete = async () => {
+    if (!linkId) {
+      toast.error('Cannot delete: link ID not available.')
+      return
+    }
+
+    // Optimistic: remove edge immediately, before server responds
+    if (edgeId && onOptimisticDelete) {
+      onOptimisticDelete(edgeId)
+    }
+    onClose()
+
+    // Fire server action in background
     setIsDeleting(true)
     const toastId = toast.loading('Removing document link...')
     const res = await deleteDocumentLink(linkId)
     setIsDeleting(false)
 
     if (res.error) {
+      // Server failed — the revalidatePath in deleteDocumentLink won't fire,
+      // so the edge will reappear on the next realtime/server sync automatically.
       toast.error(res.error, { id: toastId })
     } else {
       toast.success('Document link deleted successfully', { id: toastId })
       onSuccess?.()
-      router.refresh()
-      onClose()
     }
   }
 
@@ -114,7 +129,7 @@ export function LinkDeletionDialog({
           <Button
             type="button"
             onClick={handleDelete}
-            disabled={isDeleting}
+            disabled={isDeleting || !linkId}
             className="inline-flex items-center justify-center text-[14px] font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm gap-2"
           >
             {isDeleting ? (

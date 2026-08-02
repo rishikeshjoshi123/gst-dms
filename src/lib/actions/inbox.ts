@@ -23,7 +23,7 @@ export async function getStagedDocuments() {
       suggested_matter:matters(id, title, financial_year, matter_code)
     `)
     .eq('org_id', orgId)
-    .neq('status', 'assigned')
+    .in('status', ['pending_assignment', 'analyzing', 'ready_to_assign', 'failed'])
     .order('created_at', { ascending: true })
 
   return data ?? []
@@ -38,7 +38,7 @@ export async function getStagedDocumentCount() {
     .from('staged_documents')
     .select('id', { count: 'exact', head: true })
     .eq('org_id', orgId)
-    .neq('status', 'assigned')
+    .in('status', ['pending_assignment', 'analyzing', 'ready_to_assign', 'failed'])
 
   return count ?? 0
 }
@@ -138,7 +138,7 @@ export async function assignStagedDocument(
     .single()
 
   if (!staged) return { error: 'Staged document not found.' }
-  if (staged.status === 'assigned') return { error: 'Document already assigned.' }
+  if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned') return { error: 'Document already assigned.' }
 
   // Verify matter belongs to this org
   const { data: matter } = await supabase
@@ -223,7 +223,7 @@ export async function assignStagedDocument(
 
   await supabase
     .from('staged_documents')
-    .update({ status: 'assigned' })
+    .update({ status: 'manually_assigned' })
     .eq('id', stagedId)
 
   // 4. Trigger process-document job via Trigger.dev
@@ -264,7 +264,7 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
     .single()
 
   if (!staged) return { error: 'Staged document not found.' }
-  if (staged.status === 'assigned') return { error: 'Document already assigned.' }
+  if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned') return { error: 'Document already assigned.' }
 
   const metadata = staged.raw_metadata as any
   if (!metadata || !metadata.client_name) {
@@ -484,7 +484,9 @@ export async function reevaluateStagedDocuments() {
           .update({
             suggested_client_id: clientId,
             suggested_matter_id: matters[0].id,
-            suggestion_reason: 'Match found in re-evaluation'
+            suggestion_reason: doc.suggestion_reason?.startsWith('DUPLICATE:') 
+              ? doc.suggestion_reason 
+              : 'Match found in re-evaluation'
           })
           .eq('id', doc.id)
         revalidated = true

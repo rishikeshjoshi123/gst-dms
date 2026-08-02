@@ -1160,7 +1160,8 @@ export type Database = {
         | "pending_assignment"
         | "analyzing"
         | "ready_to_assign"
-        | "assigned"
+        | "manually_assigned"
+        | "auto_assigned"
         | "failed"
       supporting_doc_category:
         | "invoices"
@@ -1374,7 +1375,8 @@ export const Constants = {
         "pending_assignment",
         "analyzing",
         "ready_to_assign",
-        "assigned",
+        "manually_assigned",
+        "auto_assigned",
         "failed",
       ],
       supporting_doc_category: [

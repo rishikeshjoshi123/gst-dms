@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Clock, RefreshCw, EyeOff, Eye, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,9 @@ import {
   useEdgesState,
   MarkerType,
   Connection,
-  addEdge,
-  BackgroundVariant
+  BackgroundVariant,
+  Edge,
+  Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
@@ -25,20 +26,17 @@ import { TimelineGraphNode } from './TimelineGraphNode'
 import { LinkCreationDialog } from './LinkCreationDialog'
 import { LinkDeletionDialog } from './LinkDeletionDialog'
 import { TimelineHelpDialog } from './TimelineHelpDialog'
-import { useRouter } from 'next/navigation'
-import { deleteDocumentLink } from '@/lib/actions/document'
 
 const nodeTypes = {
   document: TimelineGraphNode,
 }
 
-const dagreGraph = new dagre.graphlib.Graph()
-dagreGraph.setDefaultEdgeLabel(() => ({}))
-
 const nodeWidth = 280
 const nodeHeight = 120 // Approximate height for layout
 
 const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
+  const dagreGraph = new dagre.graphlib.Graph()
+  dagreGraph.setDefaultEdgeLabel(() => ({}))
   const isHorizontal = direction === 'LR'
   dagreGraph.setGraph({ rankdir: direction, ranksep: 100, nodesep: 50 })
 
@@ -68,6 +66,62 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   return { nodes: newNodes, edges }
 }
 
+/** Build a stable edge object from a DB link record */
+function buildEdgeFromLink(l: any) {
+  const isManual = l.match_method === 'manual'
+  const color = isManual ? '#2563eb' : (l.status === 'pending' ? '#f59e0b' : '#94a3b8')
+  return {
+    id: l.id,
+    source: l.to_doc_id,
+    target: l.from_doc_id,
+    label: l.link_type?.replace('_', ' ').toUpperCase() || 'LINKS TO',
+    type: 'smoothstep',
+    animated: l.status === 'pending',
+    style: {
+      stroke: color,
+      strokeWidth: isManual ? 3 : 2,
+      strokeDasharray: (isManual || l.status === 'pending') ? 'none' : '5, 5',
+    },
+    labelStyle: { fill: 'var(--text-secondary)', fontWeight: 600, fontSize: 10 },
+    labelBgStyle: { fill: 'var(--surface)', fillOpacity: 0.95, stroke: 'var(--border)', strokeWidth: 1 },
+    labelBgPadding: [4, 2] as [number, number],
+    labelBgBorderRadius: 4,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 15,
+      height: 15,
+      color,
+    },
+  }
+}
+
+/** Build a temporary "optimistic pending" edge while awaiting server response */
+function buildOptimisticEdge(connection: Connection, tempId: string): Edge {
+  return {
+    id: tempId,
+    source: connection.source!,
+    target: connection.target!,
+    label: 'PENDING...',
+    type: 'smoothstep',
+    animated: true,
+    style: {
+      stroke: '#94a3b8',
+      strokeWidth: 2,
+      strokeDasharray: '6, 4',
+    },
+    labelStyle: { fill: '#94a3b8', fontWeight: 600, fontSize: 9 },
+    labelBgStyle: { fill: 'var(--surface)', fillOpacity: 0.9, stroke: '#94a3b8', strokeWidth: 1 },
+    labelBgPadding: [4, 2] as [number, number],
+    labelBgBorderRadius: 4,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 15,
+      height: 15,
+      color: '#94a3b8',
+    },
+  } as Edge
+}
+
 export function TimelineGraph({ 
   documents, 
   links,
@@ -87,18 +141,27 @@ export function TimelineGraph({
     isOpen: boolean;
     sourceDoc: any | null;
     targetDoc: any | null;
-  }>({ isOpen: false, sourceDoc: null, targetDoc: null })
+    pendingEdgeId: string | null;
+    connection: Connection | null;
+  }>({ isOpen: false, sourceDoc: null, targetDoc: null, pendingEdgeId: null, connection: null })
 
   // Link Deletion State
   const [deleteDialogState, setDeleteDialogState] = useState<{
     isOpen: boolean;
     linkId: string | null;
+    edgeId: string | null;
     sourceDoc: any | null;
     targetDoc: any | null;
     linkType?: string | null;
-  }>({ isOpen: false, linkId: null, sourceDoc: null, targetDoc: null, linkType: null })
+  }>({ isOpen: false, linkId: null, edgeId: null, sourceDoc: null, targetDoc: null, linkType: null })
   
   const matterId = documents.length > 0 ? documents[0].matter_id : null
+
+  // Track user-dragged node positions so layout resets don't snap them back
+  const draggedPositions = useRef<Record<string, { x: number; y: number }>>({})
+  // Track which node/edge IDs existed in the previous render to detect additions/removals
+  const prevNodeIds = useRef<Set<string>>(new Set())
+  const prevEdgeIds = useRef<Set<string>>(new Set())
 
   const handleReevaluate = () => {
     if (!matterId) return
@@ -128,7 +191,7 @@ export function TimelineGraph({
 
   const visibleDocIds = useMemo(() => new Set(visibleDocuments.map(d => d.id)), [visibleDocuments])
 
-  // Build nodes and edges
+  // Build nodes and edges from server data
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     const nodes = visibleDocuments.map(doc => ({
       id: doc.id,
@@ -141,34 +204,8 @@ export function TimelineGraph({
     }))
 
     const edges = links
-      .filter(l => visibleDocIds.has(l.from_doc_id) && visibleDocIds.has(l.to_doc_id)) // Only show links between visible docs
-      .map(l => {
-        const isManual = l.match_method === 'manual'
-        const color = isManual ? '#2563eb' : (l.status === 'pending' ? '#f59e0b' : '#94a3b8')
-        return {
-          id: l.id,
-          source: l.to_doc_id, // "Responds to" means arrow goes from parent to child in a timeline (earlier to later)
-          target: l.from_doc_id, // If A responds to B, B is older. Flow goes B -> A
-          label: l.link_type?.replace('_', ' ').toUpperCase() || 'LINKS TO',
-          type: 'smoothstep',
-          animated: l.status === 'pending',
-          style: { 
-            stroke: color,
-            strokeWidth: isManual ? 3 : 2,
-            strokeDasharray: (isManual || l.status === 'pending') ? 'none' : '5, 5', // AI inferred (confirmed) is dashed
-          },
-          labelStyle: { fill: 'var(--text-secondary)', fontWeight: 600, fontSize: 10 },
-          labelBgStyle: { fill: 'var(--surface)', fillOpacity: 0.95, stroke: 'var(--border)', strokeWidth: 1 },
-          labelBgPadding: [4, 2] as [number, number],
-          labelBgBorderRadius: 4,
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 15,
-            height: 15,
-            color,
-          },
-        }
-      })
+      .filter(l => visibleDocIds.has(l.from_doc_id) && visibleDocIds.has(l.to_doc_id))
+      .map(buildEdgeFromLink)
 
     return getLayoutedElements(nodes, edges, 'TB')
   }, [visibleDocuments, visibleDocIds, links, selectedDocId])
@@ -177,10 +214,55 @@ export function TimelineGraph({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   useEffect(() => {
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(initialNodes, initialEdges, 'TB')
-    setNodes(layoutedNodes)
-    setEdges(layoutedEdges)
+    const currentNodeIds = new Set(initialNodes.map(n => n.id))
+    const currentEdgeIds = new Set(initialEdges.map(e => e.id))
+    
+    const hadAddOrRemove =
+      currentNodeIds.size !== prevNodeIds.current.size ||
+      initialNodes.some(n => !prevNodeIds.current.has(n.id)) ||
+      currentEdgeIds.size !== prevEdgeIds.current.size ||
+      initialEdges.some(e => !prevEdgeIds.current.has(e.id))
+
+    prevNodeIds.current = currentNodeIds
+    prevEdgeIds.current = currentEdgeIds
+
+    if (hadAddOrRemove) {
+      // Full re-layout needed (node topology changed) — but merge in any dragged positions and preserve React Flow state
+      setNodes(nds => initialNodes.map(n => {
+        const existing = nds.find(nd => nd.id === n.id)
+        return {
+          ...existing, // Preserves React Flow internal properties like `measured` (fixes invisibility bug)
+          ...n,
+          data: { ...existing?.data, ...n.data },
+          position: draggedPositions.current[n.id] ?? n.position,
+        }
+      }))
+    } else {
+      // Node topology didn't change, just update data (e.g. selected state, status) without resetting positions
+      setNodes(nds => nds.map(n => {
+        const fresh = initialNodes.find(fn => fn.id === n.id)
+        if (fresh) {
+          return {
+            ...n,
+            data: { ...n.data, ...fresh.data }
+          }
+        }
+        return n
+      }))
+    }
+
+    // Always sync edges — preserve any in-flight optimistic edges
+    setEdges(prev => {
+      const optimisticEdges = prev.filter(e => e.id.startsWith('optimistic_'))
+      return [...initialEdges, ...optimisticEdges]
+    })
   }, [initialNodes, initialEdges, setNodes, setEdges])
+
+  /** Persist drag positions so re-layouts don't snap nodes back */
+  const onNodeDragStop = useCallback((_: MouseEvent | TouchEvent, node: Node) => {
+    draggedPositions.current[node.id] = node.position
+  }, [])
+
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
     if (onSelectDoc) {
@@ -202,7 +284,8 @@ export function TimelineGraph({
       if (sourceDoc && targetDoc) {
         setDeleteDialogState({
           isOpen: true,
-          linkId: existingEdge.id,
+          linkId: existingEdge.id.startsWith('optimistic_') ? null : existingEdge.id,
+          edgeId: existingEdge.id,
           sourceDoc,
           targetDoc,
           linkType: (existingEdge as any).label
@@ -212,13 +295,53 @@ export function TimelineGraph({
     }
 
     if (sourceDoc && targetDoc) {
+      // Add optimistic pending edge immediately — user sees feedback right away
+      const tempId = `optimistic_${Date.now()}`
+      const optimisticEdge = buildOptimisticEdge(connection, tempId)
+      setEdges(prev => [...prev, optimisticEdge])
+
       setLinkDialogState({
         isOpen: true,
         sourceDoc,
-        targetDoc
+        targetDoc,
+        pendingEdgeId: tempId,
+        connection,
       })
     }
-  }, [visibleDocuments, edges])
+  }, [visibleDocuments, edges, setEdges])
+
+  /** User cancelled link creation — remove the optimistic edge */
+  const handleLinkDialogClose = useCallback(() => {
+    const { pendingEdgeId } = linkDialogState
+    if (pendingEdgeId) {
+      setEdges(prev => prev.filter(e => e.id !== pendingEdgeId))
+    }
+    setLinkDialogState({ isOpen: false, sourceDoc: null, targetDoc: null, pendingEdgeId: null, connection: null })
+  }, [linkDialogState, setEdges])
+
+  /** Server confirmed creation — replace optimistic edge with confirmed one */
+  const handleLinkCreated = useCallback((realLink: any) => {
+    const { pendingEdgeId } = linkDialogState
+    if (pendingEdgeId && realLink) {
+      setEdges(prev => [
+        ...prev.filter(e => e.id !== pendingEdgeId),
+        buildEdgeFromLink(realLink),
+      ])
+    } else if (pendingEdgeId) {
+      // No real link data yet — remove optimistic; revalidatePath / realtime will re-populate
+      setEdges(prev => prev.filter(e => e.id !== pendingEdgeId))
+    }
+    setLinkDialogState({ isOpen: false, sourceDoc: null, targetDoc: null, pendingEdgeId: null, connection: null })
+  }, [linkDialogState, setEdges])
+
+  /** Optimistic delete — remove edge immediately before server responds */
+  const handleOptimisticDelete = useCallback((edgeId: string) => {
+    setEdges(prev => prev.filter(e => e.id !== edgeId))
+  }, [setEdges])
+
+  const handleDeleteDialogClose = useCallback(() => {
+    setDeleteDialogState({ isOpen: false, linkId: null, edgeId: null, sourceDoc: null, targetDoc: null, linkType: null })
+  }, [])
 
   const [isHelpOpen, setIsHelpOpen] = useState(false)
 
@@ -277,6 +400,7 @@ export function TimelineGraph({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onNodeDragStop={onNodeDragStop}
           onEdgeClick={onEdgeClick}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
@@ -294,8 +418,16 @@ export function TimelineGraph({
               if (data?.doc?.document_class === 'supporting') return 'var(--border-strong)'
               return 'var(--primary)'
             }}
-            maskColor="var(--surface-hover)"
+            nodeStrokeColor={(node) => {
+              const data = node.data as any;
+              if (data?.doc?.status === 'needs_review') return '#d97706'
+              if (data?.doc?.document_class === 'supporting') return '#78716c'
+              return '#1d4ed8'
+            }}
+            nodeStrokeWidth={2}
+            maskColor="rgba(0,0,0,0.08)"
             className="bg-[var(--surface)] border-[var(--border)] shadow-sm rounded-md"
+            style={{ height: 140 }}
           />
         </ReactFlow>
       </div>
@@ -304,17 +436,20 @@ export function TimelineGraph({
         isOpen={linkDialogState.isOpen}
         sourceDoc={linkDialogState.sourceDoc}
         targetDoc={linkDialogState.targetDoc}
-        onClose={() => setLinkDialogState(prev => ({ ...prev, isOpen: false }))}
-        onSuccess={() => {}}
+        connection={linkDialogState.connection}
+        onClose={handleLinkDialogClose}
+        onSuccess={handleLinkCreated}
       />
 
       <LinkDeletionDialog
         isOpen={deleteDialogState.isOpen}
         linkId={deleteDialogState.linkId}
+        edgeId={deleteDialogState.edgeId}
         sourceDoc={deleteDialogState.sourceDoc}
         targetDoc={deleteDialogState.targetDoc}
         linkType={deleteDialogState.linkType}
-        onClose={() => setDeleteDialogState(prev => ({ ...prev, isOpen: false }))}
+        onClose={handleDeleteDialogClose}
+        onOptimisticDelete={handleOptimisticDelete}
       />
 
       <TimelineHelpDialog

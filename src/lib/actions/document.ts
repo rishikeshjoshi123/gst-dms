@@ -470,10 +470,10 @@ export async function createManualLink(
 
   if (error) return { error: error.message }
 
-  // Fetch document details for human readable log description
+  // Fetch document details for human readable log description + matter_id for cache revalidation
   const { data: docs } = await db
     .from('documents')
-    .select('id, doc_type, reference_number, matters(title)')
+    .select('id, doc_type, reference_number, matter_id, matters(title)')
     .in('id', [fromDocId, toDocId])
 
   const fromDoc = docs?.find(d => d.id === fromDocId)
@@ -497,6 +497,12 @@ export async function createManualLink(
     is_reversible: true
   })
 
+  // Revalidate the matter page so server component re-fetches fresh link data
+  const matterId = fromDoc?.matter_id || toDoc?.matter_id
+  if (matterId) {
+    revalidatePath(`/matters/${matterId}`)
+  }
+
   return { success: true }
 }
 
@@ -510,12 +516,14 @@ export async function deleteDocumentLink(linkId: string) {
 
   const db = createServiceClient()
 
-  // Fetch link IDs before deletion
+  // Fetch link + document matter_id before deletion (needed for revalidation)
   const { data: link } = await db
     .from('document_links')
     .select('id, from_doc_id, to_doc_id')
     .eq('id', linkId)
     .single()
+
+  if (!link) return { error: 'Link not found' }
 
   const { error } = await db
     .from('document_links')
@@ -531,11 +539,22 @@ export async function deleteDocumentLink(linkId: string) {
     entity_type: 'document_link',
     description: `Deleted document link`,
     metadata: {
-      from_doc_id: link?.from_doc_id,
-      to_doc_id: link?.to_doc_id
+      from_doc_id: link.from_doc_id,
+      to_doc_id: link.to_doc_id
     },
     is_reversible: false
   })
+
+  // Fetch matter_id from one of the linked documents for cache revalidation
+  const { data: docData } = await db
+    .from('documents')
+    .select('matter_id')
+    .eq('id', link.from_doc_id)
+    .maybeSingle()
+
+  if (docData?.matter_id) {
+    revalidatePath(`/matters/${docData.matter_id}`)
+  }
 
   return { success: true }
 }

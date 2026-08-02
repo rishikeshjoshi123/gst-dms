@@ -492,6 +492,12 @@ export const analyzeStagedDocument = task({
       // @ts-ignore
       const fys = (aiResult && (aiResult as any).financial_years && (aiResult as any).financial_years.length > 0) ? (aiResult as any).financial_years : ['Unknown FY'];
       
+      if (fys.length === 1 && fys[0] === 'Unknown FY') {
+        console.warn(`[analyze-staged-document] Halting auto-assignment for staged doc ${stagedDocId} due to unknown FY. Falling back to manual assignment.`);
+        matchedClient = null; // Force fallthrough to step 3
+      }
+
+      if (matchedClient) {
       const createdMatterIds: string[] = [];
       const baseName = storagePath.split('/').pop() || 'document.pdf'
       const { data: fileData } = await supabase.storage.from('staging').download(storagePath)
@@ -569,7 +575,7 @@ export const analyzeStagedDocument = task({
         if (fileData) {
           await supabase.storage.from('staging').remove([storagePath]);
         }
-        await supabase.from('staged_documents').delete().eq('id', stagedDocId);
+        await supabase.from('staged_documents').update({ status: 'auto_assigned' }).eq('id', stagedDocId);
         
         await createNotification(supabase, {
           orgId,
@@ -585,6 +591,7 @@ export const analyzeStagedDocument = task({
       } else {
         console.warn(`[analyze-staged-document] Fallback to manual assignment due to failures for staged doc ${stagedDocId}`)
         // Falls through to step 3
+      }
       }
     }
 

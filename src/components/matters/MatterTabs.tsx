@@ -36,6 +36,12 @@ export function MatterTabs({
   const [localWikiSections, setLocalWikiSections] = useState(wikiSections)
   const [localNotes, setLocalNotes] = useState(notes)
 
+  useEffect(() => { setLocalProceedings(proceedings) }, [proceedings])
+  useEffect(() => { setLocalSupporting(supporting) }, [supporting])
+  useEffect(() => { setLocalLinks(links) }, [links])
+  useEffect(() => { setLocalWikiSections(wikiSections) }, [wikiSections])
+  useEffect(() => { setLocalNotes(notes) }, [notes])
+
   useEffect(() => {
     const supabase = createClient()
     const matterId = matter.id
@@ -90,6 +96,7 @@ export function MatterTabs({
       supabase.removeChannel(channel)
     }
   }, [matter.id])
+
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden mt-2">
