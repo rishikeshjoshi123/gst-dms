@@ -86,7 +86,7 @@ export const processDocument = task({
       const { data: exactDupRaw } = await supabase
         .from('documents')
         .select('id, reference_number')
-        .eq('matter_id', matterId)
+        .eq('org_id', orgId)
         .eq('file_hash_sha256', sha256)
         .neq('id', docId)
         .is('deleted_at', null)
@@ -369,6 +369,7 @@ export const analyzeStagedDocument = task({
     const { data: exactDup } = await supabase
       .from('documents')
       .select('id, reference_number, matter_id, matters(title)')
+      .eq('org_id', orgId)
       .eq('file_hash_sha256', sha256)
       .is('deleted_at', null)
       .maybeSingle()
@@ -495,18 +496,26 @@ export const analyzeStagedDocument = task({
       const baseName = storagePath.split('/').pop() || 'document.pdf'
       const { data: fileData } = await supabase.storage.from('staging').download(storagePath)
 
+      let allAssignedSuccessfully = true;
+
       for (const fy of fys) {
         let { data: matter } = await supabase.from('matters').select('id').eq('org_id', orgId).eq('client_id', matchedClient.id).eq('financial_year', fy).is('deleted_at', null).maybeSingle();
         
         if (!matter) {
           const autoTitle = await generateDefaultMatterTitle(supabase, orgId, matchedClient.id, matchedClient.name, fy)
-          const { data: newMatter } = await supabase.from('matters').insert({
+          const { data: newMatter, error: newMatterErr } = await supabase.from('matters').insert({
             org_id: orgId,
             client_id: matchedClient.id,
             financial_year: fy,
             title: autoTitle,
             status: 'active'
           }).select('id').single();
+          
+          if (newMatterErr) {
+            console.error(`[analyze-staged-document] Failed to create matter for client ${matchedClient.name}, fy ${fy}:`, newMatterErr)
+            allAssignedSuccessfully = false;
+            continue;
+          }
           matter = newMatter;
         }
 
@@ -522,7 +531,7 @@ export const analyzeStagedDocument = task({
             }
           }
 
-          const { data: newDoc } = await supabase.from('documents').insert({
+          const { data: newDoc, error: newDocErr } = await supabase.from('documents').insert({
             org_id: orgId,
             matter_id: matter.id,
             storage_path: newStoragePath,
@@ -535,6 +544,12 @@ export const analyzeStagedDocument = task({
             financial_year: fy,
             raw_metadata: aiResult as any
           }).select('id').single();
+          
+          if (newDocErr) {
+            console.error(`[analyze-staged-document] Failed to create document for matter ${matter.id}:`, newDocErr)
+            allAssignedSuccessfully = false;
+            continue;
+          }
 
           if (newDoc) {
              const { tasks } = await import('@trigger.dev/sdk/v3');
@@ -550,22 +565,27 @@ export const analyzeStagedDocument = task({
         }
       }
 
-      if (fileData) {
-        await supabase.storage.from('staging').remove([storagePath]);
-      }
-      await supabase.from('staged_documents').delete().eq('id', stagedDocId);
-      
-      await createNotification(supabase, {
-        orgId,
-        userId: uploadedBy,
-        type: 'document_ready',
-        title: 'Document Auto-Assigned',
-        body: `Document automatically assigned to ${matchedClient.name} for ${fys.join(', ')}.`,
-        entityType: 'client',
-        entityId: matchedClient.id,
-      })
+      if (allAssignedSuccessfully && createdMatterIds.length > 0) {
+        if (fileData) {
+          await supabase.storage.from('staging').remove([storagePath]);
+        }
+        await supabase.from('staged_documents').delete().eq('id', stagedDocId);
+        
+        await createNotification(supabase, {
+          orgId,
+          userId: uploadedBy,
+          type: 'document_ready',
+          title: 'Document Auto-Assigned',
+          body: `Document automatically assigned to ${matchedClient.name} for ${fys.join(', ')}.`,
+          entityType: 'client',
+          entityId: matchedClient.id,
+        })
 
-      return { stagedDocId, status: 'auto_assigned' };
+        return { stagedDocId, status: 'auto_assigned' };
+      } else {
+        console.warn(`[analyze-staged-document] Fallback to manual assignment due to failures for staged doc ${stagedDocId}`)
+        // Falls through to step 3
+      }
     }
 
     // 3. If no client found, just update staged_document with ready_to_assign so user can do it manually
