@@ -226,6 +226,15 @@ export function InboxClientView({
   }, [activeDoc, preselectedMatterId])
 
   const discardedDocIds = useRef<Set<string>>(new Set())
+  
+  // Use refs to access latest state inside the websocket callback without causing reconnects
+  const docsRef = useRef(documents)
+  const selectedIdRef = useRef(selectedDocId)
+  
+  useEffect(() => {
+    docsRef.current = documents
+    selectedIdRef.current = selectedDocId
+  }, [documents, selectedDocId])
 
   useEffect(() => {
     const supabase = createClient()
@@ -235,7 +244,7 @@ export function InboxClientView({
         if (payload.eventType === 'UPDATE' && payload.new.status === 'auto_assigned') {
           const updatedId = payload.new.id
           if (!discardedDocIds.current.has(updatedId)) {
-            const oldDoc = documents.find(d => d.id === updatedId)
+            const oldDoc = docsRef.current.find(d => d.id === updatedId)
             if (oldDoc) {
               toast.success(`Automated Processing Complete`, {
                 description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
@@ -244,15 +253,17 @@ export function InboxClientView({
           }
         }
         setDocuments(latestDocs)
-        if (selectedDocId) {
-          const stillExists = latestDocs.some((d: any) => d.id === selectedDocId)
+        
+        const currentSelectedId = selectedIdRef.current
+        if (currentSelectedId) {
+          const stillExists = latestDocs.some((d: any) => d.id === currentSelectedId)
           if (!stillExists && latestDocs.length > 0) setSelectedDocId(latestDocs[0].id)
           else if (!stillExists) setSelectedDocId(null)
         }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [selectedDocId, documents])
+  }, [])
 
   const handleSelectDoc = (doc: any) => {
     setSelectedDocId(doc.id)
