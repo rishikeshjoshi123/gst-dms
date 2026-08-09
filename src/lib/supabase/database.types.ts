@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -1087,6 +1087,15 @@ export type Database = {
         }[]
       }
       my_org_ids: { Args: never; Returns: string[] }
+      org_wide_fuzzy_match_reference: {
+        Args: { p_org_id: string; p_reference_number: string }
+        Returns: {
+          id: string
+          matter_id: string
+          reference_number: string
+          sim_score: number
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
