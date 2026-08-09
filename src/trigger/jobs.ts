@@ -23,7 +23,7 @@ import type { Database } from '@/lib/supabase/database.types'
 import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
 import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
 import { logUsage } from '@/lib/actions/usage'
-import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
+
 import { VERTEX_DOCUMENT_MODEL, VERTEX_EMBEDDING_MODEL } from '@/lib/ai/vertex'
 
 export interface ProcessDocumentPayload {
@@ -336,17 +336,14 @@ export const analyzeStagedDocument = task({
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
 
-    // Update status to analyzing
+    // Mark as analyzing
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('staged_documents')
       .update({ status: 'analyzing' })
       .eq('id', stagedDocId)
 
-    // TODO (Phase 5+6): Download, analyze with Vertex AI, extract GSTIN,
-    // query for matching matters, store suggestions
-    
-    // 1. Download document
+    // ── 1. Download document (once — reused for all assignments) ──
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('staging')
       .download(storagePath)
@@ -362,7 +359,7 @@ export const analyzeStagedDocument = task({
 
     const fileBuffer = Buffer.from(await fileData.arrayBuffer())
 
-    // Check for exact duplicate in documents using SHA-256
+    // ── 2. SHA-256 exact duplicate check ──────────────────────────
     const { createHash } = await import('crypto')
     const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
 
@@ -374,35 +371,38 @@ export const analyzeStagedDocument = task({
       .is('deleted_at', null)
       .maybeSingle()
 
-    // 2. Analyze
+    // ── 3. AI analysis ────────────────────────────────────────────
     const aiResult = await analyzeDocument(fileBuffer)
-    
+
     if (aiResult?.usage) {
       await logUsage(supabase, {
         orgId,
         userId: uploadedBy,
-        docId: null, // Staged doc, no final doc ID yet
+        docId: null,
         operationType: 'staged_document_analysis',
         modelName: VERTEX_DOCUMENT_MODEL,
         inputTokens: aiResult.usage.promptTokens,
-        outputTokens: aiResult.usage.candidateTokens
+        outputTokens: aiResult.usage.candidateTokens,
       })
     }
 
     if (!aiResult) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from('staged_documents')
-        .update({ 
+        .update({
           status: 'failed',
-          suggestion_reason: 'AI analysis failed: Gemini model returned invalid response or JSON parsing failed.'
+          suggestion_reason: 'AI analysis failed: Gemini model returned invalid response or JSON parsing failed.',
         })
         .eq('id', stagedDocId)
       return { stagedDocId, status: 'failed' }
     }
 
+    // ── 4. Duplicate: redirect to existing matter ─────────────────
     if (exactDup) {
       const matterTitle = (exactDup as any).matters?.title || 'Unknown Matter'
       const refNum = exactDup.reference_number || exactDup.id
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from('staged_documents')
         .update({
@@ -411,7 +411,7 @@ export const analyzeStagedDocument = task({
           suggested_client_id: null,
           suggested_matter_id: exactDup.matter_id,
           suggestion_reason: `DUPLICATE: This file is identical to document "${refNum}" already inside matter "${matterTitle}".`,
-          raw_metadata: aiResult as any
+          raw_metadata: aiResult as any,
         })
         .eq('id', stagedDocId)
 
@@ -428,204 +428,179 @@ export const analyzeStagedDocument = task({
       return { stagedDocId, status: 'ready_to_assign' }
     }
 
-    let matchedClient = null;
+    // ── 5. Resolve assignment using the new engine ────────────────
+    const { resolveDocumentAssignment } = await import('@/lib/actions/assignment')
+    const assignmentResult = await resolveDocumentAssignment(supabase as any, orgId, aiResult)
 
-    if (aiResult) {
-      if (aiResult.gstin) {
-        const { data } = await supabase.from('clients').select('id, name').eq('org_id', orgId).eq('gstin', aiResult.gstin).is('deleted_at', null).maybeSingle();
-        if (data) matchedClient = data;
-      }
-      if (!matchedClient && aiResult.client_identifiers && aiResult.client_identifiers.length > 0) {
-        const { data: allClients } = await supabase.from('clients').select('id, name, pan, gstin').eq('org_id', orgId).is('deleted_at', null);
-        if (allClients) {
-          outer: for (const client of allClients) {
-            for (const idStr of aiResult.client_identifiers) {
-              if (client.pan && idStr.includes(client.pan)) {
-                matchedClient = client;
-                break outer;
-              }
-              if (client.gstin && idStr.includes(client.gstin)) {
-                matchedClient = client;
-                break outer;
-              }
-            }
-          }
-        }
-      }
-      if (!matchedClient && aiResult.client_name) {
-        const { data } = await supabase.from('clients').select('id, name').eq('org_id', orgId).ilike('name', `%${aiResult.client_name}%`).is('deleted_at', null).maybeSingle();
-        if (data) matchedClient = data;
-      }
-
-      // Auto-create client if still no match but we have a name
-      if (!matchedClient && aiResult.client_name) {
-        console.log('[analyze-staged-document] Auto-creating client:', aiResult.client_name)
-        const gstin = aiResult.gstin || null
-        const pan = (aiResult.client_identifiers && aiResult.client_identifiers.length > 0) ? aiResult.client_identifiers[0] : null
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: newClient, error: newClientErr } = await (supabase as any).from('clients').insert({
-          org_id: orgId,
-          name: aiResult.client_name,
-          gstin: gstin,
-          pan: pan
-        }).select('id, name').single()
-
-        if (!newClientErr && newClient) {
-          matchedClient = newClient
-          
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from('activity_logs').insert({
-            org_id: orgId,
-            user_id: uploadedBy,
-            action: 'client_created',
-            entity_type: 'client',
-            entity_id: newClient.id,
-            description: `Auto-created client from document: ${aiResult.client_name}`,
-            is_reversible: false
-          })
-        }
-      }
-    }
-
-    if (matchedClient) {
-      // @ts-ignore
-      const fys = (aiResult && (aiResult as any).financial_years && (aiResult as any).financial_years.length > 0) ? (aiResult as any).financial_years : ['Unknown FY'];
-      
-      if (fys.length === 1 && fys[0] === 'Unknown FY') {
-        console.warn(`[analyze-staged-document] Halting auto-assignment for staged doc ${stagedDocId} due to unknown FY. Falling back to manual assignment.`);
-        matchedClient = null; // Force fallthrough to step 3
-      }
-
-      if (matchedClient) {
-      const createdMatterIds: string[] = [];
-      const baseName = storagePath.split('/').pop() || 'document.pdf'
-      const { data: fileData } = await supabase.storage.from('staging').download(storagePath)
-
-      let allAssignedSuccessfully = true;
-
-      for (const fy of fys) {
-        let { data: matter } = await supabase.from('matters').select('id').eq('org_id', orgId).eq('client_id', matchedClient.id).eq('financial_year', fy).is('deleted_at', null).maybeSingle();
-        
-        if (!matter) {
-          const autoTitle = await generateDefaultMatterTitle(supabase, orgId, matchedClient.id, matchedClient.name, fy)
-          const { data: newMatter, error: newMatterErr } = await supabase.from('matters').insert({
-            org_id: orgId,
-            client_id: matchedClient.id,
-            financial_year: fy,
-            title: autoTitle,
-            status: 'active'
-          }).select('id').single();
-          
-          if (newMatterErr) {
-            console.error(`[analyze-staged-document] Failed to create matter for client ${matchedClient.name}, fy ${fy}:`, newMatterErr)
-            allAssignedSuccessfully = false;
-            continue;
-          }
-          matter = newMatter;
-        }
-
-        if (matter) {
-          createdMatterIds.push(matter.id);
-          
-          let newStoragePath = storagePath;
-          if (fileData) {
-            const path = `${orgId}/${matter.id}/${Date.now()}_${baseName}`
-            const { error: uploadErr } = await supabase.storage.from('documents').upload(path, fileData, { contentType: 'application/pdf' })
-            if (!uploadErr) {
-              newStoragePath = path;
-            }
-          }
-
-          const { data: newDoc, error: newDocErr } = await supabase.from('documents').insert({
-            org_id: orgId,
-            matter_id: matter.id,
-            storage_path: newStoragePath,
-            created_by: uploadedBy,
-            status: 'processing',
-            review_status: 'unreviewed',
-            doc_type: aiResult.doc_type || 'OTHER',
-            direction: aiResult.direction || 'incoming',
-            document_class: aiResult.document_class || 'proceeding',
-            financial_year: fy,
-            raw_metadata: aiResult as any
-          }).select('id').single();
-          
-          if (newDocErr) {
-            console.error(`[analyze-staged-document] Failed to create document for matter ${matter.id}:`, newDocErr)
-            allAssignedSuccessfully = false;
-            continue;
-          }
-
-          if (newDoc) {
-             const { tasks } = await import('@trigger.dev/sdk/v3');
-             await tasks.trigger('process-document', {
-               docId: newDoc.id,
-               matterId: matter.id,
-               orgId: orgId,
-               storagePath: newStoragePath,
-               uploadedBy: uploadedBy,
-               reprocessMode: 'full'
-             })
-          }
-        }
-      }
-
-      if (allAssignedSuccessfully && createdMatterIds.length > 0) {
-        if (fileData) {
-          await supabase.storage.from('staging').remove([storagePath]);
-        }
-        await supabase.from('staged_documents').update({ status: 'auto_assigned' }).eq('id', stagedDocId);
-        
-        await createNotification(supabase, {
-          orgId,
-          userId: uploadedBy,
-          type: 'document_ready',
-          title: 'Document Auto-Assigned',
-          body: `Document automatically assigned to ${matchedClient.name} for ${fys.join(', ')}.`,
-          entityType: 'client',
-          entityId: matchedClient.id,
+    if (assignmentResult.type === 'ready_to_assign') {
+      // Could not auto-assign — store suggestions for manual UI
+      const suggestions = assignmentResult.suggestions
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('staged_documents')
+        .update({
+          status: 'ready_to_assign',
+          suggested_matter_ids: suggestions.filter(s => s.matterId).map(s => s.matterId),
+          suggested_client_id: suggestions.find(s => s.clientId)?.clientId ?? null,
+          suggested_matter_id: suggestions.find(s => s.matterId)?.matterId ?? null,
+          suggestion_reason: assignmentResult.reason,
+          raw_metadata: aiResult as any,
         })
+        .eq('id', stagedDocId)
 
-        return { stagedDocId, status: 'auto_assigned' };
+      await createNotification(supabase, {
+        orgId,
+        userId: uploadedBy,
+        type: 'staged_doc_ready',
+        title: 'Action Required: Assign Document',
+        body: assignmentResult.reason,
+        entityType: 'staged_document',
+        entityId: stagedDocId,
+      })
+
+      return { stagedDocId, status: 'ready_to_assign' }
+    }
+
+    // ── 6. Auto-assign to resolved matter(s) ─────────────────────
+    const { assignments } = assignmentResult
+    const baseName = storagePath.split('/').pop() || 'document.pdf'
+    const isMultiMatter = assignments.length > 1
+
+    // For multi-matter: store the file once at a shared org-level path (Option B storage)
+    // For single-matter: store under the matter's folder (existing convention)
+    let sharedStoragePath: string | null = null
+    if (isMultiMatter) {
+      const sharedPath = `${orgId}/shared/${sha256}_${baseName}`
+      const { error: sharedUploadErr } = await supabase.storage
+        .from('documents')
+        .upload(sharedPath, fileData, { contentType: 'application/pdf', upsert: true })
+      if (!sharedUploadErr) {
+        sharedStoragePath = sharedPath
       } else {
-        console.warn(`[analyze-staged-document] Fallback to manual assignment due to failures for staged doc ${stagedDocId}`)
-        // Falls through to step 3
-      }
+        console.error('[analyze-staged-document] Failed to upload shared path, falling back to per-matter copies:', sharedUploadErr)
       }
     }
 
-    // 3. If no client found, just update staged_document with ready_to_assign so user can do it manually
+    const { tasks } = await import('@trigger.dev/sdk/v3')
+    const createdDocIds: string[] = []
+    let allOk = true
+
+    for (let i = 0; i < assignments.length; i++) {
+      const assignment = assignments[i]
+      const isFirst = i === 0
+
+      // Determine storage path for this document entry
+      let docStoragePath: string
+      if (sharedStoragePath) {
+        // All matter entries share the same file
+        docStoragePath = sharedStoragePath
+      } else {
+        // Per-matter copy (fallback or single-matter case)
+        const perMatterPath = `${orgId}/${assignment.matterId}/${Date.now()}_${baseName}`
+        const { error: uploadErr } = await supabase.storage
+          .from('documents')
+          .upload(perMatterPath, fileData, { contentType: 'application/pdf' })
+        if (uploadErr) {
+          console.error(`[analyze-staged-document] Storage upload failed for matter ${assignment.matterId}:`, uploadErr)
+          allOk = false
+          continue
+        }
+        docStoragePath = perMatterPath
+      }
+
+      // Create document record
+      const reviewStatus = assignment.crossVerified === null ? 'unreviewed' : 'unreviewed'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newDoc, error: newDocErr } = await (supabase as any)
+        .from('documents')
+        .insert({
+          org_id: orgId,
+          matter_id: assignment.matterId,
+          storage_path: docStoragePath,
+          created_by: uploadedBy,
+          status: 'processing',
+          review_status: reviewStatus,
+          source: 'inbox',
+          doc_type: aiResult.doc_type || 'OTHER',
+          direction: aiResult.direction || 'incoming',
+          document_class: aiResult.document_class || 'proceeding',
+          document_category: aiResult.document_category || null,
+          financial_year: (aiResult.financial_years?.[i] ?? aiResult.financial_years?.[0] ?? null),
+          raw_metadata: aiResult as any,
+          file_hash_sha256: sha256,
+        })
+        .select('id')
+        .single()
+
+      if (newDocErr || !newDoc) {
+        console.error(`[analyze-staged-document] Failed to create document for matter ${assignment.matterId}:`, newDocErr)
+        allOk = false
+        continue
+      }
+
+      createdDocIds.push(newDoc.id)
+
+      // Trigger the processing pipeline.
+      // For shared-file docs (multi-matter, index > 0), skip SHA-256 duplicate check
+      // since the same file intentionally exists in multiple matters.
+      await tasks.trigger('process-document', {
+        docId: newDoc.id,
+        matterId: assignment.matterId,
+        orgId,
+        storagePath: docStoragePath,
+        uploadedBy,
+        reprocessMode: 'full',
+        skipDuplicateCheck: !isFirst && !!sharedStoragePath,
+      })
+    }
+
+    if (createdDocIds.length > 0) {
+      // Clean up staging file
+      await supabase.storage.from('staging').remove([storagePath])
+
+      // Mark staged doc as assigned
+      await supabase
+        .from('staged_documents')
+        .update({ status: 'auto_assigned' })
+        .eq('id', stagedDocId)
+
+      const firstAssignment = assignments[0]
+      await createNotification(supabase, {
+        orgId,
+        userId: uploadedBy,
+        type: 'document_ready',
+        title: 'Document Auto-Assigned',
+        body: `Document automatically assigned to ${assignments.length} matter(s).`,
+        entityType: 'staged_document',
+        entityId: stagedDocId,
+      })
+
+      return { stagedDocId, status: 'auto_assigned', docIds: createdDocIds }
+    }
+
+    // Partial or total failure — fall back to ready_to_assign
+    console.warn('[analyze-staged-document] All matter assignments failed — falling back to manual.')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from('staged_documents')
-      .update({ 
-        status: 'ready_to_assign', 
-        suggested_matter_ids: [],
-        suggested_client_id: null,
-        suggested_matter_id: null,
-        raw_metadata: aiResult as any
+      .update({
+        status: 'ready_to_assign',
+        suggested_matter_ids: assignments.map(a => a.matterId),
+        suggested_matter_id: assignments[0]?.matterId ?? null,
+        suggestion_reason: 'Auto-assignment partially failed. Please assign manually.',
+        raw_metadata: aiResult as any,
       })
       .eq('id', stagedDocId)
-
-    // Notify the uploader
-    await createNotification(supabase, {
-      orgId,
-      userId: uploadedBy,
-      type: 'staged_doc_ready',
-      title: 'Action Required: Assign Document',
-      body: 'We could not automatically match the client. Please assign manually.',
-      entityType: 'staged_document',
-      entityId: stagedDocId,
-    })
 
     return { stagedDocId, status: 'ready_to_assign' }
   },
 })
 
+
 // ================================================================
 // Deadline reminder cron (runs daily)
 // ================================================================
+
 export const deadlineReminderCron = task({
   id: 'deadline-reminders',
   run: async () => {

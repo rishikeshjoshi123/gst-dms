@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { tasks } from '@trigger.dev/sdk/v3'
 import { placeDocument } from './chaining'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
-import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
+
 
 // ── Read Staged Documents ─────────────────────────────────────────
 
@@ -264,91 +264,97 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
     .single()
 
   if (!staged) return { error: 'Staged document not found.' }
-  if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned') return { error: 'Document already assigned.' }
+  if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned')
+    return { error: 'Document already assigned.' }
 
   const metadata = staged.raw_metadata as any
-  if (!metadata || !metadata.client_name) {
-    return { error: 'Could not extract client details from document. Please assign manually.' }
+  if (!metadata) {
+    return { error: 'No metadata found for this document. Please assign manually.' }
   }
 
-  // 2. Resolve Client (find by GSTIN or create new)
+  // 2. Resolve client using the shared helper (same logic as the auto pipeline)
+  const { resolveClientFromIdentifiers, normalizeGSTIN, normalizeFY } = await import('@/lib/actions/assignment')
+
+  const resolvedClient = await resolveClientFromIdentifiers(supabase as any, orgId, {
+    gstin: metadata.gstin ?? null,
+    client_identifiers: metadata.client_identifiers ?? [],
+    client_name: metadata.client_name ?? null,
+  })
+
   let clientId: string
-  let gstin: string | null = null
-  if (metadata.gstin) {
-    let s = metadata.gstin.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (s.length === 15) {
-      let state = s.substring(0, 2).replace(/O/g, '0')
-      s = state + s.substring(2)
-    }
-    gstin = s
-  }
+  let clientName: string
 
-  if (gstin) {
-    const { data: existingClient } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('org_id', orgId)
-      .eq('gstin', gstin)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (existingClient) {
-      clientId = existingClient.id
-    } else {
-      const { data: newClient, error: clientErr } = await supabase
-        .from('clients')
-        .insert({
-          org_id: orgId,
-          name: metadata.client_name,
-          gstin: gstin,
-          pan: gstin.substring(2, 12), // standard pan extraction from gstin
-        })
-        .select('id')
-        .single()
-
-      if (clientErr || !newClient) {
-        return { error: clientErr?.message ?? 'Failed to auto-create client.' }
-      }
-      clientId = newClient.id
-    }
+  if (resolvedClient) {
+    clientId = resolvedClient.id
+    clientName = resolvedClient.name
   } else {
-    // If no GSTIN, check by name
-    const { data: existingClient } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('org_id', orgId)
-      .ilike('name', `%${metadata.client_name}%`)
-      .is('deleted_at', null)
-      .maybeSingle()
+    // Auto-create client — only when GSTIN or PAN present AND client name available
+    const normalizedGSTIN = normalizeGSTIN(metadata.gstin)
+    const hasPAN = metadata.client_identifiers && metadata.client_identifiers.length > 0
 
-    if (existingClient) {
-      clientId = existingClient.id
-    } else {
-      const { data: newClient, error: clientErr } = await supabase
-        .from('clients')
-        .insert({
-          org_id: orgId,
-          name: metadata.client_name,
-        })
-        .select('id')
-        .single()
-
-      if (clientErr || !newClient) {
-        return { error: clientErr?.message ?? 'Failed to auto-create client.' }
+    if (!metadata.client_name) {
+      return { error: 'Could not identify client from document. Please assign manually.' }
+    }
+    if (!normalizedGSTIN && !hasPAN) {
+      return {
+        error: 'No GSTIN or PAN found in document. Cannot auto-create client without a deterministic identifier. Please assign manually.',
       }
-      clientId = newClient.id
+    }
+
+    const pan = normalizedGSTIN
+      ? normalizedGSTIN.substring(2, 12)
+      : (metadata.client_identifiers?.[0] ?? null)
+
+    const { data: newClient, error: clientErr } = await supabase
+      .from('clients')
+      .insert({
+        org_id: orgId,
+        name: metadata.client_name,
+        gstin: normalizedGSTIN,
+        pan,
+      })
+      .select('id, name')
+      .single()
+
+    if (clientErr || !newClient) {
+      return { error: clientErr?.message ?? 'Failed to create client.' }
+    }
+    clientId = newClient.id
+    clientName = newClient.name
+  }
+
+  // 3. Resolve financial year — require an explicitly extracted FY, no hardcoded fallback
+  const rawFY = metadata.financial_year || metadata.financial_years?.[0]
+  if (!rawFY) {
+    return {
+      error: `Client matched (${clientName}) but no financial year found in document. Please create the matter manually under the client.`,
+    }
+  }
+  const financialYear = normalizeFY(rawFY)
+  if (financialYear === 'Unknown FY') {
+    return {
+      error: `Client matched (${clientName}) but could not parse financial year "${rawFY}". Please create the matter manually.`,
     }
   }
 
-  // 3. Create Matter
-  let clientName = metadata.client_name || 'Client'
-  if (clientId) {
-    const { data: clientObj } = await supabase.from('clients').select('name').eq('id', clientId).maybeSingle()
-    if (clientObj?.name) clientName = clientObj.name
+  // 4. Check if a matter already exists for this client + FY (no blind insert)
+  const { data: existingMatter } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('client_id', clientId)
+    .eq('financial_year', financialYear)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (existingMatter) {
+    // Matter already exists — just assign to it
+    return assignStagedDocument(stagedId, existingMatter.id)
   }
 
-  const financialYear = metadata.financial_year || '2023-24'
-  const title = await generateDefaultMatterTitle(supabase, orgId, clientId, clientName, financialYear)
+  // 5. Create new matter
+  const { generateDefaultMatterTitle } = await import('@/lib/utils/matterNaming')
+  const title = await generateDefaultMatterTitle(supabase as any, orgId, clientId, clientName, financialYear)
   const description = metadata.summary || null
 
   const { data: newMatter, error: matterErr } = await supabase
@@ -359,18 +365,18 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
       title,
       financial_year: financialYear,
       description,
-      status: 'active'
+      status: 'active',
     })
     .select('id')
     .single()
 
   if (matterErr || !newMatter) {
-    return { error: matterErr?.message ?? 'Failed to auto-create matter.' }
+    return { error: matterErr?.message ?? 'Failed to create matter.' }
   }
 
-  // 4. Assign the document to this new matter
   return assignStagedDocument(stagedId, newMatter.id)
 }
+
 
 // ── Discard Staged Document ───────────────────────────────────────
 
@@ -430,67 +436,44 @@ export async function reevaluateStagedDocuments() {
 
   if (!staged || staged.length === 0) return
 
+  const { resolveDocumentAssignment } = await import('@/lib/actions/assignment')
   let revalidated = false
 
   for (const doc of staged) {
     const metadata = doc.raw_metadata as any
     if (!metadata) continue
 
-    let clientId: string | null = null
-    let gstin: string | null = null
+    // Skip duplicates — they have a specific reason and the user must resolve manually
+    if (doc.suggestion_reason?.startsWith('DUPLICATE:')) continue
 
-    if (metadata.gstin) {
-      let s = metadata.gstin.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-      if (s.length === 15) {
-        let state = s.substring(0, 2).replace(/O/g, '0')
-        s = state + s.substring(2)
-      }
-      gstin = s
-    }
+    // Re-run the full assignment engine (Phases A1, A2, B, C)
+    const result = await resolveDocumentAssignment(supabase as any, orgId, metadata)
 
-    if (gstin) {
-      const { data: existingClient } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('gstin', gstin)
-        .is('deleted_at', null)
-        .maybeSingle()
-      if (existingClient) clientId = existingClient.id
-    } else if (metadata.client_name) {
-      const { data: existingClients } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('org_id', orgId)
-        .ilike('name', `%${metadata.client_name}%`)
-        .is('deleted_at', null)
-        .limit(1)
-        
-      if (existingClients && existingClients.length > 0) {
-        clientId = existingClients[0].id
-      }
-    }
-
-    if (clientId) {
-      const { data: matters } = await supabase
-        .from('matters')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('status', 'active')
-
-      if (matters && matters.length > 0) {
-        await supabase
-          .from('staged_documents')
-          .update({
-            suggested_client_id: clientId,
-            suggested_matter_id: matters[0].id,
-            suggestion_reason: doc.suggestion_reason?.startsWith('DUPLICATE:') 
-              ? doc.suggestion_reason 
-              : 'Match found in re-evaluation'
-          })
-          .eq('id', doc.id)
-        revalidated = true
-      }
+    if (result.type === 'auto_assign') {
+      const { assignments } = result
+      // Update with the best suggestion found — Phase A/B matches are sufficient for the UI
+      await (supabase as any)
+        .from('staged_documents')
+        .update({
+          suggested_matter_ids: assignments.map(a => a.matterId),
+          suggested_client_id: assignments[0]?.clientId ?? null,
+          suggested_matter_id: assignments[0]?.matterId ?? null,
+          suggestion_reason: `Re-evaluation found a match (${assignments[0]?.method ?? 'unknown'}).`,
+        })
+        .eq('id', doc.id)
+      revalidated = true
+    } else if (result.suggestions.length > 0) {
+      // Partial match — update suggestions without changing the status
+      await (supabase as any)
+        .from('staged_documents')
+        .update({
+          suggested_matter_ids: result.suggestions.filter(s => s.matterId).map(s => s.matterId),
+          suggested_client_id: result.suggestions.find(s => s.clientId)?.clientId ?? null,
+          suggested_matter_id: result.suggestions.find(s => s.matterId)?.matterId ?? null,
+          suggestion_reason: result.reason,
+        })
+        .eq('id', doc.id)
+      revalidated = true
     }
   }
 

@@ -72,7 +72,7 @@ Respond ONLY with valid JSON matching this exact schema (no markdown, no explana
   "client_identifiers": ["Extract EVERYTHING possible to help identify the client: PAN, TAN, CIN, Registration Numbers, or any other IDs found"],
   "client_name": "taxpayer/company name" | null,
   "doc_date": "YYYY-MM-DD" | null,
-  "financial_years": ["array of FYs e.g., FY21-22, FY22-23"],
+  "financial_years": ["array of FYs in YYYY-YY format e.g., \"2021-22\", \"2022-23\""],
   "tax_period": "human-readable period e.g. Apr 2021 – Mar 2022" | null,
   "direction": "incoming" | "outgoing",
   "issued_by": "name/designation of issuing authority or 'taxpayer'" | null,

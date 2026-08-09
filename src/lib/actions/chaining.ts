@@ -195,17 +195,28 @@ async function createLink(
   pendingRefNumber: string | null
 ) {
   const linkType = inferLinkType(fromDocType, toDocType)
-  
+
   if (toDocId) {
+    // Dedup check for confirmed links
     const { data: existing } = await supabase.from('document_links')
       .select('id')
       .eq('from_doc_id', fromDocId)
       .eq('to_doc_id', toDocId)
       .maybeSingle()
-      
-    if (existing) return;
+
+    if (existing) return
+  } else if (pendingRefNumber) {
+    // Dedup check for pending links — the unique constraint covers (from_doc_id, pending_ref_number)
+    const { data: existingPending } = await (supabase as any).from('document_links')
+      .select('id')
+      .eq('from_doc_id', fromDocId)
+      .eq('pending_ref_number', pendingRefNumber)
+      .is('to_doc_id', null)
+      .maybeSingle()
+
+    if (existingPending) return
   }
-  
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('document_links').insert({
     from_doc_id: fromDocId,
@@ -217,6 +228,7 @@ async function createLink(
     pending_ref_number: pendingRefNumber
   })
 }
+
 
 async function queueNotification(
   supabase: SupabaseClient<Database>,
