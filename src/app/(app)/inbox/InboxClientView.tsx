@@ -7,7 +7,7 @@ import {
   FileText, AlertCircle, X, Check, Loader2, Plus, ExternalLink,
   Info, RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
   FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot, Building2,
-  FolderPlus, Copy, AlertTriangle
+  FolderPlus, Copy, AlertTriangle, Inbox
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -112,11 +112,10 @@ function MatterSearchBox({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all ${
-          isOpen
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all ${isOpen
             ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--surface)]'
             : 'border-[var(--border-strong)] bg-[var(--surface)] hover:border-[var(--primary)]/50'
-        }`}
+          }`}
       >
         <span className={`truncate ${selectedMatter ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
           {selectedMatter
@@ -149,11 +148,10 @@ function MatterSearchBox({
                   key={m.id}
                   type="button"
                   onClick={() => { onSelect(m.id); setIsOpen(false); setSearch('') }}
-                  className={`w-full text-left flex items-center justify-between px-3 py-2.5 transition-colors border-l-2 ${
-                    m.id === selectedMatterId
+                  className={`w-full text-left flex items-center justify-between px-3 py-2.5 transition-colors border-l-2 ${m.id === selectedMatterId
                       ? 'bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]'
                       : 'border-transparent hover:bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col min-w-0">
                     <span className="text-[13px] font-medium truncate">{m.title}</span>
@@ -168,6 +166,76 @@ function MatterSearchBox({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function FullPageEmptyInbox({ onUploadClick }: { onUploadClick: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-[var(--bg)]">
+      <style>{`
+        @keyframes float-large {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-20px) rotate(2deg); }
+        }
+        @keyframes scan-line-large {
+          0% { transform: translateY(-100%); opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { transform: translateY(400%); opacity: 0; }
+        }
+      `}</style>
+      
+      {/* Dynamic grid background */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,#000_60%,transparent_100%)] opacity-60" />
+      
+      {/* Animated Glowing Orbs */}
+      <div className="absolute top-[20%] left-[25%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] animate-pulse pointer-events-none" style={{ animationDuration: '7s' }} />
+      <div className="absolute bottom-[10%] right-[25%] w-[450px] h-[450px] bg-indigo-500/10 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '9s', animationDelay: '2s' }} />
+
+      {/* Scanning line effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
+        <div className="w-full h-48 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent blur-2xl" style={{ animation: 'scan-line-large 8s ease-in-out infinite' }} />
+      </div>
+
+      <div className="relative z-10 flex flex-col items-center gap-10">
+        {/* Floating Icon Setup */}
+        <div className="relative" style={{ animation: 'float-large 8s ease-in-out infinite' }}>
+          <div className="absolute -inset-8 bg-gradient-to-r from-blue-500/30 to-indigo-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '5s' }} />
+          
+          <div className="relative w-32 h-32 rounded-[2.5rem] bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)] shadow-2xl flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
+            <Inbox size={48} className="text-blue-500/80 drop-shadow-lg" strokeWidth={1.5} />
+          </div>
+
+          {/* Little floating orbiting elements */}
+          <div className="absolute -top-6 -right-8 w-14 h-14 rounded-2xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 6s ease-in-out infinite 1.5s' }}>
+            <FileText size={24} className="text-indigo-400" />
+          </div>
+          
+          <div className="absolute -bottom-8 -left-6 w-12 h-12 rounded-xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 8s ease-in-out infinite 0.8s' }}>
+            <Sparkles size={22} className="text-amber-400" />
+          </div>
+        </div>
+
+        <div className="text-center space-y-4 max-w-md mt-6">
+          <h2 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            Your Hub is Empty
+          </h2>
+          <p className="text-base text-[var(--text-secondary)] leading-relaxed">
+            Drag and drop files or click below to start uploading tax documents, invoices, or legal filings for AI analysis.
+          </p>
+        </div>
+
+        <button
+          onClick={onUploadClick}
+          className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full -translate-x-full transition-transform duration-500 ease-out skew-x-12" />
+          <Plus size={18} />
+          <span>Upload Document</span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -226,11 +294,11 @@ export function InboxClientView({
   }, [activeDoc, preselectedMatterId])
 
   const discardedDocIds = useRef<Set<string>>(new Set())
-  
+
   // Use refs to access latest state inside the websocket callback without causing reconnects
   const docsRef = useRef(documents)
   const selectedIdRef = useRef(selectedDocId)
-  
+
   useEffect(() => {
     docsRef.current = documents
     selectedIdRef.current = selectedDocId
@@ -253,7 +321,7 @@ export function InboxClientView({
           }
         }
         setDocuments(latestDocs)
-        
+
         const currentSelectedId = selectedIdRef.current
         if (currentSelectedId) {
           const stillExists = latestDocs.some((d: any) => d.id === currentSelectedId)
@@ -359,10 +427,13 @@ export function InboxClientView({
   return (
     <div className="flex flex-col flex-1 overflow-hidden animate-fade-in">
       {/* ── Body ─────────────────────────────────── */}
-      <div className="flex flex-1 gap-0 overflow-hidden pt-2">
+      {documents.length === 0 ? (
+        <FullPageEmptyInbox onUploadClick={() => setIsUploadModalOpen(true)} />
+      ) : (
+        <div className="flex flex-1 gap-0 overflow-hidden pt-2">
 
-        {/* ── Left Queue Panel ──────────────────── */}
-        <div className="w-[38%] flex flex-col gap-2.5 overflow-y-auto pl-1 pr-3 py-1 custom-scrollbar shrink-0">
+          {/* ── Left Queue Panel ──────────────────── */}
+          <div className="w-[38%] flex flex-col gap-2.5 overflow-y-auto pl-1 pr-3 py-1 custom-scrollbar shrink-0">
           {/* Action buttons at top of LHS */}
           <div className="flex items-center gap-2">
             <button
@@ -392,22 +463,10 @@ export function InboxClientView({
             </button>
           </div>
 
-          {documents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-12 rounded-2xl border border-dashed border-[var(--border)] text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center mb-4">
-                <FolderOpen size={24} className="text-[var(--primary)]" />
-              </div>
-              <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">Queue is empty</h3>
-              <p className="text-[13px] text-[var(--text-muted)] mt-1.5 max-w-xs leading-relaxed">
-                Upload files using the 'Add Document' button to stage them for AI analysis.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
-                Queue · {documents.length} document{documents.length !== 1 ? 's' : ''}
-              </div>
-              {documents.map((doc) => {
+          <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
+            Queue · {documents.length} document{documents.length !== 1 ? 's' : ''}
+          </div>
+          {documents.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
                 const isSelected = doc.id === selectedDocId
                 const isAnalyzing = doc.status === 'analyzing'
@@ -435,9 +494,8 @@ export function InboxClientView({
 
                     <div className="p-3 pl-4 flex items-center gap-3 bg-[var(--surface)]">
                       {/* File Icon */}
-                      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                        isSelected ? 'bg-[var(--primary)]/10' : 'bg-[var(--surface-hover)]'
-                      }`}>
+                      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isSelected ? 'bg-[var(--primary)]/10' : 'bg-[var(--surface-hover)]'
+                        }`}>
                         <FileText size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
                       </div>
 
@@ -457,9 +515,8 @@ export function InboxClientView({
                         </span>
                       </div>
 
-                      <ArrowRight size={12} className={`shrink-0 transition-all duration-200 ${
-                        isSelected ? 'text-[var(--primary)] translate-x-0' : 'text-[var(--text-disabled)] -translate-x-0.5 group-hover:translate-x-0 group-hover:text-[var(--text-muted)]'
-                      }`} />
+                      <ArrowRight size={12} className={`shrink-0 transition-all duration-200 ${isSelected ? 'text-[var(--primary)] translate-x-0' : 'text-[var(--text-disabled)] -translate-x-0.5 group-hover:translate-x-0 group-hover:text-[var(--text-muted)]'
+                        }`} />
                     </div>
 
                     {/* bottom hint strip for ready docs */}
@@ -481,8 +538,6 @@ export function InboxClientView({
                   </div>
                 )
               })}
-            </>
-          )}
         </div>
 
         {/* ── Vertical Divider ─── */}
@@ -721,15 +776,71 @@ export function InboxClientView({
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
-              <div className="w-16 h-16 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center">
-                <FileText size={28} className="text-[var(--text-muted)]" />
+            <div className="h-full flex flex-col items-center justify-center relative overflow-hidden bg-[var(--bg)] rounded-2xl border border-[var(--border)]">
+              <style>{`
+                @keyframes float {
+                  0%, 100% { transform: translateY(0px) rotate(0deg); }
+                  50% { transform: translateY(-15px) rotate(2deg); }
+                }
+                @keyframes float-delayed {
+                  0%, 100% { transform: translateY(0px) rotate(0deg); }
+                  50% { transform: translateY(-10px) rotate(-2deg); }
+                }
+                @keyframes scan-line {
+                  0% { transform: translateY(-100%); opacity: 0; }
+                  10% { opacity: 1; }
+                  90% { opacity: 1; }
+                  100% { transform: translateY(400%); opacity: 0; }
+                }
+              `}</style>
+              
+              {/* Dynamic grid background */}
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] opacity-70" />
+              
+              {/* Animated Glowing Orbs */}
+              <div className="absolute top-[30%] left-[35%] w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '6s' }} />
+              <div className="absolute bottom-[20%] right-[35%] w-[350px] h-[350px] bg-indigo-500/10 rounded-full blur-[90px] animate-pulse pointer-events-none" style={{ animationDuration: '8s', animationDelay: '1s' }} />
+
+              {/* Scanning line effect */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
+                <div className="w-full h-32 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent blur-xl" style={{ animation: 'scan-line 6s ease-in-out infinite' }} />
               </div>
-              <p className="text-[14px] font-medium">Select a document to inspect</p>
+
+              <div className="relative z-10 flex flex-col items-center gap-8">
+                {/* Floating Icon Setup */}
+                <div className="relative" style={{ animation: 'float 6s ease-in-out infinite' }}>
+                  <div className="absolute -inset-6 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
+                  
+                  <div className="relative w-24 h-24 rounded-3xl bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)] shadow-2xl flex items-center justify-center overflow-hidden">
+                    {/* Glass reflection */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
+                    <FileText size={40} className="text-blue-500/80 drop-shadow-md" strokeWidth={1.5} />
+                  </div>
+
+                  {/* Little floating orbiting elements */}
+                  <div className="absolute -top-4 -right-6 w-12 h-12 rounded-2xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 5s ease-in-out infinite 1s' }}>
+                    <Search size={20} className="text-indigo-400" />
+                  </div>
+                  
+                  <div className="absolute -bottom-6 -left-4 w-10 h-10 rounded-xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 7s ease-in-out infinite 0.5s' }}>
+                    <Sparkles size={18} className="text-amber-400" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-3 max-w-sm mt-4">
+                  <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
+                    Ready to Inspect
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                    Select a document from the queue on the left to review extracted data, AI suggestions, and manage workflow.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
+      )}
 
       {/* ── Upload Modal ── */}
       {isUploadModalOpen && (

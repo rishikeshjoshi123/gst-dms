@@ -23,7 +23,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/typography": "^0.5.20",
-    "@trigger.dev/sdk": "4.5.9",
+    "@trigger.dev/sdk": "4.5.10",
     "@xyflow/react": "^12.0.0",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
