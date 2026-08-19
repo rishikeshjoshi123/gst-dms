@@ -4,6 +4,34 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import type { Database } from '@/lib/supabase/database.types'
+import { tasks } from '@trigger.dev/sdk/v3'
+
+async function enqueueDocumentProcessing(
+  document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
+  options: { reprocessMode?: 'metadata_only' | 'full'; skipDuplicateCheck?: boolean } = {},
+) {
+  try {
+    await tasks.trigger('process-document', {
+      docId: document.id,
+      matterId: document.matterId,
+      orgId: document.orgId,
+      storagePath: document.storagePath,
+      uploadedBy: document.uploadedBy,
+      reprocessMode: options.reprocessMode ?? 'full',
+      skipDuplicateCheck: options.skipDuplicateCheck ?? false,
+    })
+    return { success: true as const }
+  } catch (error) {
+    console.error('Failed to queue document processing:', error)
+    const supabase = await createClient()
+    await supabase
+      .from('documents')
+      .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
+      .eq('id', document.id)
+      .eq('org_id', document.orgId)
+    return { error: 'Document saved, but processing could not be queued. Please retry it.' }
+  }
+}
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -149,6 +177,18 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
   if (!matter) return { error: 'Matter not found.' }
 
   const fileName = `${orgId}/${matterId}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
+  const { createHash } = await import('crypto')
+  const fileHash = createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex')
+
+  const { data: duplicate } = await supabase
+    .from('documents')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('file_hash_sha256', fileHash)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (duplicate) return { error: 'This file has already been uploaded to this organisation.' }
 
   const { error: uploadError } = await supabase.storage
     .from('documents')
@@ -168,6 +208,7 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
       status: 'processing',
       source: 'direct',
       created_by: user.id,
+      file_hash_sha256: fileHash,
     })
     .select('id')
     .single()
@@ -179,10 +220,16 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
     return { error: docError?.message ?? 'Failed to create document record.' }
   }
 
-  // TODO: Trigger process-document job via Trigger.dev
-  // await tasks.trigger('process-document', { documentId: doc.id, matterId, source: 'direct' })
+  const queued = await enqueueDocumentProcessing({
+    id: doc.id,
+    matterId,
+    orgId,
+    storagePath: fileName,
+    uploadedBy: user.id,
+  })
 
   revalidatePath(`/matters/${matterId}`)
+  if ('error' in queued) return queued
   return { success: true, documentId: doc.id }
 }
 
@@ -191,6 +238,7 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
 export async function reassignDocumentMatter(
   documentId: string,
   newMatterId: string,
+  mode: 'move' | 'copy' = 'move'
 ) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
@@ -202,7 +250,7 @@ export async function reassignDocumentMatter(
   // Fetch current document
   const { data: doc } = await supabase
     .from('documents')
-    .select('id, matter_id, org_id')
+    .select('*')
     .eq('id', documentId)
     .eq('org_id', orgId)
     .single()
@@ -222,54 +270,131 @@ export async function reassignDocumentMatter(
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
-  // 1. Delete existing document_links (built in wrong matter's scope)
-  await supabase
-    .from('document_links')
-    .delete()
-    .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+  let documentToProcess: { id: string; matterId: string } | null = null
+  let processingStoragePath = doc.storage_path
 
-  // 2. Reassign document
-  const { error: updateError } = await supabase
-    .from('documents')
-    .update({
-      matter_id: newMatterId,
-      status: 'processing',    // re-queue for chaining
-      review_reason: null,
-      source: 'inbox',         // treated as confirmed, skips routing check
-    })
-    .eq('id', documentId)
+  if (mode === 'copy') {
+    const originalName = doc.storage_path.split('/').pop() || 'document.pdf'
+    const copiedStoragePath = `${orgId}/${newMatterId}/${Date.now()}_${originalName}`
+    const { data: sourceFile, error: sourceFileError } = await supabase.storage
+      .from('documents')
+      .download(doc.storage_path)
 
-  if (updateError) {
-    console.error('Reassign document error:', updateError)
-    return { error: updateError.message }
+    if (sourceFileError || !sourceFile) {
+      return { error: 'Could not read the original document file.' }
+    }
+
+    const { error: copyFileError } = await supabase.storage
+      .from('documents')
+      .upload(copiedStoragePath, sourceFile, { contentType: 'application/pdf' })
+
+    if (copyFileError) return { error: 'Could not copy the document file to the target matter.' }
+
+    const { error: insertError, data: newDoc } = await supabase
+      .from('documents')
+      .insert({
+        org_id: orgId,
+        matter_id: newMatterId,
+        storage_path: copiedStoragePath,
+        status: 'processing', // re-queue for chaining
+        review_status: 'unreviewed',
+        source: 'inbox',
+        created_by: user.id,
+        doc_type: doc.doc_type,
+        reference_number: doc.reference_number,
+        doc_date: doc.doc_date,
+        direction: doc.direction,
+        document_class: doc.document_class,
+        document_category: doc.document_category,
+        financial_year: doc.financial_year,
+        raw_metadata: doc.raw_metadata,
+        file_hash_sha256: doc.file_hash_sha256
+      })
+      .select('id')
+      .single()
+
+    if (insertError || !newDoc) {
+      await supabase.storage.from('documents').remove([copiedStoragePath])
+      console.error('Copy document error:', insertError)
+      return { error: insertError?.message ?? 'Failed to copy document' }
+    }
+    documentToProcess = { id: newDoc.id, matterId: newMatterId }
+    processingStoragePath = copiedStoragePath
+
+    // Log reversible activity
+    await supabase
+      .from('activity_logs')
+      .insert({
+        org_id: orgId,
+        user_id: user.id,
+        action: 'document_copied',
+        entity_type: 'document',
+        entity_id: newDoc.id,
+        is_reversible: true,
+        metadata: {
+          original_document_id: documentId,
+          original_matter_id: oldMatterId,
+          new_matter_id: newMatterId,
+        },
+      })
+  } else {
+    // 1. Delete existing document_links (built in wrong matter's scope)
+    await supabase
+      .from('document_links')
+      .delete()
+      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+
+    // 2. Reassign document
+    const { error: updateError } = await supabase
+      .from('documents')
+      .update({
+        matter_id: newMatterId,
+        status: 'processing',    // re-queue for chaining
+        review_reason: null,
+        source: 'inbox',         // treated as confirmed, skips routing check
+      })
+      .eq('id', documentId)
+
+    if (updateError) {
+      console.error('Reassign document error:', updateError)
+      return { error: updateError.message }
+    }
+    documentToProcess = { id: documentId, matterId: newMatterId }
+
+    // 3. Update any deadlines tied to this document
+    await supabase
+      .from('deadlines')
+      .update({ matter_id: newMatterId })
+      .eq('document_id', documentId)
+
+    // 4. Log reversible activity
+    await supabase
+      .from('activity_logs')
+      .insert({
+        org_id: orgId,
+        user_id: user.id,
+        action: 'document_reassigned',
+        entity_type: 'document',
+        entity_id: documentId,
+        is_reversible: true,
+        metadata: {
+          old_matter_id: oldMatterId,
+          new_matter_id: newMatterId,
+        },
+      })
   }
 
-  // 3. Update any deadlines tied to this document
-  await supabase
-    .from('deadlines')
-    .update({ matter_id: newMatterId })
-    .eq('matter_id', oldMatterId)
-    // Note: deadlines don't have a document_id FK in current schema,
-    // they are scoped to matters. No update needed unless we add that FK later.
-
-  // 4. Log reversible activity
-  await supabase
-    .from('activity_logs')
-    .insert({
-      org_id: orgId,
-      user_id: user.id,
-      action: 'document_reassigned',
-      entity_type: 'document',
-      entity_id: documentId,
-      is_reversible: true,
-      metadata: {
-        old_matter_id: oldMatterId,
-        new_matter_id: newMatterId,
-      },
-    })
-
-  // 5. Re-trigger processing (chaining in new matter's scope)
-  // await tasks.trigger('process-document', { documentId, matterId: newMatterId, source: 'inbox' })
+  if (documentToProcess) {
+    const queued = await enqueueDocumentProcessing({
+      id: documentToProcess.id,
+      matterId: documentToProcess.matterId,
+      orgId,
+      storagePath: processingStoragePath,
+      uploadedBy: user.id,
+      // Metadata already exists, so this re-runs placement without paying for AI again.
+    }, { skipDuplicateCheck: true })
+    if ('error' in queued) return queued
+  }
 
   revalidatePath(`/matters/${oldMatterId}`)
   revalidatePath(`/matters/${newMatterId}`)
@@ -345,10 +470,23 @@ export async function setDocumentClass(
     return { error: error.message }
   }
 
-  // If promoting → re-trigger chaining
-  // if (newClass === 'proceeding') {
-  //   await tasks.trigger('process-document', { documentId, matterId: doc.matter_id, source: 'inbox', stepsOnly: ['chaining'] })
-  // }
+  if (newClass === 'proceeding') {
+    const fullDoc = await supabase
+      .from('documents')
+      .select('storage_path, created_by')
+      .eq('id', documentId)
+      .eq('org_id', orgId)
+      .single()
+    if (!fullDoc.data) return { error: 'Document not found.' }
+    const queued = await enqueueDocumentProcessing({
+      id: documentId,
+      matterId: doc.matter_id,
+      orgId,
+      storagePath: fullDoc.data.storage_path,
+      uploadedBy: fullDoc.data.created_by ?? '',
+    }, { skipDuplicateCheck: true })
+    if ('error' in queued) return queued
+  }
 
   revalidatePath(`/matters/${doc.matter_id}`)
   return { success: true }
@@ -364,7 +502,32 @@ export async function getDocumentSignedUrl(bucket: 'documents' | 'staging', path
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const { data, error } = await supabase.storage
+  // Never treat a bucket/path received from the browser as authorization. The
+  // row lookup is scoped by the active organisation and still respects RLS.
+  // This also permits legacy document rows that used a shared storage path to
+  // be read through a controlled, short-lived URL.
+  const recordQuery = bucket === 'documents'
+    ? supabase
+      .from('documents')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('storage_path', path)
+      .is('deleted_at', null)
+      .maybeSingle()
+    : supabase
+      .from('staged_documents')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('storage_path', path)
+      .maybeSingle()
+
+  const { data: record, error: recordError } = await recordQuery
+  if (recordError || !record) {
+    return { error: 'Document is not available in this organisation.' }
+  }
+
+  const storage = createServiceClient()
+  const { data, error } = await storage.storage
     .from(bucket)
     .createSignedUrl(path, 60 * 15) // 15 mins valid
 
@@ -445,6 +608,21 @@ export async function createManualLink(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
+  if (fromDocId === toDocId) return { error: 'A document cannot be linked to itself.' }
+
+  // Verify both endpoints through the caller-scoped client before any write.
+  // Do not use the service role for an ID supplied by the browser.
+  const { data: endpoints } = await supabase
+    .from('documents')
+    .select('id, matter_id')
+    .in('id', [fromDocId, toDocId])
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+
+  if (!endpoints || endpoints.length !== 2) {
+    return { error: 'One or both documents could not be found in this organisation.' }
+  }
+
   // Check if link exists
   const { data: existing } = await supabase.from('document_links')
     .select('id')
@@ -456,9 +634,7 @@ export async function createManualLink(
     return { error: 'Link already exists between these documents' }
   }
 
-  const db = createServiceClient()
-
-  const { error } = await db.from('document_links').insert({
+  const { error } = await supabase.from('document_links').insert({
     from_doc_id: fromDocId,
     to_doc_id: toDocId,
     link_type: linkType,
@@ -471,19 +647,7 @@ export async function createManualLink(
   if (error) return { error: error.message }
 
   // Fetch document details for human readable log description + matter_id for cache revalidation
-  const { data: docs } = await db
-    .from('documents')
-    .select('id, doc_type, reference_number, matter_id, matters(title)')
-    .in('id', [fromDocId, toDocId])
-
-  const fromDoc = docs?.find(d => d.id === fromDocId)
-  const toDoc = docs?.find(d => d.id === toDocId)
-  const fromType = fromDoc?.doc_type || fromDoc?.reference_number || 'Document'
-  const toType = toDoc?.doc_type || toDoc?.reference_number || 'Document'
-  const caseName = (fromDoc?.matters as any)?.title || (toDoc?.matters as any)?.title || 'Matter'
-
-  // Log activity with normalized IDs (dynamic resolution)
-  await db.from('activity_logs').insert({
+  await supabase.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_created',
@@ -498,7 +662,7 @@ export async function createManualLink(
   })
 
   // Revalidate the matter page so server component re-fetches fresh link data
-  const matterId = fromDoc?.matter_id || toDoc?.matter_id
+  const matterId = endpoints.find(doc => doc.id === fromDocId)?.matter_id
   if (matterId) {
     revalidatePath(`/matters/${matterId}`)
   }
@@ -514,10 +678,9 @@ export async function deleteDocumentLink(linkId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const db = createServiceClient()
-
-  // Fetch link + document matter_id before deletion (needed for revalidation)
-  const { data: link } = await db
+  // RLS derives access from the source document; do not elevate this
+  // browser-controlled identifier to the service role.
+  const { data: link } = await supabase
     .from('document_links')
     .select('id, from_doc_id, to_doc_id')
     .eq('id', linkId)
@@ -525,14 +688,14 @@ export async function deleteDocumentLink(linkId: string) {
 
   if (!link) return { error: 'Link not found' }
 
-  const { error } = await db
+  const { error } = await supabase
     .from('document_links')
     .delete()
     .eq('id', linkId)
 
   if (error) return { error: error.message }
 
-  await db.from('activity_logs').insert({
+  await supabase.from('activity_logs').insert({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_deleted',
@@ -546,7 +709,7 @@ export async function deleteDocumentLink(linkId: string) {
   })
 
   // Fetch matter_id from one of the linked documents for cache revalidation
-  const { data: docData } = await db
+  const { data: docData } = await supabase
     .from('documents')
     .select('matter_id')
     .eq('id', link.from_doc_id)
@@ -618,4 +781,3 @@ export async function deleteDocument(documentId: string) {
   revalidatePath('/matters')
   return { success: true }
 }
-

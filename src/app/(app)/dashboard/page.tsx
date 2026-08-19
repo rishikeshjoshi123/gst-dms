@@ -1,10 +1,10 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getNeedsReviewDocuments } from '@/lib/actions/document'
 import { getRecentActivityLogs, getUpcomingDeadlines } from '@/lib/actions/notifications'
 import { DashboardContent } from './DashboardContent'
 import type { Metadata } from 'next'
+import { getCurrentOrgId } from '@/lib/actions/org'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -27,8 +27,7 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const cookieStore = await cookies()
-  const orgId = cookieStore.get('current_org_id')?.value
+  const orgId = await getCurrentOrgId()
   if (!orgId) redirect('/onboarding')
 
   const [stats, { data: org }, needsReviewDocs, activityLogs, upcomingDeadlines] = await Promise.all([

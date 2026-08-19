@@ -10,7 +10,7 @@ import { sendOrgInviteEmail } from '@/lib/email'
 async function setCurrentOrg(orgId: string) {
   const cookieStore = await cookies()
   cookieStore.set('current_org_id', orgId, {
-    httpOnly: false,
+    httpOnly: true,
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
     sameSite: 'lax',
@@ -19,7 +19,37 @@ async function setCurrentOrg(orgId: string) {
 
 export async function getCurrentOrgId(): Promise<string | null> {
   const cookieStore = await cookies()
-  return cookieStore.get('current_org_id')?.value ?? null
+  const orgId = cookieStore.get('current_org_id')?.value
+
+  // The cookie is only a UI preference, not an authorization grant. Every
+  // server action that uses this helper may subsequently use a service-role
+  // client, so validate both the authenticated user and their membership here.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  if (orgId) {
+    const { data: membership } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .eq('org_id', orgId)
+      .maybeSingle()
+    if (membership) return membership.org_id
+  }
+
+  // A preference can be absent or stale (for example, an older session). Use
+  // a verified membership for this request; a later sign-in/org switch writes
+  // the preference from a Server Action.
+  const { data: fallbackMembership } = await supabase
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  return fallbackMembership?.org_id ?? null
 }
 
 // ── Create Organisation ───────────────────────────────────────────
@@ -303,6 +333,17 @@ export async function getPendingInvitesForOrg() {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: membership } = await supabase
+    .from('org_members')
+    .select('role')
+    .eq('org_id', orgId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (membership?.role !== 'admin') return []
 
   const { createServiceClient } = await import('@/lib/supabase/server')
   const supabaseAdmin = createServiceClient()

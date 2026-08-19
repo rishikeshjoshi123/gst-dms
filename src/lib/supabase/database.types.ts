@@ -750,6 +750,7 @@ export type Database = {
           extracted_fy: string | null
           extracted_gstin: string | null
           id: string
+          intake_matter_id: string | null
           org_id: string
           raw_metadata: Json | null
           status: Database["public"]["Enums"]["staged_status"]
@@ -767,6 +768,7 @@ export type Database = {
           extracted_fy?: string | null
           extracted_gstin?: string | null
           id?: string
+          intake_matter_id?: string | null
           org_id: string
           raw_metadata?: Json | null
           status?: Database["public"]["Enums"]["staged_status"]
@@ -784,6 +786,7 @@ export type Database = {
           extracted_fy?: string | null
           extracted_gstin?: string | null
           id?: string
+          intake_matter_id?: string | null
           org_id?: string
           raw_metadata?: Json | null
           status?: Database["public"]["Enums"]["staged_status"]
@@ -795,6 +798,13 @@ export type Database = {
           uploaded_by?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "staged_documents_intake_matter_id_fkey"
+            columns: ["intake_matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "staged_documents_org_id_fkey"
             columns: ["org_id"]

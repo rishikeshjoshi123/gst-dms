@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getCurrentOrgId } from './org'
 
 export async function updateModelPricing(modelName: string, inputPrice: number, outputPrice: number) {
   const supabase = await createClient()
@@ -10,10 +11,19 @@ export async function updateModelPricing(modelName: string, inputPrice: number, 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  // Check if they are admin, or just allow any org member for now
-  // For simplicity, we just allow authenticated users. In production you'd check role.
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation.' }
 
-  const { error } = await supabase
+  const { data: membership } = await supabase
+    .from('org_members')
+    .select('role')
+    .eq('org_id', orgId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (membership?.role !== 'admin') return { error: 'Only organisation admins can update pricing.' }
+
+  const db = createServiceClient()
+  const { error } = await db
     .from('model_pricing')
     .upsert({ 
       model_name: modelName,

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { getCurrentOrgId } from '@/lib/actions/org'
 
 import { LandingPage } from './LandingPage'
 
@@ -11,8 +11,7 @@ export default async function RootPage() {
   if (!user) return <LandingPage />
 
   // Check if user has an org
-  const cookieStore = await cookies()
-  const orgId = cookieStore.get('current_org_id')?.value
+  const orgId = await getCurrentOrgId()
 
   if (orgId) redirect('/dashboard')
 

@@ -287,6 +287,14 @@ export async function deleteMatterAction(matterId: string) {
     .delete()
     .eq('matter_id', matterId)
 
+  // 3b. Un-suggest staged documents waiting for this matter
+  await db
+    .from('staged_documents')
+    .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
+    .eq('status', 'ready_to_assign')
+    .eq('suggested_matter_id', matterId)
+    .eq('org_id', orgId)
+
   // 4. Soft delete the matter
   const { error } = await db
     .from('matters')

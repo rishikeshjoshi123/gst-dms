@@ -6,7 +6,7 @@
  * Phase A1: Scan documents table for references this doc mentions
  * Phase A2: Scan document_links for pending links waiting for THIS doc's reference
  * Phase B:  Fall back to client-identifier matching (GSTIN → PAN → name)
- * Phase C:  Auto-create client + matter when deterministic IDs (GSTIN/PAN) + FY available
+ * Phase C:  Propose client + matter creation when deterministic IDs (GSTIN/PAN) + FY are available
  *
  * Shared between:
  *  - analyzeStagedDocument (Trigger.dev job — automated pipeline)
@@ -15,8 +15,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isDocumentActive, isMatterActive } from '@/lib/utils/resource-checks'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
-import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 
 // ── FY Normalization ──────────────────────────────────────────────────────────
 
@@ -69,6 +69,12 @@ export function normalizeGSTIN(raw: string | null | undefined): string | null {
   // Fix OCR-common 'O'→'0' in state code (first 2 chars should be digits)
   const stateCode = s.substring(0, 2).replace(/O/g, '0')
   return stateCode + s.substring(2)
+}
+
+export function normalizePAN(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const pan = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) ? pan : null
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -148,10 +154,10 @@ export async function resolveClientFromIdentifiers(
     if (allClients) {
       for (const client of allClients) {
         for (const idStr of aiResult.client_identifiers) {
-          if (client.pan && idStr.includes(client.pan)) {
+          if (client.pan && normalizePAN(idStr) === client.pan) {
             return { ...client, confidence: 0.9, method: 'pan' as const }
           }
-          if (client.gstin && idStr.includes(client.gstin)) {
+          if (client.gstin && normalizeGSTIN(idStr) === client.gstin) {
             return { ...client, confidence: 0.95, method: 'gstin' as const }
           }
         }
@@ -203,7 +209,7 @@ function crossVerifyClient(
   }
 
   if (aiResult.client_identifiers && client.pan) {
-    return aiResult.client_identifiers.some(id => id.includes(client.pan!))
+    return aiResult.client_identifiers.some(id => normalizePAN(id) === client.pan)
   }
 
   // Has verifiable IDs but client has no GSTIN/PAN stored — can't confirm or deny
@@ -226,6 +232,20 @@ export async function resolveDocumentAssignment(
   aiResult: AIDocumentResult
 ): Promise<AssignmentResult> {
   const suggestions: AssignmentSuggestion[] = []
+
+  const fys = [...new Set(
+    (aiResult.financial_years ?? [])
+      .map(normalizeFY)
+      .filter(fy => fy !== 'Unknown FY' && /^\d{4}-\d{2}$/.test(fy))
+  )]
+
+  if (fys.length > 1) {
+    return {
+      type: 'ready_to_assign',
+      reason: `Document spans multiple financial years (${fys.join(', ')}). Please assign manually.`,
+      suggestions: [],
+    }
+  }
 
   // ── Phase A: Reference-Based Matter Discovery ──────────────────────────────
 
@@ -250,13 +270,14 @@ export async function resolveDocumentAssignment(
     // a) Exact reference number match
     const { data: exactDocs } = await supabase
       .from('documents')
-      .select('id, matter_id, matters!inner(id, client_id)')
+      .select('id, matter_id, matters!inner(id, client_id, deleted_at, clients!inner(deleted_at))')
       .eq('org_id', orgId)
       .eq('reference_number', ref)
       .is('deleted_at', null)
 
     if (exactDocs && exactDocs.length > 0) {
-      for (const doc of exactDocs) {
+      const activeDocs = exactDocs.filter(d => isDocumentActive(d as any))
+      for (const doc of activeDocs) {
         const matter = doc.matters as any
         if (!matterCandidates.has(matter.id)) {
           matterCandidates.set(matter.id, {
@@ -281,10 +302,10 @@ export async function resolveDocumentAssignment(
         if (!matterCandidates.has(match.matter_id)) {
           const { data: matterRow } = await supabase
             .from('matters')
-            .select('id, client_id')
+            .select('id, client_id, deleted_at, clients!inner(deleted_at)')
             .eq('id', match.matter_id)
             .maybeSingle()
-          if (matterRow) {
+          if (matterRow && isMatterActive(matterRow as any)) {
             matterCandidates.set(matterRow.id, {
               matterId: matterRow.id,
               clientId: matterRow.client_id,
@@ -303,13 +324,17 @@ export async function resolveDocumentAssignment(
     const { data: pendingLinks } = await supabase
       .from('document_links')
       .select(
-        'id, from_doc_id, documents!document_links_from_doc_id_fkey(id, matter_id, org_id, matters!inner(id, client_id))'
+        'id, from_doc_id, documents!document_links_from_doc_id_fkey(id, matter_id, org_id, deleted_at, matters!inner(id, client_id, deleted_at, clients!inner(deleted_at)))'
       )
       .eq('status', 'pending')
       .eq('pending_ref_number', aiResult.reference_number)
 
     if (pendingLinks && pendingLinks.length > 0) {
-      for (const link of pendingLinks) {
+      const validLinks = pendingLinks.filter(link => {
+        const fromDoc = link.documents as any
+        return fromDoc && isDocumentActive(fromDoc as any)
+      })
+      for (const link of validLinks) {
         const fromDoc = link.documents as any
         // Ensure pending link belongs to this org
         if (!fromDoc || fromDoc.org_id !== orgId) continue
@@ -350,12 +375,17 @@ export async function resolveDocumentAssignment(
 
       const verifiedFlag = crossVerifyClient(clientRow, aiResult)
 
-      if (verifiedFlag === false) {
-        // Clear mismatch — do NOT auto-assign, flag for review
+      if (verifiedFlag === false || candidate.confidence < 0.9) {
+        // Never auto-file from a fuzzy reference or a confirmed client
+        // mismatch. A null verification means the document did not contain a
+        // usable GSTIN/PAN; an exact reference remains valid evidence and is
+        // filed as unreviewed for a human to inspect.
         blockedSuggestions.push({
           matterId: candidate.matterId,
           clientId: candidate.clientId,
-          reason: `Reference matched but GSTIN/PAN mismatch with client "${clientRow.name}" — possible misfiling. Please verify.`,
+          reason: verifiedFlag === false
+            ? `Reference matched but GSTIN/PAN mismatch with client "${clientRow.name}" — possible misfiling. Please verify.`
+            : `Reference matched for client "${clientRow.name}", but the client identity or match confidence could not be verified. Please review.`,
         })
         continue
       }
@@ -369,14 +399,27 @@ export async function resolveDocumentAssignment(
       })
     }
 
-    if (confirmedAssignments.length > 0) {
+    if (confirmedAssignments.length === 1) {
       return { type: 'auto_assign', assignments: confirmedAssignments }
+    }
+
+    if (confirmedAssignments.length > 1) {
+      return {
+        type: 'ready_to_assign',
+        reason: 'Multiple matters are plausible matches. Please choose the destination manually.',
+        suggestions: confirmedAssignments.map(assignment => ({
+          matterId: assignment.matterId,
+          clientId: assignment.clientId,
+          reason: `Candidate from ${assignment.method}.`,
+        })),
+      }
     }
 
     // All Phase A candidates were blocked by mismatch
     return {
       type: 'ready_to_assign',
       reason:
+        blockedSuggestions[0]?.reason ??
         'Referenced document(s) found but client identifiers do not match. Possible misfiling — please verify before assigning.',
       suggestions: blockedSuggestions,
     }
@@ -387,15 +430,19 @@ export async function resolveDocumentAssignment(
   const resolvedClient = await resolveClientFromIdentifiers(supabase, orgId, aiResult)
 
   if (resolvedClient) {
-    const fys = (aiResult.financial_years ?? [])
-      .map(normalizeFY)
-      .filter(fy => fy !== 'Unknown FY' && /^\d{4}-\d{2}$/.test(fy))
-
     if (fys.length === 0) {
       return {
         type: 'ready_to_assign',
         reason: `Client matched (${resolvedClient.name}) but financial year could not be determined. Please select a matter manually.`,
         suggestions: [{ clientId: resolvedClient.id, reason: `Matched client: ${resolvedClient.name}` }],
+      }
+    }
+
+    if (resolvedClient.method === 'name') {
+      return {
+        type: 'ready_to_assign',
+        reason: `Client name matched (${resolvedClient.name}), but name-only matching is not sufficient for auto-assignment.`,
+        suggestions: [{ clientId: resolvedClient.id, reason: `Possible client: ${resolvedClient.name}` }],
       }
     }
 
@@ -440,69 +487,22 @@ export async function resolveDocumentAssignment(
     }
   }
 
-  // ── Phase C: Auto-Create Client + Matter ──────────────────────────────────
-  // Only when we have GSTIN or PAN (deterministic) + FY + client name
+  // ── Phase C: Propose Client + Matter Creation ─────────────────────────────
+  // AI output must never create business records in the background. The Inbox
+  // presents its explicit Auto-Create action when this deterministic evidence
+  // is available, where the user can confirm the resulting client/matter.
 
   const normalizedGSTIN = normalizeGSTIN(aiResult.gstin)
-  const fys = (aiResult.financial_years ?? [])
-    .map(normalizeFY)
-    .filter(fy => fy !== 'Unknown FY' && /^\d{4}-\d{2}$/.test(fy))
-  const hasDeterministicId =
-    !!normalizedGSTIN || (aiResult.client_identifiers && aiResult.client_identifiers.length > 0)
+  const extractedPAN = aiResult.client_identifiers
+    ?.map(normalizePAN)
+    .find((pan): pan is string => pan !== null) ?? null
+  const hasDeterministicId = !!normalizedGSTIN || !!extractedPAN
 
   if (hasDeterministicId && fys.length > 0 && aiResult.client_name) {
-    const pan = normalizedGSTIN
-      ? normalizedGSTIN.substring(2, 12)
-      : (aiResult.client_identifiers?.[0] ?? null)
-
-    const { data: newClient, error: clientErr } = await supabase
-      .from('clients')
-      .insert({ org_id: orgId, name: aiResult.client_name, gstin: normalizedGSTIN, pan })
-      .select('id, name')
-      .single()
-
-    if (clientErr || !newClient) {
-      console.error('[assignment] Phase C — failed to auto-create client:', clientErr)
-      return {
-        type: 'ready_to_assign',
-        reason: 'Could not auto-create client. Please assign manually.',
-        suggestions: [],
-      }
-    }
-
-    const autoCreatedAssignments: MatterAssignment[] = []
-
-    for (const fy of fys) {
-      const autoTitle = await generateDefaultMatterTitle(supabase, orgId, newClient.id, newClient.name, fy)
-
-      const { data: newMatter, error: matterErr } = await supabase
-        .from('matters')
-        .insert({
-          org_id: orgId,
-          client_id: newClient.id,
-          financial_year: fy,
-          title: autoTitle,
-          status: 'active',
-        })
-        .select('id')
-        .single()
-
-      if (matterErr || !newMatter) {
-        console.error(`[assignment] Phase C — failed to auto-create matter for FY ${fy}:`, matterErr)
-        continue
-      }
-
-      autoCreatedAssignments.push({
-        matterId: newMatter.id,
-        clientId: newClient.id,
-        confidence: 0.85,
-        method: 'auto_created',
-        crossVerified: true,
-      })
-    }
-
-    if (autoCreatedAssignments.length > 0) {
-      return { type: 'auto_assign', assignments: autoCreatedAssignments }
+    return {
+      type: 'ready_to_assign',
+      reason: `No existing client matched. Review and confirm creation for ${aiResult.client_name} (${fys.join(', ')}).`,
+      suggestions: [],
     }
   }
 

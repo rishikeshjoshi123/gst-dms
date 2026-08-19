@@ -31,8 +31,10 @@ const nodeTypes = {
   document: TimelineGraphNode,
 }
 
-const nodeWidth = 280
-const nodeHeight = 120 // Approximate height for layout
+// React Flow needs dimensions on its node wrapper to calculate handle
+// positions and render edges. The custom card itself is 148px wide.
+const nodeWidth = 148
+const nodeHeight = 100
 
 const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph()
@@ -74,6 +76,8 @@ function buildEdgeFromLink(l: any) {
     id: l.id,
     source: l.to_doc_id,
     target: l.from_doc_id,
+    sourceHandle: 'timeline-source',
+    targetHandle: 'timeline-target',
     label: l.link_type?.replace('_', ' ').toUpperCase() || 'LINKS TO',
     type: 'smoothstep',
     animated: l.status === 'pending',
@@ -101,6 +105,8 @@ function buildOptimisticEdge(connection: Connection, tempId: string): Edge {
     id: tempId,
     source: connection.source!,
     target: connection.target!,
+    sourceHandle: connection.sourceHandle ?? 'timeline-source',
+    targetHandle: connection.targetHandle ?? 'timeline-target',
     label: 'PENDING...',
     type: 'smoothstep',
     animated: true,
@@ -201,6 +207,7 @@ export function TimelineGraph({
         selected: selectedDocId === doc.id,
       },
       position: { x: 0, y: 0 }, // Dagre will override this
+      style: { width: nodeWidth, height: nodeHeight },
     }))
 
     const edges = links

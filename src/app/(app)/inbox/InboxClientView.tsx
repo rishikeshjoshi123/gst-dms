@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   assignStagedDocument, discardStagedDocument,
   autoCreateClientAndMatterForStagedDocument,
-  getStagedDocuments, reevaluateStagedDocuments
+  getStagedDocuments
 } from '@/lib/actions/inbox'
 import { getDocumentSignedUrl } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
@@ -54,7 +54,7 @@ function StatusBadge({ doc }: { doc: any }) {
       <AlertCircle size={9} /> Failed
     </span>
   )
-  if (doc.suggestion_reason?.startsWith('DUPLICATE:')) return (
+  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
       <Copy size={9} /> Duplicate
     </span>
@@ -69,6 +69,46 @@ function StatusBadge({ doc }: { doc: any }) {
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-400 border border-violet-500/25 shrink-0">
       <AlertCircle size={9} /> Review
     </span>
+  )
+}
+
+function processingCopy(status: string) {
+  if (status === 'pending_assignment') {
+    return { title: 'Queued for analysis', detail: 'Waiting for a worker to begin extraction and matching.' }
+  }
+  if (status === 'analyzing') {
+    return { title: 'AI analysis in progress', detail: 'Extracting metadata, classifying the document, and checking existing records.' }
+  }
+  return null
+}
+
+function ProcessingProgress({ status }: { status: string }) {
+  const currentStep = status === 'analyzing' ? 1 : 0
+  const steps = ['Queued', 'Analyze', 'Match']
+
+  return (
+    <div className="mt-5 flex w-full max-w-sm items-start" aria-label={`Processing stage: ${steps[currentStep]}`}>
+      {steps.map((step, index) => {
+        const complete = index < currentStep
+        const current = index === currentStep
+        return (
+          <div key={step} className="flex min-w-0 flex-1 items-start last:flex-none">
+            <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+              <div className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-bold transition-colors',
+                complete ? 'border-emerald-500 bg-emerald-500 text-white' : current ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_0_0_4px_var(--primary)]/10' : 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-muted)]',
+              )}>
+                {complete ? <Check size={12} /> : index + 1}
+              </div>
+              <span className={cn('truncate text-[10px] font-semibold', current ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]')}>{step}</span>
+            </div>
+            {index < steps.length - 1 && (
+              <div className={cn('mt-3 h-px flex-1', index < currentStep ? 'bg-emerald-500' : 'bg-[var(--border)]')} />
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -170,7 +210,17 @@ function MatterSearchBox({
   )
 }
 
-function FullPageEmptyInbox({ onUploadClick }: { onUploadClick: () => void }) {
+function FullPageEmptyInbox({
+  onUploadClick,
+  title = 'Your Hub is Empty',
+  description = 'Drag and drop files or click below to start uploading tax documents, invoices, or legal filings for AI analysis.',
+  actionLabel = 'Upload Document',
+}: {
+  onUploadClick: () => void
+  title?: string
+  description?: string
+  actionLabel?: string
+}) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-[var(--bg)]">
       <style>{`
@@ -220,10 +270,10 @@ function FullPageEmptyInbox({ onUploadClick }: { onUploadClick: () => void }) {
 
         <div className="text-center space-y-4 max-w-md mt-6">
           <h2 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">
-            Your Hub is Empty
+            {title}
           </h2>
           <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-            Drag and drop files or click below to start uploading tax documents, invoices, or legal filings for AI analysis.
+            {description}
           </p>
         </div>
 
@@ -233,7 +283,7 @@ function FullPageEmptyInbox({ onUploadClick }: { onUploadClick: () => void }) {
         >
           <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full -translate-x-full transition-transform duration-500 ease-out skew-x-12" />
           <Plus size={18} />
-          <span>Upload Document</span>
+          <span>{actionLabel}</span>
         </button>
       </div>
     </div>
@@ -254,6 +304,7 @@ export function InboxClientView({
     initialDocuments.length > 0 ? initialDocuments[0].id : null
   )
   const [selectedMatterId, setSelectedMatterId] = useState<string>(preselectedMatterId || '')
+  const [selectedFyToCreate, setSelectedFyToCreate] = useState<string>('')
   const [isPending, startTransition] = useTransition()
   const [isReprocessing, setIsReprocessing] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
@@ -261,14 +312,14 @@ export function InboxClientView({
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false)
   const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
   const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
+  const [intakeTab, setIntakeTab] = useState<'global' | 'matter'>(preselectedMatterId ? 'matter' : 'global')
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
-
-  useEffect(() => { reevaluateStagedDocuments() }, [])
 
   useEffect(() => { setDocuments(initialDocuments) }, [initialDocuments])
 
   const preselectedMatter = matters.find(m => m.id === preselectedMatterId)
+  const isMatterIntake = intakeTab === 'matter' && Boolean(preselectedMatter)
 
   useEffect(() => {
     if (preselectedMatter) {
@@ -282,7 +333,19 @@ export function InboxClientView({
     }
   }, [setBreadcrumbs, preselectedMatter])
 
-  const activeDoc = documents.find(d => d.id === selectedDocId)
+  const matterIntakeDocuments = useMemo(
+    () => preselectedMatterId ? documents.filter(doc => doc.intake_matter_id === preselectedMatterId) : [],
+    [documents, preselectedMatterId],
+  )
+  const globalDocuments = useMemo(() => documents.filter(doc => !doc.intake_matter_id), [documents])
+  const visibleDocuments = intakeTab === 'matter' ? matterIntakeDocuments : globalDocuments
+  const activeDoc = visibleDocuments.find(d => d.id === selectedDocId)
+
+  useEffect(() => {
+    if (!visibleDocuments.some(doc => doc.id === selectedDocId)) {
+      setSelectedDocId(visibleDocuments[0]?.id ?? null)
+    }
+  }, [visibleDocuments, selectedDocId])
 
   useEffect(() => {
     if (preselectedMatterId) { setSelectedMatterId(preselectedMatterId); return }
@@ -294,6 +357,7 @@ export function InboxClientView({
   }, [activeDoc, preselectedMatterId])
 
   const discardedDocIds = useRef<Set<string>>(new Set())
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Use refs to access latest state inside the websocket callback without causing reconnects
   const docsRef = useRef(documents)
@@ -306,32 +370,70 @@ export function InboxClientView({
 
   useEffect(() => {
     const supabase = createClient()
+    let disposed = false
     const channel = supabase.channel('staged_docs_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'staged_documents' }, async (payload) => {
-        const latestDocs = await getStagedDocuments()
-        if (payload.eventType === 'UPDATE' && payload.new.status === 'auto_assigned') {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staged_documents' }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
           const updatedId = payload.new.id
-          if (!discardedDocIds.current.has(updatedId)) {
-            const oldDoc = docsRef.current.find(d => d.id === updatedId)
-            if (oldDoc) {
-              toast.success(`Automated Processing Complete`, {
-                description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
-              })
+          const newStatus = payload.new.status
+
+          setDocuments(currentDocs => {
+            // If it became auto_assigned, remove it from the list and show a toast
+            if (newStatus === 'auto_assigned') {
+              if (!discardedDocIds.current.has(updatedId)) {
+                const oldDoc = currentDocs.find(d => d.id === updatedId)
+                if (oldDoc) {
+                  toast.success(`Automated Processing Complete`, {
+                    description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
+                  })
+                }
+              }
+              return currentDocs.filter(d => d.id !== updatedId)
             }
+
+            // Otherwise, update the document in the list with the new data
+            return currentDocs.map(d => d.id === updatedId ? { ...d, ...payload.new } : d)
+          })
+
+          // Handle selected document changing or disappearing
+          if (selectedIdRef.current === updatedId && newStatus === 'auto_assigned') {
+            setSelectedDocId(null) // It's gone, so deselect it
+          }
+        } else if (payload.eventType === 'INSERT') {
+          // If a new document is staged, add it to the list
+          setDocuments(currentDocs => [...currentDocs, payload.new])
+        } else if (payload.eventType === 'DELETE') {
+          // If a document is deleted, remove it from the list
+          setDocuments(currentDocs => currentDocs.filter(d => d.id !== payload.old.id))
+          if (selectedIdRef.current === payload.old.id) {
+            setSelectedDocId(null)
           }
         }
-        setDocuments(latestDocs)
 
-        const currentSelectedId = selectedIdRef.current
-        if (currentSelectedId) {
-          const stillExists = latestDocs.some((d: any) => d.id === currentSelectedId)
-          if (!stillExists && latestDocs.length > 0) setSelectedDocId(latestDocs[0].id)
-          else if (!stillExists) setSelectedDocId(null)
-        }
+        // Realtime payloads contain only staged_documents columns. Refresh the
+        // authoritative query so new/updated cards also get client and matter
+        // joins, rather than briefly rendering as an incomplete "unknown" item.
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = setTimeout(() => {
+          void getStagedDocuments().then(setDocuments)
+          router.refresh()
+        }, 250)
       })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+    // Realtime RLS needs the browser session token. Hydration can run before
+    // the client has loaded its auth cookie, so set it before subscribing.
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) await supabase.realtime.setAuth(session.access_token)
+      if (disposed) return
+      channel.subscribe()
+    })()
+
+    return () => {
+      disposed = true
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      supabase.removeChannel(channel)
+    }
+  }, [router])
 
   const handleSelectDoc = (doc: any) => {
     setSelectedDocId(doc.id)
@@ -349,7 +451,6 @@ export function InboxClientView({
       } else {
         toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
-        await reevaluateStagedDocuments()
         const latestDocs = await getStagedDocuments()
         setDocuments(latestDocs)
         router.refresh()
@@ -360,13 +461,12 @@ export function InboxClientView({
   function handleAutoCreate() {
     if (!selectedDocId) return
     startTransition(async () => {
-      const res = await autoCreateClientAndMatterForStagedDocument(selectedDocId)
+      const res = await autoCreateClientAndMatterForStagedDocument(selectedDocId, selectedFyToCreate)
       if (res.error) {
         toast.error(res.error)
       } else {
         toast.success('Matter and client automatically created')
         setIsActionModalOpen(false)
-        await reevaluateStagedDocuments()
         const latestDocs = await getStagedDocuments()
         setDocuments(latestDocs)
         router.refresh()
@@ -421,14 +521,58 @@ export function InboxClientView({
     activeDoc.raw_metadata.tax_period
   )
 
-  const isDuplicate = activeDoc?.suggestion_reason?.startsWith('DUPLICATE:')
+  const isDuplicate = activeDoc?.suggestion_reason?.toLowerCase().startsWith('duplicate')
   const hasSuggestion = activeDoc?.suggested_client && activeDoc?.suggested_matter
+  const activeProcessingCopy = activeDoc ? processingCopy(activeDoc.status) : null
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden animate-fade-in">
+      {preselectedMatter && (
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm">
+          <div className="flex items-start justify-between gap-5 px-1">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Upload destination</p>
+              <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+                {isMatterIntake ? preselectedMatter.title : 'Global triage inbox'}
+              </p>
+            </div>
+            <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', isMatterIntake ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-[var(--surface-hover)] text-[var(--text-secondary)]')}>
+              {isMatterIntake ? 'Matter-specific' : 'Global'}
+            </span>
+          </div>
+          <p className="px-1 text-[12px] leading-relaxed text-[var(--text-secondary)]">
+            {isMatterIntake
+              ? 'New files from this tab stay in this matter’s intake. Existing global uploads remain separate.'
+              : 'Files here are evaluated across your organisation before anyone decides where they belong.'}
+          </p>
+          <div className="flex items-center gap-1 rounded-xl bg-[var(--surface-hover)] p-1 self-start">
+          <button
+            onClick={() => setIntakeTab('matter')}
+            className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors', intakeTab === 'matter' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]')}
+          >
+            <FolderOpen size={14} /> {preselectedMatter.title}
+            <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px]">{matterIntakeDocuments.length}</span>
+          </button>
+          <button
+            onClick={() => setIntakeTab('global')}
+            className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors', intakeTab === 'global' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]')}
+          >
+            <Inbox size={14} /> Global inbox
+            <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px]">{globalDocuments.length}</span>
+          </button>
+          </div>
+        </div>
+      )}
       {/* ── Body ─────────────────────────────────── */}
-      {documents.length === 0 ? (
-        <FullPageEmptyInbox onUploadClick={() => setIsUploadModalOpen(true)} />
+      {visibleDocuments.length === 0 ? (
+        <FullPageEmptyInbox
+          onUploadClick={() => setIsUploadModalOpen(true)}
+          title={isMatterIntake ? `No files waiting for ${preselectedMatter?.title}` : 'Your Global Inbox is Empty'}
+          description={isMatterIntake
+            ? 'Files added here are analysed and routed only to this matter. Your global triage queue remains untouched.'
+            : 'Drop tax documents, invoices, or legal filings here for AI-assisted triage across your organisation.'}
+          actionLabel={isMatterIntake ? 'Add to This Matter' : 'Upload to Global Inbox'}
+        />
       ) : (
         <div className="flex flex-1 gap-0 overflow-hidden pt-2">
 
@@ -438,13 +582,12 @@ export function InboxClientView({
           <div className="flex items-center gap-2">
             <button
               onClick={async () => {
-                const toastId = toast.loading('Re-evaluating queue...')
+                const toastId = toast.loading('Syncing queue...')
                 try {
-                  await reevaluateStagedDocuments()
                   const latestDocs = await getStagedDocuments()
                   setDocuments(latestDocs)
                   router.refresh()
-                  toast.success('Queue refreshed', { id: toastId })
+                  toast.success('Queue synced', { id: toastId })
                 } catch (err: any) {
                   toast.error(err.message || 'Failed to refresh', { id: toastId })
                 }
@@ -452,7 +595,7 @@ export function InboxClientView({
               className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 text-[13px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
             >
               <RefreshCw size={13} />
-              Refresh
+              Sync
             </button>
             <button
               onClick={() => setIsUploadModalOpen(true)}
@@ -464,15 +607,16 @@ export function InboxClientView({
           </div>
 
           <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
-            Queue · {documents.length} document{documents.length !== 1 ? 's' : ''}
+            {intakeTab === 'matter' ? 'Matter intake' : 'Global inbox'} · {visibleDocuments.length} document{visibleDocuments.length !== 1 ? 's' : ''}
           </div>
-          {documents.map((doc) => {
+          {visibleDocuments.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
                 const isSelected = doc.id === selectedDocId
                 const isAnalyzing = doc.status === 'analyzing'
-                const isDup = doc.suggestion_reason?.startsWith('DUPLICATE:')
+                const isDup = doc.suggestion_reason?.toLowerCase().startsWith('duplicate')
                 const isFailed = doc.status === 'failed'
                 const isReady = doc.suggested_client && doc.suggested_matter
+                const queueCopy = processingCopy(doc.status)
 
                 return (
                   <div
@@ -523,6 +667,11 @@ export function InboxClientView({
                     {isReady && !isDup && !isFailed && (
                       <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-emerald-500/5 text-emerald-500 text-[10px] font-semibold">
                         <Zap size={9} /> AI matched · {doc.suggested_client?.name}
+                      </div>
+                    )}
+                    {queueCopy && (
+                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-[var(--primary)]/5 text-[var(--text-secondary)] text-[10px] font-semibold">
+                        <Loader2 size={9} className={doc.status === 'analyzing' ? 'animate-spin' : ''} /> {queueCopy.title}
                       </div>
                     )}
                     {isDup && (
@@ -578,6 +727,8 @@ export function InboxClientView({
                   </button>
                   <button
                     onClick={() => setIsActionModalOpen(true)}
+                    disabled={Boolean(activeProcessingCopy)}
+                    title={activeProcessingCopy ? 'Assignment is available after analysis finishes' : 'Choose how to route this document'}
                     className="h-8 px-4 flex items-center gap-1.5 rounded-lg text-[13px] font-bold text-white transition-all shadow-lg hover:opacity-90 active:scale-95"
                     style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
                   >
@@ -587,7 +738,7 @@ export function InboxClientView({
               </div>
 
               {/* ── State panels ── */}
-              {activeDoc.status === 'analyzing' ? (
+              {activeProcessingCopy ? (
                 <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-[var(--primary)]/30 bg-[var(--primary)]/5 text-center">
                   <div className="relative mb-5">
                     <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center">
@@ -595,10 +746,11 @@ export function InboxClientView({
                     </div>
                     <Loader2 size={14} className="animate-spin text-[var(--primary)] absolute -bottom-1 -right-1" />
                   </div>
-                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">AI Engine Running…</h3>
+                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">{activeProcessingCopy.title}</h3>
                   <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 max-w-xs">
-                    Extracting metadata, classifying document type and matching client records.
+                    {activeProcessingCopy.detail}
                   </p>
+                  <ProcessingProgress status={activeDoc.status} />
                 </div>
               ) : activeDoc.status === 'failed' ? (
                 <div className="rounded-2xl border border-red-500/20 bg-red-500/5 overflow-hidden">
@@ -844,7 +996,11 @@ export function InboxClientView({
 
       {/* ── Upload Modal ── */}
       {isUploadModalOpen && (
-        <UploadModal onClose={() => setIsUploadModalOpen(false)} matterId={preselectedMatterId} />
+        <UploadModal
+          onClose={() => setIsUploadModalOpen(false)}
+          matterId={intakeTab === 'matter' ? preselectedMatterId : undefined}
+          matterName={intakeTab === 'matter' ? preselectedMatter?.title : undefined}
+        />
       )}
 
       {/* ── Action Modal ── */}
@@ -927,14 +1083,37 @@ export function InboxClientView({
 
                 {/* Auto-create */}
                 {activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
-                  <button
-                    onClick={handleAutoCreate}
-                    disabled={isPending}
-                    className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
-                  >
-                    {isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
-                    Auto-Create Client & Matter
-                  </button>
+                  <div className="flex flex-col gap-2 mt-1">
+                    {activeDoc.raw_metadata?.financial_years && activeDoc.raw_metadata.financial_years.length > 1 && (
+                      <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5">
+                        <label className="text-[11px] font-bold text-[var(--primary)] uppercase tracking-widest flex items-center gap-1.5">
+                          <AlertCircle size={12} />
+                          Multiple FYs Detected
+                        </label>
+                        <p className="text-[12px] text-[var(--text-secondary)] mb-1">
+                          This document spans multiple years. Choose which financial year to create the matter under:
+                        </p>
+                        <select
+                          value={selectedFyToCreate}
+                          onChange={(e) => setSelectedFyToCreate(e.target.value)}
+                          className="w-full text-[13px] bg-[var(--surface)] border border-[var(--border-strong)] rounded-lg px-3 py-2 outline-none focus:border-[var(--primary)] text-[var(--text-primary)]"
+                        >
+                          <option value="">Select Financial Year...</option>
+                          {activeDoc.raw_metadata.financial_years.map((fy: string) => (
+                            <option key={fy} value={fy}>{fy}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleAutoCreate}
+                      disabled={isPending || (activeDoc.raw_metadata?.financial_years?.length > 1 && !selectedFyToCreate)}
+                      className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                    >
+                      {isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
+                      Auto-Create Client & Matter
+                    </button>
+                  </div>
                 )}
 
                 {/* Discard */}

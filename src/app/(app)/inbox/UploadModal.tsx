@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useRef, useTransition, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { uploadToInbox } from '@/lib/actions/inbox'
-import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus } from 'lucide-react'
+import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus, FolderOpen, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
 interface UploadModalProps {
   onClose: () => void
   matterId?: string
+  matterName?: string
 }
 
 function formatBytes(bytes: number) {
@@ -26,10 +27,9 @@ interface FileEntry {
   error?: string
 }
 
-export function UploadModal({ onClose, matterId }: UploadModalProps) {
+export function UploadModal({ onClose, matterId, matterName }: UploadModalProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
-  const [isPending, startTransition] = useTransition()
   const [isUploading, setIsUploading] = useState(false)
   const [allDone, setAllDone] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -71,36 +71,41 @@ export function UploadModal({ onClose, matterId }: UploadModalProps) {
     setEntries(prev => prev.filter(e => e.id !== id))
   }
 
+  function retryFailed() {
+    setEntries(prev => prev.map(entry => entry.status === 'error'
+      ? { ...entry, status: 'pending', error: undefined }
+      : entry,
+    ))
+    setAllDone(false)
+  }
+
   async function handleUpload() {
     const pending = entries.filter(e => e.status === 'pending')
     if (pending.length === 0) return
     setIsUploading(true)
 
-    startTransition(async () => {
-      let hasError = false
-      for (const entry of pending) {
-        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e))
+    let hasError = false
+    for (const entry of pending) {
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e))
 
-        const formData = new FormData()
-        formData.append('file', entry.file)
-        if (matterId) formData.append('matterId', matterId)
+      const formData = new FormData()
+      formData.append('file', entry.file)
+      if (matterId) formData.append('matterId', matterId)
 
-        const res = await uploadToInbox(formData)
-        if (res.error) {
-          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: res.error } : e))
-          hasError = true
-        } else {
-          setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e))
-        }
+      const res = await uploadToInbox(formData)
+      if (res.error) {
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: res.error } : e))
+        hasError = true
+      } else {
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e))
       }
+    }
 
-      setIsUploading(false)
-      if (!hasError) {
-        setAllDone(true)
-        router.refresh()
-        setTimeout(() => onClose(), 800)
-      }
-    })
+    setIsUploading(false)
+    if (!hasError) {
+      setAllDone(true)
+      router.refresh()
+    }
   }
 
   const pendingCount = entries.filter(e => e.status === 'pending').length
@@ -142,6 +147,29 @@ export function UploadModal({ onClose, matterId }: UploadModalProps) {
 
         {/* Body */}
         <div className="px-6 pb-6 flex flex-col gap-4">
+          <div className={cn(
+            'flex items-start gap-3 rounded-xl border p-3 text-[12px]',
+            matterId
+              ? 'border-[var(--primary)]/25 bg-[var(--primary)]/5'
+              : 'border-[var(--border)] bg-[var(--surface-hover)]',
+          )}>
+            <div className={cn(
+              'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+              matterId ? 'bg-[var(--primary)]/15 text-[var(--primary)]' : 'bg-[var(--surface)] text-[var(--text-secondary)]',
+            )}>
+              {matterId ? <FolderOpen size={14} /> : <Inbox size={14} />}
+            </div>
+            <div>
+              <p className="font-bold text-[var(--text-primary)]">
+                {matterId ? `Destination: ${matterName ?? 'Selected matter'}` : 'Destination: Global Inbox'}
+              </p>
+              <p className="mt-0.5 leading-relaxed text-[var(--text-secondary)]">
+                {matterId
+                  ? 'These files will be analysed and routed only to this matter. They will not be mixed into global triage.'
+                  : 'These files will enter global triage, where a suggested matter is reviewed before filing.'}
+              </p>
+            </div>
+          </div>
 
           {/* Drop zone */}
           <div
@@ -283,6 +311,22 @@ export function UploadModal({ onClose, matterId }: UploadModalProps) {
                   <span>{pendingCount} pending · {doneCount} done</span>
                 )}
               </div>
+              {errorCount > 0 && !isUploading && (
+                <button
+                  onClick={retryFailed}
+                  className="h-9 px-3 rounded-xl border border-[var(--border)] text-[12px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Retry failed
+                </button>
+              )}
+              {allDone ? (
+                <button
+                  onClick={onClose}
+                  className="h-9 px-5 rounded-xl bg-[var(--primary)] text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
+                >
+                  View queue
+                </button>
+              ) : (
               <button
                 onClick={handleUpload}
                 disabled={pendingCount === 0 || isUploading || allDone}
@@ -295,6 +339,7 @@ export function UploadModal({ onClose, matterId }: UploadModalProps) {
                   <><UploadCloud size={14} /> Upload {pendingCount > 0 ? `${pendingCount} File${pendingCount > 1 ? 's' : ''}` : 'Files'}</>
                 )}
               </button>
+              )}
             </div>
           )}
         </div>

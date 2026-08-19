@@ -70,7 +70,7 @@ export function Dropzone({ matterId }: { matterId: string }) {
         const formData = new FormData()
         formData.append('file', file)
         const result = await uploadToMatter(matterId, formData)
-        if (result.error) {
+        if ('error' in result) {
           errorCount++
         } else {
           successCount++

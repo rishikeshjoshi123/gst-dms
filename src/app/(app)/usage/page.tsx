@@ -10,7 +10,9 @@ export default async function UsagePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Use service client to fetch ALL system-wide AI usage logs (Dev Mode)
+  // Development-only platform dashboard: intentionally aggregates every
+  // organisation's usage while the product has no separate admin surface.
+  // Before production, move this query behind a platform-admin boundary.
   const serviceClient = createServiceClient()
   const { data: logs, error } = await serviceClient
     .from('ai_usage_logs')

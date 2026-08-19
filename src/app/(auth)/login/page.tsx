@@ -1,26 +1,15 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useActionState } from 'react'
 import Link from 'next/link'
-import { signIn } from '@/lib/actions/auth'
+import { signIn, type SignInState } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/label'
 
 export default function LoginPage() {
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    const formData = new FormData(e.currentTarget)
-
-    startTransition(async () => {
-      const result = await signIn(formData)
-      if (result?.error) setError(result.error)
-    })
-  }
+  const initialState: SignInState = { error: null }
+  const [state, formAction, isPending] = useActionState(signIn, initialState)
 
   return (
     <>
@@ -31,7 +20,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-4">
         <FormField label="Email address" required>
           <Input
             id="email"
@@ -56,9 +45,9 @@ export default function LoginPage() {
           />
         </FormField>
 
-        {error && (
+        {state.error && (
           <div className="rounded-[--radius-md] bg-[--danger-muted] border border-[--danger]/30 px-4 py-3 text-sm text-[--danger] animate-fade-in">
-            {error}
+            {state.error}
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { MatterTimelineTab } from './MatterTimelineTab'
 import { FileText, Clock, FileKey, StickyNote, Info } from 'lucide-react'
@@ -35,6 +35,10 @@ export function MatterTabs({
   const [localLinks, setLocalLinks] = useState(links)
   const [localWikiSections, setLocalWikiSections] = useState(wikiSections)
   const [localNotes, setLocalNotes] = useState(notes)
+  const matterDocumentIdsRef = useRef<Set<string>>(new Set())
+  const matterLinkIdsRef = useRef<Set<string>>(new Set())
+  const matterWikiSectionIdsRef = useRef<Set<string>>(new Set())
+  const matterNoteIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => { setLocalProceedings(proceedings) }, [proceedings])
   useEffect(() => { setLocalSupporting(supporting) }, [supporting])
@@ -43,56 +47,112 @@ export function MatterTabs({
   useEffect(() => { setLocalNotes(notes) }, [notes])
 
   useEffect(() => {
+    matterDocumentIdsRef.current = new Set([
+      ...localProceedings.map(document => document.id),
+      ...localSupporting.map(document => document.id),
+    ])
+  }, [localProceedings, localSupporting])
+  useEffect(() => { matterLinkIdsRef.current = new Set(localLinks.map(link => link.id)) }, [localLinks])
+  useEffect(() => { matterWikiSectionIdsRef.current = new Set(localWikiSections.map(section => section.id)) }, [localWikiSections])
+  useEffect(() => { matterNoteIdsRef.current = new Set(localNotes.map(note => note.id)) }, [localNotes])
+
+  useEffect(() => {
     const supabase = createClient()
     const matterId = matter.id
+    let timelineRefreshTimer: ReturnType<typeof setTimeout> | undefined
+    let disposed = false
+
+    const refreshTimeline = () => {
+      if (timelineRefreshTimer) clearTimeout(timelineRefreshTimer)
+      timelineRefreshTimer = setTimeout(async () => {
+        const { getDocumentsByMatter } = await import('@/lib/actions/document')
+        const { proceedings: p, supporting: s, links: l } = await getDocumentsByMatter(matterId)
+        setLocalProceedings(p)
+        setLocalSupporting(s)
+        setLocalLinks(l || [])
+      }, 200)
+    }
 
     // Setup Realtime subscriptions
     const channel = supabase.channel(`matter_${matterId}_updates`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'documents', filter: `matter_id=eq.${matterId}` },
-        async () => {
-          const { getDocumentsByMatter } = await import('@/lib/actions/document')
-          const { proceedings: p, supporting: s, links: l } = await getDocumentsByMatter(matterId)
-          setLocalProceedings(p)
-          setLocalSupporting(s)
-          setLocalLinks(l || [])
+        // Supabase Realtime's UUID column filter can acknowledge a subscription
+        // without delivering events in local deployments. Subscribe to the
+        // RLS-scoped table and narrow events by their payload instead, so an
+        // assignment appears immediately rather than only after a page reload.
+        { event: '*', schema: 'public', table: 'documents' },
+        (payload) => {
+          const document = (payload.new ?? payload.old) as { id?: string, matter_id?: string }
+          // DELETE payloads contain only the primary key unless the table uses
+          // REPLICA IDENTITY FULL, so also match the ids we already render.
+          if (document.matter_id === matterId || (document.id && matterDocumentIdsRef.current.has(document.id))) {
+            refreshTimeline()
+          }
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'document_links' },
-        // document_links doesn't have matter_id directly, but changes here mean we should refresh links
-        // We could filter this more carefully, but re-fetching on any link change is safe enough for this demo
-        async () => {
-          const { getDocumentsByMatter } = await import('@/lib/actions/document')
-          const { proceedings: p, supporting: s, links: l } = await getDocumentsByMatter(matterId)
-          setLocalProceedings(p)
-          setLocalSupporting(s)
-          setLocalLinks(l || [])
+        (payload) => {
+          // Links do not store matter_id. Ignore unrelated organisation-wide
+          // events by matching their endpoints to documents currently in this
+          // matter; document events above cover newly inserted documents.
+          const link = (payload.new ?? payload.old) as {
+            id?: string
+            from_doc_id?: string
+            to_doc_id?: string | null
+          }
+          const endpointIds = [link?.from_doc_id, link?.to_doc_id].filter(Boolean)
+          if (endpointIds.some(id => id && matterDocumentIdsRef.current.has(id)) ||
+              (link.id && matterLinkIdsRef.current.has(link.id))) {
+            refreshTimeline()
+          }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'wiki_sections', filter: `matter_id=eq.${matterId}` },
-        async () => {
-          const { getWikiSections } = await import('@/lib/actions/wiki')
-          const w = await getWikiSections(matterId)
-          setLocalWikiSections(w || [])
+        { event: '*', schema: 'public', table: 'wiki_sections' },
+        async (payload) => {
+          const section = (payload.new ?? payload.old) as { id?: string, matter_id?: string }
+          if (section.matter_id === matterId || (section.id && matterWikiSectionIdsRef.current.has(section.id))) {
+            const { getWikiSections } = await import('@/lib/actions/wiki')
+            const w = await getWikiSections(matterId)
+            setLocalWikiSections(w || [])
+          }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'notes', filter: `matter_id=eq.${matterId}` },
-        async () => {
-          const { getNotes } = await import('@/lib/actions/notes')
-          const n = await getNotes({ matterId })
-          setLocalNotes(n || [])
+        { event: '*', schema: 'public', table: 'case_notes' },
+        async (payload) => {
+          const note = (payload.new ?? payload.old) as { id?: string, matter_id?: string }
+          if (note.matter_id === matterId || (note.id && matterNoteIdsRef.current.has(note.id))) {
+            const { getNotes } = await import('@/lib/actions/notes')
+            const n = await getNotes({ matterId })
+            setLocalNotes(n || [])
+          }
         }
       )
-      .subscribe()
+    // The server-rendered page can hydrate before the browser client has read
+    // its auth cookie. Starting the channel anonymously makes RLS silently
+    // suppress every row event, even though the channel reports SUBSCRIBED.
+    // Set the session token first, then subscribe.
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) await supabase.realtime.setAuth(session.access_token)
+      if (disposed) return
+
+      channel.subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Matter realtime subscription unavailable', { matterId, status, error })
+        }
+      })
+    })()
 
     return () => {
+      disposed = true
+      if (timelineRefreshTimer) clearTimeout(timelineRefreshTimer)
       supabase.removeChannel(channel)
     }
   }, [matter.id])

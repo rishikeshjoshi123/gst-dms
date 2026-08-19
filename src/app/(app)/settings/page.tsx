@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { SettingsClient } from './SettingsClient'
 import type { Metadata } from 'next'
+import { getCurrentOrgId } from '@/lib/actions/org'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -11,8 +11,7 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const cookieStore = await cookies()
-  const orgId = cookieStore.get('current_org_id')?.value
+  const orgId = await getCurrentOrgId()
   if (!orgId) redirect('/onboarding')
 
   // Fetch org details
@@ -45,13 +44,16 @@ export default async function SettingsPage() {
 
   const currentUserRole = members.find(m => m.user_id === user.id)?.role ?? 'member'
 
-  // Pending invites
-  const { data: pendingInvites } = await supabase
-    .from('org_invites')
-    .select('id, invited_email, role, status, expires_at')
-    .eq('org_id', orgId)
-    .in('status', ['pending', 'rejected'])
-    .order('created_at', { ascending: false })
+  // Invite addresses are administrative data; do not even fetch them for a
+  // non-admin and rely on RLS as a second line of defense.
+  const { data: pendingInvites } = currentUserRole === 'admin'
+    ? await supabase
+      .from('org_invites')
+      .select('id, invited_email, role, status, expires_at')
+      .eq('org_id', orgId)
+      .in('status', ['pending', 'rejected'])
+      .order('created_at', { ascending: false })
+    : { data: [] }
 
   return (
     <SettingsClient

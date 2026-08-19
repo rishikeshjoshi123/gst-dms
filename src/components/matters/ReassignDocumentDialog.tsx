@@ -27,6 +27,7 @@ export function ReassignDocumentDialog({
   
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null)
+  const [isCopyMode, setIsCopyMode] = useState(false)
   
   const [clientSearch, setClientSearch] = useState('')
   const [matterSearch, setMatterSearch] = useState('')
@@ -67,11 +68,11 @@ export function ReassignDocumentDialog({
     if (!selectedMatterId) return
 
     startTransition(async () => {
-      const res = await reassignDocumentMatter(documentId, selectedMatterId)
-      if (res.error) {
+      const res = await reassignDocumentMatter(documentId, selectedMatterId, isCopyMode ? 'copy' : 'move')
+      if ('error' in res) {
         toast.error(res.error)
       } else {
-        toast.success('Document reassigned successfully')
+        toast.success(`Document ${isCopyMode ? 'copied' : 'reassigned'} successfully`)
         onClose()
         // The server action handles revalidation so the UI will update
       }
@@ -182,6 +183,20 @@ export function ReassignDocumentDialog({
                 )}
               </div>
             </div>
+
+            {/* Copy Mode Checkbox */}
+            <div className="flex items-center gap-2 mt-2 px-1">
+              <input
+                type="checkbox"
+                id="copy-mode"
+                checked={isCopyMode}
+                onChange={(e) => setIsCopyMode(e.target.checked)}
+                className="w-4 h-4 rounded border-[var(--border-strong)] text-[var(--primary)] focus:ring-[var(--primary)] bg-[var(--surface)]"
+              />
+              <Label htmlFor="copy-mode" className="text-[13px] text-[var(--text-secondary)] font-normal cursor-pointer select-none">
+                Copy document (keep original in current matter)
+              </Label>
+            </div>
           </div>
         )}
 
@@ -192,7 +207,7 @@ export function ReassignDocumentDialog({
             disabled={!selectedMatterId || isPending}
             className="bg-blue-600 hover:bg-blue-700 text-white min-w-[100px]"
           >
-            {isPending ? <Loader2 size={16} className="animate-spin" /> : 'Reassign'}
+            {isPending ? <Loader2 size={16} className="animate-spin" /> : isCopyMode ? 'Copy' : 'Move'}
           </Button>
         </DialogFooter>
       </DialogContent>

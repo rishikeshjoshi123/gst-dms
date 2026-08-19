@@ -204,7 +204,23 @@ export async function deleteClientAction(id: string) {
       .update({ deleted_at: nowStr })
       .in('id', matterIds)
       .eq('org_id', orgId)
+
+    // 4b. Un-suggest staged documents waiting for these matters
+    await db
+      .from('staged_documents')
+      .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
+      .eq('status', 'ready_to_assign')
+      .in('suggested_matter_id', matterIds)
+      .eq('org_id', orgId)
   }
+
+  // 4c. Un-suggest staged documents waiting for this client
+  await db
+    .from('staged_documents')
+    .update({ suggested_client_id: null, suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested client was deleted.' })
+    .eq('status', 'ready_to_assign')
+    .eq('suggested_client_id', id)
+    .eq('org_id', orgId)
 
   // 5. Soft delete client
   const { error } = await db

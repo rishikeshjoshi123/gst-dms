@@ -27,7 +27,9 @@ export async function signUp(formData: FormData) {
   redirect('/onboarding')
 }
 
-export async function signIn(formData: FormData) {
+export type SignInState = { error: string | null }
+
+export async function signIn(_previousState: SignInState, formData: FormData): Promise<SignInState> {
   const supabase = await createClient()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
@@ -52,7 +54,7 @@ export async function signIn(formData: FormData) {
       // Save current org into cookie
       const cookieStore = await cookies()
       cookieStore.set('current_org_id', membership.org_id, {
-        httpOnly: false,
+        httpOnly: true,
         path: '/',
         maxAge: 60 * 60 * 24 * 365, // 1 year
       })

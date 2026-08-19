@@ -46,3 +46,4 @@ The app supports seamless Light and Dark mode themes:
 
 ## 6. Agent Rules
 - **NEVER** make `git` commits without the user's explicit permission.
+- **NEVER** run destructive database commands (e.g., `supabase db reset`) without explicit user permission. Stop execution to ask the user and wait for their approval before proceeding.

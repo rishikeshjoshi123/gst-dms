@@ -272,17 +272,11 @@ export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, 
 
   if (!documents || documents.length === 0) return { success: true, count: 0 }
 
-  // 2. Delete ALL links EXCEPT manual ones
-  const { data: links } = await supabase
-    .from('document_links')
-    .select('id, match_method')
-    .in('from_doc_id', documents.map(d => d.id))
-    
-  const linksToDelete = links?.filter(l => l.match_method !== 'manual').map(l => l.id) || []
-  
-  if (linksToDelete.length > 0) {
-    await supabase.from('document_links').delete().in('id', linksToDelete)
-  }
+  // Re-evaluation must be additive. The former implementation deleted every
+  // automatic link before proving it could recreate it, which made a harmless
+  // "Re-evaluate" click destroy a timeline whenever metadata was incomplete.
+  // `createLink` already deduplicates by endpoints/reference, so this safely
+  // discovers missing links while preserving prior evidence for human review.
 
   let count = 0
   for (const doc of documents) {
@@ -298,5 +292,5 @@ export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, 
     }
   }
 
-  return { success: true, count }
+  return { success: true, count, mode: 'additive' as const }
 }

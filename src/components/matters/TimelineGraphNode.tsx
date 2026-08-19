@@ -1,7 +1,7 @@
 import React, { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { Badge } from '@/components/ui/badge'
-import { FileText, Link as LinkIcon, ExternalLink, Calendar, Info, AlertTriangle } from 'lucide-react'
+import { FileText, Link as LinkIcon, ExternalLink, Calendar, Info, AlertTriangle, Loader2, XCircle, Clock } from 'lucide-react'
 import {
   HoverCard,
   HoverCardContent,
@@ -49,6 +49,9 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
   const { doc, selected } = data
   const isSupporting = doc.document_class === 'supporting'
   const isNeedsReview = doc.status === 'needs_review'
+  const isProcessing = doc.status === 'processing' || doc.status === 'uploaded'
+  const isFailed = doc.status === 'failed'
+  const isPendingPlacement = doc.status === 'pending_placement'
   const colors = getDocTypeColors(doc.doc_type)
 
   return (
@@ -62,6 +65,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
 
           {/* TOP HANDLE — target (child input), pill bar at very top */}
           <Handle
+            id="timeline-target"
             type="target"
             position={Position.Top}
             isConnectable={isConnectable}
@@ -123,12 +127,15 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                   <span style={{
                     fontSize: 10, fontWeight: 800,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: colors.accent, lineHeight: 1.1,
+                    color: isFailed ? '#EF4444' : colors.accent, lineHeight: 1.1,
                     wordBreak: 'break-all',
                   }}>
-                    {doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
+                    {isFailed ? 'FAILED' : doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
                   </span>
                   {isNeedsReview && <AlertTriangle size={10} color="#F59E0B" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
+                  {isFailed && <XCircle size={10} color="#EF4444" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
+                  {isProcessing && <Loader2 size={10} color="var(--text-muted)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1, animation: 'spin 1s linear infinite' }} />}
+                  {isPendingPlacement && <Clock size={10} color="#D97706" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
                 </div>
 
                 {/* Reference number — normal weight monospace */}
@@ -165,6 +172,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
 
           {/* BOTTOM HANDLE — source (parent output), pill bar at very bottom */}
           <Handle
+            id="timeline-source"
             type="source"
             position={Position.Bottom}
             isConnectable={isConnectable}
@@ -241,10 +249,22 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}
           </span>
           <Badge variant={
-            doc.status === 'processing' ? 'muted' :
-            doc.status === 'needs_review' ? 'warning' : 'default'
-          }>
-            {doc.status.replace('_', ' ')}
+            doc.status === 'processing' || doc.status === 'uploaded' ? 'muted' :
+            doc.status === 'needs_review' || doc.status === 'pending_placement' ? 'warning' :
+            doc.status === 'failed' ? 'danger' : 'default'
+          }
+          title={
+            doc.status === 'processing' ? 'AI analysis and link resolution in progress' :
+            doc.status === 'uploaded' ? 'Queued for processing' :
+            doc.status === 'pending_placement' ? 'Waiting for referenced documents to be uploaded before links can be resolved' :
+            doc.status === 'failed' ? 'Processing failed — use Reprocess to retry' :
+            doc.status === 'needs_review' ? 'Requires manual review before placement' :
+            doc.status === 'placed' ? 'Fully processed and linked' :
+            doc.status === 'analyzed' ? 'Metadata extracted, awaiting link resolution' :
+            ''
+          }
+          >
+            {doc.status === 'pending_placement' ? 'pending links' : doc.status.replace('_', ' ')}
           </Badge>
         </div>
       </HoverCardContent>

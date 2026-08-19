@@ -118,58 +118,57 @@ export function SettingsClient({
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar animate-fade-in -mt-2">
       <BreadcrumbSetter breadcrumbs={[{ label: 'Settings' }]} />
 
-      <div className="max-w-4xl w-full mx-auto space-y-6 pb-12">
+      <div className="max-w-4xl w-full mx-auto space-y-4 pb-12">
         {/* Organisation Info Card */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
-          <div className="flex items-center gap-4 mb-6 pb-4 border-b border-[var(--border)]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 shrink-0">
-              <Building2 size={24} />
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--border)]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 shrink-0">
+              <Building2 size={16} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[var(--text-primary)]">Organisation Details</h2>
-              <p className="text-xs text-[var(--text-muted)]">Active workspace profile and membership overview</p>
+              <h2 className="text-base font-bold text-[var(--text-primary)] leading-tight">Organisation Details</h2>
+              <p className="text-[11px] text-[var(--text-muted)]">Workspace profile</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col gap-1">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex justify-between items-center">
               <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Organisation Name</span>
-              <span className="text-base font-semibold text-[var(--text-primary)]">{orgName}</span>
+              <span className="font-semibold text-[var(--text-primary)]">{orgName}</span>
             </div>
-            <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] flex flex-col gap-1">
+            <div className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex justify-between items-center">
               <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Active Members</span>
-              <span className="text-base font-semibold text-[var(--text-primary)]">{members.length} member{members.length !== 1 ? 's' : ''}</span>
+              <span className="font-semibold text-[var(--text-primary)]">{members.length} member{members.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
         </div>
 
         {/* Team Members Card */}
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border)]">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                <Users size={24} />
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                <Users size={16} />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-[var(--text-primary)]">Team Members</h2>
-                <p className="text-xs text-[var(--text-muted)]">People with access to this organisation</p>
+                <h2 className="text-base font-bold text-[var(--text-primary)] leading-tight">Team Members</h2>
+                <p className="text-[11px] text-[var(--text-muted)]">Manage access</p>
               </div>
             </div>
 
             {currentUserRole === 'admin' && (
-              <button
-                type="button"
+              <Button
+                size="sm"
                 onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
-                className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold !text-white bg-blue-600 hover:bg-blue-700 dark:bg-gradient-to-r dark:from-blue-600 dark:to-indigo-600 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/40 hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 cursor-pointer border border-blue-500/30"
-                style={{ color: '#ffffff' }}
+                className="h-7 px-3 text-[11px] gap-1.5"
               >
-                <UserPlus size={14} className="transition-transform duration-200 group-hover:scale-110 !text-white" />
-                <span className="!text-white font-bold">Invite Member</span>
-              </button>
+                <UserPlus size={12} />
+                Invite
+              </Button>
             )}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {members.map((member) => {
               const RoleIcon = roleIcon[member.role] ?? User
               const isTargetOwner = member.user_id === ownerId
@@ -187,48 +186,50 @@ export function SettingsClient({
               return (
                 <div
                   key={member.user_id}
-                  className="flex items-center justify-between p-3.5 px-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all"
+                  className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[var(--bg)] transition-colors group"
                 >
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <Avatar
                       name={member.full_name || member.email}
                       size="sm"
                     />
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                        <span className="text-sm font-medium text-[var(--text-primary)] truncate leading-tight">
                           {member.full_name ?? member.email}
                         </span>
                         {isTargetOwner && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-600 bg-amber-500/10">Owner</Badge>
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-sm">Owner</span>
                         )}
                       </div>
                       {member.full_name && (
-                        <span className="text-xs text-[var(--text-muted)] truncate">{member.email}</span>
+                        <span className="text-[11px] text-[var(--text-muted)] truncate leading-none mt-0.5">{member.email}</span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                  <div className="flex items-center gap-3">
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${
                       member.role === 'admin'
-                        ? 'bg-amber-500/10 text-amber-600 border border-amber-500/30'
-                        : 'bg-[var(--surface-hover)] text-[var(--text-secondary)] border border-[var(--border)]'
+                        ? 'text-amber-600'
+                        : 'text-[var(--text-secondary)]'
                     }`}>
                       <RoleIcon size={12} />
-                      {member.role}
+                      <span className="capitalize">{member.role}</span>
                     </span>
 
-                    {canRemove && (
+                    {canRemove ? (
                       <Button
                         size="icon"
                         variant="ghost"
                         onClick={() => setMemberToRemove(member)}
-                        className="text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 h-8 w-8 transition-colors"
+                        className="text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 h-6 w-6 opacity-0 group-hover:opacity-100 transition-all"
                         title="Remove member"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </Button>
+                    ) : (
+                      <div className="w-6" /> // spacer to keep alignment
                     )}
                   </div>
                 </div>
@@ -238,47 +239,49 @@ export function SettingsClient({
 
           {/* Pending invites */}
           {pendingInvites.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-[var(--border)]">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">
-                Sent Invitations ({pendingInvites.length})
+            <div className="mt-4 pt-3 border-t border-[var(--border)]">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 px-3">
+                Pending Invitations ({pendingInvites.length})
               </h3>
-              <div className="space-y-2.5">
+              <div className="space-y-1">
                 {pendingInvites.map((invite) => (
                   <div
                     key={invite.id}
-                    className="flex items-center justify-between p-3 px-4 rounded-xl bg-[var(--bg)] border border-[var(--border)]"
+                    className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[var(--bg)] transition-colors group"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 shrink-0">
-                        <Mail size={15} />
+                      <div className="flex h-7 w-7 items-center justify-center rounded bg-amber-500/10 text-amber-600 shrink-0">
+                        <Mail size={12} />
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs font-medium text-[var(--text-primary)] truncate">{invite.invited_email}</span>
-                        <span className="text-[10px] text-[var(--text-muted)]">
-                          {invite.status === 'rejected' ? 'Invite Rejected' : `Expires ${new Date(invite.expires_at).toLocaleDateString()}`}
+                        <span className="text-xs font-medium text-[var(--text-primary)] truncate leading-tight">{invite.invited_email}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] leading-none mt-0.5">
+                          {invite.status === 'rejected' ? 'Rejected' : `Expires ${new Date(invite.expires_at).toLocaleDateString()}`}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      <span className={`text-[10px] font-medium capitalize ${
                         invite.status === 'rejected' 
-                          ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                          : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          ? 'text-rose-500'
+                          : 'text-amber-600'
                       }`}>
                         {invite.status}
                       </span>
-                      {currentUserRole === 'admin' && (
+                      {currentUserRole === 'admin' ? (
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={() => handleRevokeInvite(invite.id)}
                           disabled={isPending}
-                          className="h-7 w-7 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10"
+                          className="h-6 w-6 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
                           title="Revoke Invite"
                         >
                           <X size={14} />
                         </Button>
+                      ) : (
+                        <div className="w-6" /> // spacer
                       )}
                     </div>
                   </div>

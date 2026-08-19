@@ -23,6 +23,8 @@ import type { Database } from '@/lib/supabase/database.types'
 import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
 import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
 import { logUsage } from '@/lib/actions/usage'
+import { isDocumentActive } from '@/lib/utils/resource-checks'
+import { documentColumnsFromAnalysis } from '@/lib/document-metadata'
 
 import { VERTEX_DOCUMENT_MODEL, VERTEX_EMBEDDING_MODEL } from '@/lib/ai/vertex'
 
@@ -62,109 +64,147 @@ export const processDocument = task({
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
 
-    // ── Step 1: Download from storage ─────────────────────────────
-    console.log(`[Step 1] Downloading ${storagePath}`)
+    // ── Step 0: Matter Liveness Guard ────────────────────────────
+    console.log(`[Step 0] Checking matter liveness for ${matterId}`)
+    const { data: matterCheck } = await supabase
+      .from('matters')
+      .select('deleted_at, clients!inner(deleted_at)')
+      .eq('id', matterId)
+      .single()
 
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('documents')
-      .download(storagePath)
-
-    if (downloadError || !fileData) {
-      await updateDocStatus(supabase, docId, 'failed', `Download failed: ${downloadError?.message || 'Empty file'}`)
-      throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
+    if (matterCheck?.deleted_at || (matterCheck?.clients as any)?.deleted_at) {
+      await updateDocStatus(supabase, docId, 'failed', 'Target matter or client was deleted')
+      return { status: 'aborted', reason: 'matter_or_client_deleted' }
     }
 
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer())
+    // ── Pre-check: Is this doc already analyzed by the inbox pipeline? ──
+    // If analyze-staged-document already ran AI and populated raw_metadata,
+    // skip the expensive Steps 1-4 (download, SHA, AI, parse) entirely.
+    const { data: existingDoc } = await supabase
+      .from('documents')
+      .select('raw_metadata, doc_type, file_hash_sha256')
+      .eq('id', docId)
+      .single()
 
-    // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
-    const { createHash } = await import('crypto')
-    const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
+    const isPreAnalyzed = !!(existingDoc?.raw_metadata && existingDoc?.doc_type)
 
-    if (!skipDuplicateCheck) {
-      console.log('[Step 2] SHA-256 duplicate check')
+    let aiResult: any
+    let sha256: string | undefined
 
-      const { data: exactDupRaw } = await supabase
+    if (isPreAnalyzed) {
+      // ── Fast path: already analyzed by analyze-staged-document ──
+      console.log('[Fast Path] Document already analyzed — skipping Steps 1-4 (download, SHA, AI, parse)')
+      aiResult = existingDoc.raw_metadata
+      sha256 = existingDoc.file_hash_sha256 ?? undefined
+
+      // Mark as analyzed (it was still 'processing' from insertion)
+      await (supabase as any).from('documents').update({ status: 'analyzed' }).eq('id', docId)
+    } else {
+      // ── Full path: fresh upload or reprocess — run full pipeline ──
+
+      // ── Step 1: Download from storage ─────────────────────────────
+      console.log(`[Step 1] Downloading ${storagePath}`)
+
+      const { data: fileData, error: downloadError } = await supabase.storage
         .from('documents')
-        .select('id, reference_number')
-        .eq('org_id', orgId)
-        .eq('file_hash_sha256', sha256)
-        .neq('id', docId)
-        .is('deleted_at', null)
-        .maybeSingle()
+        .download(storagePath)
 
-      const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
+      if (downloadError || !fileData) {
+        await updateDocStatus(supabase, docId, 'failed', `Download failed: ${downloadError?.message || 'Empty file'}`)
+        throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
+      }
 
-      if (exactDup) {
-        await updateDocStatus(supabase, docId, 'needs_review')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from('documents').update({
-          status: 'needs_review',
-          review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
-        }).eq('id', docId)
+      const fileBuffer = Buffer.from(await fileData.arrayBuffer())
 
-        await createNotification(supabase, {
+      // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
+      const { createHash } = await import('crypto')
+      sha256 = createHash('sha256').update(fileBuffer).digest('hex')
+
+      if (!skipDuplicateCheck) {
+        console.log('[Step 2] SHA-256 duplicate check')
+
+        const { data: exactDupRaw } = await supabase
+          .from('documents')
+          .select('id, reference_number')
+          .eq('org_id', orgId)
+          .eq('file_hash_sha256', sha256)
+          .neq('id', docId)
+          .is('deleted_at', null)
+          .maybeSingle()
+
+        const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
+
+        if (exactDup) {
+          await updateDocStatus(supabase, docId, 'needs_review')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('documents').update({
+            status: 'needs_review',
+            review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
+          }).eq('id', docId)
+
+          await createNotification(supabase, {
+            orgId,
+            userId: uploadedBy,
+            type: 'processing_failed',
+            title: 'Duplicate document detected',
+            body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
+            entityType: 'document',
+            entityId: exactDup.id,
+          })
+
+          console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
+          return { status: 'needs_review', reason: 'exact_duplicate' }
+        }
+      } else {
+        console.log('[Step 2] Skipped exact duplicate check')
+      }
+
+      // Store SHA-256
+      await (supabase as SupabaseClient)
+        .from('documents')
+        .update({ file_hash_sha256: sha256, status: 'processing' })
+        .eq('id', docId)
+
+      // ── Step 3: AI analysis ────────────────────────────────────────
+      console.log('[Step 3] Vertex AI analysis')
+
+      aiResult = await analyzeDocument(fileBuffer)
+
+      if (aiResult?.usage) {
+        await logUsage(supabase, {
           orgId,
           userId: uploadedBy,
-          type: 'processing_failed',
-          title: 'Duplicate document detected',
-          body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
-          entityType: 'document',
-          entityId: exactDup.id,
+          docId,
+          operationType: 'document_analysis',
+          modelName: VERTEX_DOCUMENT_MODEL,
+          inputTokens: aiResult.usage.promptTokens,
+          outputTokens: aiResult.usage.candidateTokens
         })
-        
-        console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
-        return { status: 'needs_review', reason: 'exact_duplicate' }
       }
-    } else {
-      console.log('[Step 2] Skipped exact duplicate check')
+
+      if (!aiResult) {
+        await updateDocStatus(supabase, docId, 'needs_review')
+        console.warn('[Step 3] AI analysis returned null — marking needs_review')
+        return { status: 'needs_review', docId }
+      }
+
+      // ── Step 4: Parse and validate ─────────────────────────────────
+      console.log('[Step 4] Parsing AI output')
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('documents').update({
+        doc_type: aiResult.doc_type,
+        reference_number: aiResult.reference_number,
+        doc_date: aiResult.doc_date,
+        direction: aiResult.direction,
+        issued_by: aiResult.issued_by,
+        financial_year: aiResult.financial_years && aiResult.financial_years.length > 0 ? aiResult.financial_years[0] : null,
+        summary: aiResult.summary,
+        raw_metadata: aiResult as any,
+        ai_prompt_version: aiResult.prompt_version,
+        status: 'analyzed'
+      }).eq('id', docId)
     }
-
-    // Store SHA-256
-    await (supabase as SupabaseClient)
-      .from('documents')
-      .update({ file_hash_sha256: sha256, status: 'processing' })
-      .eq('id', docId)
-
-    // ── Step 3: AI analysis ────────────────────────────────────────
-    console.log('[Step 3] Vertex AI analysis')
-
-    const aiResult = await analyzeDocument(fileBuffer)
-
-    if (aiResult?.usage) {
-      await logUsage(supabase, {
-        orgId,
-        userId: uploadedBy,
-        docId,
-        operationType: 'document_analysis',
-        modelName: VERTEX_DOCUMENT_MODEL,
-        inputTokens: aiResult.usage.promptTokens,
-        outputTokens: aiResult.usage.candidateTokens
-      })
-    }
-
-    if (!aiResult) {
-      await updateDocStatus(supabase, docId, 'needs_review')
-      console.warn('[Step 3] AI analysis returned null — marking needs_review')
-      // Graceful degradation: document still accessible, just unanalysed
-      return { status: 'needs_review', docId }
-    }
-
-    // ── Step 4: Parse and validate ─────────────────────────────────
-    console.log('[Step 4] Parsing AI output')
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('documents').update({
-      doc_type: aiResult.doc_type,
-      reference_number: aiResult.reference_number,
-      doc_date: aiResult.doc_date,
-      direction: aiResult.direction,
-      issued_by: aiResult.issued_by,
-      financial_year: aiResult.financial_years && aiResult.financial_years.length > 0 ? aiResult.financial_years[0] : null,
-      summary: aiResult.summary,
-      raw_metadata: aiResult as any,
-      ai_prompt_version: aiResult.prompt_version,
-      status: 'analyzed'
-    }).eq('id', docId)
 
     // ── Step 5: Generate embedding ─────────────────────────────────
     console.log('[Step 5] Generating embedding')
@@ -256,14 +296,14 @@ export const processDocument = task({
 
     if (aiResult.deadlines && aiResult.deadlines.length > 0) {
       const validTypes = ['appeal_window', 'pre_deposit', 'hearing_date', 'reply_deadline', 'stay_application', 'other']
-      const deadlineRows = aiResult.deadlines.map(dl => ({
+      const deadlineRows = aiResult.deadlines.map((dl: any) => ({
         matter_id: matterId,
         document_id: docId,
         type: validTypes.includes(dl.type) ? (dl.type as any) : 'other',
         due_date: dl.due_date,
         description: dl.description || dl.type
       }))
-      
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: dlError } = await (supabase as any).from('deadlines').insert(deadlineRows)
       if (dlError) {
@@ -336,12 +376,18 @@ export const analyzeStagedDocument = task({
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
 
-    // Mark as analyzing
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+    // Mark as analyzing (atomic CAS to prevent parallel analysis of same doc)
+    const { data: updated } = await (supabase as any)
       .from('staged_documents')
       .update({ status: 'analyzing' })
       .eq('id', stagedDocId)
+      .eq('status', 'pending_assignment')
+      .select('id, intake_matter_id')
+      .maybeSingle()
+
+    if (!updated) {
+      return { stagedDocId, status: 'already_processing' }
+    }
 
     // ── 1. Download document (once — reused for all assignments) ──
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -363,15 +409,54 @@ export const analyzeStagedDocument = task({
     const { createHash } = await import('crypto')
     const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
 
-    const { data: exactDup } = await supabase
+    const { data: exactDupRaw } = await supabase
       .from('documents')
-      .select('id, reference_number, matter_id, matters(title)')
+      .select('id, reference_number, matter_id, matters!inner(id, title, deleted_at, clients!inner(deleted_at))')
       .eq('org_id', orgId)
       .eq('file_hash_sha256', sha256)
       .is('deleted_at', null)
       .maybeSingle()
 
-    // ── 3. AI analysis ────────────────────────────────────────────
+    const exactDup = exactDupRaw && isDocumentActive(exactDupRaw) ? exactDupRaw : null
+
+    // ── 2b. Duplicate decision (BEFORE AI analysis to save tokens) ──
+    if (exactDup) {
+      const matterTitle = (exactDup as any).matters?.title || 'Unknown Matter'
+      const refNum = exactDup.reference_number || exactDup.id
+
+      const { data: originalDoc } = await supabase
+        .from('documents')
+        .select('raw_metadata')
+        .eq('id', exactDup.id)
+        .single()
+
+      await (supabase as any)
+        .from('staged_documents')
+        .update({
+          status: 'ready_to_assign',
+          suggested_matter_ids: [exactDup.matter_id],
+          suggested_client_id: null,
+          suggested_matter_id: exactDup.matter_id,
+          suggestion_reason: `Duplicate detected: This file is identical to existing document (${refNum}) in matter "${matterTitle}".`,
+          raw_metadata: originalDoc?.raw_metadata ?? null,
+        })
+        .eq('id', stagedDocId)
+
+
+      await createNotification(supabase, {
+        orgId,
+        userId: uploadedBy,
+        type: 'processing_failed',
+        title: 'Duplicate document uploaded',
+        body: `Staged document is identical to document "${refNum}" in matter "${matterTitle}".`,
+        entityType: 'staged_document',
+        entityId: stagedDocId,
+      })
+
+      return { stagedDocId, status: 'duplicate' }
+    }
+
+    // ── 3. AI analysis (only runs if NOT a duplicate) ──────────────
     const aiResult = await analyzeDocument(fileBuffer)
 
     if (aiResult?.usage) {
@@ -387,7 +472,6 @@ export const analyzeStagedDocument = task({
     }
 
     if (!aiResult) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from('staged_documents')
         .update({
@@ -398,39 +482,40 @@ export const analyzeStagedDocument = task({
       return { stagedDocId, status: 'failed' }
     }
 
-    // ── 4. Duplicate: redirect to existing matter ─────────────────
-    if (exactDup) {
-      const matterTitle = (exactDup as any).matters?.title || 'Unknown Matter'
-      const refNum = exactDup.reference_number || exactDup.id
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from('staged_documents')
-        .update({
-          status: 'ready_to_assign',
-          suggested_matter_ids: [exactDup.matter_id],
-          suggested_client_id: null,
-          suggested_matter_id: exactDup.matter_id,
-          suggestion_reason: `DUPLICATE: This file is identical to document "${refNum}" already inside matter "${matterTitle}".`,
-          raw_metadata: aiResult as any,
-        })
-        .eq('id', stagedDocId)
-
-      await createNotification(supabase, {
-        orgId,
-        userId: uploadedBy,
-        type: 'processing_failed',
-        title: 'Duplicate document uploaded',
-        body: `Staged document is identical to document "${refNum}" in matter "${matterTitle}".`,
-        entityType: 'staged_document',
-        entityId: stagedDocId,
-      })
-
-      return { stagedDocId, status: 'ready_to_assign' }
-    }
-
     // ── 5. Resolve assignment using the new engine ────────────────
-    const { resolveDocumentAssignment } = await import('@/lib/actions/assignment')
-    const assignmentResult = await resolveDocumentAssignment(supabase as any, orgId, aiResult)
+    // A matter-intake upload has an explicit human-selected destination. It
+    // must never be rerouted by an AI suggestion or mixed with global triage.
+    let assignmentResult
+    if (updated.intake_matter_id) {
+      const { data: intakeMatter } = await supabase
+        .from('matters')
+        .select('id, client_id, deleted_at, clients!inner(deleted_at)')
+        .eq('id', updated.intake_matter_id)
+        .eq('org_id', orgId)
+        .maybeSingle()
+
+      if (!intakeMatter || intakeMatter.deleted_at || (intakeMatter.clients as any)?.deleted_at) {
+        assignmentResult = {
+          type: 'ready_to_assign' as const,
+          reason: 'The selected matter is no longer available. Please choose a new destination.',
+          suggestions: [],
+        }
+      } else {
+        assignmentResult = {
+          type: 'auto_assign' as const,
+          assignments: [{
+            matterId: intakeMatter.id,
+            clientId: intakeMatter.client_id,
+            confidence: 1,
+            method: 'client_fy_match' as const,
+            crossVerified: null,
+          }],
+        }
+      }
+    } else {
+      const { resolveDocumentAssignment } = await import('@/lib/actions/assignment')
+      assignmentResult = await resolveDocumentAssignment(supabase as any, orgId, aiResult)
+    }
 
     if (assignmentResult.type === 'ready_to_assign') {
       // Could not auto-assign — store suggestions for manual UI
@@ -466,46 +551,38 @@ export const analyzeStagedDocument = task({
     const baseName = storagePath.split('/').pop() || 'document.pdf'
     const isMultiMatter = assignments.length > 1
 
-    // For multi-matter: store the file once at a shared org-level path (Option B storage)
-    // For single-matter: store under the matter's folder (existing convention)
-    let sharedStoragePath: string | null = null
-    if (isMultiMatter) {
-      const sharedPath = `${orgId}/shared/${sha256}_${baseName}`
-      const { error: sharedUploadErr } = await supabase.storage
-        .from('documents')
-        .upload(sharedPath, fileData, { contentType: 'application/pdf', upsert: true })
-      if (!sharedUploadErr) {
-        sharedStoragePath = sharedPath
-      } else {
-        console.error('[analyze-staged-document] Failed to upload shared path, falling back to per-matter copies:', sharedUploadErr)
-      }
-    }
-
     const { tasks } = await import('@trigger.dev/sdk/v3')
     const createdDocIds: string[] = []
     let allOk = true
 
     for (let i = 0; i < assignments.length; i++) {
       const assignment = assignments[i]
-      const isFirst = i === 0
 
-      // Determine storage path for this document entry
-      let docStoragePath: string
-      if (sharedStoragePath) {
-        // All matter entries share the same file
-        docStoragePath = sharedStoragePath
-      } else {
-        // Per-matter copy (fallback or single-matter case)
-        const perMatterPath = `${orgId}/${assignment.matterId}/${Date.now()}_${baseName}`
-        const { error: uploadErr } = await supabase.storage
-          .from('documents')
-          .upload(perMatterPath, fileData, { contentType: 'application/pdf' })
-        if (uploadErr) {
-          console.error(`[analyze-staged-document] Storage upload failed for matter ${assignment.matterId}:`, uploadErr)
-          allOk = false
-          continue
-        }
-        docStoragePath = perMatterPath
+      // Verify matter + client are still alive before creating the document record
+      const { data: matterCheck } = await supabase
+        .from('matters')
+        .select('id, deleted_at, clients!inner(deleted_at)')
+        .eq('id', assignment.matterId)
+        .eq('org_id', orgId)
+        .single()
+
+      if (!matterCheck || matterCheck.deleted_at || (matterCheck.clients as any)?.deleted_at) {
+        console.warn(`[analyze-staged-document] Matter ${assignment.matterId} or its client was deleted — skipping`)
+        allOk = false
+        continue
+      }
+
+      // Storage RLS and signed URL access are intentionally matter-scoped. Keep
+      // a physical copy in each target matter rather than an org-level shared
+      // path that a user cannot read through those policies.
+      const docStoragePath = `${orgId}/${assignment.matterId}/${Date.now()}_${baseName}`
+      const { error: uploadErr } = await supabase.storage
+        .from('documents')
+        .upload(docStoragePath, fileData, { contentType: 'application/pdf' })
+      if (uploadErr) {
+        console.error(`[analyze-staged-document] Storage upload failed for matter ${assignment.matterId}:`, uploadErr)
+        allOk = false
+        continue
       }
 
       // Create document record
@@ -521,12 +598,10 @@ export const analyzeStagedDocument = task({
           status: 'processing',
           review_status: reviewStatus,
           source: 'inbox',
-          doc_type: aiResult.doc_type || 'OTHER',
-          direction: aiResult.direction || 'incoming',
-          document_class: aiResult.document_class || 'proceeding',
-          document_category: aiResult.document_category || null,
-          financial_year: (aiResult.financial_years?.[i] ?? aiResult.financial_years?.[0] ?? null),
-          raw_metadata: aiResult as any,
+          ...documentColumnsFromAnalysis(
+            aiResult,
+            aiResult.financial_years?.[i] ?? aiResult.financial_years?.[0] ?? null,
+          ),
           file_hash_sha256: sha256,
         })
         .select('id')
@@ -534,15 +609,15 @@ export const analyzeStagedDocument = task({
 
       if (newDocErr || !newDoc) {
         console.error(`[analyze-staged-document] Failed to create document for matter ${assignment.matterId}:`, newDocErr)
+        await supabase.storage.from('documents').remove([docStoragePath])
         allOk = false
         continue
       }
 
       createdDocIds.push(newDoc.id)
 
-      // Trigger the processing pipeline.
-      // For shared-file docs (multi-matter, index > 0), skip SHA-256 duplicate check
-      // since the same file intentionally exists in multiple matters.
+      // Additional copies from one deliberate multi-matter assignment are not
+      // accidental duplicates of one another.
       await tasks.trigger('process-document', {
         docId: newDoc.id,
         matterId: assignment.matterId,
@@ -550,7 +625,7 @@ export const analyzeStagedDocument = task({
         storagePath: docStoragePath,
         uploadedBy,
         reprocessMode: 'full',
-        skipDuplicateCheck: !isFirst && !!sharedStoragePath,
+        skipDuplicateCheck: isMultiMatter && i > 0,
       })
     }
 
@@ -564,7 +639,6 @@ export const analyzeStagedDocument = task({
         .update({ status: 'auto_assigned' })
         .eq('id', stagedDocId)
 
-      const firstAssignment = assignments[0]
       await createNotification(supabase, {
         orgId,
         userId: uploadedBy,
@@ -574,6 +648,35 @@ export const analyzeStagedDocument = task({
         entityType: 'staged_document',
         entityId: stagedDocId,
       })
+
+      // Revalidate cache
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        await fetch(`${appUrl}/api/revalidate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret: process.env.API_SECRET_KEY,
+            paths: [
+              '/inbox',
+              '/',
+              ...assignments.map(a => `/matters/${a.matterId}`)
+            ]
+          })
+        })
+      } catch (err) {
+        console.error('Failed to call revalidate API:', err)
+      }
+
+      // Proactively re-evaluate remaining staged docs so their suggestions
+      // update immediately (e.g., the new client/matter we just created).
+      try {
+        const { reevaluateStagedDocumentsForOrg } = await import('@/lib/actions/inbox')
+        await reevaluateStagedDocumentsForOrg(orgId)
+        console.log('[analyze-staged-document] Proactive re-evaluation of remaining staged docs complete')
+      } catch (err) {
+        console.error('[analyze-staged-document] Proactive re-evaluation failed (non-fatal):', err)
+      }
 
       return { stagedDocId, status: 'auto_assigned', docIds: createdDocIds }
     }
@@ -642,14 +745,32 @@ export const retryFailedDocumentsCron = task({
       console.log(`[Retry cron] Found ${failedDocs.length} failed documents. Triggering reprocessing...`)
       
       for (const doc of failedDocs) {
-        await tasks.trigger('process-document', {
-          docId: doc.id,
-          matterId: doc.matter_id,
-          orgId: doc.org_id,
-          storagePath: doc.storage_path,
-          uploadedBy: doc.created_by,
-          reprocessMode: 'full'
-        })
+        // Claim the row before dispatching. Without this compare-and-set, the
+        // hourly cron and a user Retry click can both enqueue the same work.
+        const { data: claimed } = await supabase
+          .from('documents')
+          .update({ status: 'processing' })
+          .eq('id', doc.id)
+          .eq('org_id', doc.org_id)
+          .eq('status', 'failed')
+          .select('id')
+          .maybeSingle()
+
+        if (!claimed) continue
+
+        try {
+          await tasks.trigger('process-document', {
+            docId: doc.id,
+            matterId: doc.matter_id,
+            orgId: doc.org_id,
+            storagePath: doc.storage_path,
+            uploadedBy: doc.created_by,
+            reprocessMode: 'full',
+          })
+        } catch (triggerError) {
+          console.error(`[Retry cron] Failed to queue document ${doc.id}:`, triggerError)
+          await updateDocStatus(supabase, doc.id, 'failed', 'Processing could not be queued. Please retry again.')
+        }
       }
     }
 

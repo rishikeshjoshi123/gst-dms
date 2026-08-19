@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { Scale } from 'lucide-react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getStagedDocumentCount } from '@/lib/actions/inbox'
 import { getUnreadNotificationCount } from '@/lib/actions/notifications'
+import { getCurrentOrgId } from '@/lib/actions/org'
 import { SidebarNav } from '@/components/nav/SidebarNav'
 import { UserMenu } from '@/components/nav/UserMenu'
 import { ThemeToggle } from '@/components/nav/ThemeToggle'
@@ -25,9 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  // Get cookie-stored current org id
-  const cookieStore = await cookies()
-  const currentOrgId = cookieStore.get('current_org_id')?.value
+  // The cookie only remembers a selection; this returns it only after the
+  // signed-in user's membership has been verified.
+  const currentOrgId = await getCurrentOrgId()
 
   // Get all user's orgs
   const { data: memberships } = await supabase
@@ -49,15 +47,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getStagedDocumentCount(),
     getUnreadNotificationCount(),
   ])
-
-  // If no org cookie set, set it now
-  if (!currentOrgId) {
-    cookieStore.set('current_org_id', activeOrg.id, {
-      httpOnly: false,
-      path: '/',
-      maxAge: 60 * 60 * 24 * 365,
-    })
-  }
 
   const userMeta = {
     email: user.email ?? '',
