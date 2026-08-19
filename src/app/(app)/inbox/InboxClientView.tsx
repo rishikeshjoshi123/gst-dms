@@ -338,7 +338,7 @@ export function InboxClientView({
     [documents, preselectedMatterId],
   )
   const globalDocuments = useMemo(() => documents.filter(doc => !doc.intake_matter_id), [documents])
-  const visibleDocuments = intakeTab === 'matter' ? matterIntakeDocuments : globalDocuments
+  const visibleDocuments = isMatterIntake ? matterIntakeDocuments : globalDocuments
   const activeDoc = visibleDocuments.find(d => d.id === selectedDocId)
 
   useEffect(() => {
@@ -358,6 +358,12 @@ export function InboxClientView({
 
   const discardedDocIds = useRef<Set<string>>(new Set())
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A matter tab is an active intake session, not a permanent alternate view.
+  // Keep an empty tab open initially so a user can add files, then return to
+  // the global hub after a queue that contained files has fully cleared.
+  const hadMatterQueueRef = useRef(Boolean(
+    preselectedMatterId && initialDocuments.some(doc => doc.intake_matter_id === preselectedMatterId),
+  ))
 
   // Use refs to access latest state inside the websocket callback without causing reconnects
   const docsRef = useRef(documents)
@@ -367,6 +373,21 @@ export function InboxClientView({
     docsRef.current = documents
     selectedIdRef.current = selectedDocId
   }, [documents, selectedDocId])
+
+  useEffect(() => {
+    if (matterIntakeDocuments.length > 0) hadMatterQueueRef.current = true
+  }, [matterIntakeDocuments.length])
+
+  useEffect(() => {
+    if (
+      preselectedMatterId &&
+      hadMatterQueueRef.current &&
+      matterIntakeDocuments.length === 0
+    ) {
+      setIntakeTab('global')
+      router.replace('/inbox')
+    }
+  }, [matterIntakeDocuments.length, preselectedMatterId, router])
 
   useEffect(() => {
     const supabase = createClient()
@@ -528,39 +549,44 @@ export function InboxClientView({
   return (
     <div className="flex flex-col flex-1 overflow-hidden animate-fade-in">
       {preselectedMatter && (
-        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm">
-          <div className="flex items-start justify-between gap-5 px-1">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Upload destination</p>
-              <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">
-                {isMatterIntake ? preselectedMatter.title : 'Global triage inbox'}
-              </p>
-            </div>
-            <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-bold', isMatterIntake ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-[var(--surface-hover)] text-[var(--text-secondary)]')}>
-              {isMatterIntake ? 'Matter-specific' : 'Global'}
-            </span>
-          </div>
-          <p className="px-1 text-[12px] leading-relaxed text-[var(--text-secondary)]">
-            {isMatterIntake
-              ? 'New files from this tab stay in this matter’s intake. Existing global uploads remain separate.'
-              : 'Files here are evaluated across your organisation before anyone decides where they belong.'}
-          </p>
-          <div className="flex items-center gap-1 rounded-xl bg-[var(--surface-hover)] p-1 self-start">
+        <div className="mb-4 flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] pb-0 custom-scrollbar">
           <button
             onClick={() => setIntakeTab('matter')}
-            className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors', intakeTab === 'matter' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]')}
+            aria-current={isMatterIntake ? 'page' : undefined}
+            className={cn(
+              'flex h-9 shrink-0 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-xs font-semibold transition-colors',
+              isMatterIntake
+                ? 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_-1px_5px_rgba(0,0,0,0.04)]'
+                : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
+            )}
           >
-            <FolderOpen size={14} /> {preselectedMatter.title}
-            <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px]">{matterIntakeDocuments.length}</span>
+            <FolderOpen size={13} className={isMatterIntake ? 'text-[var(--primary)]' : ''} />
+            <span className="max-w-44 truncate">{preselectedMatter.title}</span>
+            <span className="rounded-full bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{matterIntakeDocuments.length}</span>
           </button>
           <button
             onClick={() => setIntakeTab('global')}
-            className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors', intakeTab === 'global' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]')}
+            aria-current={!isMatterIntake ? 'page' : undefined}
+            className={cn(
+              'flex h-9 shrink-0 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-xs font-semibold transition-colors',
+              !isMatterIntake
+                ? 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_-1px_5px_rgba(0,0,0,0.04)]'
+                : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
+            )}
           >
             <Inbox size={14} /> Global inbox
-            <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px]">{globalDocuments.length}</span>
+            <span className="rounded-full bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{globalDocuments.length}</span>
           </button>
-          </div>
+        </div>
+      )}
+
+      {isUploadModalOpen && (
+        <div className="mb-4">
+          <UploadModal
+            onClose={() => setIsUploadModalOpen(false)}
+            matterId={isMatterIntake ? preselectedMatterId : undefined}
+            matterName={isMatterIntake ? preselectedMatter?.title : undefined}
+          />
         </div>
       )}
       {/* ── Body ─────────────────────────────────── */}
@@ -578,7 +604,6 @@ export function InboxClientView({
 
           {/* ── Left Queue Panel ──────────────────── */}
           <div className="w-[38%] flex flex-col gap-2.5 overflow-y-auto pl-1 pr-3 py-1 custom-scrollbar shrink-0">
-          {/* Action buttons at top of LHS */}
           <div className="flex items-center gap-2">
             <button
               onClick={async () => {
@@ -592,22 +617,21 @@ export function InboxClientView({
                   toast.error(err.message || 'Failed to refresh', { id: toastId })
                 }
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 text-[13px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex flex-1 items-center justify-center gap-1.5 h-8 px-3 text-[12px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
             >
               <RefreshCw size={13} />
               Sync
             </button>
             <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="flex-1 flex items-center justify-center gap-1.5 h-8 px-3 text-[13px] font-semibold rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shadow-sm"
+              onClick={() => setIsUploadModalOpen(value => !value)}
+              className="flex flex-1 items-center justify-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shadow-sm"
             >
-              <Plus size={14} />
-              Add Document
+              <Plus size={13} /> {isUploadModalOpen ? 'Close' : 'Upload'}
             </button>
           </div>
 
           <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
-            {intakeTab === 'matter' ? 'Matter intake' : 'Global inbox'} · {visibleDocuments.length} document{visibleDocuments.length !== 1 ? 's' : ''}
+            {isMatterIntake ? 'Matter intake' : 'Global inbox'} · {visibleDocuments.length} document{visibleDocuments.length !== 1 ? 's' : ''}
           </div>
           {visibleDocuments.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
@@ -992,15 +1016,6 @@ export function InboxClientView({
           )}
         </div>
       </div>
-      )}
-
-      {/* ── Upload Modal ── */}
-      {isUploadModalOpen && (
-        <UploadModal
-          onClose={() => setIsUploadModalOpen(false)}
-          matterId={intakeTab === 'matter' ? preselectedMatterId : undefined}
-          matterName={intakeTab === 'matter' ? preselectedMatter?.title : undefined}
-        />
       )}
 
       {/* ── Action Modal ── */}

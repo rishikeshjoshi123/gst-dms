@@ -97,6 +97,27 @@ export async function createNote(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
+  const { data: matter } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('id', data.matterId)
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!matter) return { error: 'Matter not found.' }
+
+  if (data.documentId) {
+    const { data: document } = await supabase
+      .from('documents')
+      .select('id')
+      .eq('id', data.documentId)
+      .eq('matter_id', data.matterId)
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!document) return { error: 'Document not found in this matter.' }
+  }
+
   const { data: note, error } = await supabase
     .from('case_notes')
     .insert({

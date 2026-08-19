@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { uploadToInbox } from '@/lib/actions/inbox'
 import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus, FolderOpen, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ interface UploadModalProps {
   onClose: () => void
   matterId?: string
   matterName?: string
+  inline?: boolean
 }
 
 function formatBytes(bytes: number) {
@@ -27,7 +28,7 @@ interface FileEntry {
   error?: string
 }
 
-export function UploadModal({ onClose, matterId, matterName }: UploadModalProps) {
+export function UploadModal({ onClose, matterId, matterName, inline = false }: UploadModalProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [isUploading, setIsUploading] = useState(false)
@@ -105,6 +106,9 @@ export function UploadModal({ onClose, matterId, matterName }: UploadModalProps)
     if (!hasError) {
       setAllDone(true)
       router.refresh()
+      // Once staging succeeds, return the user to the live queue immediately.
+      // Processing continues in the background and is shown there via realtime.
+      onClose()
     }
   }
 
@@ -113,12 +117,27 @@ export function UploadModal({ onClose, matterId, matterName }: UploadModalProps)
   const errorCount = entries.filter(e => e.status === 'error').length
   const hasEntries = entries.length > 0
 
+  // The active intake is the queue itself, so selecting files is enough to
+  // begin transfer. There is no second "submit" decision to make.
+  useEffect(() => {
+    if (!isUploading && entries.some(entry => entry.status === 'pending')) {
+      void handleUpload()
+    }
+    // handleUpload intentionally reads the latest entries snapshot above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, isUploading])
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget && !isUploading) onClose() }}
+      className={cn(
+        inline ? 'relative z-20 w-full animate-in fade-in slide-in-from-top-2 duration-200' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200',
+      )}
+      onClick={(e) => { if (!inline && e.target === e.currentTarget && !isUploading) onClose() }}
     >
-      <div className="relative w-[92%] max-w-[500px] flex flex-col rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden animate-in zoom-in-95 duration-200 bg-[var(--surface)]">
+      <div className={cn(
+        'relative flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]',
+        inline ? 'w-full shadow-sm' : 'w-[92%] max-w-[500px] shadow-2xl animate-in zoom-in-95 duration-200',
+      )}>
         {/* animated gradient top accent */}
         <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 shrink-0" />
 
@@ -297,7 +316,8 @@ export function UploadModal({ onClose, matterId, matterName }: UploadModalProps)
             </div>
           )}
 
-          {/* Footer */}
+          {/* Uploads start as soon as files are selected. The footer is status
+              and recovery only; it never asks the user to submit again. */}
           {hasEntries && (
             <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
               <div className="flex-1 text-[12px] text-[var(--text-muted)]">
@@ -319,26 +339,13 @@ export function UploadModal({ onClose, matterId, matterName }: UploadModalProps)
                   Retry failed
                 </button>
               )}
-              {allDone ? (
+              {allDone && (
                 <button
                   onClick={onClose}
                   className="h-9 px-5 rounded-xl bg-[var(--primary)] text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
                 >
-                  View queue
+                  Done
                 </button>
-              ) : (
-              <button
-                onClick={handleUpload}
-                disabled={pendingCount === 0 || isUploading || allDone}
-                className="flex items-center gap-2 h-9 px-5 rounded-xl text-[13px] font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
-                style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
-              >
-                {isUploading ? (
-                  <><Loader2 size={14} className="animate-spin" /> Uploading…</>
-                ) : (
-                  <><UploadCloud size={14} /> Upload {pendingCount > 0 ? `${pendingCount} File${pendingCount > 1 ? 's' : ''}` : 'Files'}</>
-                )}
-              </button>
               )}
             </div>
           )}

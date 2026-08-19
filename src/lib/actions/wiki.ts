@@ -3,12 +3,31 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { tasks } from '@trigger.dev/sdk/v3'
+
+async function matterBelongsToActiveOrg(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matterId: string,
+  orgId: string,
+) {
+  const { data } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('id', matterId)
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return Boolean(data)
+}
 
 export async function getWikiSections(matterId: string) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
+
+  if (!await matterBelongsToActiveOrg(supabase, matterId, orgId)) return []
 
   const { data } = await supabase
     .from('wiki_sections')
@@ -23,6 +42,10 @@ export async function updateWikiSection(sectionId: string, content: string, matt
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation' }
 
+  if (!await matterBelongsToActiveOrg(supabase, matterId, orgId)) {
+    return { error: 'Matter not found.' }
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -35,6 +58,7 @@ export async function updateWikiSection(sectionId: string, content: string, matt
       updated_at: new Date().toISOString()
     })
     .eq('id', sectionId)
+    .eq('matter_id', matterId)
 
   if (error) {
     console.error('Update wiki section error:', error)
@@ -50,18 +74,20 @@ export async function triggerWikiGeneration(matterId: string) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation' }
 
+  if (!await matterBelongsToActiveOrg(supabase, matterId, orgId)) {
+    return { error: 'Matter not found.' }
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  try {
-    const res = await tasks.trigger('generate-matter-wiki', {
-      matterId,
-      orgId,
-      triggeredBy: user.id
-    })
-    return { success: true, runId: res.id }
-  } catch (err: any) {
-    console.error('Failed to trigger generate-matter-wiki:', err)
-    return { error: err.message || 'Failed to trigger wiki generation.' }
-  }
+  after(async () => {
+    try {
+      await tasks.trigger('generate-matter-wiki', { matterId, orgId, triggeredBy: user.id })
+    } catch (err) {
+      console.error('Failed to trigger generate-matter-wiki:', err)
+    }
+  })
+
+  return { success: true }
 }

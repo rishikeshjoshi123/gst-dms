@@ -69,7 +69,7 @@ export function ReassignDocumentDialog({
 
     startTransition(async () => {
       const res = await reassignDocumentMatter(documentId, selectedMatterId, isCopyMode ? 'copy' : 'move')
-      if ('error' in res) {
+      if ('error' in res && typeof res.error === 'string') {
         toast.error(res.error)
       } else {
         toast.success(`Document ${isCopyMode ? 'copied' : 'reassigned'} successfully`)

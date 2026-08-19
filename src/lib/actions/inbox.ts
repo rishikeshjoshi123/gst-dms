@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { tasks } from '@trigger.dev/sdk/v3'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
 
@@ -112,21 +113,27 @@ export async function uploadToInbox(formData: FormData) {
     return { error: error?.message ?? 'Failed to stage document.' }
   }
 
-  try {
-    await tasks.trigger('analyze-staged-document', {
-      stagedDocId: data.id,
-      orgId: orgId,
-      uploadedBy: user.id,
-      storagePath: fileName,
-    })
-  } catch (err) {
-    console.error('Failed to trigger analysis task:', err)
-    await supabase
-      .from('staged_documents')
-      .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Retry this document.' })
-      .eq('id', data.id)
-    return { error: 'Document uploaded, but analysis could not be queued. Please retry it.' }
-  }
+  // Trigger.dev accepts the work independently of the browser request. Do
+  // this after the Server Action responds so a slow task gateway can never
+  // leave the upload UI stuck on "Uploading…" after the file is stored.
+  after(async () => {
+    try {
+      await tasks.trigger('analyze-staged-document', {
+        stagedDocId: data.id,
+        orgId,
+        uploadedBy: user.id,
+        storagePath: fileName,
+      })
+    } catch (err) {
+      console.error('Failed to trigger analysis task:', err)
+      const serviceClient = createServiceClient()
+      await serviceClient
+        .from('staged_documents')
+        .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Retry this document.' })
+        .eq('id', data.id)
+        .eq('org_id', orgId)
+    }
+  })
 
   revalidatePath('/inbox')
   revalidatePath('/', 'layout')
@@ -225,26 +232,29 @@ export async function assignStagedDocument(
     return { error: docError?.message ?? 'Failed to create document record.' }
   }
 
-  // 3. Queue processing before removing the recoverable staged copy.
-  try {
-    await tasks.trigger('process-document', {
-      docId: doc.id,
-      matterId: matterId,
-      orgId: orgId,
-      storagePath: newPath, // Match documents bucket path!
-      uploadedBy: user.id,
-    })
-  } catch (err) {
-    console.error('Failed to trigger process-document task:', err)
-    await supabase
-      .from('documents')
-      .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
-      .eq('id', doc.id)
-      .eq('org_id', orgId)
-    return { error: 'Document was created, but processing could not be queued. Please retry it.' }
-  }
+  // 3. The copied document is durable. Dispatch processing after the response
+  // has been sent, so a slow task gateway cannot block the review UI.
+  after(async () => {
+    try {
+      await tasks.trigger('process-document', {
+        docId: doc.id,
+        matterId,
+        orgId,
+        storagePath: newPath,
+        uploadedBy: user.id,
+      })
+    } catch (err) {
+      console.error('Failed to trigger process-document task:', err)
+      const serviceClient = createServiceClient()
+      await serviceClient
+        .from('documents')
+        .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
+        .eq('id', doc.id)
+        .eq('org_id', orgId)
+    }
+  })
 
-  // 4. Only clear staging after the document job has been accepted.
+  // 4. The matter document is now the durable retry target, so clear staging.
   await supabase.storage.from('staging').remove([staged.storage_path])
   await supabase
     .from('staged_documents')

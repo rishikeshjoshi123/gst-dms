@@ -1,8 +1,9 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { tasks } from '@trigger.dev/sdk/v3'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { getCurrentOrgId } from './org'
 
 export async function reprocessDocument(docId: string, isStaged: boolean = false) {
@@ -32,22 +33,24 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
     if (error) return { error: error.message }
     if (!claimed) return { error: 'This document is already being processed or is no longer available for retry.' }
     
-    try {
-      await tasks.trigger('analyze-staged-document', {
-        stagedDocId: docId,
-        orgId: staged.org_id,
-        uploadedBy: staged.uploaded_by,
-        storagePath: staged.storage_path,
-      })
-    } catch (triggerError) {
-      console.error('Failed to queue staged document retry:', triggerError)
-      await supabase
-        .from('staged_documents')
-        .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Please retry again.' })
-        .eq('id', docId)
-        .eq('org_id', orgId)
-      return { error: 'Analysis could not be queued. Please retry again.' }
-    }
+    after(async () => {
+      try {
+        await tasks.trigger('analyze-staged-document', {
+          stagedDocId: docId,
+          orgId: staged.org_id,
+          uploadedBy: staged.uploaded_by,
+          storagePath: staged.storage_path,
+        })
+      } catch (triggerError) {
+        console.error('Failed to queue staged document retry:', triggerError)
+        const serviceClient = createServiceClient()
+        await serviceClient
+          .from('staged_documents')
+          .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Please retry again.' })
+          .eq('id', docId)
+          .eq('org_id', orgId)
+      }
+    })
     
     revalidatePath('/inbox')
   } else {
@@ -73,30 +76,32 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
     if (error) return { error: error.message }
     if (!claimed) return { error: 'This document is already being processed or is not ready for retry.' }
     
-    try {
-      await tasks.trigger('process-document', {
-        docId: docId,
-        matterId: doc.matter_id,
-        orgId: doc.org_id,
-        storagePath: doc.storage_path,
-        uploadedBy: doc.created_by || '',
-        reprocessMode: 'full',
-        skipDuplicateCheck: true,
-      })
-    } catch (triggerError) {
-      console.error('Failed to queue document retry:', triggerError)
-      await supabase
-        .from('documents')
-        .update({
-          status: 'failed',
-          raw_metadata: doc.raw_metadata,
-          doc_type: doc.doc_type,
-          review_reason: 'Processing could not be queued. Please retry again.',
+    after(async () => {
+      try {
+        await tasks.trigger('process-document', {
+          docId,
+          matterId: doc.matter_id,
+          orgId: doc.org_id,
+          storagePath: doc.storage_path,
+          uploadedBy: doc.created_by || '',
+          reprocessMode: 'full',
+          skipDuplicateCheck: true,
         })
-        .eq('id', docId)
-        .eq('org_id', orgId)
-      return { error: 'Processing could not be queued. Please retry again.' }
-    }
+      } catch (triggerError) {
+        console.error('Failed to queue document retry:', triggerError)
+        const serviceClient = createServiceClient()
+        await serviceClient
+          .from('documents')
+          .update({
+            status: 'failed',
+            raw_metadata: doc.raw_metadata,
+            doc_type: doc.doc_type,
+            review_reason: 'Processing could not be queued. Please retry again.',
+          })
+          .eq('id', docId)
+          .eq('org_id', orgId)
+      }
+    })
     
     if (doc.matter_id) {
       revalidatePath(`/matters/${doc.matter_id}`)

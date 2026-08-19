@@ -73,9 +73,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* ── Main content wrapper ─────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Topbar */}
-          <header className="h-[48px] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 shadow-xs z-10 transition-colors duration-200">
+          <header className="relative z-10 h-[48px] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 shadow-xs transition-colors duration-200">
             <BreadcrumbNav activeOrgName={activeOrg.name} />
-            <div className="flex items-center gap-3.5">
+            <div className="relative z-10 flex items-center gap-3.5 pointer-events-auto">
               <ThemeToggle />
               <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />
             </div>

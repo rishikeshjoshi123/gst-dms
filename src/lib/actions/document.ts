@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import type { Database } from '@/lib/supabase/database.types'
 import { tasks } from '@trigger.dev/sdk/v3'
 
@@ -10,27 +11,32 @@ async function enqueueDocumentProcessing(
   document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
   options: { reprocessMode?: 'metadata_only' | 'full'; skipDuplicateCheck?: boolean } = {},
 ) {
-  try {
-    await tasks.trigger('process-document', {
-      docId: document.id,
-      matterId: document.matterId,
-      orgId: document.orgId,
-      storagePath: document.storagePath,
-      uploadedBy: document.uploadedBy,
-      reprocessMode: options.reprocessMode ?? 'full',
-      skipDuplicateCheck: options.skipDuplicateCheck ?? false,
-    })
-    return { success: true as const }
-  } catch (error) {
-    console.error('Failed to queue document processing:', error)
-    const supabase = await createClient()
-    await supabase
-      .from('documents')
-      .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
-      .eq('id', document.id)
-      .eq('org_id', document.orgId)
-    return { error: 'Document saved, but processing could not be queued. Please retry it.' }
-  }
+  // The document row is already durable. Trigger the long-running job only
+  // after this Server Action responds, so an intermittent task gateway never
+  // blocks the caller's UI from returning to the matter timeline.
+  after(async () => {
+    try {
+      await tasks.trigger('process-document', {
+        docId: document.id,
+        matterId: document.matterId,
+        orgId: document.orgId,
+        storagePath: document.storagePath,
+        uploadedBy: document.uploadedBy,
+        reprocessMode: options.reprocessMode ?? 'full',
+        skipDuplicateCheck: options.skipDuplicateCheck ?? false,
+      })
+    } catch (error) {
+      console.error('Failed to queue document processing:', error)
+      const serviceClient = createServiceClient()
+      await serviceClient
+        .from('documents')
+        .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
+        .eq('id', document.id)
+        .eq('org_id', document.orgId)
+    }
+  })
+
+  return { success: true as const }
 }
 
 // ── Get Documents for a Matter ────────────────────────────────────
