@@ -28,7 +28,7 @@ const bottomItems = [
   { href: '/settings',      icon: Settings, label: 'Settings' },
 ]
 
-export function SidebarNav({ inboxCount = 0, notifCount = 0 }: { inboxCount?: number; notifCount?: number }) {
+export function SidebarNav({ inboxCount = 0, notifCount = 0, isMobile = false }: { inboxCount?: number; notifCount?: number; isMobile?: boolean }) {
   const pathname = usePathname()
 
   return (
@@ -37,22 +37,32 @@ export function SidebarNav({ inboxCount = 0, notifCount = 0 }: { inboxCount?: nu
         <Link
           key={href}
           href={href}
-          className={cn('nav-item min-h-10 justify-center md:justify-start', pathname.startsWith(href) && 'active')}
+          className={cn('nav-item min-h-10', isMobile ? 'justify-start' : 'justify-center md:justify-start', pathname.startsWith(href) && 'active')}
           title={label}
         >
           <Icon size={16} className="nav-icon shrink-0" />
-          <span className="hidden flex-1 whitespace-nowrap opacity-0 transition-opacity duration-150 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">
+          <span className={cn(
+            "flex-1 whitespace-nowrap transition-opacity duration-150",
+            isMobile
+              ? "block opacity-100"
+              : "hidden opacity-0 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100"
+          )}>
             {label}
           </span>
           {href === '/inbox' && inboxCount > 0 && (
-            <span className="hidden h-5 min-w-8 shrink-0 items-center justify-center rounded-full bg-[var(--sidebar-accent)] px-2 text-[10px] font-semibold text-[var(--sidebar-bg)] opacity-0 transition-opacity duration-150 md:flex md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">
+            <span className={cn(
+              "h-5 min-w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--sidebar-accent)] px-2 text-[10px] font-semibold text-[var(--sidebar-bg)] transition-opacity duration-150",
+              isMobile
+                ? "flex opacity-100"
+                : "hidden opacity-0 md:flex md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100"
+            )}>
               {inboxCount > 99 ? '99+' : inboxCount}
             </span>
           )}
         </Link>
       ))}
 
-      <div className="my-2 h-px bg-white/10" />
+      <div className="my-2 h-px bg-[var(--sidebar-border,var(--border))]" />
 
       {bottomItems.map(({ href, icon: Icon, label, badgeKey }) => {
         const count = badgeKey === 'notif' ? notifCount : 0
@@ -60,22 +70,32 @@ export function SidebarNav({ inboxCount = 0, notifCount = 0 }: { inboxCount?: nu
           <Link
             key={href}
             href={href}
-            className={cn('nav-item relative min-h-10 justify-center md:justify-start', pathname.startsWith(href) && 'active')}
+            className={cn('nav-item relative min-h-10', isMobile ? 'justify-start' : 'justify-center md:justify-start', pathname.startsWith(href) && 'active')}
             title={label}
           >
             <div className="relative shrink-0">
               <Icon size={16} className="nav-icon" />
-              {count > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--danger)] text-[8px] font-semibold text-white md:hidden">
+              {!isMobile && count > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--danger)] text-[8px] font-semibold text-[var(--on-danger)] md:hidden">
                   {count > 9 ? '9+' : count}
                 </span>
               )}
             </div>
-            <span className="hidden whitespace-nowrap opacity-0 transition-opacity duration-150 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">
+            <span className={cn(
+              "whitespace-nowrap transition-opacity duration-150",
+              isMobile
+                ? "block opacity-100"
+                : "hidden opacity-0 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100"
+            )}>
               {label}
             </span>
             {count > 0 && (
-              <span className="ml-auto hidden h-5 min-w-8 shrink-0 items-center justify-center rounded-full bg-[var(--danger)] px-2 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-150 md:flex md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">
+              <span className={cn(
+                "ml-auto h-5 min-w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--danger)] px-2 text-[10px] font-semibold text-[var(--on-danger)] transition-opacity duration-150",
+                isMobile
+                  ? "flex opacity-100"
+                  : "hidden opacity-0 md:flex md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100"
+              )}>
                 {count > 99 ? '99+' : count}
               </span>
             )}

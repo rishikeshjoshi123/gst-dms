@@ -120,7 +120,7 @@ export function SettingsClient({
 
       <div className="max-w-4xl w-full mx-auto space-y-4 pb-12">
         {/* Organisation Info Card */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
+        <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
           <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--border)]">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 shrink-0">
               <Building2 size={16} />
@@ -144,11 +144,11 @@ export function SettingsClient({
         </div>
 
         {/* Team Members Card */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
+        <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                <Users size={16} />
+              <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--primary)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] shrink-0">
+                <Users size={16} className="text-[var(--primary)]" />
               </div>
               <div>
                 <h2 className="text-base font-bold text-[var(--text-primary)] leading-tight">Team Members</h2>
@@ -199,7 +199,7 @@ export function SettingsClient({
                           {member.full_name ?? member.email}
                         </span>
                         {isTargetOwner && (
-                          <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-sm">Owner</span>
+                          <span className="text-[10px] font-medium text-[var(--warning)] bg-[var(--warning-muted)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">Owner</span>
                         )}
                       </div>
                       {member.full_name && (
@@ -211,7 +211,7 @@ export function SettingsClient({
                   <div className="flex items-center gap-3">
                     <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${
                       member.role === 'admin'
-                        ? 'text-amber-600'
+                        ? 'text-[var(--warning)]'
                         : 'text-[var(--text-secondary)]'
                     }`}>
                       <RoleIcon size={12} />
@@ -223,7 +223,7 @@ export function SettingsClient({
                         size="icon"
                         variant="ghost"
                         onClick={() => setMemberToRemove(member)}
-                        className="text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 h-6 w-6 opacity-0 group-hover:opacity-100 transition-all"
+                        className="text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] h-6 w-6 opacity-0 group-hover:opacity-100 transition-all"
                         title="Remove member"
                       >
                         <Trash2 size={14} />
@@ -250,7 +250,7 @@ export function SettingsClient({
                     className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[var(--bg)] transition-colors group"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="flex h-7 w-7 items-center justify-center rounded bg-amber-500/10 text-amber-600 shrink-0">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--warning-muted)] text-[var(--warning)] shrink-0">
                         <Mail size={12} />
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
@@ -264,8 +264,8 @@ export function SettingsClient({
                     <div className="flex items-center gap-3">
                       <span className={`text-[10px] font-medium capitalize ${
                         invite.status === 'rejected' 
-                          ? 'text-rose-500'
-                          : 'text-amber-600'
+                          ? 'text-[var(--danger)]'
+                          : 'text-[var(--warning)]'
                       }`}>
                         {invite.status}
                       </span>
@@ -275,7 +275,7 @@ export function SettingsClient({
                           variant="ghost"
                           onClick={() => handleRevokeInvite(invite.id)}
                           disabled={isPending}
-                          className="h-6 w-6 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                          className="h-6 w-6 text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] opacity-0 group-hover:opacity-100 transition-all"
                           title="Revoke Invite"
                         >
                           <X size={14} />

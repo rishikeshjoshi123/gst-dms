@@ -3,13 +3,28 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Edit3, Check, X, Loader2, Info, Building, Calendar, AlertTriangle, FileText, ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, Edit3, X, Loader2, Info, Building, Calendar, AlertTriangle, FileText, ArrowRight, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MATTER_STATUS_LABELS, FINANCIAL_YEARS, MatterStatus } from '@/lib/constants'
 import { updateMatterDetails, deleteMatterAction } from '@/lib/actions/matter'
 
-export function MatterDetailsTab({ matter }: { matter: any }) {
+interface MatterDetails {
+  id: string
+  client_id: string | null
+  title: string
+  matter_code: string | null
+  financial_year: string | null
+  status: MatterStatus
+  description: string | null
+  clients?: {
+    name?: string | null
+    gstin?: string | null
+    pan?: string | null
+  } | null
+}
+
+export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -86,8 +101,8 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
             </Badge>
 
             {isUnknownFY && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold uppercase bg-amber-50 text-amber-800 border border-amber-200">
-                <AlertTriangle size={12} className="text-amber-600" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-semibold uppercase bg-[var(--warning-muted)] text-[var(--warning)] border border-[color-mix(in_srgb,var(--warning)_24%,transparent)]">
+                <AlertTriangle size={12} className="text-[var(--warning)]" />
                 FY Unknown — Action Required
               </span>
             )}
@@ -109,7 +124,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
             <span className="flex items-center gap-1 text-[var(--text-primary)] font-medium">
               <Calendar size={14} className="text-[var(--text-muted)]" />
               {isUnknownFY ? (
-                <span className="text-amber-700 font-semibold">Unknown FY</span>
+                <span className="text-[var(--warning)] font-semibold">Unknown FY</span>
               ) : (
                 `FY ${matter.financial_year}`
               )}
@@ -135,17 +150,17 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
 
           <button
             onClick={() => setIsDeleteModalOpen(true)}
-            className="inline-flex items-center justify-center rounded-md text-[14px] font-medium h-10 px-3 bg-[var(--surface)] hover:bg-red-500/10 text-red-600 border border-red-500/30 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[14px] font-medium h-10 px-3 bg-[var(--surface)] hover:bg-[var(--danger-muted)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] transition-colors shadow-sm"
             title="Delete Matter"
           >
-            <Trash2 size={15} className="mr-1.5 text-red-600" />
+            <Trash2 size={15} className="mr-1.5 text-[var(--danger)]" />
             Delete
           </button>
 
           {!isClosed && (
             <Link
               href={`/inbox?matterId=${matter.id}`}
-              className="inline-flex items-center justify-center rounded-md text-[14px] font-semibold h-10 px-5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-sm transition-colors"
+              className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[14px] font-semibold h-10 px-5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-accent)] shadow-sm transition-colors"
             >
               <Plus size={16} className="mr-2" />
               Upload Documents
@@ -156,19 +171,19 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
 
       {/* ── Warning Banner for Unknown FY ── */}
       {isUnknownFY && !isEditing && (
-        <div className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-md)] bg-[var(--warning-muted)] border border-[color-mix(in_srgb,var(--warning)_24%,transparent)] text-[var(--text-primary)] shadow-sm">
           <div className="flex items-center gap-3">
-            <AlertTriangle size={20} className="text-amber-600 shrink-0" />
+            <AlertTriangle size={20} className="text-[var(--warning)] shrink-0" />
             <div>
               <p className="text-[14px] font-semibold">Financial Year is not assigned</p>
-              <p className="text-[12px] text-amber-800">
+              <p className="text-[12px] text-[var(--text-secondary)]">
                 This matter was created without an FY. Updating the Financial Year ensures future uploaded documents auto-assign to this case.
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsEditing(true)}
-            className="shrink-0 text-[12px] font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded transition-colors"
+            className="min-h-11 shrink-0 text-[12px] font-semibold bg-[var(--warning)] hover:opacity-90 text-[var(--on-warning,var(--surface))] px-3 py-1.5 rounded-[var(--radius-sm)] transition-opacity"
           >
             Update FY Now
           </button>
@@ -271,7 +286,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
 
       {/* ── Edit Matter Details Modal ── */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--scrim,rgba(11,18,29,0.6))] backdrop-blur-xs animate-fade-in">
           <div className="bg-[var(--surface)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-[var(--border)]">
@@ -295,7 +310,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
               {/* Title Input */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                  Matter Title <span className="text-red-500">*</span>
+                  Matter Title <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="text"
@@ -310,7 +325,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
               {/* Financial Year Select */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                  Financial Year <span className="text-red-500">*</span>
+                  Financial Year <span className="text-[var(--danger)]">*</span>
                 </label>
                 <select
                   value={financialYear}
@@ -366,7 +381,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
               <button
                 type="button"
                 onClick={handleCancel}
@@ -379,7 +394,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
                 type="button"
                 onClick={handleSave}
                 disabled={isPending}
-                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white rounded-md transition-colors shadow-sm"
+                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-accent)] rounded-[var(--radius-sm)] transition-colors shadow-sm"
               >
                 {isPending ? (
                   <>
@@ -397,18 +412,18 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
 
       {/* ── Delete Matter Confirmation Modal ── */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--scrim,rgba(11,18,29,0.6))] backdrop-blur-xs animate-fade-in">
           <div className="bg-[var(--surface)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             <div className="p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-3 text-red-600">
+              <div className="flex items-center gap-3 text-[var(--danger)]">
                 <AlertTriangle size={24} className="shrink-0" />
                 <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">Delete Matter?</h3>
               </div>
               <p className="text-[14px] font-normal text-[var(--text-secondary)] leading-relaxed">
-                Are you sure you want to delete <strong className="text-[var(--text-primary)]">"{matter.title}"</strong>? All associated documents inside this matter will also be soft-deleted.
+                Are you sure you want to delete <strong className="text-[var(--text-primary)]">&ldquo;{matter.title}&rdquo;</strong>? All associated documents inside this matter will also be soft-deleted.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
               <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
@@ -421,7 +436,7 @@ export function MatterDetailsTab({ matter }: { matter: any }) {
                 type="button"
                 onClick={handleDeleteMatter}
                 disabled={isDeleting}
-                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors shadow-sm"
+                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[var(--danger)] hover:bg-[var(--danger-hover)] text-[var(--on-danger)] rounded-[var(--radius-sm)] transition-colors shadow-sm"
               >
                 {isDeleting ? (
                   <>

@@ -108,10 +108,10 @@ export function PricingManager({ initialPricing, readOnly = false }: { initialPr
                       <td className="px-6 py-4">
                         {isEditing ? (
                           <div className="flex items-center gap-2">
-                            <button onClick={() => saveEdit(p.model_name)} disabled={isSaving} className="text-green-600 hover:text-green-700">
+                            <button onClick={() => saveEdit(p.model_name)} disabled={isSaving} className="text-[var(--success)] hover:text-[var(--success)] opacity-80 hover:opacity-100">
                               {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                             </button>
-                            <button onClick={cancelEdit} disabled={isSaving} className="text-red-500 hover:text-red-600">
+                            <button onClick={cancelEdit} disabled={isSaving} className="text-[var(--danger)] hover:text-[var(--danger)] opacity-80 hover:opacity-100">
                               <X size={16} />
                             </button>
                           </div>

@@ -17,28 +17,28 @@ const DOC_TYPE_COLORS: Record<string, {
   textClass: string
   borderClass: string
 }> = {
-  SCN:          { accent: '#EF4444', bgLight: '#FEF2F2', bgDark: '#450a0a30', textClass: 'text-red-600 dark:text-red-400',       borderClass: 'border-l-red-500' },
-  OIO:          { accent: '#DC2626', bgLight: '#FEF2F2', bgDark: '#450a0a30', textClass: 'text-red-700 dark:text-red-300',       borderClass: 'border-l-red-600' },
-  OIA:          { accent: '#EA580C', bgLight: '#FFF7ED', bgDark: '#431407 30', textClass: 'text-orange-600 dark:text-orange-400', borderClass: 'border-l-orange-500' },
-  'DRC-01':     { accent: '#D97706', bgLight: '#FFFBEB', bgDark: '#45200030', textClass: 'text-amber-600 dark:text-amber-400',   borderClass: 'border-l-amber-500' },
-  'DRC-01A':    { accent: '#D97706', bgLight: '#FFFBEB', bgDark: '#45200030', textClass: 'text-amber-600 dark:text-amber-400',   borderClass: 'border-l-amber-500' },
-  'DRC-01C':    { accent: '#CA8A04', bgLight: '#FFFBEB', bgDark: '#45200030', textClass: 'text-yellow-600 dark:text-yellow-400', borderClass: 'border-l-yellow-500' },
-  'DRC-07':     { accent: '#B45309', bgLight: '#FEF3C7', bgDark: '#45200030', textClass: 'text-amber-700 dark:text-amber-300',   borderClass: 'border-l-amber-600' },
-  'DRC-03':     { accent: '#92400E', bgLight: '#FEF3C7', bgDark: '#45200030', textClass: 'text-amber-800 dark:text-amber-200',   borderClass: 'border-l-amber-700' },
-  'APL-01':     { accent: '#2563EB', bgLight: '#EFF6FF', bgDark: '#0c1a4030', textClass: 'text-blue-600 dark:text-blue-400',    borderClass: 'border-l-blue-500' },
-  'APL-02':     { accent: '#1D4ED8', bgLight: '#EFF6FF', bgDark: '#0c1a4030', textClass: 'text-blue-700 dark:text-blue-300',    borderClass: 'border-l-blue-600' },
-  'APL-04':     { accent: '#1E40AF', bgLight: '#EFF6FF', bgDark: '#0c1a4030', textClass: 'text-blue-800 dark:text-blue-200',    borderClass: 'border-l-blue-700' },
-  'APL-05':     { accent: '#3B82F6', bgLight: '#EFF6FF', bgDark: '#0c1a4030', textClass: 'text-blue-500 dark:text-blue-400',    borderClass: 'border-l-blue-400' },
-  STAY:         { accent: '#7C3AED', bgLight: '#F5F3FF', bgDark: '#1e0a4030', textClass: 'text-violet-600 dark:text-violet-400', borderClass: 'border-l-violet-500' },
-  REPLY:        { accent: '#0891B2', bgLight: '#ECFEFF', bgDark: '#0a2a3030', textClass: 'text-cyan-600 dark:text-cyan-400',    borderClass: 'border-l-cyan-500' },
-  HC_PETITION:  { accent: '#0284C7', bgLight: '#F0F9FF', bgDark: '#0a2a3030', textClass: 'text-sky-600 dark:text-sky-400',      borderClass: 'border-l-sky-500' },
-  HC_ORDER:     { accent: '#0369A1', bgLight: '#F0F9FF', bgDark: '#0a2a3030', textClass: 'text-sky-700 dark:text-sky-300',      borderClass: 'border-l-sky-600' },
-  SC_PETITION:  { accent: '#4F46E5', bgLight: '#EEF2FF', bgDark: '#1a1a4030', textClass: 'text-indigo-600 dark:text-indigo-400', borderClass: 'border-l-indigo-500' },
-  SC_ORDER:     { accent: '#4338CA', bgLight: '#EEF2FF', bgDark: '#1a1a4030', textClass: 'text-indigo-700 dark:text-indigo-300', borderClass: 'border-l-indigo-600' },
-  OTHER:        { accent: '#6B7280', bgLight: '#F9FAFB', bgDark: '#11182730', textClass: 'text-gray-500 dark:text-gray-400',    borderClass: 'border-l-gray-400' },
+  SCN:          { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  OIO:          { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  OIA:          { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'DRC-01':     { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'DRC-01A':    { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'DRC-01C':    { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'DRC-07':     { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'DRC-03':     { accent: 'var(--danger)', bgLight: 'var(--danger-muted)', bgDark: 'var(--danger-muted)', textClass: 'text-[var(--danger)]', borderClass: 'border-l-[var(--danger)]' },
+  'APL-01':     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  'APL-02':     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  'APL-04':     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  'APL-05':     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  STAY:         { accent: 'var(--success)', bgLight: 'var(--success-muted)', bgDark: 'var(--success-muted)', textClass: 'text-[var(--success)]', borderClass: 'border-l-[var(--success)]' },
+  REPLY:        { accent: 'var(--success)', bgLight: 'var(--success-muted)', bgDark: 'var(--success-muted)', textClass: 'text-[var(--success)]', borderClass: 'border-l-[var(--success)]' },
+  HC_PETITION:  { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  HC_ORDER:     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  SC_PETITION:  { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  SC_ORDER:     { accent: 'var(--primary)', bgLight: 'var(--primary)/10', bgDark: 'var(--primary)/10', textClass: 'text-[var(--primary)]', borderClass: 'border-l-[var(--primary)]' },
+  OTHER:        { accent: 'var(--text-secondary)', bgLight: 'var(--surface-hover)', bgDark: 'var(--surface-hover)', textClass: 'text-[var(--text-secondary)]', borderClass: 'border-l-[var(--border-strong)]' },
 }
 
-const DEFAULT_COLORS = { accent: '#6B7280', bgLight: '#F9FAFB', bgDark: '#11182730', textClass: 'text-gray-500 dark:text-gray-400', borderClass: 'border-l-gray-400' }
+const DEFAULT_COLORS = { accent: 'var(--text-secondary)', bgLight: 'var(--surface-hover)', bgDark: 'var(--surface-hover)', textClass: 'text-[var(--text-secondary)]', borderClass: 'border-l-[var(--border-strong)]' }
 
 function getDocTypeColors(docType?: string) {
   if (!docType) return DEFAULT_COLORS
@@ -127,15 +127,15 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                   <span style={{
                     fontSize: 10, fontWeight: 800,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: isFailed ? '#EF4444' : colors.accent, lineHeight: 1.1,
+                    color: isFailed ? 'var(--danger)' : colors.accent, lineHeight: 1.1,
                     wordBreak: 'break-all',
                   }}>
                     {isFailed ? 'FAILED' : doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
                   </span>
-                  {isNeedsReview && <AlertTriangle size={10} color="#F59E0B" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
-                  {isFailed && <XCircle size={10} color="#EF4444" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
+                  {isNeedsReview && <AlertTriangle size={10} color="var(--warning)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
+                  {isFailed && <XCircle size={10} color="var(--danger)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
                   {isProcessing && <Loader2 size={10} color="var(--text-muted)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1, animation: 'spin 1s linear infinite' }} />}
-                  {isPendingPlacement && <Clock size={10} color="#D97706" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
+                  {isPendingPlacement && <Clock size={10} color="var(--warning)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
                 </div>
 
                 {/* Reference number — normal weight monospace */}
@@ -190,7 +190,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
       </HoverCardTrigger>
 
 
-      <HoverCardContent side="right" align="start" className="w-80 p-4 shadow-[var(--shadow-xl)] z-[100] bg-[var(--surface)] border-[var(--border-strong)] rounded-xl">
+      <HoverCardContent side="right" align="start" className="w-80 p-4 shadow-[var(--shadow-xl)] z-[100] bg-[var(--surface)] border-[var(--border-strong)] rounded-[var(--radius-md)]">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-2">
             <div
@@ -224,7 +224,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             {doc.raw_metadata.extracted_amounts?.total_demand && (
               <div className="flex flex-col bg-[var(--bg)] p-1.5 rounded border border-[var(--border)]">
                 <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Demand</span>
-                <span className="font-medium text-red-600 dark:text-red-400">₹{Number(doc.raw_metadata.extracted_amounts.total_demand).toLocaleString('en-IN')}</span>
+                <span className="font-medium text-[var(--danger)]">₹{Number(doc.raw_metadata.extracted_amounts.total_demand).toLocaleString('en-IN')}</span>
               </div>
             )}
           </div>
@@ -237,7 +237,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
         )}
 
         {isNeedsReview && doc.review_reason && (
-          <div className="flex items-start gap-2 mb-3 p-2 rounded-md bg-[--warning-muted] border border-amber-500/20 text-[--warning] text-xs">
+          <div className="flex items-start gap-2 mb-3 p-2 rounded-[var(--radius-sm)] bg-[var(--warning-muted)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] text-[var(--warning)] text-xs">
             <Info size={14} className="shrink-0 mt-0.5" />
             <p className="line-clamp-3">{doc.review_reason}</p>
           </div>

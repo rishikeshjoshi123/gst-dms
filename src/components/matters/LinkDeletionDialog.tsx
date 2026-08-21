@@ -65,9 +65,9 @@ export function LinkDeletionDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[440px] bg-[var(--surface)] border border-[var(--border)] shadow-xl p-0 overflow-hidden text-[var(--text-primary)]">
         <DialogHeader className="p-6 pb-2 border-b border-[var(--border)]">
-          <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-1">
-            <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-md border border-red-200 dark:border-red-800">
-              <Link2Off size={20} className="text-red-600 dark:text-red-400" />
+          <div className="flex items-center gap-3 text-[var(--danger)] mb-1">
+            <div className="p-2 bg-[var(--danger-muted)] rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]">
+              <Link2Off size={20} className="text-[var(--danger)]" />
             </div>
             <DialogTitle className="text-[18px] font-semibold text-[var(--text-primary)]">
               Link Already Exists
@@ -130,7 +130,7 @@ export function LinkDeletionDialog({
             type="button"
             onClick={handleDelete}
             disabled={isDeleting || !linkId}
-            className="inline-flex items-center justify-center text-[14px] font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm gap-2"
+            className="inline-flex items-center justify-center text-[14px] font-semibold bg-[var(--danger)] hover:opacity-90 text-white shadow-sm gap-2 rounded-[var(--radius-sm)] px-4"
           >
             {isDeleting ? (
               <>

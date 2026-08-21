@@ -6,7 +6,7 @@ import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import {
   Search, Pin, Trash2, CheckCircle2, Circle, FileText,
   Check, Edit2, MessageSquarePlus, CornerDownRight, ExternalLink,
-  StickyNote, Filter, X
+  StickyNote, Filter, X, ChevronLeft
 } from 'lucide-react'
 import { updateNote, deleteNote, createNote } from '@/lib/actions/notes'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -16,27 +16,23 @@ import { formatDistanceToNow } from 'date-fns'
 const TEMPLATE_META = {
   general: {
     label: 'General',
-    gradient: 'from-slate-500 to-slate-600',
-    pillClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    borderClass: 'border-l-slate-400',
+    pillClass: 'bg-[var(--surface-hover)] text-[var(--text-secondary)]',
+    borderClass: 'border-l-[var(--border-strong)]',
   },
   hearing_note: {
     label: 'Hearing Note',
-    gradient: 'from-blue-500 to-indigo-500',
-    pillClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300',
-    borderClass: 'border-l-blue-500',
+    pillClass: 'bg-[var(--accent-muted)] text-[var(--primary)]',
+    borderClass: 'border-l-[var(--primary)]',
   },
   client_instruction: {
     label: 'Client Instruction',
-    gradient: 'from-emerald-500 to-teal-500',
-    pillClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
-    borderClass: 'border-l-emerald-500',
+    pillClass: 'bg-[var(--success-muted)] text-[var(--success)]',
+    borderClass: 'border-l-[var(--success)]',
   },
   research_note: {
     label: 'Research Note',
-    gradient: 'from-violet-500 to-purple-500',
-    pillClass: 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300',
-    borderClass: 'border-l-violet-500',
+    pillClass: 'bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]',
+    borderClass: 'border-l-[var(--primary)]',
   },
 }
 
@@ -175,7 +171,7 @@ export function NotesClientView({
       <div
         onClick={() => setSelectedThreadId(note.id)}
         className={cn(
-          'flex flex-col p-3.5 rounded-xl cursor-pointer transition-all duration-200 border group',
+          'flex flex-col p-3.5 rounded-[var(--radius-md)] cursor-pointer transition-all duration-200 border group',
           note.is_pinned && 'border-l-4',
           note.is_pinned ? meta.borderClass : '',
           isSelected
@@ -185,19 +181,19 @@ export function NotesClientView({
       >
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5 flex-wrap">
-            {note.is_pinned && <Pin size={10} className="text-amber-500 fill-current shrink-0" />}
+            {note.is_pinned && <Pin size={10} className="text-[var(--warning)] fill-current shrink-0" />}
             <span className={cn(
-              'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+              'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)]',
               meta.pillClass
             )}>
               {meta.label}
             </span>
             {note.is_action_item && (
               <span className={cn(
-                'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)]',
                 note.action_item_resolved
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                  ? 'bg-[var(--success-muted)] text-[var(--success)]'
+                  : 'bg-[var(--warning-muted)] text-[var(--warning)]'
               )}>
                 {note.action_item_resolved ? '✓ Done' : 'Task'}
               </span>
@@ -215,8 +211,8 @@ export function NotesClientView({
         <div className="flex items-center justify-between mt-auto pt-2 border-t border-[var(--border)]">
           <div className="flex items-center gap-2">
             <div className={cn(
-              'w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-gradient-to-br shrink-0',
-              meta.gradient
+              'w-5 h-5 rounded-[var(--radius-sm)] flex items-center justify-center text-[9px] font-bold shrink-0',
+              meta.pillClass
             )}>
               {initials}
             </div>
@@ -225,7 +221,7 @@ export function NotesClientView({
             </span>
           </div>
           {replyCount > 0 && (
-            <div className="flex items-center gap-1 text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] px-1.5 py-0.5 rounded-full">
+            <div className="flex items-center gap-1 text-[var(--text-muted)] bg-[var(--surface-hover)] border border-[var(--border)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">
               <MessageSquarePlus size={10} />
               <span className="text-[10px] font-semibold">{replyCount}</span>
             </div>
@@ -249,7 +245,7 @@ export function NotesClientView({
             placeholder="Search notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+            className="w-full pl-9 pr-3 py-2 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -258,8 +254,10 @@ export function NotesClientView({
           )}
         </div>
 
-        <div className="flex items-center gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
-          <Filter size={12} className="text-[var(--text-muted)] ml-1.5" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full sm:w-auto gap-2 sm:gap-1 p-2 sm:p-1 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)]">
+          <div className="hidden sm:block">
+            <Filter size={12} className="text-[var(--text-muted)] mx-1.5" />
+          </div>
           {/* Matter filter */}
           <select
             value={filterMatter}
@@ -270,7 +268,7 @@ export function NotesClientView({
             {matters.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
           </select>
 
-          <div className="w-px h-4 bg-[var(--border)]" />
+          <div className="hidden sm:block w-px h-4 bg-[var(--border)]" />
 
           {/* Type filter */}
           <select
@@ -282,7 +280,7 @@ export function NotesClientView({
             {Object.entries(TEMPLATE_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
 
-          <div className="w-px h-4 bg-[var(--border)]" />
+          <div className="hidden sm:block w-px h-4 bg-[var(--border)]" />
 
           {/* Action item filter */}
           <select
@@ -299,16 +297,19 @@ export function NotesClientView({
       </div>
 
       {/* Split Pane */}
-      <div className="flex flex-1 min-h-0 overflow-hidden gap-4">
+      <div className="flex flex-1 min-h-0 overflow-hidden gap-4 relative">
 
         {/* Left Pane: Thread List */}
-        <div className="w-[320px] shrink-0 flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]">
+        <div className={cn(
+          "w-full md:w-[320px] shrink-0 flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)]",
+          selectedThreadId ? "hidden md:flex" : "flex"
+        )}>
           {/* Header */}
           <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)] shrink-0 flex items-center justify-between">
             <h2 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
               Conversations
             </h2>
-            <span className="text-[10px] font-semibold bg-[var(--surface-hover)] border border-[var(--border)] px-2 py-0.5 rounded-full text-[var(--text-muted)]">
+            <span className="text-[10px] font-semibold bg-[var(--surface-hover)] border border-[var(--border)] px-2 py-0.5 rounded-[var(--radius-sm)] text-[var(--text-muted)]">
               {filteredThreads.length}
             </span>
           </div>
@@ -316,7 +317,7 @@ export function NotesClientView({
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
             {filteredThreads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center">
                   <StickyNote size={22} className="text-[var(--text-muted)]" />
                 </div>
                 <p className="text-xs text-[var(--text-muted)] text-center">No notes found</p>
@@ -326,7 +327,7 @@ export function NotesClientView({
                 {pinnedThreads.length > 0 && (
                   <>
                     <div className="flex items-center gap-2 px-1 mb-1">
-                      <Pin size={10} className="text-amber-500 fill-current" />
+                      <Pin size={10} className="text-[var(--warning)] fill-current" />
                       <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Pinned</span>
                     </div>
                     {pinnedThreads.map(note => <ThreadCard key={note.id} note={note} />)}
@@ -346,10 +347,13 @@ export function NotesClientView({
         </div>
 
         {/* Right Pane: Thread Detail */}
-        <div className="flex-1 flex flex-col rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--surface)]">
+        <div className={cn(
+          "flex-1 flex flex-col rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden bg-[var(--surface)]",
+          !selectedThreadId ? "hidden md:flex" : "flex"
+        )}>
           {!selectedThread ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-[var(--text-muted)]">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-[var(--border)] flex items-center justify-center">
+              <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center">
                 <FileText size={28} className="text-[var(--text-muted)]" />
               </div>
               <div className="text-center">
@@ -361,10 +365,19 @@ export function NotesClientView({
             <>
               {/* Thread Header */}
               <div className="px-5 py-3.5 border-b border-[var(--border)] bg-[var(--surface)] flex items-center justify-between shrink-0">
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedThreadId(null)}
+                    className="md:hidden p-1.5 -ml-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+                    aria-label="Back to conversations"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn(
-                      'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
+                      'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)]',
                       (TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).pillClass
                     )}>
                       {(TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).label}
@@ -384,13 +397,14 @@ export function NotesClientView({
                     )}
                   </div>
                 </div>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleTogglePin(selectedThread)}
                     className={cn(
                       'p-2 rounded-lg border transition-all text-sm',
                       selectedThread.is_pinned
-                        ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 text-amber-600 dark:text-amber-400'
+                        ? 'border-[var(--warning)] bg-[var(--warning-muted)] text-[var(--warning)]'
                         : 'border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)]'
                     )}
                     title="Pin Thread"
@@ -399,7 +413,7 @@ export function NotesClientView({
                   </button>
                   <button
                     onClick={() => setPendingDeleteNoteId(selectedThread.id)}
-                    className="p-2 rounded-lg border border-[var(--border)] text-[var(--text-muted)] hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all"
+                    className="p-2 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--danger)] hover:bg-[var(--danger-muted)] hover:text-[var(--danger)] transition-all"
                     title="Delete Thread"
                   >
                     <Trash2 size={14} />
@@ -412,8 +426,8 @@ export function NotesClientView({
                 {/* Original Note */}
                 <div className="flex gap-3">
                   <div className={cn(
-                    'w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0 mt-0.5 bg-gradient-to-br',
-                    (TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).gradient
+                    'w-9 h-9 rounded-[var(--radius-md)] flex items-center justify-center text-sm font-bold shrink-0 mt-0.5',
+                    (TEMPLATE_META[selectedThread.template_type as keyof typeof TEMPLATE_META] ?? TEMPLATE_META.general).pillClass
                   )}>
                     {getInitials(selectedThread.author?.email || 'U')}
                   </div>
@@ -428,11 +442,11 @@ export function NotesClientView({
                     </div>
 
                     {selectedThread.quote && (
-                      <div className="mb-2.5 p-3 bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-400 rounded-r-xl">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      <div className="mb-2.5 p-3 bg-[var(--warning-muted)] border-l-4 border-[var(--warning)] rounded-r-xl">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--warning)]">
                           Quote · Page {selectedThread.page_number}
                         </span>
-                        <p className="text-sm italic text-amber-900 dark:text-amber-200 mt-1 leading-relaxed">
+                        <p className="text-sm italic text-[var(--text-secondary)] mt-1 leading-relaxed">
                           &ldquo;{selectedThread.quote}&rdquo;
                         </p>
                       </div>
@@ -443,10 +457,10 @@ export function NotesClientView({
                         <textarea
                           value={editContent}
                           onChange={(e) => setEditContent(e.target.value)}
-                          className="w-full min-h-[100px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
+                          className="w-full min-h-[100px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
                         />
                         <div className="flex gap-2">
-                          <button onClick={() => handleSaveEdit(selectedThread.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90">
+                          <button onClick={() => handleSaveEdit(selectedThread.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-[var(--on-accent)] hover:bg-[var(--primary-hover)]">
                             <Check size={12} /> Save
                           </button>
                           <button onClick={() => setEditingNoteId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
@@ -456,7 +470,7 @@ export function NotesClientView({
                       </div>
                     ) : (
                       <div className="relative group">
-                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-4 shadow-sm">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-4 shadow-sm">
                           <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                             {selectedThread.content}
                           </p>
@@ -473,20 +487,20 @@ export function NotesClientView({
                     {/* Action item */}
                     {selectedThread.is_action_item && (
                       <div className={cn(
-                        'mt-3 p-3 rounded-xl border flex flex-col gap-2',
+                        'mt-3 p-3 rounded-[var(--radius-md)] border flex flex-col gap-2',
                         selectedThread.action_item_resolved
-                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
-                          : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                          ? 'bg-[var(--success-muted)] border-[color-mix(in_srgb,var(--success)_20%,transparent)]'
+                          : 'bg-[var(--warning-muted)] border-[color-mix(in_srgb,var(--warning)_20%,transparent)]'
                       )}>
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
                           <button
                             onClick={() => handleToggleResolve(selectedThread)}
                             className={cn(
-                              'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors',
+                              'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors',
                               selectedThread.action_item_resolved
-                                ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/50'
-                                : 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50'
+                                ? 'text-[var(--success)] bg-[var(--success-muted)]'
+                                : 'text-[var(--warning)] bg-[var(--warning-muted)]'
                             )}
                           >
                             {selectedThread.action_item_resolved
@@ -512,7 +526,7 @@ export function NotesClientView({
                     <div className="absolute -left-5 top-5 bottom-0 w-px bg-[var(--border)]" />
                     <CornerDownRight size={14} className="absolute -left-5 top-4 text-[var(--border-strong)]" />
 
-                    <div className="w-8 h-8 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shrink-0 mt-0.5 text-xs">
+                    <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] font-bold shrink-0 mt-0.5 text-xs">
                       {getInitials(reply.author?.email || 'U')}
                     </div>
                     <div className="flex-1">
@@ -529,10 +543,10 @@ export function NotesClientView({
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full min-h-[80px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
+                            className="w-full min-h-[80px] p-3 text-sm bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
                           />
                           <div className="flex gap-2">
-                            <button onClick={() => handleSaveEdit(reply.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90">
+                            <button onClick={() => handleSaveEdit(reply.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)] text-[var(--on-accent)] hover:bg-[var(--primary-hover)]">
                               <Check size={12} /> Save
                             </button>
                             <button onClick={() => setEditingNoteId(null)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">
@@ -542,7 +556,7 @@ export function NotesClientView({
                         </div>
                       ) : (
                         <div className="relative group">
-                          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-3 shadow-sm">
+                          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-3 shadow-sm">
                             <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                               {reply.content}
                             </p>
@@ -570,13 +584,13 @@ export function NotesClientView({
                       value={replyContent}
                       onChange={e => setReplyContent(e.target.value)}
                       placeholder="Type a reply to this thread..."
-                      className="w-full min-h-[48px] max-h-[120px] p-3 text-sm bg-[var(--bg)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y transition-all"
+                      className="w-full min-h-[48px] max-h-[120px] p-3 text-sm bg-[var(--bg)] border border-[var(--border-strong)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y transition-all"
                     />
                   </div>
                   <button
                     onClick={() => handleReply(selectedThread)}
                     disabled={isPending || !replyContent.trim()}
-                    className="mb-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
+                    className="mb-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold bg-[var(--primary)] text-[var(--on-accent)] hover:bg-[var(--primary-hover)] transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                   >
                     Reply
                   </button>

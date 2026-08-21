@@ -24,51 +24,51 @@ interface DashboardContentProps {
   upcomingDeadlines: any[]
 }
 
-/* ─── Stat Card Config with Cool Hover Gradients ─────────────────── */
+/* ─── Stat Card Config ─────────────────── */
 const STAT_ICONS: Record<string, { icon: React.FC<any>; color: string; bgColor: string; hoverGradient: string; borderHover: string }> = {
   'Active Clients': {
     icon: Users,
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bgColor: 'bg-emerald-500/10 border border-emerald-500/20',
-    hoverGradient: 'hover:bg-gradient-to-br hover:from-emerald-500/10 hover:via-teal-500/5 hover:to-transparent dark:hover:from-emerald-950/40 dark:hover:via-teal-950/20 dark:hover:to-transparent',
-    borderHover: 'hover:border-emerald-500/40',
+    color: 'text-[var(--primary)]',
+    bgColor: 'bg-[var(--accent-muted)] border-[var(--border)]',
+    hoverGradient: 'hover:bg-[var(--surface-hover)]',
+    borderHover: 'hover:border-[var(--border-strong)]',
   },
   'Open Matters': {
     icon: FolderOpen,
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bgColor: 'bg-indigo-500/10 border border-indigo-500/20',
-    hoverGradient: 'hover:bg-gradient-to-br hover:from-indigo-500/10 hover:via-purple-500/5 hover:to-transparent dark:hover:from-indigo-950/40 dark:hover:via-purple-950/20 dark:hover:to-transparent',
-    borderHover: 'hover:border-indigo-500/40',
+    color: 'text-[var(--primary)]',
+    bgColor: 'bg-[var(--accent-muted)] border-[var(--border)]',
+    hoverGradient: 'hover:bg-[var(--surface-hover)]',
+    borderHover: 'hover:border-[var(--border-strong)]',
   },
   'Documents': {
     icon: FileText,
-    color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-500/10 border border-blue-500/20',
-    hoverGradient: 'hover:bg-gradient-to-br hover:from-blue-500/10 hover:via-cyan-500/5 hover:to-transparent dark:hover:from-blue-950/40 dark:hover:via-cyan-950/20 dark:hover:to-transparent',
-    borderHover: 'hover:border-blue-500/40',
+    color: 'text-[var(--primary)]',
+    bgColor: 'bg-[var(--accent-muted)] border-[var(--border)]',
+    hoverGradient: 'hover:bg-[var(--surface-hover)]',
+    borderHover: 'hover:border-[var(--border-strong)]',
   },
   'Pending Review': {
     icon: ShieldAlert,
-    color: 'text-amber-600 dark:text-amber-400',
-    bgColor: 'bg-amber-500/10 border border-amber-500/20',
-    hoverGradient: 'hover:bg-gradient-to-br hover:from-amber-500/10 hover:via-orange-500/5 hover:to-transparent dark:hover:from-amber-950/40 dark:hover:via-orange-950/20 dark:hover:to-transparent',
-    borderHover: 'hover:border-amber-500/40',
+    color: 'text-[var(--warning)]',
+    bgColor: 'bg-[var(--warning-muted)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)]',
+    hoverGradient: 'hover:bg-[var(--surface-hover)]',
+    borderHover: 'hover:border-[var(--border-strong)]',
   },
 }
 
-/* ─── Activity Entity Metadata (Clean SVG Outline icons) ─────────── */
+/* ─── Activity Entity Metadata ─────────── */
 const ENTITY_META: Record<string, { icon: React.FC<any>; color: string }> = {
-  document: { icon: FileText, color: 'text-blue-600 dark:text-blue-400' },
-  matter: { icon: FolderOpen, color: 'text-indigo-600 dark:text-indigo-400' },
-  client: { icon: Users, color: 'text-emerald-600 dark:text-emerald-400' },
-  case_note: { icon: FileCheck, color: 'text-violet-600 dark:text-violet-400' },
-  document_link: { icon: Link2, color: 'text-amber-600 dark:text-amber-400' },
-  deadline: { icon: Calendar, color: 'text-rose-600 dark:text-rose-400' },
-  staged_document: { icon: Zap, color: 'text-cyan-600 dark:text-cyan-400' },
-  organisation: { icon: Users, color: 'text-slate-600 dark:text-slate-400' },
-  user: { icon: Users, color: 'text-pink-600 dark:text-pink-400' },
-  supporting_document: { icon: FileText, color: 'text-teal-600 dark:text-teal-400' },
-  wiki_section: { icon: FileText, color: 'text-purple-600 dark:text-purple-400' },
+  document: { icon: FileText, color: 'text-[var(--text-secondary)]' },
+  matter: { icon: FolderOpen, color: 'text-[var(--primary)]' },
+  client: { icon: Users, color: 'text-[var(--text-secondary)]' },
+  case_note: { icon: FileCheck, color: 'text-[var(--text-secondary)]' },
+  document_link: { icon: Link2, color: 'text-[var(--text-secondary)]' },
+  deadline: { icon: Calendar, color: 'text-[var(--danger)]' },
+  staged_document: { icon: Zap, color: 'text-[var(--warning)]' },
+  organisation: { icon: Users, color: 'text-[var(--text-secondary)]' },
+  user: { icon: Users, color: 'text-[var(--text-secondary)]' },
+  supporting_document: { icon: FileText, color: 'text-[var(--text-secondary)]' },
+  wiki_section: { icon: FileText, color: 'text-[var(--text-secondary)]' },
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -220,7 +220,7 @@ export function DashboardContent({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
-            {greeting}, {firstName} 👋
+            {greeting}, {firstName}
           </h1>
           <p className="text-xs text-[var(--text-muted)] mt-1">
             Overview of <span className="font-semibold text-[var(--text-primary)]">{orgName}</span>
@@ -236,7 +236,7 @@ export function DashboardContent({
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search clients, matters, documents..."
-              className="w-full h-10 pl-10 pr-9 rounded-xl text-xs bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none transition-all shadow-xs"
+              className="w-full h-10 pl-10 pr-9 rounded-[var(--radius-md)] text-xs bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none transition-all shadow-xs"
             />
             {query && (
               <button onClick={() => setQuery('')} className="absolute right-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -247,7 +247,7 @@ export function DashboardContent({
 
           {/* Search Dropdown */}
           {query.trim().length >= 2 && (
-            <div className="absolute top-12 left-0 right-0 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden max-h-96 overflow-y-auto custom-scrollbar animate-fade-in">
+            <div className="absolute top-12 left-0 right-0 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-xl overflow-hidden max-h-96 overflow-y-auto custom-scrollbar animate-fade-in">
               {isSearching ? (
                 <div className="p-4 text-center text-xs text-[var(--text-muted)] flex items-center justify-center gap-2">
                   <Loader2 size={14} className="animate-spin text-[var(--primary)]" />
@@ -267,9 +267,9 @@ export function DashboardContent({
                       className="flex items-center gap-3 p-3 hover:bg-[var(--surface-hover)] transition-colors"
                     >
                       <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center shrink-0">
-                        {item.type === 'client' && <Users size={14} className="text-emerald-500" />}
-                        {item.type === 'matter' && <FolderOpen size={14} className="text-indigo-500" />}
-                        {item.type === 'document' && <FileText size={14} className="text-blue-500" />}
+                        {item.type === 'client' && <Users size={14} className="text-[var(--text-secondary)]" />}
+                        {item.type === 'matter' && <FolderOpen size={14} className="text-[var(--primary)]" />}
+                        {item.type === 'document' && <FileText size={14} className="text-[var(--text-secondary)]" />}
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-semibold text-[var(--text-primary)] truncate">{item.title}</span>
@@ -290,10 +290,10 @@ export function DashboardContent({
         {statCards.map((card, idx) => {
           const config = STAT_ICONS[card.label] ?? {
             icon: Info,
-            color: 'text-slate-500',
-            bgColor: 'bg-slate-500/10 border border-slate-500/20',
-            hoverGradient: 'hover:bg-gradient-to-br hover:from-slate-500/10 hover:to-transparent',
-            borderHover: 'hover:border-slate-400',
+            color: 'text-[var(--text-secondary)]',
+            bgColor: 'bg-[var(--surface-hover)] border border-[var(--border)]',
+            hoverGradient: 'hover:bg-[var(--surface-hover)]',
+            borderHover: 'hover:border-[var(--border-strong)]',
           }
           const Icon = config.icon
           return (
@@ -301,7 +301,7 @@ export function DashboardContent({
               key={idx}
               href={card.href}
               className={cn(
-                'group px-4 py-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 flex items-center justify-between gap-3',
+                'group px-4 py-6 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] transition-colors duration-150 shadow-xs flex items-center justify-between gap-3',
                 config.hoverGradient,
                 config.borderHover
               )}
@@ -335,7 +335,7 @@ export function DashboardContent({
       {stats.clients === 0 && (
         <div className="flex-1 flex items-center justify-center pb-12">
           <div className="text-center max-w-md">
-            <div className="w-16 h-16 rounded-2xl border border-[var(--border)] bg-[var(--surface)] flex items-center justify-center mx-auto mb-6 shadow-sm">
+            <div className="w-16 h-16 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] flex items-center justify-center mx-auto mb-6 shadow-sm">
               <FolderOpen size={28} className="text-[var(--primary)]" />
             </div>
             <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Your workspace is ready</h2>
@@ -354,15 +354,15 @@ export function DashboardContent({
         <div className="space-y-8 pb-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* ── Upcoming Deadlines ──────────────────────────────── */}
-            <div className="lg:col-span-1 flex flex-col rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+            <div className="lg:col-span-1 flex flex-col rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)] flex items-center justify-center">
                     <Calendar size={14} />
                   </div>
                   <span className="text-sm font-bold text-[var(--text-primary)]">Upcoming Deadlines</span>
                 </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)]">
                   {upcomingDeadlines.length}
                 </span>
               </div>
@@ -373,9 +373,9 @@ export function DashboardContent({
                 ) : (
                   upcomingDeadlines.map((d: any) => {
                     const days = differenceInDays(new Date(d.due_date), new Date())
-                    const urgency = days <= 3 ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
-                      days <= 7 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
-                        'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+                    const urgency = days <= 3 ? 'bg-[var(--danger-muted)] text-[var(--danger)]' :
+                      days <= 7 ? 'bg-[var(--warning-muted)] text-[var(--warning)]' :
+                        'bg-[var(--accent-muted)] text-[var(--primary)]'
 
                     return (
                       <div key={d.id} className="p-3.5 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
@@ -387,7 +387,7 @@ export function DashboardContent({
                             {d.matters?.clients?.name} · {d.matters?.title}
                           </span>
                         </div>
-                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0', urgency)}>
+                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] shrink-0', urgency)}>
                           {days === 0 ? 'Today' : days === 1 ? '1 day' : `${days}d`}
                         </span>
                       </div>
@@ -398,16 +398,16 @@ export function DashboardContent({
             </div>
 
             {/* ── Recent Activity (With Time Period Filter & Clean SVG Icons) ─ */}
-            <div className="lg:col-span-2 flex flex-col rounded-xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
+            <div className="lg:col-span-2 flex flex-col rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
               {/* Activity Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--primary)] flex items-center justify-center">
                     <Activity size={13} />
                   </div>
                   <span className="text-xs font-bold text-[var(--text-primary)]">Recent Activity</span>
-                  <span className="ml-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+                  <span className="ml-1 flex items-center gap-1 text-[10px] font-semibold text-[var(--success)] bg-[var(--success-muted)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">
+                    <span className="w-1.5 h-1.5 rounded-[var(--radius-sm)] bg-[var(--success)] animate-pulse-dot" />
                     Live
                   </span>
                 </div>
@@ -487,11 +487,11 @@ export function DashboardContent({
                         return (
                           <span className="truncate">
                             {isDelete ? 'Unlinked ' : 'Linked '}
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 mx-0.5">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--accent-muted)] text-[var(--primary)] mx-0.5">
                               {log.metadata.from_doc_type}
                             </span>
                             <span className="text-[var(--text-muted)] mx-0.5">↔</span>
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mx-0.5">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--surface-hover)] text-[var(--text-secondary)] mx-0.5">
                               {log.metadata.to_doc_type}
                             </span>
                             {log.metadata.case_name && (

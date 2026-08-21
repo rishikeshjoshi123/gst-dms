@@ -70,7 +70,7 @@ function EditableField({
   }
 
   return (
-    <div className="flex flex-col gap-1.5 p-2 rounded hover:bg-slate-50 transition-colors group relative">
+    <div className="flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)] hover:bg-[var(--surface-hover)] transition-colors group relative">
       <h5 className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">
         {label}
       </h5>
@@ -102,14 +102,14 @@ function EditableField({
           <button 
             onClick={handleSave} 
             disabled={isSaving || disabled}
-            className="p-1.5 text-green-600 hover:bg-green-100 rounded transition-colors shrink-0"
+            className="p-1.5 text-[var(--success)] hover:bg-[var(--success-muted)] rounded-[var(--radius-sm)] transition-colors shrink-0"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           </button>
           <button 
             onClick={() => { setIsEditing(false); setEditValue(value ?? ''); }} 
             disabled={isSaving || disabled}
-            className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors shrink-0"
+            className="p-1.5 text-[var(--danger)] hover:bg-[var(--danger-muted)] rounded-[var(--radius-sm)] transition-colors shrink-0"
           >
             <X size={14} />
           </button>
@@ -306,10 +306,10 @@ export function TimelineDocumentDetail({
           <Button variant="outline" size="icon" onClick={handleReprocess} disabled={isReprocessing || isDeleting} className="h-7 w-7 text-[--text-secondary]" title="Reprocess Document">
             {isReprocessing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setIsDocConfirmOpen(true)} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-red-950/20 dark:border-red-800" title="Delete Document">
+          <Button variant="outline" size="icon" onClick={() => setIsDocConfirmOpen(true)} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-[var(--danger)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] border-transparent hover:border-[var(--danger)]" title="Delete Document">
             {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
           </Button>
-          <a href={viewUrl} className="inline-flex items-center justify-center rounded-md text-[11px] font-medium h-7 px-2.5 gap-1 bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors">
+          <a href={viewUrl} className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[11px] font-medium h-7 px-2.5 gap-1 bg-[var(--primary)] text-white hover:opacity-90 shadow-sm transition-opacity">
             <ExternalLink size={12} />
             View
           </a>
@@ -327,7 +327,7 @@ export function TimelineDocumentDetail({
           onClick={() => setActiveTab('details')}
           className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
             activeTab === 'details'
-              ? 'border-blue-600 text-blue-600'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
           }`}
         >
@@ -338,7 +338,7 @@ export function TimelineDocumentDetail({
           onClick={() => setActiveTab('notes')}
           className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
             activeTab === 'notes'
-              ? 'border-blue-600 text-blue-600'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
           }`}
         >
@@ -363,7 +363,7 @@ export function TimelineDocumentDetail({
                 onClick={() => setIsSynopsisOpen(!isSynopsisOpen)}
               >
                 <h4 className="text-[11px] font-bold text-[--text-muted] uppercase tracking-wider group-hover:text-[--text-primary] transition-colors">Document Synopsis</h4>
-                <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600">{isSynopsisOpen ? 'Collapse' : 'Expand'}</span>
+                <span className="text-xs font-semibold text-[var(--text-muted)] group-hover:text-[var(--text-primary)]">{isSynopsisOpen ? 'Collapse' : 'Expand'}</span>
               </div>
               {isSynopsisOpen && (
                 <p className="text-sm text-[--text-secondary] leading-relaxed mt-1 animate-in fade-in slide-in-from-top-2">{doc.summary}</p>
@@ -437,14 +437,14 @@ export function TimelineDocumentDetail({
                       <div className="flex flex-col gap-1 min-w-0">
                         <span className="text-sm font-medium text-[--text-primary] truncate">{ldoc.reference_number || ldoc.storage_path.split('/').pop()}</span>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="muted" className={`text-[9px] uppercase tracking-wider py-0 px-1 font-semibold ${isCurrentDocChild ? 'text-[var(--primary)] border-[var(--primary)]/30' : 'text-emerald-600 dark:text-emerald-400 border-emerald-200'}`}>
+                          <Badge variant="muted" className={`text-[9px] uppercase tracking-wider py-0 px-1 font-semibold ${isCurrentDocChild ? 'text-[var(--primary)] border-[var(--primary)]/30' : 'text-[var(--success)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]'}`}>
                             {relationLabel}
                           </Badge>
                           <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 text-[var(--text-muted)]">
                             {roleLabel}
                           </Badge>
                           {ldoc.document_class === 'supporting' && (
-                            <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 bg-slate-100 text-slate-600">Supporting</Badge>
+                            <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 bg-[var(--surface-hover)] text-[var(--text-secondary)] border-transparent">Supporting</Badge>
                           )}
                           <span className="text-xs text-[--text-muted]">{ldoc.doc_date ? new Date(ldoc.doc_date).toISOString().split('T')[0] : ''}</span>
                         </div>
@@ -453,7 +453,7 @@ export function TimelineDocumentDetail({
                         href={`/matters/${ldoc.matter_id}/documents/${ldoc.id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                        className="p-2 text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-[var(--radius-sm)] transition-colors"
                         title="Open Document"
                       >
                         <ExternalLink size={14} />
@@ -512,14 +512,14 @@ export function TimelineDocumentDetail({
               </div>
               
               {activeQuote && (
-                <div className="flex flex-col gap-1.5 p-2.5 bg-amber-500/10 border-l-2 border-amber-500 rounded-r text-xs text-[var(--text-secondary)] relative group mt-1 shadow-sm">
+                <div className="flex flex-col gap-1.5 p-2.5 bg-[var(--warning-muted)] border-l-2 border-[var(--warning)] rounded-r-[var(--radius-md)] text-xs text-[var(--text-secondary)] relative group mt-1 shadow-sm">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-amber-600 dark:text-amber-400 text-[10px] uppercase tracking-wide flex items-center gap-1.5">
+                    <span className="font-bold text-[var(--warning)] text-[10px] uppercase tracking-wide flex items-center gap-1.5">
                       <FileText size={10} /> Selected from Page {activeQuote.pageNumber}
                     </span>
                     <button 
                       onClick={() => setActiveQuote(null)}
-                      className="text-amber-500 hover:text-amber-700 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-amber-500/20"
+                      className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)] opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--warning-muted)]"
                     >
                       <X size={12} />
                     </button>
@@ -561,14 +561,14 @@ export function TimelineDocumentDetail({
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <button
                           onClick={() => handleTogglePin(note)}
-                          className={`p-1 rounded text-[var(--text-muted)] hover:text-amber-500 hover:bg-amber-500/10`}
+                          className={`p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--warning)] hover:bg-[var(--warning-muted)]`}
                           title="Pin Note"
                         >
-                          <Pin size={11} className={note.is_pinned ? 'fill-current text-amber-500' : ''} />
+                          <Pin size={11} className={note.is_pinned ? 'fill-current text-[var(--warning)]' : ''} />
                         </button>
                         <button
                           onClick={() => setPendingNoteDeleteId(note.id)}
-                          className="p-1 rounded text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10"
+                          className="p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)]"
                           title="Delete Note"
                         >
                           <Trash2 size={11} />
@@ -580,7 +580,7 @@ export function TimelineDocumentDetail({
                         onClick={() => {
                           window.dispatchEvent(new CustomEvent('JUMP_TO_PDF_PAGE', { detail: { pageNumber: note.page_number } }))
                         }}
-                        className="mb-3 p-2 bg-[var(--bg)] border-l-2 border-blue-400 rounded-r text-xs text-[var(--text-secondary)] italic cursor-pointer hover:bg-[var(--surface-hover)] transition-colors shadow-sm"
+                        className="mb-3 p-2 bg-[var(--bg)] border-l-2 border-[var(--primary)] rounded-r-[var(--radius-md)] text-xs text-[var(--text-secondary)] italic cursor-pointer hover:bg-[var(--surface-hover)] transition-colors shadow-sm"
                         title={`Jump to Page ${note.page_number}`}
                       >
                         "{note.quote}"

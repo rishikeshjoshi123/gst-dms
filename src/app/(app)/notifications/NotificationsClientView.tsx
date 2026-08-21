@@ -15,74 +15,56 @@ import Link from 'next/link'
 const TYPE_CONFIG: Record<string, {
   label: string
   icon: React.FC<any>
-  gradient: string
-  bgLight: string
-  bgDark: string
-  dot: string
+  pillBg: string
+  iconColor: string
 }> = {
   document_ready: {
     label: 'Document Ready',
     icon: FileText,
-    gradient: 'from-emerald-500 to-teal-500',
-    bgLight: 'bg-emerald-50',
-    bgDark: 'dark:bg-emerald-950/30',
-    dot: 'bg-emerald-500',
+    pillBg: 'bg-[var(--success-muted)] text-[var(--success)]',
+    iconColor: 'text-[var(--success)]',
   },
   chain_suggestion: {
     label: 'Link Suggestion',
     icon: Link2,
-    gradient: 'from-violet-500 to-purple-500',
-    bgLight: 'bg-violet-50',
-    bgDark: 'dark:bg-violet-950/30',
-    dot: 'bg-violet-500',
+    pillBg: 'bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]',
+    iconColor: 'text-[var(--primary)]',
   },
   deadline_approaching: {
     label: 'Deadline',
     icon: Calendar,
-    gradient: 'from-amber-500 to-orange-500',
-    bgLight: 'bg-amber-50',
-    bgDark: 'dark:bg-amber-950/30',
-    dot: 'bg-amber-500',
+    pillBg: 'bg-[var(--warning-muted)] text-[var(--warning)]',
+    iconColor: 'text-[var(--warning)]',
   },
   processing_failed: {
     label: 'Processing Failed',
     icon: AlertTriangle,
-    gradient: 'from-red-500 to-rose-500',
-    bgLight: 'bg-red-50',
-    bgDark: 'dark:bg-red-950/30',
-    dot: 'bg-red-500',
+    pillBg: 'bg-[var(--danger-muted)] text-[var(--danger)]',
+    iconColor: 'text-[var(--danger)]',
   },
   org_invite: {
     label: 'Invitation',
     icon: User,
-    gradient: 'from-blue-500 to-indigo-500',
-    bgLight: 'bg-blue-50',
-    bgDark: 'dark:bg-blue-950/30',
-    dot: 'bg-blue-500',
+    pillBg: 'bg-[var(--accent-muted)] text-[var(--primary)]',
+    iconColor: 'text-[var(--primary)]',
   },
   mention: {
     label: 'Mention',
     icon: Zap,
-    gradient: 'from-pink-500 to-rose-500',
-    bgLight: 'bg-pink-50',
-    bgDark: 'dark:bg-pink-950/30',
-    dot: 'bg-pink-500',
+    pillBg: 'bg-[var(--accent-muted)] text-[var(--accent)]',
+    iconColor: 'text-[var(--accent)]',
   },
   staged_doc_ready: {
     label: 'Staged Document',
     icon: FolderOpen,
-    gradient: 'from-cyan-500 to-blue-500',
-    bgLight: 'bg-cyan-50',
-    bgDark: 'dark:bg-cyan-950/30',
-    dot: 'bg-cyan-500',
+    pillBg: 'bg-[var(--accent-muted)] text-[var(--primary)]',
+    iconColor: 'text-[var(--primary)]',
   },
   wiki_ai_suggestion: {
     label: 'Case Summary',
     icon: Sparkles,
-    gradient: 'from-indigo-500 to-violet-500',
-    bgLight: 'bg-indigo-50',
-    bgDark: 'dark:bg-indigo-950/30',
-    dot: 'bg-indigo-500',
+    pillBg: 'bg-[var(--surface-hover)] text-[var(--text-secondary)]',
+    iconColor: 'text-[var(--text-secondary)]',
   },
 }
 
@@ -163,7 +145,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
         </div>
 
         {/* Tab strip */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
+        <div className="flex items-center gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] w-fit">
           {tabs.map(tab => (
             <button
               key={tab.key}
@@ -171,7 +153,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
                 activeTab === tab.key
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm'
+                  ? 'bg-[var(--surface-hover)] shadow-sm'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
               )}
             >
@@ -179,7 +161,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
               {tab.count !== undefined && tab.count > 0 && (
                 <span className={cn(
                   'text-[10px] font-bold px-1.5 py-0 rounded-full',
-                  activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'
+                  activeTab === tab.key ? 'bg-[var(--border)] text-[var(--text-primary)]' : 'bg-[var(--border)] text-[var(--text-muted)]'
                 )}>
                   {tab.count}
                 </span>
@@ -192,8 +174,8 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
       {/* Feed */}
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="w-16 h-16 rounded-[var(--radius-lg)] bg-[var(--surface-hover)] border border-[var(--border)] flex items-center justify-center">
               <BellOff size={28} className="text-[var(--text-muted)]" />
             </div>
             <div className="text-center">
@@ -212,7 +194,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
                 key={n.id}
                 style={{ animationDelay: `${i * 30}ms` }}
                 className={cn(
-                  'group relative flex gap-4 p-4 rounded-xl border transition-all duration-200 animate-fade-in',
+                  'group relative flex gap-4 p-4 rounded-[var(--radius-md)] border transition-all duration-200 animate-fade-in',
                   n.is_read
                     ? 'bg-[var(--surface)] border-[var(--border)] hover:border-[var(--border-strong)]'
                     : 'bg-[var(--surface)] border-[var(--border)] border-l-4 shadow-sm',
@@ -221,15 +203,15 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
               >
                 {/* Unread accent line */}
                 {!n.is_read && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-gradient-to-b from-blue-500 to-indigo-500" />
+                  <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[var(--radius-md)] bg-[var(--primary)]" />
                 )}
 
                 {/* Icon */}
                 <div className={cn(
-                  'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center',
-                  `bg-gradient-to-br ${cfg.gradient}`
+                  'shrink-0 w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center',
+                  cfg.pillBg
                 )}>
-                  <Icon size={18} className="text-white" />
+                  <Icon size={18} className={cfg.iconColor} />
                 </div>
 
                 {/* Content */}
@@ -238,14 +220,13 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className={cn(
-                          'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md',
-                          cfg.bgLight, cfg.bgDark,
-                          `text-[var(--text-secondary)]`
+                          'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[var(--radius-sm)]',
+                          cfg.pillBg
                         )}>
                           {cfg.label}
                         </span>
                         {!n.is_read && (
-                          <span className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+                          <span className={cn('w-2 h-2 rounded-[var(--radius-sm)] shrink-0 bg-[var(--primary)]')} />
                         )}
                       </div>
                       <p className={cn(

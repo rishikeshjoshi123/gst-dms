@@ -18,9 +18,9 @@ const TEMPLATE_LABELS = {
 
 const TEMPLATE_COLORS = {
   general: 'bg-[var(--surface-hover)] text-[var(--text-primary)] border-[var(--border)]',
-  hearing_note: 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  client_instruction: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-  research_note: 'bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+  hearing_note: 'bg-[var(--primary)]/10 text-[var(--primary)] border-[color-mix(in_srgb,var(--primary)_30%,transparent)]',
+  client_instruction: 'bg-[var(--success-muted)] text-[var(--success)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]',
+  research_note: 'bg-[var(--warning-muted)] text-[var(--warning)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)]',
 }
 
 export function MatterNotesTab({
@@ -201,7 +201,7 @@ export function MatterNotesTab({
   const selectedThreadReplies = useMemo(() => selectedThreadId ? (childNotesByParent.get(selectedThreadId) || []) : [], [selectedThreadId, childNotesByParent])
 
   return (
-      <div className="flex flex-col h-[700px] border border-[var(--border-strong)] rounded-xl overflow-hidden mt-4 bg-[var(--surface)] shadow-sm animate-fade-in">
+      <div className="flex flex-col h-[700px] border border-[var(--border-strong)] rounded-[var(--radius-md)] overflow-hidden mt-4 bg-[var(--surface)] shadow-sm animate-fade-in">
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-b border-[var(--border-strong)] bg-[var(--bg)]">
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -257,7 +257,7 @@ export function MatterNotesTab({
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
-                        {note.is_pinned && <Pin size={12} className="text-amber-500 fill-current" />}
+                        {note.is_pinned && <Pin size={12} className="text-[var(--warning)] fill-current" />}
                         <Badge variant="muted" className={`${TEMPLATE_COLORS[note.template_type as keyof typeof TEMPLATE_COLORS]} text-[9px] uppercase font-bold tracking-wider px-1.5 py-0 border`}>
                           {TEMPLATE_LABELS[note.template_type as keyof typeof TEMPLATE_LABELS]}
                         </Badge>
@@ -302,10 +302,10 @@ export function MatterNotesTab({
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => handleTogglePin(selectedThread)} className={`p-1.5 rounded transition-colors ${selectedThread.is_pinned ? 'text-amber-600' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`} title="Pin Thread">
+                  <button onClick={() => handleTogglePin(selectedThread)} className={`p-1.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.is_pinned ? 'text-[var(--warning)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`} title="Pin Thread">
                     <Pin size={14} className={selectedThread.is_pinned ? 'fill-current' : ''} />
                   </button>
-                  <button onClick={() => setPendingDeleteNoteId(selectedThread.id)} className="p-1.5 rounded text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-500/10 transition-colors" title="Delete Thread">
+                  <button onClick={() => setPendingDeleteNoteId(selectedThread.id)} className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] transition-colors" title="Delete Thread">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -316,12 +316,12 @@ export function MatterNotesTab({
                 {/* Original Note */}
                 <div className="flex flex-col gap-2">
                   {selectedThread.quote && (
-                    <div className="ml-4 p-3 bg-amber-500/10 border-l-4 border-amber-500 rounded-r-lg shadow-sm">
+                    <div className="ml-4 p-3 bg-[var(--warning-muted)] border-l-4 border-[var(--warning)] rounded-r-[var(--radius-md)] shadow-sm">
                       <div className="flex items-center justify-between mb-1">
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Quote from Page {selectedThread.page_number}</span>
-                         <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}#page=${selectedThread.page_number}`} className="text-amber-500 hover:text-amber-400"><ExternalLink size={12} /></a>
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--warning)]">Quote from Page {selectedThread.page_number}</span>
+                         <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}#page=${selectedThread.page_number}`} className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)]"><ExternalLink size={12} /></a>
                       </div>
-                      <p className="text-sm italic text-amber-500/90 leading-relaxed">"{selectedThread.quote}"</p>
+                      <p className="text-sm italic text-[color-mix(in_srgb,var(--warning)_90%,transparent)] leading-relaxed">"{selectedThread.quote}"</p>
                     </div>
                   )}
 
@@ -348,7 +348,7 @@ export function MatterNotesTab({
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-3.5 shadow-sm relative group">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-3.5 shadow-sm relative group">
                           <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{selectedThread.content}</p>
                           <button onClick={() => startEditing(selectedThread)} className="absolute top-1.5 right-1.5 p-1 text-[var(--text-muted)] hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>
                         </div>
@@ -356,10 +356,10 @@ export function MatterNotesTab({
 
                       {/* Action item block */}
                       {selectedThread.is_action_item && (
-                        <div className={`mt-2.5 p-2.5 rounded-lg border flex flex-col gap-2 ${selectedThread.action_item_resolved ? 'bg-slate-100/10 border-slate-500/20' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                        <div className={`mt-2.5 p-2.5 rounded-[var(--radius-md)] border flex flex-col gap-2 ${selectedThread.action_item_resolved ? 'bg-[var(--success-muted)] border-[color-mix(in_srgb,var(--success)_24%,transparent)]' : 'bg-[var(--warning-muted)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)]'}`}>
                            <div className="flex items-center justify-between">
                               <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
-                              <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors ${selectedThread.action_item_resolved ? 'text-emerald-500 bg-emerald-500/10' : 'text-amber-500 bg-amber-500/10'}`}>
+                              <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.action_item_resolved ? 'text-[var(--success)] bg-[var(--success-muted)]' : 'text-[var(--warning)] bg-[var(--warning-muted)]'}`}>
                                 {selectedThread.action_item_resolved ? <><CheckCircle2 size={12}/> Resolved</> : <><Circle size={12} /> Mark Resolved</>}
                               </button>
                            </div>
@@ -401,11 +401,11 @@ export function MatterNotesTab({
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl rounded-tl-sm p-3.5 shadow-sm relative group">
+                        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-3.5 shadow-sm relative group">
                           <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{reply.content}</p>
                           <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => startEditing(reply)} className="p-1 text-[var(--text-muted)] hover:text-[var(--primary)] bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>
-                            <button onClick={() => setPendingDeleteNoteId(reply.id)} className="p-1 text-[var(--text-muted)] hover:text-red-500 bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Trash2 size={12} /></button>
+                            <button onClick={() => setPendingDeleteNoteId(reply.id)} className="p-1 text-[var(--text-muted)] hover:text-[var(--danger)] bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Trash2 size={12} /></button>
                           </div>
                         </div>
                       )}
@@ -484,7 +484,7 @@ export function MatterNotesTab({
             {/* Note Content */}
             <div className="flex flex-col gap-1.5">
               <label className="text-[12px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                Note Content <span className="text-red-500">*</span>
+                Note Content <span className="text-[var(--danger)]">*</span>
               </label>
               <textarea
                 value={formContent}

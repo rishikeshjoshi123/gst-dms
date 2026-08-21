@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Building2, ChevronRight, Search, Activity, FileText, FolderOpen } from 'lucide-react'
 import { NewClientButton } from './NewClientButton'
+import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 
 interface ClientsClientViewProps {
   clients: any[]
@@ -24,6 +25,7 @@ export function ClientsClientView({ clients }: ClientsClientViewProps) {
 
   return (
     <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+      <BreadcrumbSetter breadcrumbs={[{ label: 'Clients' }]} />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
@@ -52,7 +54,7 @@ export function ClientsClientView({ clients }: ClientsClientViewProps) {
       {clients.length === 0 ? (
         <EmptyClients />
       ) : filteredClients.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl bg-[var(--surface)] border border-[var(--border)]">
+        <div className="flex flex-col items-center justify-center py-20 text-center rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)]">
           <Search size={24} className="text-[var(--text-muted)] mb-3" />
           <p className="text-[var(--text-secondary)] text-sm">No clients match your search.</p>
         </div>
@@ -62,14 +64,12 @@ export function ClientsClientView({ clients }: ClientsClientViewProps) {
             <Link
               key={client.id}
               href={`/clients/${client.id}`}
-              className="group relative flex flex-col p-5 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden"
+              className="group relative flex flex-col p-5 rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors duration-150 overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-500/5 to-transparent rounded-bl-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
-              
               <div className="flex items-start justify-between relative z-10">
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--accent-muted)] text-[var(--primary)] flex items-center justify-center shrink-0">
                       <Building2 size={16} />
                     </div>
                     <h3 className="text-base font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--primary)] transition-colors">
@@ -134,9 +134,9 @@ export function ClientsClientView({ clients }: ClientsClientViewProps) {
 
 function EmptyClients() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl bg-[var(--surface)] border border-dashed border-[var(--border-strong)]">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 mb-5">
-        <Building2 size={28} className="text-blue-500" />
+    <div className="flex flex-col items-center justify-center py-20 text-center rounded-[var(--radius-md)] bg-[var(--surface)] border border-dashed border-[var(--border-strong)]">
+      <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--accent-muted)] mb-5">
+        <Building2 size={28} className="text-[var(--primary)]" />
       </div>
       <h2 className="text-lg font-bold text-[var(--text-primary)]">Your client list is empty</h2>
       <p className="text-sm text-[var(--text-muted)] mt-2 max-w-sm leading-relaxed">

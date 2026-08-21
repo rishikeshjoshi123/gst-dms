@@ -33,7 +33,7 @@ export function InboxActions({ stagedId, suggestedMatterId }: { stagedId: string
       <div className="flex items-center gap-2">
         <Button 
           variant="ghost" 
-          className="text-red-500 hover:text-red-600 hover:bg-red-500/10" 
+          className="text-[var(--danger)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)]"
           onClick={() => setIsConfirmOpen(true)}
           disabled={isPending}
         >

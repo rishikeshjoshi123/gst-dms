@@ -27,11 +27,11 @@ export function ConfirmDialog({
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isPending && onClose()}>
-      <DialogContent className="sm:max-w-[420px] bg-[var(--surface)] border border-[var(--border)] shadow-xl p-0 overflow-hidden text-[var(--text-primary)]">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] sm:max-w-[420px] bg-[var(--surface)] border border-[var(--border)] shadow-xl p-0 overflow-hidden text-[var(--text-primary)]">
         <DialogHeader className="p-6 pb-2 border-b border-[var(--border)]">
-          <div className="flex items-center gap-3 text-red-500 dark:text-red-400 mb-1">
-            <div className="p-2 bg-red-500/10 rounded-md border border-red-500/20">
-              <AlertTriangle size={20} className="text-red-500 dark:text-red-400" />
+          <div className="flex items-center gap-3 text-[var(--danger)] mb-1">
+            <div className="p-2 bg-[var(--danger-muted)] rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--danger)_24%,transparent)]">
+              <AlertTriangle size={20} className="text-[var(--danger)]" />
             </div>
             <DialogTitle className="text-[18px] font-semibold text-[var(--text-primary)]">
               {title}
@@ -42,7 +42,7 @@ export function ConfirmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
           <Button
             type="button"
             variant="ghost"

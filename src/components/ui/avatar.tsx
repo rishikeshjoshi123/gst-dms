@@ -22,7 +22,7 @@ export function Avatar({ src, name = '', size = 'md', className, ...props }: Ava
     <AvatarPrimitive.Root
       className={cn(
         'relative flex shrink-0 overflow-hidden rounded-full',
-        'bg-gradient-to-br from-blue-600 to-indigo-600 text-white border border-blue-400/40 shadow-xs',
+        'bg-[var(--accent-muted)] text-[var(--primary)] border border-[var(--border-strong)] shadow-xs',
         sizeStyles[size],
         className
       )}
@@ -38,7 +38,7 @@ export function Avatar({ src, name = '', size = 'md', className, ...props }: Ava
       <AvatarPrimitive.Fallback
         className={cn(
           'flex h-full w-full items-center justify-center',
-          'font-bold text-white tracking-wider',
+          'font-bold tracking-wider',
         )}
       >
         {getInitials(name)}

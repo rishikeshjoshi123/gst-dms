@@ -205,7 +205,7 @@ export function ReassignDocumentDialog({
           <Button 
             onClick={handleReassign} 
             disabled={!selectedMatterId || isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white min-w-[100px]"
+            className="bg-[var(--primary)] hover:opacity-90 text-white min-w-[100px]"
           >
             {isPending ? <Loader2 size={16} className="animate-spin" /> : isCopyMode ? 'Copy' : 'Move'}
           </Button>

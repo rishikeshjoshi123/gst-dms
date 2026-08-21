@@ -9,7 +9,7 @@ export interface BreadcrumbItem {
 
 interface BreadcrumbContextType {
   breadcrumbs: BreadcrumbItem[]
-  setBreadcrumbs: (items: BreadcrumbItem[]) => void
+  setBreadcrumbs: React.Dispatch<React.SetStateAction<BreadcrumbItem[]>>
 }
 
 const BreadcrumbContext = createContext<BreadcrumbContextType>({

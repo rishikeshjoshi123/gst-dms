@@ -9,7 +9,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variants = {
   default:
-    'bg-[var(--primary)] text-[var(--surface)] hover:bg-[var(--primary-hover)] border border-[var(--primary)] shadow-sm dark:text-[#0b1920]',
+    'bg-[var(--primary)] text-[var(--on-accent)] hover:bg-[var(--primary-hover)] border border-[var(--primary)] shadow-sm',
   secondary:
     'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
   outline:
@@ -17,7 +17,7 @@ const variants = {
   ghost:
     'bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border-none',
   destructive:
-    'bg-transparent text-[var(--danger)] hover:bg-red-50 dark:hover:bg-red-950/30 border-none',
+    'bg-transparent text-[var(--danger)] hover:bg-[var(--danger-muted)] border-none',
   link:
     'bg-transparent text-[var(--primary)] hover:text-[var(--primary-hover)] underline-offset-4 hover:underline p-0 h-auto',
 }
@@ -36,12 +36,12 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          // Base styles
-          'inline-flex items-center justify-center rounded-[--radius-sm] font-medium',
-          'transition-colors duration-[--duration-fast] ease-[--ease-smooth]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent-ring] focus-visible:ring-offset-1 focus-visible:ring-offset-[--bg-base]',
+          'inline-flex items-center justify-center rounded-[var(--radius-sm)] font-medium',
+          'transition-colors duration-[var(--duration-fast)] ease-[var(--ease-smooth)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]',
           'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
           'select-none cursor-pointer',
+          'touch-target',
           variants[variant],
           sizes[size],
           className

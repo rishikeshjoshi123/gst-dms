@@ -84,10 +84,10 @@ export default function DesignSystemPage() {
           <div className="flex items-center justify-between gap-3"><strong className="text-sm font-medium">Appeal_Order_17-2025.pdf</strong><Badge variant="default" fixedWidth="lg">Processing</Badge></div>
           <p className="mt-1 text-xs text-[var(--text-muted)]">Extracting text and document fields · step 2 of 4</p>
           <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Extracting, step 2 of 4">
-            <span className="h-1 rounded-full bg-[var(--success)]" />
-            <span className="h-1 rounded-full bg-[var(--primary)] ring-2 ring-[color-mix(in_srgb,var(--primary)_18%,transparent)]" />
-            <span className="h-1 rounded-full bg-[var(--border-strong)]" />
-            <span className="h-1 rounded-full bg-[var(--border-strong)]" />
+            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--success)]" />
+            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--primary)] ring-2 ring-[color-mix(in_srgb,var(--primary)_18%,transparent)]" />
+            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--border-strong)]" />
+            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--border-strong)]" />
           </div>
         </div>
       </section>

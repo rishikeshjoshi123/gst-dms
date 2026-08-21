@@ -12,7 +12,7 @@ interface DocumentViewerModalProps {
 export function DocumentViewerModal({ url, title = 'Document Viewer', onClose }: DocumentViewerModalProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4 sm:p-8">
-      <div className="bg-[var(--bg-surface)] rounded-xl shadow-2xl border border-[var(--border)] w-full max-w-6xl h-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <div className="bg-[var(--bg-surface)] rounded-[var(--radius-md)] shadow-2xl border border-[var(--border)] w-full max-w-6xl h-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--bg)] shrink-0">

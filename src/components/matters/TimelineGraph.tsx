@@ -368,7 +368,7 @@ export function TimelineGraph({
             onClick={() => setShowSupporting(!showSupporting)}
             className="h-8 text-xs font-semibold bg-[var(--surface)] text-[var(--text-primary)] border-[var(--border-strong)] shadow-xs hover:border-[var(--primary)]"
           >
-            {showSupporting ? <EyeOff size={14} className="mr-1.5 text-[var(--text-muted)]" /> : <Eye size={14} className="mr-1.5 text-blue-500" />}
+            {showSupporting ? <EyeOff size={14} className="mr-1.5 text-[var(--text-muted)]" /> : <Eye size={14} className="mr-1.5 text-[var(--primary)]" />}
             {showSupporting ? 'Hide Supporting' : 'Show Supporting'}
           </Button>
           <span className="text-[12px] font-medium text-[var(--text-muted)]">
@@ -384,7 +384,7 @@ export function TimelineGraph({
             disabled={isPending}
             className="h-8 text-xs font-semibold bg-[var(--surface)] text-[var(--text-primary)] border-[var(--border-strong)] shadow-xs hover:border-[var(--primary)]"
           >
-            <RefreshCw size={14} className={`mr-1.5 text-amber-500 ${isPending ? 'animate-spin' : ''}`} />
+            <RefreshCw size={14} className={`mr-1.5 text-[var(--warning)] ${isPending ? 'animate-spin' : ''}`} />
             Re-evaluate Links
           </Button>
 

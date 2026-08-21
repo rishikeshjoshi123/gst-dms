@@ -21,7 +21,7 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-[180px] overflow-hidden rounded-[--radius-md]',
+          'z-50 min-w-[180px] overflow-hidden rounded-[var(--radius-md)]',
           'bg-[var(--surface)] border border-[var(--border-strong)]',
           'shadow-[var(--shadow-xl)] p-1.5',
           'animate-scale-in',
@@ -45,10 +45,10 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        'relative flex cursor-pointer select-none items-center gap-2.5 rounded-[--radius-md]',
+        'relative flex cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)]',
         'px-3 py-2 text-[14px] transition-colors outline-none',
         destructive
-          ? 'text-[var(--danger)] hover:bg-red-50 dark:hover:bg-red-950/30'
+          ? 'text-[var(--danger)] hover:bg-[var(--danger-muted)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         inset && 'pl-8',
@@ -62,7 +62,7 @@ function DropdownMenuItem({
 function DropdownMenuSeparator({ className, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
   return (
     <DropdownMenuPrimitive.Separator
-      className={cn('my-1.5 h-px bg-[--border-default]', className)}
+      className={cn('my-1.5 h-px bg-[var(--border)]', className)}
       {...props}
     />
   )
@@ -71,7 +71,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentPropsWith
 function DropdownMenuLabel({ className, inset, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label> & { inset?: boolean }) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn('px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[--text-muted]', inset && 'pl-8', className)}
+      className={cn('px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]', inset && 'pl-8', className)}
       {...props}
     />
   )
@@ -87,8 +87,8 @@ function DropdownMenuCheckboxItem({
     <DropdownMenuPrimitive.CheckboxItem
       checked={checked}
       className={cn(
-        'relative flex cursor-pointer select-none items-center gap-2 rounded-[--radius-md]',
-        'py-2 pl-8 pr-3 text-[14px] text-[--text-secondary] hover:bg-[--bg-base] hover:text-[--text-primary]',
+        'relative flex cursor-pointer select-none items-center gap-2 rounded-[var(--radius-sm)]',
+        'py-2 pl-8 pr-3 text-[14px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]',
         'transition-colors outline-none',
         className
       )}
@@ -96,7 +96,7 @@ function DropdownMenuCheckboxItem({
     >
       <span className="absolute left-2.5 flex items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <Check size={12} className="text-[--accent]" />
+          <Check size={12} className="text-[var(--accent)]" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

@@ -121,7 +121,7 @@ export function LinkCreationDialog({
 
             {/* Child */}
             <div className="flex flex-col p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Child Document</span>
+              <span className="text-[10px] font-bold text-[var(--success)] uppercase tracking-wider mb-1">Child Document</span>
               <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{childDoc.doc_type || 'Document'}</span>
               <span className="text-xs text-[var(--text-muted)] truncate font-mono">{childDoc.reference_number || childDoc.id}</span>
             </div>

@@ -69,7 +69,7 @@ export default async function MatterPage(props: {
 
       {/* Warning Banner */}
       {isClosed && (
-        <div className="flex items-center gap-3 p-3 mb-4 rounded-md bg-red-50 border border-red-200 text-[var(--danger)] shadow-[var(--shadow-sm)] shrink-0">
+        <div className="flex items-center gap-3 p-3 mb-4 rounded-[var(--radius-md)] bg-[var(--danger-muted)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] text-[var(--danger)] shadow-[var(--shadow-sm)] shrink-0">
           <AlertTriangle size={18} />
           <p className="text-[14px] font-medium">This matter is marked as {MATTER_STATUS_LABELS[matter.status]}. Uploading new documents is disabled.</p>
         </div>

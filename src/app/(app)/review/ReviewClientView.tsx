@@ -127,7 +127,7 @@ export function ReviewClientView({
               <span>{meta.label}</span>
               <Badge
                 variant="muted"
-                className="ml-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)]"
+                className="ml-1 px-2 py-0.5 text-[11px] font-semibold rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)]"
               >
                 {count}
               </Badge>
@@ -137,7 +137,7 @@ export function ReviewClientView({
       </div>
 
       {/* Main Panel Box (enclosed card matching Matter workspace panel) */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
         <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-3">
           {paginatedItems.length === 0 ? (
             <EmptyState text={SECTION_META[activeSection].emptyText} />
@@ -146,9 +146,9 @@ export function ReviewClientView({
               if (activeSection === 'docs') {
                 const doc = item
                 return (
-                  <div key={doc.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
+                  <div key={doc.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <FileText size={16} className="text-amber-500 shrink-0" />
+                      <FileText size={16} className="text-[var(--warning)] shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-xs text-[var(--text-primary)] truncate">
@@ -198,9 +198,9 @@ export function ReviewClientView({
                 const link = item
                 const confidence = link.confidence ? Math.round(link.confidence * 100) : null
                 return (
-                  <div key={link.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
+                  <div key={link.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Link2 size={16} className="text-violet-500 shrink-0" />
+                      <Link2 size={16} className="text-[var(--primary)] shrink-0" />
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md">
                           {link.from_doc?.doc_type || 'DOC'} ({link.from_doc?.reference_number || 'Ref'})
@@ -210,10 +210,10 @@ export function ReviewClientView({
                           {link.to_doc?.doc_type || 'DOC'} ({link.to_doc?.reference_number || 'Ref'})
                         </span>
                         {confidence !== null && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 shrink-0 ${
-                            confidence < 50 ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
-                            confidence < 70 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
-                            'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] ml-2 shrink-0 ${
+                            confidence < 50 ? 'bg-[var(--danger-muted)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_20%,transparent)]' :
+                            confidence < 70 ? 'bg-[var(--warning-muted)] text-[var(--warning)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)]' :
+                            'bg-[var(--success-muted)] text-[var(--success)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)]'
                           }`}>
                             {confidence}% confidence
                           </span>
@@ -236,9 +236,9 @@ export function ReviewClientView({
               if (activeSection === 'tasks') {
                 const task = item
                 return (
-                  <div key={task.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
+                  <div key={task.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <CheckSquare size={16} className="text-blue-500 shrink-0" />
+                      <CheckSquare size={16} className="text-[var(--primary)] shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs text-[var(--text-primary)] line-clamp-1 font-medium">{task.content}</span>
                         {task.matters && (
@@ -265,9 +265,9 @@ export function ReviewClientView({
               if (activeSection === 'staged') {
                 const staged = item
                 return (
-                  <div key={staged.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
+                  <div key={staged.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Inbox size={16} className="text-emerald-500 shrink-0" />
+                      <Inbox size={16} className="text-[var(--success)] shrink-0" />
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs text-[var(--text-primary)] font-medium truncate">
                           {staged.storage_path?.split('/').pop() || 'Staged File'}
@@ -329,8 +329,8 @@ export function ReviewClientView({
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-        <Check size={18} className="text-emerald-500" />
+      <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--success-muted)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)] flex items-center justify-center">
+        <Check size={18} className="text-[var(--success)]" />
       </div>
       <p className="text-xs font-medium text-[var(--text-secondary)]">{text}</p>
     </div>

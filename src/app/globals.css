@@ -21,11 +21,15 @@
   --sidebar-text: #bec8d4;
   --sidebar-active: #315e74;
   --sidebar-accent: #82b3c6;
+  --sidebar-border: rgba(255, 254, 250, 0.1);
+  --on-sidebar: #fffefa;
+  --scrim: rgba(11, 18, 29, 0.6);
 
   --accent: #315e74;
   --accent-hover: #284f62;
   --accent-muted: #e5edf0;
   --accent-ring: #315e74;
+  --on-accent: #fffefa;
   --primary: #315e74;
   --primary-hover: #284f62;
   --primary-gradient: #315e74;
@@ -33,10 +37,14 @@
   --attention: #a56a24;
   --warning: #a56a24;
   --warning-muted: #f4eadc;
+  --on-warning: #fffefa;
   --danger: #a5413b;
+  --danger-hover: #873530;
   --danger-muted: #f5e5e3;
+  --on-danger: #fffefa;
   --success: #2e6b55;
   --success-muted: #e2eee9;
+  --on-success: #fffefa;
   --incoming: #a56a24;
   --incoming-muted: #f4eadc;
   --outgoing: #315e74;
@@ -78,11 +86,15 @@
   --sidebar-text: #b8c4d0;
   --sidebar-active: #315e74;
   --sidebar-accent: #82b3c6;
+  --sidebar-border: rgba(255, 254, 250, 0.1);
+  --on-sidebar: #fffefa;
+  --scrim: rgba(3, 8, 14, 0.72);
 
   --accent: #82b3c6;
   --accent-hover: #9bc4d4;
   --accent-muted: #263945;
   --accent-ring: #82b3c6;
+  --on-accent: #0b1920;
   --primary: #82b3c6;
   --primary-hover: #9bc4d4;
   --primary-gradient: #82b3c6;
@@ -90,10 +102,14 @@
   --attention: #e0aa62;
   --warning: #e0aa62;
   --warning-muted: #3a3025;
+  --on-warning: #211609;
   --danger: #e58b84;
+  --danger-hover: #f09b94;
   --danger-muted: #3b282b;
+  --on-danger: #1f1012;
   --success: #72b69a;
   --success-muted: #243a34;
+  --on-success: #0f211b;
   --incoming: #e0aa62;
   --incoming-muted: #3a3025;
   --outgoing: #82b3c6;
@@ -191,6 +207,20 @@
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+}
+
+/* Touch target helper (44x44 min area) */
+@utility touch-target {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* Dark-mode-aware input */

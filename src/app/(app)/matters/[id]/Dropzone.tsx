@@ -99,7 +99,7 @@ export function Dropzone({ matterId }: { matterId: string }) {
     <div className="flex flex-col gap-4">
       <div
         className={cn(
-          "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-colors",
+          "flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-[var(--radius-md)] transition-colors",
           isDragging ? "border-[--accent] bg-[--accent-muted]" : "border-[--border-subtle] bg-[--bg-surface] hover:border-[--border-default]"
         )}
         onDragOver={handleDragOver}

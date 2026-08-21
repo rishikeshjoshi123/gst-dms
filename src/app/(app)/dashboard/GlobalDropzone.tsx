@@ -151,7 +151,7 @@ export function GlobalDropzone() {
             {files.map((f, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded border border-[--border-subtle] bg-white">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded bg-slate-50 text-slate-600 shrink-0">
+                  <div className="p-2 rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-secondary)] shrink-0">
                     <FileIcon size={16} />
                   </div>
                   <div className="flex flex-col min-w-0">

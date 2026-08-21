@@ -258,8 +258,8 @@ export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) 
             </div>
           )}
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold shrink-0">
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-sm)] bg-[var(--warning-muted)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] text-[var(--warning)] text-xs font-semibold shrink-0">
+            <span className="h-2 w-2 rounded-full bg-[var(--warning)] animate-pulse" />
             [Dev Mode] System-Wide Operations
           </div>
         </div>
@@ -488,7 +488,7 @@ export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) 
                     isSelected
                       ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)]/40 shadow-sm'
                       : isToday
-                      ? 'border-amber-500/50 bg-amber-500/5 dark:bg-amber-500/10'
+                      ? 'border-[color-mix(in_srgb,var(--warning)_50%,transparent)] bg-[var(--warning-muted)]'
                       : isCurrentMonth
                       ? 'border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)]'
                       : 'border-transparent bg-transparent opacity-40 hover:opacity-60'
@@ -497,7 +497,7 @@ export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) 
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-semibold ${
                       isToday 
-                        ? 'text-amber-600 dark:text-amber-400' 
+                        ? 'text-[var(--warning)]'
                         : isCurrentMonth 
                         ? 'text-[var(--text-primary)]' 
                         : 'text-[var(--text-muted)]'
@@ -505,7 +505,7 @@ export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) 
                       {date.getDate()}
                     </span>
                     {isToday && (
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold uppercase">
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-[var(--warning-muted)] text-[var(--warning)] font-bold uppercase">
                         Today
                       </span>
                     )}

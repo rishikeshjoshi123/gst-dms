@@ -121,7 +121,7 @@ function MatterSearchBox({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all ${isOpen
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-[var(--radius-md)] border text-sm transition-all ${isOpen
             ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20 bg-[var(--surface)]'
             : 'border-[var(--border-strong)] bg-[var(--surface)] hover:border-[var(--primary)]/50'
           }`}
@@ -135,7 +135,7 @@ function MatterSearchBox({
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute z-50 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="p-2 border-b border-[var(--border)]">
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -483,7 +483,7 @@ export function InboxClientView({
           >
             <FolderOpen size={13} className={isMatterIntake ? 'text-[var(--primary)]' : ''} />
             <span className="max-w-44 truncate">{preselectedMatter.title}</span>
-            <span className="rounded-full bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{matterIntakeDocuments.length}</span>
+            <span className="rounded-[var(--radius-sm)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{matterIntakeDocuments.length}</span>
           </button>
           <button
             onClick={() => setIntakeTab('global')}
@@ -496,7 +496,7 @@ export function InboxClientView({
             )}
           >
             <Inbox size={14} /> Global inbox
-            <span className="rounded-full bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{globalDocuments.length}</span>
+            <span className="rounded-[var(--radius-sm)] bg-[var(--surface-hover)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">{globalDocuments.length}</span>
           </button>
         </div>
       )}
@@ -545,7 +545,7 @@ export function InboxClientView({
             </button>
             <button
               onClick={() => setIsUploadModalOpen(value => !value)}
-              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[12px] font-medium text-[var(--surface)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] dark:text-[#0b1920]"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[12px] font-medium text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)]"
             >
               <Plus size={13} /> {isUploadModalOpen ? 'Close' : 'Upload'}
             </button>
@@ -667,7 +667,7 @@ export function InboxClientView({
                     onClick={() => setIsActionModalOpen(true)}
                     disabled={Boolean(activeProcessingCopy)}
                     title={activeProcessingCopy ? 'Assignment is available after analysis finishes' : 'Choose how to route this document'}
-                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[13px] font-medium text-[var(--surface)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50 dark:text-[#0b1920]"
+                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[13px] font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                   >
                     <Zap size={13} /> Take Action
                   </button>
@@ -769,7 +769,7 @@ export function InboxClientView({
                       </div>
                       <button
                         onClick={() => setIsActionModalOpen(true)}
-                        className="h-7 shrink-0 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 text-[11px] font-medium text-[var(--surface)] transition-colors hover:opacity-90 dark:text-[#0b1920]"
+                        className="h-7 shrink-0 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 text-[11px] font-medium text-[var(--on-success)] transition-colors hover:opacity-90"
                       >
                         Confirm
                       </button>
@@ -785,7 +785,7 @@ export function InboxClientView({
                         <Bot size={15} className="text-[var(--primary)]" />
                         <span className="text-[13px] font-bold text-[var(--text-primary)]">AI-Extracted Metadata</span>
                         {activeDoc.raw_metadata?.confidence && (
-                          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
+                          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]">
                             {Math.round(activeDoc.raw_metadata.confidence * 100)}% confidence
                           </span>
                         )}
@@ -801,7 +801,7 @@ export function InboxClientView({
                           { label: 'Financial Year', value: activeDoc.raw_metadata?.financial_years?.join(', ') || activeDoc.raw_metadata?.financial_year },
                           { label: 'Tax Period', value: activeDoc.raw_metadata?.tax_period },
                         ].map(({ label, value, mono }) => (
-                          <div key={label} className="flex flex-col gap-1 p-2.5 rounded-xl bg-[var(--surface-hover)]">
+                          <div key={label} className="flex flex-col gap-1 p-2.5 rounded-[var(--radius-md)] bg-[var(--surface-hover)]">
                             <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</span>
                             <span className={`text-[13px] font-semibold text-[var(--text-primary)] ${mono ? 'font-mono' : ''}`}>
                               {value || <span className="text-[var(--text-muted)] font-normal">—</span>}
@@ -819,7 +819,7 @@ export function InboxClientView({
                             className="w-full flex items-center justify-between gap-2 text-left group"
                           >
                             <div className="flex items-center gap-2">
-                              <Sparkles size={13} className="text-violet-400 shrink-0" />
+                              <Sparkles size={13} className="text-[var(--accent)] shrink-0" />
                               <span className="text-[12px] font-bold text-[var(--text-primary)]">AI Synopsis</span>
                               {!isSynopsisExpanded && (
                                 <span className="text-[12px] text-[var(--text-muted)] truncate max-w-[220px]">
@@ -832,7 +832,7 @@ export function InboxClientView({
                             </span>
                           </button>
                           {isSynopsisExpanded && (
-                            <div className="mt-3 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--surface-hover)] p-4 rounded-xl border border-[var(--border)] animate-in fade-in duration-150">
+                            <div className="mt-3 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--surface-hover)] p-4 rounded-[var(--radius-md)] border border-[var(--border)] animate-in fade-in duration-150">
                               {activeDoc.raw_metadata.summary}
                             </div>
                           )}
@@ -847,7 +847,7 @@ export function InboxClientView({
                             {Object.entries(activeDoc.raw_metadata.extracted_amounts).map(([key, val]) => {
                               if (val === null || val === undefined) return null
                               return (
-                                <div key={key} className="flex flex-col p-3 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]">
+                                <div key={key} className="flex flex-col p-3 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)]">
                                   <span className="text-[11px] text-[var(--text-muted)] mb-1">{humanizeKey(key)}</span>
                                   <span className="text-[15px] font-bold font-mono text-[var(--text-primary)]">
                                     ₹{Number(val).toLocaleString('en-IN')}
@@ -906,7 +906,7 @@ export function InboxClientView({
 
             <div className="px-5 pb-5 flex flex-col gap-4">
               {/* Document name chip */}
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)]">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)]">
                 <FileText size={13} className="text-[var(--text-muted)] shrink-0" />
                 <span className="text-[12px] font-medium text-[var(--text-secondary)] truncate">
                   {activeDoc.storage_path.split('/').pop()}
@@ -944,7 +944,7 @@ export function InboxClientView({
                 <button
                   onClick={handleAssign}
                   disabled={!selectedMatterId || isPending}
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[14px] font-medium text-[var(--surface)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#0b1920]"
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[14px] font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {isPending ? 'Assigning…' : 'Confirm Assignment'}
@@ -954,7 +954,7 @@ export function InboxClientView({
                 {activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
                   <div className="flex flex-col gap-2 mt-1">
                     {activeDoc.raw_metadata?.financial_years && activeDoc.raw_metadata.financial_years.length > 1 && (
-                      <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5">
+                      <div className="flex flex-col gap-1.5 p-3 rounded-[var(--radius-md)] border border-[var(--primary)]/20 bg-[var(--primary)]/5">
                         <label className="text-[11px] font-bold text-[var(--primary)] uppercase tracking-widest flex items-center gap-1.5">
                           <AlertCircle size={12} />
                           Multiple FYs Detected
@@ -977,7 +977,7 @@ export function InboxClientView({
                     <button
                       onClick={handleAutoCreate}
                       disabled={isPending || (activeDoc.raw_metadata?.financial_years?.length > 1 && !selectedFyToCreate)}
-                      className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                      className="w-full h-10 flex items-center justify-center gap-2 rounded-[var(--radius-md)] text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
                     >
                       {isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
                       Auto-Create Client & Matter
@@ -989,7 +989,7 @@ export function InboxClientView({
                 <button
                   onClick={() => setIsDiscardConfirmOpen(true)}
                   disabled={isPending}
-                  className="w-full h-9 flex items-center justify-center gap-2 rounded-xl text-[12px] font-semibold text-red-400 hover:bg-red-500/8 transition-all disabled:opacity-50"
+                  className="w-full h-9 flex items-center justify-center gap-2 rounded-[var(--radius-sm)] text-[12px] font-semibold text-[var(--danger)] hover:bg-[var(--danger-muted)] transition-all disabled:opacity-50"
                 >
                   <Trash2 size={13} /> Discard Document
                 </button>

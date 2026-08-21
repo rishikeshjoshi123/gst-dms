@@ -135,20 +135,19 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
       onClick={(e) => { if (!inline && e.target === e.currentTarget && !isUploading) onClose() }}
     >
       <div className={cn(
-        'relative flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]',
+        'relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]',
         inline ? 'w-full shadow-sm' : 'w-[92%] max-w-[500px] shadow-2xl animate-in zoom-in-95 duration-200',
       )}>
         {/* animated gradient top accent */}
-        <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 shrink-0" />
+        <div className="h-1 w-full bg-[var(--primary)] shrink-0" />
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: 'linear-gradient(135deg, #2563EB20, #7C3AED20)' }}
+              className="w-10 h-10 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 bg-[var(--accent-muted)]"
             >
-              <UploadCloud size={18} style={{ color: '#6366F1' }} />
+              <UploadCloud size={18} className="text-[var(--primary)]" />
             </div>
             <div>
               <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-none">Add Documents</h2>
@@ -167,7 +166,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
         {/* Body */}
         <div className="px-6 pb-6 flex flex-col gap-4">
           <div className={cn(
-            'flex items-start gap-3 rounded-xl border p-3 text-[12px]',
+            'flex items-start gap-3 rounded-[var(--radius-md)] border p-3 text-[12px]',
             matterId
               ? 'border-[var(--primary)]/25 bg-[var(--primary)]/5'
               : 'border-[var(--border)] bg-[var(--surface-hover)]',
@@ -197,7 +196,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              'relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-all duration-200 cursor-pointer select-none',
+              'relative flex flex-col items-center justify-center rounded-[var(--radius-md)] border-2 border-dashed transition-all duration-200 cursor-pointer select-none',
               hasEntries ? 'py-5' : 'py-12',
               isDragging
                 ? 'border-[var(--primary)] bg-[var(--primary)]/8 scale-[1.01]'
@@ -216,7 +215,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
 
             {isDragging ? (
               <div className="flex flex-col items-center gap-2 pointer-events-none animate-in zoom-in-95 duration-150">
-                <div className="w-12 h-12 rounded-2xl bg-[var(--primary)]/15 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[var(--primary)]/15 flex items-center justify-center">
                   <UploadCloud size={22} className="text-[var(--primary)]" />
                 </div>
                 <p className="text-[14px] font-bold text-[var(--primary)]">Drop files here</p>
@@ -230,18 +229,17 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
               <div className="flex flex-col items-center gap-3 pointer-events-none">
                 <div className="relative">
                   <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #2563EB15, #7C3AED15)' }}
+                    className="w-16 h-16 rounded-[var(--radius-md)] bg-[var(--accent-muted)] flex items-center justify-center"
                   >
-                    <UploadCloud size={28} style={{ color: '#6366F1' }} />
+                    <UploadCloud size={28} className="text-[var(--primary)]" />
                   </div>
-                  <Sparkles size={12} className="absolute -top-1 -right-1 text-violet-400 animate-pulse" />
+                  <Sparkles size={12} className="absolute -top-1 -right-1 text-[var(--primary)] animate-pulse" />
                 </div>
                 <div className="text-center">
                   <p className="text-[15px] font-bold text-[var(--text-primary)]">Drop PDF files here</p>
                   <p className="text-[13px] text-[var(--text-muted)] mt-1">or click to browse from your computer</p>
                 </div>
-                <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--primary)] text-white text-[13px] font-semibold mt-1 shadow-sm">
+                <div className="flex items-center gap-1.5 px-4 py-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-white text-[13px] font-semibold mt-1 shadow-sm">
                   <UploadCloud size={13} />
                   Browse Files
                 </div>
@@ -261,11 +259,11 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
                   <div
                     key={entry.id}
                     className={cn(
-                      'flex items-center gap-3 p-3 rounded-xl border transition-all duration-300',
+                      'flex items-center gap-3 p-3 rounded-[var(--radius-md)] border transition-all duration-300',
                       isDone
-                        ? 'border-emerald-500/20 bg-emerald-500/5'
+                        ? 'border-[color-mix(in_srgb,var(--success)_20%,transparent)] bg-[var(--success-muted)]'
                         : isError
-                        ? 'border-red-500/20 bg-red-500/5'
+                        ? 'border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--danger-muted)]'
                         : isUpl
                         ? 'border-[var(--primary)]/25 bg-[var(--primary)]/5 animated-gradient-border'
                         : 'border-[var(--border)] bg-[var(--surface-hover)]'
@@ -273,13 +271,13 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
                   >
                     {/* Icon */}
                     <div className={cn(
-                      'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all',
-                      isDone ? 'bg-emerald-500/15' : isError ? 'bg-red-500/15' : isUpl ? 'bg-[var(--primary)]/15' : 'bg-[var(--surface)]'
+                      'w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 transition-all',
+                      isDone ? 'bg-[var(--success-muted)]' : isError ? 'bg-[var(--danger-muted)]' : isUpl ? 'bg-[var(--primary)]/15' : 'bg-[var(--surface)]'
                     )}>
                       {isDone ? (
-                        <CheckCircle2 size={16} className="text-emerald-400" />
+                        <CheckCircle2 size={16} className="text-[var(--success)]" />
                       ) : isError ? (
-                        <AlertCircle size={16} className="text-red-400" />
+                        <AlertCircle size={16} className="text-[var(--danger)]" />
                       ) : isUpl ? (
                         <Loader2 size={16} className="text-[var(--primary)] animate-spin" />
                       ) : (
@@ -291,7 +289,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
                     <div className="flex-1 min-w-0 flex flex-col">
                       <span className={cn(
                         'text-[13px] font-semibold truncate',
-                        isDone ? 'text-emerald-400' : isError ? 'text-red-400' : 'text-[var(--text-primary)]'
+                        isDone ? 'text-[var(--success)]' : isError ? 'text-[var(--danger)]' : 'text-[var(--text-primary)]'
                       )}>
                         {entry.file.name}
                       </span>
@@ -322,11 +320,11 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
             <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
               <div className="flex-1 text-[12px] text-[var(--text-muted)]">
                 {allDone ? (
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span className="text-[var(--success)] font-semibold flex items-center gap-1.5">
                     <CheckCircle2 size={13} /> All files uploaded!
                   </span>
                 ) : errorCount > 0 ? (
-                  <span className="text-red-400 font-semibold">{errorCount} failed · {doneCount} done</span>
+                  <span className="text-[var(--danger)] font-semibold">{errorCount} failed · {doneCount} done</span>
                 ) : (
                   <span>{pendingCount} pending · {doneCount} done</span>
                 )}
@@ -334,7 +332,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
               {errorCount > 0 && !isUploading && (
                 <button
                   onClick={retryFailed}
-                  className="h-9 px-3 rounded-xl border border-[var(--border)] text-[12px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+                  className="h-9 px-3 rounded-[var(--radius-sm)] border border-[var(--border)] text-[12px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   Retry failed
                 </button>
@@ -342,7 +340,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
               {allDone && (
                 <button
                   onClick={onClose}
-                  className="h-9 px-5 rounded-xl bg-[var(--primary)] text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
+                  className="h-9 px-5 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
                 >
                   Done
                 </button>

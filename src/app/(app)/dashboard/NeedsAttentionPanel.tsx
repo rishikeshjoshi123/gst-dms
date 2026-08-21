@@ -21,9 +21,9 @@ export function NeedsAttentionPanel({ documents }: { documents: any[] }) {
   if (documents.length === 0) return null
 
   return (
-    <div className="rounded-lg bg-[var(--surface)] border border-[var(--border)] overflow-hidden animate-fade-in mb-8 shadow-sm border-l-4 border-l-amber-500">
-      <div className="flex items-center gap-2 px-6 py-4 border-b border-[var(--border)] bg-amber-500/10">
-        <AlertTriangle size={18} className="text-amber-500" />
+    <div className="rounded-lg bg-[var(--surface)] border border-[var(--border)] overflow-hidden animate-fade-in mb-8 shadow-sm border-l-4 border-l-[var(--warning)]">
+      <div className="flex items-center gap-2 px-6 py-4 border-b border-[var(--border)] bg-[var(--warning-muted)]">
+        <AlertTriangle size={18} className="text-[var(--warning)]" />
         <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">Needs Attention ({documents.length})</h2>
       </div>
 
@@ -36,7 +36,7 @@ export function NeedsAttentionPanel({ documents }: { documents: any[] }) {
               <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                 <div className="flex items-center gap-3">
                   <h3 className="font-medium text-[14px] text-[var(--text-primary)] truncate">{fileName}</h3>
-                  <span className="text-[10px] font-bold tracking-wider uppercase text-amber-600 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-sm">
+                  <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--warning)] bg-[var(--warning-muted)] px-2 py-0.5 rounded-[var(--radius-sm)]">
                     Flagged for review
                   </span>
                 </div>

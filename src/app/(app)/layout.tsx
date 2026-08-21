@@ -8,6 +8,7 @@ import { UserMenu } from '@/components/nav/UserMenu'
 import { ThemeToggle } from '@/components/nav/ThemeToggle'
 import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
 import { BreadcrumbNav } from '@/components/nav/BreadcrumbNav'
+import { MobileNavDrawer } from '@/components/nav/MobileNavDrawer'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -58,13 +59,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <BreadcrumbProvider>
       <div className="flex h-screen w-full overflow-hidden bg-[var(--bg)] text-[var(--text-primary)] transition-colors duration-200">
         {/* ── Sidebar ─────────────────────────────────────────────── */}
-        <div className="relative z-20 h-full w-16 shrink-0">
+        <div className="hidden md:block relative z-20 h-full w-16 shrink-0">
           <aside
-            className="group/sidebar absolute inset-y-0 left-0 z-30 flex h-full w-16 flex-col overflow-hidden border-r border-white/10 transition-[width,box-shadow] duration-200 ease-out md:hover:w-56 md:focus-within:w-56 md:hover:shadow-xl md:focus-within:shadow-xl"
+            className="group/sidebar absolute inset-y-0 left-0 z-30 flex h-full w-16 flex-col overflow-hidden border-r border-[var(--sidebar-border,var(--border))] transition-[width,box-shadow] duration-200 ease-out hover:w-56 focus-within:w-56 hover:shadow-xl focus-within:shadow-xl"
             style={{ backgroundColor: 'var(--sidebar-bg)' }}
           >
-          <div className="hidden h-14 shrink-0 items-center border-b border-white/10 px-4 md:flex">
-            <span className="hidden whitespace-nowrap text-sm font-semibold tracking-wide text-white opacity-0 transition-opacity duration-150 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">CaseChain</span>
+          <div className="hidden h-14 shrink-0 items-center border-b border-[var(--sidebar-border,var(--border))] px-4 md:flex">
+            <span className="hidden whitespace-nowrap text-sm font-semibold tracking-wide text-[var(--on-sidebar,var(--sidebar-accent))] opacity-0 transition-opacity duration-150 md:block group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">CaseChain</span>
           </div>
           {/* Navigation items */}
           <div className="flex-1 px-2 py-4 md:px-3">
@@ -77,7 +78,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Topbar */}
           <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 transition-colors duration-200 md:px-6">
-            <BreadcrumbNav activeOrgName={activeOrg.name} />
+            <div className="flex items-center gap-2">
+              <MobileNavDrawer inboxCount={inboxCount} notifCount={notifCount} />
+              <BreadcrumbNav activeOrgName={activeOrg.name} />
+            </div>
             <div className="relative z-10 flex items-center gap-3.5 pointer-events-auto">
               <ThemeToggle />
               <UserMenu user={userMeta} currentOrg={activeOrg} allOrgs={orgs} />

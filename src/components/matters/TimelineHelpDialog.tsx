@@ -61,7 +61,7 @@ export function TimelineHelpDialog({
 
           {/* Rule 3: Manual Link Deletion */}
           <div className="flex items-start gap-4 p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] shadow-sm">
-            <div className="p-2 bg-red-500/10 text-red-500 rounded-md shrink-0 mt-0.5 border border-red-500/20">
+            <div className="p-2 bg-[var(--danger-muted)] text-[var(--danger)] rounded-[var(--radius-sm)] shrink-0 mt-0.5 border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]">
               <Link2Off size={18} />
             </div>
             <div className="flex flex-col gap-1">
@@ -74,7 +74,7 @@ export function TimelineHelpDialog({
 
           {/* Rule 4: Filters & Re-evaluation */}
           <div className="flex items-start gap-4 p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] shadow-sm">
-            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-md shrink-0 mt-0.5 border border-amber-500/20">
+            <div className="p-2 bg-[var(--warning-muted)] text-[var(--warning)] rounded-[var(--radius-sm)] shrink-0 mt-0.5 border border-[color-mix(in_srgb,var(--warning)_30%,transparent)]">
               <RefreshCw size={18} />
             </div>
             <div className="flex flex-col gap-1">

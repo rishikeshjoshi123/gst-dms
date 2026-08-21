@@ -29,10 +29,10 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center justify-center rounded-md text-[13px] font-medium h-9 px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 transition-colors shadow-xs ml-auto"
+        className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[13px] font-medium h-9 px-3 bg-[var(--surface)] hover:bg-[var(--danger-muted)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] transition-colors shadow-sm ml-auto"
         title="Delete Client"
       >
-        <Trash2 size={14} className="mr-1.5 text-red-600" />
+        <Trash2 size={14} className="mr-1.5 text-[var(--danger)]" />
         Delete Client
       </button>
 
@@ -40,7 +40,7 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-[var(--surface)] text-[var(--text-primary)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             <div className="p-6 flex flex-col gap-3">
-              <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="flex items-center gap-3 text-[var(--danger)]">
                 <AlertTriangle size={24} className="shrink-0" />
                 <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">Delete Client?</h3>
               </div>
@@ -61,7 +61,7 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
                 type="button"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors shadow-sm"
+                className="inline-flex items-center justify-center px-5 py-2 text-[14px] font-semibold bg-[var(--danger)] hover:bg-[var(--danger-hover)] text-[var(--on-danger)] rounded-[var(--radius-sm)] transition-colors shadow-sm"
               >
                 {isDeleting ? (
                   <>

@@ -64,12 +64,12 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
   if (sections.length === 0) {
     return (
       <div className="py-16 flex flex-col items-center justify-center text-[var(--text-muted)] border border-dashed border-[var(--border-strong)] rounded-lg bg-[var(--surface)]">
-        <Sparkles size={40} className="mb-4 text-blue-500 opacity-80" />
+        <Sparkles size={40} className="mb-4 text-[var(--primary)] opacity-80" />
         <h3 className="text-xl font-medium text-[var(--text-primary)] mb-2">CaseWiki</h3>
         <p className="text-sm max-w-md text-center mb-6 leading-relaxed">
           The CaseWiki provides an automated synthesized summary of the entire matter history, key arguments, and outstanding tasks based on uploaded documents.
         </p>
-        <Button onClick={handleGenerate} disabled={isGenerating} className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button onClick={handleGenerate} disabled={isGenerating} className="bg-[var(--primary)] hover:opacity-90 text-white">
           {isGenerating ? (
             <>
               <RefreshCw size={16} className="mr-2 animate-spin" />
@@ -114,27 +114,27 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
         const isEditing = editingId === section.id
 
         return (
-          <div key={section.id} className="flex flex-col bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between bg-slate-50 border-b border-[var(--border)] px-5 py-3">
+          <div key={section.id} className="flex flex-col bg-[var(--surface)] rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between bg-[var(--surface-hover)] border-b border-[var(--border)] px-5 py-3">
               <div className="flex items-center gap-3">
                 <h3 className="text-[16px] font-semibold text-[var(--text-primary)]">{section.title}</h3>
                 {section.is_user_edited && (
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--warning)] bg-[var(--warning-muted)] px-2 py-0.5 rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)]">
                     Manually Edited
                   </span>
                 )}
               </div>
               
               {!isEditing ? (
-                <button onClick={() => startEditing(section)} className="text-[var(--text-muted)] hover:text-blue-600 transition-colors p-1 rounded-md hover:bg-blue-50">
+                <button onClick={() => startEditing(section)} className="text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors p-1 rounded-[var(--radius-sm)] hover:bg-[var(--primary)]/10">
                   <Edit2 size={16} />
                 </button>
               ) : (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => saveEdit(section)} className="text-emerald-600 hover:text-emerald-700 transition-colors p-1 rounded-md hover:bg-emerald-50">
+                  <button onClick={() => saveEdit(section)} className="text-[var(--success)] hover:text-[color-mix(in_srgb,var(--success)_70%,black)] transition-colors p-1 rounded-[var(--radius-sm)] hover:bg-[var(--success-muted)]">
                     <Check size={18} />
                   </button>
-                  <button onClick={() => setEditingId(null)} className="text-[var(--text-muted)] hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50">
+                  <button onClick={() => setEditingId(null)} className="text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors p-1 rounded-[var(--radius-sm)] hover:bg-[var(--danger-muted)]">
                     <X size={18} />
                   </button>
                 </div>
@@ -146,11 +146,11 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full min-h-[250px] p-4 text-[14px] text-[var(--text-primary)] bg-white border border-[var(--border-strong)] rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                  className="w-full min-h-[250px] p-4 text-[14px] text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border-strong)] rounded-[var(--radius-sm)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-y"
                   placeholder="Enter markdown content..."
                 />
               ) : (
-                <div className="prose prose-sm prose-slate max-w-none prose-headings:font-semibold prose-a:text-blue-600">
+                <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-[var(--primary)]">
                   <ReactMarkdown>{textContent}</ReactMarkdown>
                 </div>
               )}
