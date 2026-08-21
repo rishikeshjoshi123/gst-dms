@@ -14,8 +14,8 @@ export default function LoginPage() {
   return (
     <>
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-[--text-primary]">Welcome back</h1>
-        <p className="mt-1 text-sm text-[--text-muted]">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Welcome back</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
           Sign in to your GST DMS workspace
         </p>
       </div>
@@ -46,7 +46,7 @@ export default function LoginPage() {
         </FormField>
 
         {state.error && (
-          <div className="rounded-[--radius-md] bg-[--danger-muted] border border-[--danger]/30 px-4 py-3 text-sm text-[--danger] animate-fade-in">
+          <div className="rounded-[var(--radius-md)] bg-[var(--danger-muted)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
             {state.error}
           </div>
         )}
@@ -61,7 +61,7 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-[--text-muted]">
+      <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
         Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-[var(--primary)] hover:underline font-medium">
           Create one

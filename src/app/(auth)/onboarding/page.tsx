@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
-import { Building2, Mail, ArrowRight, LogOut, Check, X } from 'lucide-react'
+import { Building2, Mail, ArrowRight, LogOut, X } from 'lucide-react'
 import { createOrganisation, acceptInvite, rejectInvite, getMyPendingInvites } from '@/lib/actions/org'
 import { signOut } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
@@ -92,7 +92,7 @@ export default function OnboardingPage() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="text-[var(--text-secondary)] hover:text-rose-600 hover:border-rose-300 dark:hover:border-rose-800 transition-colors shrink-0"
+          className="text-[var(--text-secondary)] hover:text-[var(--danger)] hover:border-[var(--danger)] hover:bg-[var(--danger-muted)] transition-colors shrink-0"
           onClick={handleLogout}
           disabled={isPending}
         >
@@ -108,33 +108,34 @@ export default function OnboardingPage() {
           {/* Pending Invites Section */}
           {!loadingInvites && invites.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-[--text-muted] uppercase tracking-wider">Pending Invites</h2>
+              <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider">Pending Invites</h2>
               <div className="space-y-3">
                 {invites.map(invite => (
-                  <div key={invite.id} className="flex items-center justify-between p-4 rounded-[--radius-lg] border border-[--border-default] bg-[--bg-overlay]">
+                  <div key={invite.id} className="flex items-center justify-between p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-overlay)]">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[--accent]/10 flex items-center justify-center shrink-0">
-                        <Mail size={16} className="text-[--accent]" />
+                      <div className="w-10 h-10 rounded-full bg-[var(--accent-muted)] flex items-center justify-center shrink-0">
+                        <Mail size={16} className="text-[var(--accent)]" />
                       </div>
                       <div>
-                        <p className="font-semibold text-[--text-primary] text-sm">{invite.orgName}</p>
-                        <p className="text-xs text-[--text-muted]">Invited you as <span className="font-medium">{invite.role}</span></p>
+                        <p className="font-semibold text-[var(--text-primary)] text-sm">{invite.orgName}</p>
+                        <p className="text-xs text-[var(--text-muted)]">Invited you as <span className="font-medium">{invite.role}</span></p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button 
                         size="icon" 
                         variant="outline" 
-                        className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 border-rose-200 dark:border-rose-500/20"
+                        className="h-11 w-11 sm:h-8 sm:w-8 text-[var(--danger)] hover:bg-[var(--danger-muted)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)]"
                         onClick={() => handleRejectInvite(invite.id)}
                         disabled={isPending}
                         title="Reject Invite"
+                        aria-label={`Reject invitation to ${invite.orgName}`}
                       >
                         <X size={14} />
                       </Button>
                       <Button 
                         size="sm" 
-                        className="h-8 px-3"
+                        className="h-11 px-3 sm:h-8"
                         onClick={() => handleAcceptInvite(invite.id)}
                         disabled={isPending}
                         loading={isPending}
@@ -149,28 +150,29 @@ export default function OnboardingPage() {
           )}
 
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-[--text-muted] uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider">
               {invites.length > 0 ? 'Or Create Your Own' : 'Get Started'}
             </h2>
             <button
               onClick={() => setMode('create')}
+              type="button"
               className={cn(
-                'group flex items-start gap-4 p-5 rounded-[--radius-lg] w-full',
-                'border border-[--border-default] bg-[--bg-overlay]',
-                'hover:border-[--accent]/50 hover:bg-[--accent-muted]',
-                'transition-all duration-[--duration-base] text-left cursor-pointer'
+                'group flex items-start gap-4 p-5 rounded-[var(--radius-md)] w-full',
+                'border border-[var(--border)] bg-[var(--bg-overlay)]',
+                'hover:border-[var(--accent)] hover:bg-[var(--accent-muted)]',
+                'transition-all duration-[var(--duration-base)] text-left cursor-pointer'
               )}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[--radius-md] bg-[--accent-muted] group-hover:bg-[--accent] transition-colors">
-                <Building2 size={20} className="text-[--accent] group-hover:text-white transition-colors" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)] group-hover:bg-[var(--accent)] transition-colors">
+                <Building2 size={20} className="text-[var(--accent)] group-hover:text-[var(--on-accent)] transition-colors" />
               </div>
               <div>
-                <p className="font-semibold text-[--text-primary]">Create a new organisation</p>
-                <p className="text-sm text-[--text-muted] mt-0.5">
+                <p className="font-semibold text-[var(--text-primary)]">Create a new organisation</p>
+                <p className="text-sm text-[var(--text-muted)] mt-0.5">
                   Start a fresh workspace for your law firm or practice
                 </p>
               </div>
-              <ArrowRight size={18} className="ml-auto self-center text-[--text-muted] group-hover:text-[--text-primary] transition-colors shrink-0" />
+              <ArrowRight size={18} className="ml-auto self-center text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors shrink-0" />
             </button>
           </div>
         </div>
@@ -181,7 +183,8 @@ export default function OnboardingPage() {
         <div className="animate-fade-in">
           <button
             onClick={() => { setMode('choose'); setError(null) }}
-            className="mb-5 text-sm text-[--text-muted] hover:text-[--text-primary] flex items-center gap-1 transition-colors"
+            type="button"
+            className="mb-5 flex min-h-11 items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
           >
             ← Back
           </button>

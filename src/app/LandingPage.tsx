@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight, FileSearch, Network, Users, Clock, Search, Cloud,
-  ChevronDown, ChevronRight, Upload, Cpu, Eye, FileText, CheckCircle2,
+  Upload, Cpu, Eye, FileText, CheckCircle2,
   XCircle, ShieldCheck, Building2, Sparkles, AlertCircle,
-  Scale, FileCheck2, Play, Pause, GitFork, Share2
+  Scale, FileCheck2, Play, Pause
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/nav/ThemeToggle'
 
@@ -19,7 +19,7 @@ const MOCK_CHAIN = [
     date: '14 Jul 2023',
     fy: 'FY 2021-22',
     direction: 'Incoming',
-    directionColor: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+    directionColor: 'bg-[var(--danger-muted)] text-[var(--danger)] border-[color-mix(in_srgb,var(--danger)_20%,transparent)]',
     issuer: 'Superintendent, Range-IV, Mumbai',
     demand: '₹42,50,000',
     tax: '₹35,00,000',
@@ -37,7 +37,7 @@ const MOCK_CHAIN = [
     date: '12 Aug 2023',
     fy: 'FY 2021-22',
     direction: 'Outgoing',
-    directionColor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    directionColor: 'bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)] border-[color-mix(in_srgb,var(--primary)_20%,transparent)]',
     issuer: 'M/s Apex Global Industries',
     demand: 'Disputed in Full',
     tax: '₹0 (Disputed)',
@@ -55,7 +55,7 @@ const MOCK_CHAIN = [
     date: '20 Oct 2023',
     fy: 'FY 2021-22',
     direction: 'Incoming',
-    directionColor: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    directionColor: 'bg-[var(--warning-muted)] text-[var(--warning)] border-[color-mix(in_srgb,var(--warning)_20%,transparent)]',
     issuer: 'Assistant Commissioner, CGST',
     demand: '₹14,20,000',
     tax: '₹10,00,000',
@@ -73,7 +73,7 @@ const MOCK_CHAIN = [
     date: '18 Dec 2023',
     fy: 'FY 2021-22',
     direction: 'Outgoing',
-    directionColor: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+    directionColor: 'bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)] border-[color-mix(in_srgb,var(--primary)_20%,transparent)]',
     issuer: 'M/s Apex Global Industries',
     demand: '₹14,20,000 (Challenged)',
     tax: '₹1,00,000 (Pre-Deposit Paid)',
@@ -170,7 +170,7 @@ const COMPARISON_ITEMS = [
 const FEATURES_LARGE = [
   {
     icon: FileSearch,
-    color: 'text-blue-500',
+    color: 'text-[var(--primary)]',
     title: 'Smart Document Parsing',
     summary: 'Upload a GST notice and get structured data in seconds.',
     detail:
@@ -185,7 +185,7 @@ const FEATURES_LARGE = [
   },
   {
     icon: Network,
-    color: 'text-indigo-500',
+    color: 'text-[var(--primary)]',
     title: 'Visual Litigation Timeline',
     summary: 'See how every document in a case connects.',
     detail:
@@ -196,25 +196,25 @@ const FEATURES_LARGE = [
 const FEATURES_SMALL = [
   {
     icon: Users,
-    color: 'text-emerald-500',
+    color: 'text-[var(--success)]',
     title: 'Client & Matter Hub',
     summary: 'Organize everything by client, matter, and financial year.',
   },
   {
     icon: Clock,
-    color: 'text-amber-500',
+    color: 'text-[var(--warning)]',
     title: 'Deadline Tracking',
     summary: 'Auto-extracted due dates with countdown alerts.',
   },
   {
     icon: Search,
-    color: 'text-cyan-500',
+    color: 'text-[var(--primary)]',
     title: 'Smart Search',
     summary: 'Find any document across all cases in one search.',
   },
   {
     icon: Cloud,
-    color: 'text-violet-500',
+    color: 'text-[var(--primary)]',
     title: 'Cloud-Native',
     summary: 'Secure, always-synced access from anywhere.',
   },
@@ -247,16 +247,10 @@ const HOW_IT_WORKS = [
 
 /* ─── 5. Graph Animation Node Data for Feature Card 2 ─────────────── */
 const GRAPH_NODES = [
-  { id: 'scn', label: 'Form DRC-01', type: 'SCN', x: 20, y: 30, color: 'border-rose-500 text-rose-600 dark:text-rose-400 bg-rose-500/10' },
-  { id: 'reply', label: 'Form DRC-06', type: 'REPLY', x: 80, y: 30, color: 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10' },
-  { id: 'order', label: 'Form DRC-07', type: 'ORDER', x: 80, y: 80, color: 'border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10' },
-  { id: 'appeal', label: 'Form APL-01', type: 'APPEAL', x: 20, y: 80, color: 'border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10' },
-]
-
-const GRAPH_LINKS = [
-  { from: 0, to: 1, label: 'responds_to', step: 1 },
-  { from: 1, to: 2, label: 'adjudicates', step: 2 },
-  { from: 2, to: 3, label: 'challenges', step: 3 },
+  { id: 'scn', label: 'Form DRC-01', type: 'SCN', x: 20, y: 30, color: 'border-[var(--danger)] text-[var(--danger)] bg-[var(--danger-muted)]' },
+  { id: 'reply', label: 'Form DRC-06', type: 'REPLY', x: 80, y: 30, color: 'border-[var(--primary)] text-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]' },
+  { id: 'order', label: 'Form DRC-07', type: 'ORDER', x: 80, y: 80, color: 'border-[var(--warning)] text-[var(--warning)] bg-[var(--warning-muted)]' },
+  { id: 'appeal', label: 'Form APL-01', type: 'APPEAL', x: 20, y: 80, color: 'border-[var(--primary)] text-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]' },
 ]
 
 const GRAPH_STATUS_MESSAGES = [
@@ -338,18 +332,12 @@ export function LandingPage() {
   const activeCompare = COMPARISON_ITEMS[activeCompareIdx]
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)] overflow-x-hidden selection:bg-blue-500/20 font-sans">
-      {/* ── Background Mesh ───────────────────────────────────────── */}
-      <div className="fixed inset-0 z-0 mesh-gradient-bg pointer-events-none" />
-
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)] overflow-x-hidden selection:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] font-sans">
       {/* ── Navigation ────────────────────────────────────────────── */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-7xl mx-auto">
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center group">
           <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
             CaseChain
-          </span>
-          <span className="text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border-strong)] rounded px-1.5 py-0.5 leading-none">
-            working title
           </span>
         </Link>
 
@@ -358,7 +346,7 @@ export function LandingPage() {
           <Link href="/login" className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors hidden sm:inline-flex">
             Sign In
           </Link>
-          <Link href="/login" className="text-sm font-semibold px-5 py-2 rounded-full transition-all hover:scale-105 shadow-sm text-white" style={{ background: 'var(--primary-gradient)' }}>
+          <Link href="/login" className="inline-flex min-h-11 items-center whitespace-nowrap rounded-[var(--radius-sm)] px-5 py-2 text-sm font-semibold text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)]" style={{ background: 'var(--primary-gradient)' }}>
             Get Started
           </Link>
         </div>
@@ -375,7 +363,7 @@ export function LandingPage() {
             </p>
             <h1 className="text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tight leading-[1.15] mb-5 text-[var(--text-primary)]">
               Every GST Case Document.{' '}
-              <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'var(--primary-gradient)' }}>
+              <span className="text-[var(--primary)]">
                 One Chain.
               </span>{' '}
               Zero Chaos.
@@ -385,11 +373,11 @@ export function LandingPage() {
               <strong className="text-[var(--text-primary)] font-bold"> CaseChain puts every document in its place</strong> — automatically linked, chronologically ordered, instantly retrievable.
             </p>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <Link href="/login" className="flex items-center gap-2 text-white px-7 py-3 rounded-full font-semibold text-sm hover:shadow-lg hover:-translate-y-0.5 transition-all group" style={{ background: 'var(--primary-gradient)' }}>
+              <Link href="/login" className="flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] px-7 py-3 text-sm font-semibold text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] group" style={{ background: 'var(--primary-gradient)' }}>
                 Get Started
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/contact" className="flex items-center gap-2 px-7 py-3 rounded-full font-semibold text-sm border border-[var(--border-strong)] text-[var(--text-secondary)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-all shadow-xs">
+              <Link href="/contact" className="flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-7 py-3 text-sm font-semibold text-[var(--text-secondary)] shadow-xs transition-colors hover:bg-[var(--surface-hover)]">
                 Contact Us
               </Link>
             </div>
@@ -397,13 +385,13 @@ export function LandingPage() {
 
           {/* Right Live Interactive Demo Widget */}
           <div className="lg:col-span-7 animate-fade-in">
-            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] shadow-xl overflow-hidden">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] shadow-xl overflow-hidden">
               {/* Widget Top App Header */}
               <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--bg)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--danger)]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--warning)]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[var(--success)]" />
                   <span className="text-xs font-bold text-[var(--text-primary)] ml-2 flex items-center gap-1.5">
                     <Building2 size={14} className="text-[var(--primary)] shrink-0" />
                     M/s Apex Global Industries
@@ -413,12 +401,12 @@ export function LandingPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setIsHeroPlaying(!isHeroPlaying)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md transition-colors"
+                    className="flex min-h-11 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
                     title={isHeroPlaying ? 'Pause auto-cycle' : 'Play auto-cycle'}
                   >
                     {isHeroPlaying ? (
                       <>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] animate-pulse-dot" />
                         <Pause size={10} />
                         Auto-playing
                       </>
@@ -459,13 +447,13 @@ export function LandingPage() {
                             setSelectedNodeId(node.id)
                             setIsHeroPlaying(false)
                           }}
-                          className={`w-full text-left p-3 rounded-xl border transition-all duration-200 relative z-10 flex items-center gap-3 ${
+                          className={`w-full text-left p-3 rounded-[var(--radius-md)] border transition-all duration-200 relative z-10 flex items-center gap-3 ${
                             isSelected
                               ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)]/30 shadow-xs'
                               : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]'
                           }`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                          <div className={`w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 border ${
                             isSelected ? 'bg-[var(--surface)] border-[var(--primary)]' : 'bg-[var(--surface)] border-[var(--border)]'
                           }`}>
                             <NodeIcon size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
@@ -486,7 +474,7 @@ export function LandingPage() {
                 </div>
 
                 {/* Right Document Metadata Inspector */}
-                <div className="sm:col-span-6 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 flex flex-col justify-between shadow-xs">
+                <div className="sm:col-span-6 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] p-4 flex flex-col justify-between shadow-xs">
                   <div>
                     {/* Inspector Header */}
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--border)]">
@@ -501,7 +489,7 @@ export function LandingPage() {
                     <p className="text-[10px] font-mono text-[var(--text-muted)] font-semibold mb-3">{selectedNode.issuer}</p>
 
                     {/* Spec Attributes */}
-                    <div className="space-y-1.5 text-[11px] mb-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5">
+                    <div className="space-y-1.5 text-[11px] mb-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-sm)] p-2.5">
                       <div className="flex items-center justify-between text-[var(--text-secondary)]">
                         <span className="text-[10px] font-semibold">Doc Direction:</span>
                         <span className={`font-bold text-[9px] px-1.5 py-0.2 rounded border ${selectedNode.directionColor}`}>
@@ -514,18 +502,18 @@ export function LandingPage() {
                       </div>
                       <div className="flex items-center justify-between text-[var(--text-secondary)]">
                         <span className="text-[10px] font-semibold">Demand Amount:</span>
-                        <span className="font-extrabold text-[11px] text-amber-600 dark:text-amber-400">{selectedNode.demand}</span>
+                        <span className="font-extrabold text-[11px] text-[var(--warning)]">{selectedNode.demand}</span>
                       </div>
                       <div className="flex items-center justify-between text-[var(--text-secondary)] pt-1 border-t border-[var(--border)]">
                         <span className="text-[10px] font-semibold">Statutory Deadline:</span>
-                        <span className="font-bold text-[10px] text-blue-600 dark:text-blue-400 truncate max-w-[120px]" title={selectedNode.deadline}>
+                        <span className="font-bold text-[10px] text-[var(--primary)] truncate max-w-[120px]" title={selectedNode.deadline}>
                           {selectedNode.deadline}
                         </span>
                       </div>
                     </div>
 
                     {/* Summary */}
-                    <div className="p-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[10px] text-[var(--text-secondary)] leading-relaxed font-medium">
+                    <div className="p-2.5 rounded-[var(--radius-sm)] bg-[var(--surface)] border border-[var(--border)] text-[10px] text-[var(--text-secondary)] leading-relaxed font-medium">
                       <span className="font-bold text-[var(--text-primary)]">Summary: </span>
                       {selectedNode.summary}
                     </div>
@@ -537,7 +525,7 @@ export function LandingPage() {
                       <Network size={12} className="shrink-0" />
                       {selectedNode.linkedTo}
                     </span>
-                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+                    <span className="flex items-center gap-1 text-[var(--success)] font-bold shrink-0">
                       <ShieldCheck size={12} />
                       Verified
                     </span>
@@ -565,11 +553,11 @@ export function LandingPage() {
             {/* Auto-play toggle */}
             <button
               onClick={() => setIsComparePlaying(!isComparePlaying)}
-              className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--surface)] border border-[var(--border-strong)] px-3 py-1.5 rounded-lg shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
+              className="flex min-h-11 items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--surface)] border border-[var(--border-strong)] px-3 py-1.5 rounded-[var(--radius-sm)] shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
             >
               {isComparePlaying ? (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-dot" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse-dot" />
                   <Pause size={12} />
                   Auto-spotlight On
                 </>
@@ -593,7 +581,7 @@ export function LandingPage() {
                     setActiveCompareIdx(idx)
                     setIsComparePlaying(false)
                   }}
-                  className={`p-4 rounded-xl border text-left transition-all duration-200 flex flex-col justify-between ${
+                  className={`p-4 rounded-[var(--radius-md)] border text-left transition-all duration-200 flex flex-col justify-between ${
                     isActive
                       ? 'border-[var(--primary)] bg-[var(--surface)] shadow-md ring-2 ring-[var(--primary)]/20'
                       : 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -613,14 +601,14 @@ export function LandingPage() {
           {/* High-Contrast Side-by-Side Comparison Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Card: The Reality Today */}
-            <div className="lg:col-span-6 rounded-2xl border border-rose-500/40 bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
+            <div className="lg:col-span-6 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[var(--border)]">
-                  <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center font-extrabold text-sm">
+                  <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--danger-muted)] border border-[color-mix(in_srgb,var(--danger)_20%,transparent)] text-[var(--danger)] flex items-center justify-center font-extrabold text-sm">
                     ✗
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-rose-600 dark:text-rose-400">The Reality Today</h3>
+                    <h3 className="text-base font-extrabold text-[var(--danger)]">The Reality Today</h3>
                     <span className="text-xs font-medium text-[var(--text-muted)]">Traditional File Management</span>
                   </div>
                 </div>
@@ -635,7 +623,7 @@ export function LandingPage() {
                 <div className="space-y-3 pt-4 border-t border-[var(--border)]">
                   {activeCompare.painPoints.map((pt, pIdx) => (
                     <div key={pIdx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] font-semibold">
-                      <XCircle size={16} className="text-rose-600 dark:text-rose-500 shrink-0 mt-0.5" />
+                      <XCircle size={16} className="text-[var(--danger)] shrink-0 mt-0.5" />
                       <span>{pt}</span>
                     </div>
                   ))}
@@ -644,14 +632,14 @@ export function LandingPage() {
             </div>
 
             {/* Right Card: With CaseChain */}
-            <div className="lg:col-span-6 rounded-2xl border border-emerald-500/40 bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
+            <div className="lg:col-span-6 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)] bg-[var(--surface)] p-7 md:p-8 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[var(--border)]">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-extrabold text-sm">
+                  <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-[var(--success-muted)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)] text-[var(--success)] flex items-center justify-center font-extrabold text-sm">
                     ✓
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">With CaseChain</h3>
+                    <h3 className="text-base font-extrabold text-[var(--success)]">With CaseChain</h3>
                     <span className="text-xs font-medium text-[var(--text-muted)]">Organized Litigation Workspace</span>
                   </div>
                 </div>
@@ -666,7 +654,7 @@ export function LandingPage() {
                 <div className="space-y-3 pt-4 border-t border-[var(--border)]">
                   {activeCompare.solutionPoints.map((pt, sIdx) => (
                     <div key={sIdx} className="flex items-start gap-2.5 text-xs text-[var(--text-primary)] font-bold">
-                      <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-500 shrink-0 mt-0.5" />
+                      <CheckCircle2 size={16} className="text-[var(--success)] shrink-0 mt-0.5" />
                       <span>{pt}</span>
                     </div>
                   ))}
@@ -692,27 +680,27 @@ export function LandingPage() {
           {/* Large feature cards with interactive highlights */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Card 1 — Auto Field Parsing Demo */}
-            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all">
-              <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4">
-                <FileSearch size={18} className="text-blue-500" />
+            <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all">
+              <div className="w-9 h-9 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4">
+                <FileSearch size={18} className="text-[var(--primary)]" />
               </div>
               <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2">{FEATURES_LARGE[0].title}</h3>
               <p className="text-xs text-[var(--text-secondary)] mb-5 leading-relaxed font-medium">{FEATURES_LARGE[0].detail}</p>
 
               {/* Dynamic Auto-highlighting parsed fields preview */}
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 space-y-2">
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] p-4 space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center justify-between">
                   <span>Auto-Extracted Data Spec</span>
-                  <span className="text-blue-500 font-bold">Live Parsing Engine</span>
+                  <span className="text-[var(--primary)] font-bold">Live Parsing Engine</span>
                 </div>
                 {FEATURES_LARGE[0].parseFields?.map((field, fIdx) => {
                   const isHighlighted = fIdx === activeParseFieldIdx
                   return (
                     <div
                       key={fIdx}
-                      className={`flex items-center justify-between p-2 rounded-lg text-xs transition-all duration-500 ${
+                      className={`flex items-center justify-between p-2 rounded-[var(--radius-sm)] text-xs transition-all duration-500 ${
                         isHighlighted
-                          ? 'bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 font-extrabold translate-x-1'
+                          ? 'bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] text-[var(--primary)] font-extrabold translate-x-1'
                           : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] font-medium'
                       }`}
                     >
@@ -725,19 +713,19 @@ export function LandingPage() {
             </div>
 
             {/* Card 2 — DYNAMIC AUTO-PLAYING GRAPH CANVAS (Requested feature!) */}
-            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all flex flex-col justify-between">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-7 hover:border-[var(--primary)]/50 transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center">
-                    <Network size={18} className="text-indigo-500" />
+                  <div className="w-9 h-9 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center">
+                    <Network size={18} className="text-[var(--primary)]" />
                   </div>
                   <button
                     onClick={() => setIsGraphPlaying(!isGraphPlaying)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] px-2 py-1 rounded-md"
+                    className="flex min-h-11 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[10px] font-semibold text-[var(--text-muted)]"
                   >
                     {isGraphPlaying ? (
                       <>
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse-dot" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse-dot" />
                         <Pause size={10} />
                         Auto-linking
                       </>
@@ -754,22 +742,22 @@ export function LandingPage() {
               </div>
 
               {/* Dynamic Interactive SVG Graph Canvas */}
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 relative overflow-hidden">
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] p-4 relative overflow-hidden">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3 flex items-center justify-between">
                   <span>Interactive Litigation Graph</span>
-                  <span className="text-indigo-500 font-bold text-[9px] font-mono">
+                  <span className="text-[var(--primary)] font-bold text-[9px] font-mono">
                     {GRAPH_STATUS_MESSAGES[activeGraphStep]}
                   </span>
                 </div>
 
                 {/* SVG Graph Canvas with Animated Links */}
-                <div className="relative h-44 border border-[var(--border)] rounded-lg bg-[var(--surface)] p-3">
+                <div className="relative h-44 border border-[var(--border)] rounded-[var(--radius-sm)] bg-[var(--surface)] p-3">
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
                     {/* SVG Connector Lines between graph nodes */}
                     {/* Link 1: SCN -> Reply */}
                     <line
                       x1="30%" y1="28%" x2="70%" y2="28%"
-                      stroke={activeGraphStep >= 1 ? '#6366F1' : 'var(--border-strong)'}
+                      stroke={activeGraphStep >= 1 ? 'var(--primary)' : 'var(--border-strong)'}
                       strokeWidth={activeGraphStep >= 1 ? '2.5' : '1.5'}
                       strokeDasharray={activeGraphStep >= 1 ? 'none' : '4 4'}
                       className="transition-all duration-500"
@@ -777,7 +765,7 @@ export function LandingPage() {
                     {/* Link 2: Reply -> Order */}
                     <line
                       x1="70%" y1="28%" x2="70%" y2="72%"
-                      stroke={activeGraphStep >= 2 ? '#F59E0B' : 'var(--border-strong)'}
+                      stroke={activeGraphStep >= 2 ? 'var(--warning)' : 'var(--border-strong)'}
                       strokeWidth={activeGraphStep >= 2 ? '2.5' : '1.5'}
                       strokeDasharray={activeGraphStep >= 2 ? 'none' : '4 4'}
                       className="transition-all duration-500"
@@ -785,7 +773,7 @@ export function LandingPage() {
                     {/* Link 3: Order -> Appeal */}
                     <line
                       x1="70%" y1="72%" x2="30%" y2="72%"
-                      stroke={activeGraphStep >= 3 ? '#6366F1' : 'var(--border-strong)'}
+                      stroke={activeGraphStep >= 3 ? 'var(--primary)' : 'var(--border-strong)'}
                       strokeWidth={activeGraphStep >= 3 ? '2.5' : '1.5'}
                       strokeDasharray={activeGraphStep >= 3 ? 'none' : '4 4'}
                       className="transition-all duration-500"
@@ -802,9 +790,9 @@ export function LandingPage() {
                           setActiveGraphStep(nIdx)
                           setIsGraphPlaying(false)
                         }}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 p-2 rounded-xl border text-center transition-all duration-500 z-10 flex flex-col items-center shadow-xs cursor-pointer ${
+                        className={`absolute min-h-11 -translate-x-1/2 -translate-y-1/2 p-2 rounded-[var(--radius-md)] border text-center transition-all duration-500 z-10 flex flex-col items-center shadow-xs cursor-pointer ${
                           isNodeActive
-                            ? `${node.color} ring-2 ring-indigo-500/20 scale-105`
+                            ? `${node.color} ring-2 ring-[color-mix(in_srgb,var(--primary)_20%,transparent)] scale-105`
                             : 'border-[var(--border)] bg-[var(--bg)] text-[var(--text-muted)] scale-95 opacity-60'
                         }`}
                         style={{ left: `${node.x}%`, top: `${node.y}%` }}
@@ -851,11 +839,11 @@ export function LandingPage() {
 
             <button
               onClick={() => setIsPipelinePlaying(!isPipelinePlaying)}
-              className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg)] border border-[var(--border-strong)] px-3 py-1.5 rounded-lg shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
+              className="flex min-h-11 items-center gap-1.5 text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg)] border border-[var(--border-strong)] px-3 py-1.5 rounded-[var(--radius-sm)] shadow-xs hover:border-[var(--primary)] transition-colors shrink-0"
             >
               {isPipelinePlaying ? (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-dot" />
+                  <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse-dot" />
                   <Pause size={12} />
                   Auto-tour On
                 </>
@@ -880,7 +868,7 @@ export function LandingPage() {
                     setActiveStepIdx(idx)
                     setIsPipelinePlaying(false)
                   }}
-                  className={`rounded-2xl border p-6 flex flex-col justify-between relative cursor-pointer transition-all duration-300 ${
+                  className={`rounded-[var(--radius-md)] border p-6 flex flex-col justify-between relative cursor-pointer transition-all duration-300 ${
                     isActive
                       ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-2 ring-[var(--primary)]/30 shadow-md scale-[1.02]'
                       : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)]'
@@ -888,13 +876,13 @@ export function LandingPage() {
                 >
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+                      <div className={`w-10 h-10 rounded-[var(--radius-md)] border flex items-center justify-center ${
                         isActive ? 'bg-[var(--surface)] border-[var(--primary)]' : 'bg-[var(--surface)] border-[var(--border-strong)]'
                       }`}>
                         <StepIcon size={20} className={isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
                       </div>
                       <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
-                        isActive ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]'
+                        isActive ? 'bg-[var(--primary)] text-[var(--on-accent)] border-[var(--primary)]' : 'bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]'
                       }`}>
                         Step {step.step}
                       </span>
@@ -905,7 +893,7 @@ export function LandingPage() {
                   </div>
 
                   {/* Active Action Preview Badge */}
-                  <div className={`p-2.5 rounded-lg border text-[11px] font-mono font-bold transition-all ${
+                  <div className={`p-2.5 rounded-[var(--radius-sm)] border text-[11px] font-mono font-bold transition-all ${
                     isActive
                       ? 'bg-[var(--surface)] border-[var(--primary)] text-[var(--primary)] shadow-xs'
                       : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
@@ -922,7 +910,7 @@ export function LandingPage() {
       {/* ── CTA SECTION ───────────────────────────────────────────── */}
       <section className="relative z-10 py-20 border-t border-[var(--border)]">
         <div className="max-w-3xl mx-auto px-6">
-          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--surface)] p-10 md:p-14 text-center shadow-xl relative overflow-hidden">
+          <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-10 md:p-14 text-center shadow-xl relative overflow-hidden">
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4 text-[var(--text-primary)]">
               Stop searching. Start finding.
             </h2>
@@ -930,11 +918,11 @@ export function LandingPage() {
               Get your litigation documents organized into an automated case chain in minutes.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/login" className="flex items-center gap-2 text-white px-8 py-3.5 rounded-full font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all group text-sm" style={{ background: 'var(--primary-gradient)' }}>
+              <Link href="/login" className="flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] px-8 py-3.5 text-sm font-semibold text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] group" style={{ background: 'var(--primary-gradient)' }}>
                 Get Started
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/contact" className="flex items-center gap-2 px-8 py-3.5 rounded-full font-semibold border border-[var(--border-strong)] text-[var(--text-secondary)] bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-all text-sm shadow-xs">
+              <Link href="/contact" className="flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-8 py-3.5 text-sm font-semibold text-[var(--text-secondary)] shadow-xs transition-colors hover:bg-[var(--surface-hover)]">
                 Contact Us
               </Link>
             </div>
@@ -950,9 +938,9 @@ export function LandingPage() {
             <span className="text-xs text-[var(--text-muted)] font-medium">GST Litigation Document Management System</span>
           </div>
           <div className="flex items-center gap-6 text-xs font-medium text-[var(--text-muted)]">
-            <Link href="/login" className="hover:text-[var(--text-primary)] transition-colors">Login</Link>
-            <Link href="/signup" className="hover:text-[var(--text-primary)] transition-colors">Sign Up</Link>
-            <Link href="/contact" className="hover:text-[var(--text-primary)] transition-colors">Contact</Link>
+            <Link href="/login" className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--text-primary)]">Login</Link>
+            <Link href="/signup" className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--text-primary)]">Sign Up</Link>
+            <Link href="/contact" className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--text-primary)]">Contact</Link>
           </div>
           <p className="text-xs text-[var(--text-muted)] font-medium">© 2026 Project CaseChain. All rights reserved.</p>
         </div>
@@ -969,14 +957,14 @@ function SmallFeatureCard({
   title,
   summary,
 }: {
-  icon: React.FC<any>
+  icon: React.ElementType
   color: string
   title: string
   summary: string
 }) {
   return (
-    <div className="rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-6 hover:shadow-md hover:border-[var(--primary)]/50 transition-all duration-300 group">
-      <div className="w-9 h-9 rounded-lg border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+    <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-6 hover:shadow-md hover:border-[var(--primary)]/50 transition-all duration-300 group">
+      <div className="w-9 h-9 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--bg)] flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
         <Icon size={18} className={color} />
       </div>
       <h3 className="text-base font-bold text-[var(--text-primary)] mb-1.5">{title}</h3>

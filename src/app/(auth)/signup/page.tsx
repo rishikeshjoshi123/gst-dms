@@ -32,8 +32,8 @@ export default function SignupPage() {
   return (
     <>
       <div className="mb-7">
-        <h1 className="text-2xl font-bold text-[--text-primary]">Create your account</h1>
-        <p className="mt-1 text-sm text-[--text-muted]">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Create your account</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
           Get started with GST Litigation DMS
         </p>
       </div>
@@ -90,7 +90,7 @@ export default function SignupPage() {
         </FormField>
 
         {error && (
-          <div className="rounded-[--radius-md] bg-[--danger-muted] border border-[--danger]/30 px-4 py-3 text-sm text-[--danger] animate-fade-in">
+          <div className="rounded-[var(--radius-md)] bg-[var(--danger-muted)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
             {error}
           </div>
         )}
@@ -105,14 +105,14 @@ export default function SignupPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-[--text-muted]">
+      <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
         Already have an account?{' '}
         <Link href="/login" className="text-[var(--primary)] hover:underline font-medium">
           Sign in
         </Link>
       </p>
 
-      <p className="mt-4 text-center text-xs text-[--text-disabled]">
+      <p className="mt-4 text-center text-xs text-[var(--text-disabled)]">
         By signing up, you agree to keep client data confidential.
       </p>
     </>

@@ -12,11 +12,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         type={type}
         className={cn(
-          'w-full h-10 px-3.5 rounded-[--radius-sm] text-[14px]',
+          'w-full h-11 md:h-10 px-3.5 rounded-[var(--radius-sm)] text-[14px]',
           'bg-[var(--surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
-          'border transition-all duration-[--duration-fast]',
+          'border transition-all duration-[var(--duration-fast)]',
           error
-            ? 'border-[--danger] focus:ring-2 focus:ring-[--danger]/20'
+            ? 'border-[var(--danger)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--danger)_20%,transparent)]'
             : 'border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20',
           'outline-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',

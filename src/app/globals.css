@@ -474,27 +474,6 @@ code, kbd, samp, pre, .font-mono {
   background-color: var(--surface);
 }
 
-/* ── Landing Page ─────────────────────────────────────────────── */
-
-/* Animated mesh gradient background */
-@keyframes meshGradient {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.mesh-gradient-bg {
-  background: linear-gradient(
-    -45deg,
-    color-mix(in srgb, var(--primary) 6%, var(--bg)),
-    color-mix(in srgb, #6366F1 5%, var(--bg)),
-    color-mix(in srgb, #8B5CF6 4%, var(--bg)),
-    var(--bg)
-  );
-  background-size: 400% 400%;
-  animation: meshGradient 20s ease infinite;
-}
-
 /* Floating badge animation */
 @keyframes floatBadge {
   0%, 100% { transform: translateY(0px); }
