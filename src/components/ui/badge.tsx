@@ -5,18 +5,21 @@ type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'incoming' | 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant
   dot?: boolean
+  fixedWidth?: 'sm' | 'md' | 'lg'
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default:  'bg-[--accent-muted] text-[--accent-hover] border-[--accent]/20',
-  success:  'bg-[--success-muted] text-[--success] border-green-500/20',
-  warning:  'bg-[--warning-muted] text-[--warning] border-amber-500/20',
-  danger:   'bg-[--danger-muted] text-[--danger] border-red-500/20',
-  incoming: 'bg-[--incoming-muted] text-[--incoming] border-orange-500/20',
-  outgoing: 'bg-[--outgoing-muted] text-[--outgoing] border-indigo-500/20',
-  muted:    'bg-[--bg-overlay] text-[--text-muted] border-[--border-subtle]',
-  outline:  'bg-transparent text-[--text-primary] border-[--border-default]',
+  default:  'bg-[var(--accent-muted)] text-[var(--accent-hover)] border-[color-mix(in_srgb,var(--accent)_24%,transparent)]',
+  success:  'bg-[var(--success-muted)] text-[var(--success)] border-[color-mix(in_srgb,var(--success)_24%,transparent)]',
+  warning:  'bg-[var(--warning-muted)] text-[var(--warning)] border-[color-mix(in_srgb,var(--warning)_24%,transparent)]',
+  danger:   'bg-[var(--danger-muted)] text-[var(--danger)] border-[color-mix(in_srgb,var(--danger)_24%,transparent)]',
+  incoming: 'bg-[var(--incoming-muted)] text-[var(--incoming)] border-[color-mix(in_srgb,var(--incoming)_24%,transparent)]',
+  outgoing: 'bg-[var(--outgoing-muted)] text-[var(--outgoing)] border-[color-mix(in_srgb,var(--outgoing)_24%,transparent)]',
+  muted:    'bg-[var(--bg-overlay)] text-[var(--text-muted)] border-[var(--border-subtle)]',
+  outline:  'bg-transparent text-[var(--text-primary)] border-[var(--border-strong)]',
 }
+
+const fixedWidths = { sm: 'w-16', md: 'w-20', lg: 'w-24' }
 
 const dotColors: Record<BadgeVariant, string> = {
   default:  'bg-[--accent]',
@@ -29,12 +32,13 @@ const dotColors: Record<BadgeVariant, string> = {
   outline:  'bg-[--text-primary]',
 }
 
-export function Badge({ className, variant = 'default', dot, children, ...props }: BadgeProps) {
+export function Badge({ className, variant = 'default', dot, fixedWidth, children, ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border',
+        'inline-flex min-h-6 items-center justify-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
         variantStyles[variant],
+        fixedWidth && fixedWidths[fixedWidth],
         className
       )}
       {...props}

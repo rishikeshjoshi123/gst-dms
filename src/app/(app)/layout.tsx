@@ -58,13 +58,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <BreadcrumbProvider>
       <div className="flex h-screen w-full overflow-hidden bg-[var(--bg)] text-[var(--text-primary)] transition-colors duration-200">
         {/* ── Sidebar ─────────────────────────────────────────────── */}
-        <div className="w-16 shrink-0 h-full relative z-20">
+        <div className="relative z-20 h-full w-16 shrink-0">
           <aside
-            className="group absolute top-0 left-0 h-full flex flex-col overflow-x-hidden shadow-xl w-16 hover:w-60 transition-all duration-300 ease-in-out border-r border-stone-800"
+            className="group/sidebar absolute inset-y-0 left-0 z-30 flex h-full w-16 flex-col overflow-hidden border-r border-white/10 transition-[width,box-shadow] duration-200 ease-out md:hover:w-56 md:focus-within:w-56 md:hover:shadow-xl md:focus-within:shadow-xl"
             style={{ backgroundColor: 'var(--sidebar-bg)' }}
           >
+          <div className="hidden h-14 shrink-0 items-center border-b border-white/10 px-4 md:flex">
+            <span className="hidden whitespace-nowrap text-sm font-semibold tracking-wide text-white opacity-0 transition-opacity duration-150 md:block md:group-hover/sidebar:opacity-100 md:group-focus-within/sidebar:opacity-100">CaseChain</span>
+          </div>
           {/* Navigation items */}
-          <div className="px-3 pt-6 pb-2 flex-1">
+          <div className="flex-1 px-2 py-4 md:px-3">
             <SidebarNav inboxCount={inboxCount} notifCount={notifCount} />
           </div>
           </aside>
@@ -73,7 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* ── Main content wrapper ─────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Topbar */}
-          <header className="relative z-10 h-[48px] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between px-6 shrink-0 shadow-xs transition-colors duration-200">
+          <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 transition-colors duration-200 md:px-6">
             <BreadcrumbNav activeOrgName={activeOrg.name} />
             <div className="relative z-10 flex items-center gap-3.5 pointer-events-auto">
               <ThemeToggle />
@@ -82,7 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-hidden flex flex-col p-6 max-w-7xl w-full mx-auto">
+          <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col overflow-hidden p-3 sm:p-4 md:p-6">
             {children}
           </main>
         </div>

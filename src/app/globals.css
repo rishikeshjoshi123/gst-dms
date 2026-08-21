@@ -2,47 +2,59 @@
 @variant dark (&:where(.dark, .dark *));
 
 /* ================================================================
-   Design Tokens — GST Litigation DMS
-   Light-first with dark mode support, premium legal software aesthetic
+   Civic Ink — CaseChain's semantic design tokens
+   Components consume these names; named themes may replace the values.
    ================================================================ */
 
 :root {
-  /* Premium Design Tokens — GST Litigation DMS (Light Theme) */
-  --bg: #F1F5F9;
-  --surface: #FFFFFF;
-  --surface-hover: #F8FAFC;
-  
-  --border: #E2E8F0;
-  --border-strong: #CBD5E1;
-  --border-subtle: #F1F5F9;
-  
-  --sidebar-bg: #0F172A;
-  --sidebar-hover: #1E293B;
-  --sidebar-text: #CBD5E1;
-  --sidebar-active: linear-gradient(135deg, #2563EB 0%, #4F46E5 100%);
-  --sidebar-accent: #3B82F6;
-  
-  --accent: #F97316;
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
-  --primary-gradient: linear-gradient(135deg, #2563EB 0%, #4F46E5 100%);
-  
-  --danger: #EF4444;
-  --success: #10B981;
-  
-  --text-primary: #0F172A;
-  --text-secondary: #1E293B;
-  --text-muted: #334155;
-  --text-disabled: #64748B;
+  --bg: #f6f4ef;
+  --surface: #fffefa;
+  --surface-hover: #efede7;
+  --bg-overlay: #e7e4dc;
 
-  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.08), 0 1px 4px -1px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 8px 16px -4px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  --border: #d7d4cc;
+  --border-strong: #bcb8ae;
+  --border-subtle: #e9e6df;
+
+  --sidebar-bg: #172033;
+  --sidebar-hover: #243047;
+  --sidebar-text: #bec8d4;
+  --sidebar-active: #315e74;
+  --sidebar-accent: #82b3c6;
+
+  --accent: #315e74;
+  --accent-hover: #284f62;
+  --accent-muted: #e5edf0;
+  --accent-ring: #315e74;
+  --primary: #315e74;
+  --primary-hover: #284f62;
+  --primary-gradient: #315e74;
+
+  --attention: #a56a24;
+  --warning: #a56a24;
+  --warning-muted: #f4eadc;
+  --danger: #a5413b;
+  --danger-muted: #f5e5e3;
+  --success: #2e6b55;
+  --success-muted: #e2eee9;
+  --incoming: #a56a24;
+  --incoming-muted: #f4eadc;
+  --outgoing: #315e74;
+  --outgoing-muted: #e5edf0;
+
+  --text-primary: #202734;
+  --text-secondary: #3d4653;
+  --text-muted: #657080;
+  --text-disabled: #8b929c;
+
+  --shadow-xs: 0 1px 2px rgba(23, 32, 51, 0.04);
+  --shadow-sm: 0 2px 8px rgba(23, 32, 51, 0.06);
+  --shadow-md: 0 8px 20px rgba(23, 32, 51, 0.08);
+  --shadow-xl: 0 20px 40px rgba(23, 32, 51, 0.12);
 
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
   --radius-full: 9999px;
 
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
@@ -52,33 +64,45 @@
 }
 
 .dark {
-  /* Premium Design Tokens — GST Litigation DMS (Dark Theme) */
-  --bg: #0B0F17;
-  --surface: #141C2E;
-  --surface-hover: #1E293B;
-  
-  --border: #1F293D;
-  --border-strong: #374151;
-  --border-subtle: #162032;
-  
-  --sidebar-bg: #070A0F;
-  --sidebar-hover: #111827;
-  --sidebar-text: #CBD5E1;
-  --sidebar-active: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
-  --sidebar-accent: #60A5FA;
-  
-  --accent: #F97316;
-  --primary: #3B82F6;
-  --primary-hover: #2563EB;
-  --primary-gradient: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
-  
-  --danger: #F87171;
-  --success: #34D399;
-  
-  --text-primary: #FFFFFF;
-  --text-secondary: #CBD5E1;
-  --text-muted: #94A3B8;
-  --text-disabled: #64748B;
+  --bg: #111720;
+  --surface: #18212c;
+  --surface-hover: #202b37;
+  --bg-overlay: #26323f;
+
+  --border: #35404d;
+  --border-strong: #526071;
+  --border-subtle: #293441;
+
+  --sidebar-bg: #0d131c;
+  --sidebar-hover: #182330;
+  --sidebar-text: #b8c4d0;
+  --sidebar-active: #315e74;
+  --sidebar-accent: #82b3c6;
+
+  --accent: #82b3c6;
+  --accent-hover: #9bc4d4;
+  --accent-muted: #263945;
+  --accent-ring: #82b3c6;
+  --primary: #82b3c6;
+  --primary-hover: #9bc4d4;
+  --primary-gradient: #82b3c6;
+
+  --attention: #e0aa62;
+  --warning: #e0aa62;
+  --warning-muted: #3a3025;
+  --danger: #e58b84;
+  --danger-muted: #3b282b;
+  --success: #72b69a;
+  --success-muted: #243a34;
+  --incoming: #e0aa62;
+  --incoming-muted: #3a3025;
+  --outgoing: #82b3c6;
+  --outgoing-muted: #263945;
+
+  --text-primary: #edf1f5;
+  --text-secondary: #d2dae3;
+  --text-muted: #aeb8c5;
+  --text-disabled: #788493;
 
   --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
@@ -89,7 +113,8 @@
 @theme {
   --color-bg: var(--bg);
   --color-foreground: var(--text-primary);
-  --font-sans: var(--font-inter, system-ui, sans-serif);
+  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
 
   /* Surface utilities */
   --color-surface: var(--surface);
@@ -122,6 +147,7 @@
   /* Status utilities */
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-warning: var(--warning);
 
   /* Radius utilities */
   --radius-sm:   var(--radius-sm);
@@ -203,6 +229,10 @@ body {
   min-height: 100dvh;
 }
 
+code, kbd, samp, pre, .font-mono {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+}
+
 /* ── Scrollbars ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -220,7 +250,7 @@ body {
 
 /* ── Focus Rings ──────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -253,24 +283,24 @@ body {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 10px;
-  color: #94A3B8;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
   text-decoration: none;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #F8FAFC;
+  background: var(--sidebar-hover);
+  color: #ffffff;
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, #2563EB 0%, #4F46E5 100%);
-  color: #FFFFFF;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  background: var(--sidebar-active);
+  color: #ffffff;
+  box-shadow: inset 3px 0 var(--sidebar-accent);
 }
 
 .nav-item.active .nav-icon {

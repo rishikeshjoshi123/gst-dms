@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   FileText, AlertCircle, X, Check, Loader2, Plus, ExternalLink,
-  Info, RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
-  FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot, Building2,
+  RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
+  FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot,
   FolderPlus, Copy, AlertTriangle, Inbox
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import {
   assignStagedDocument, discardStagedDocument,
@@ -34,42 +34,21 @@ function humanizeKey(key: string) {
     .join(' ')
 }
 
+function uniqueDocumentsById<T extends { id: string }>(documents: T[]) {
+  return Array.from(new Map(documents.map(document => [document.id, document])).values())
+}
+
 function StatusBadge({ doc }: { doc: any }) {
   const isAnalyzing = doc.status === 'analyzing'
   const isPending = doc.status === 'pending_assignment'
   const hasSuggestion = doc.suggested_client && doc.suggested_matter
 
-  if (isAnalyzing) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold animated-gradient-badge shrink-0">
-      <Bot size={9} className="animate-pulse" /> AI
-    </span>
-  )
-  if (isPending) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20 shrink-0">
-      Queued
-    </span>
-  )
-  if (doc.status === 'failed') return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25 shrink-0">
-      <AlertCircle size={9} /> Failed
-    </span>
-  )
-  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/25 shrink-0">
-      <Copy size={9} /> Duplicate
-    </span>
-  )
-  if (hasSuggestion) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-      Ready
-    </span>
-  )
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-400 border border-violet-500/25 shrink-0">
-      <AlertCircle size={9} /> Review
-    </span>
-  )
+  if (isAnalyzing) return <Badge variant="default" fixedWidth="lg"><Loader2 size={11} className="animate-spin" />Processing</Badge>
+  if (isPending) return <Badge variant="muted" fixedWidth="lg">Queued</Badge>
+  if (doc.status === 'failed') return <Badge variant="danger" fixedWidth="lg"><AlertCircle size={11} />Failed</Badge>
+  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return <Badge variant="warning" fixedWidth="lg"><Copy size={11} />Duplicate</Badge>
+  if (hasSuggestion) return <Badge variant="success" fixedWidth="lg"><Check size={11} />Ready</Badge>
+  return <Badge variant="warning" fixedWidth="lg"><AlertCircle size={11} />Review</Badge>
 }
 
 function processingCopy(status: string) {
@@ -82,32 +61,22 @@ function processingCopy(status: string) {
   return null
 }
 
-function ProcessingProgress({ status }: { status: string }) {
+function ProcessingProgress({ status, compact = false }: { status: string; compact?: boolean }) {
   const currentStep = status === 'analyzing' ? 1 : 0
-  const steps = ['Queued', 'Analyze', 'Match']
+  const steps = ['Queued', 'Extracting', 'Matching', 'Ready']
 
   return (
-    <div className="mt-5 flex w-full max-w-sm items-start" aria-label={`Processing stage: ${steps[currentStep]}`}>
-      {steps.map((step, index) => {
-        const complete = index < currentStep
-        const current = index === currentStep
-        return (
-          <div key={step} className="flex min-w-0 flex-1 items-start last:flex-none">
-            <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-              <div className={cn(
-                'flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-bold transition-colors',
-                complete ? 'border-emerald-500 bg-emerald-500 text-white' : current ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-[0_0_0_4px_var(--primary)]/10' : 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-muted)]',
-              )}>
-                {complete ? <Check size={12} /> : index + 1}
-              </div>
-              <span className={cn('truncate text-[10px] font-semibold', current ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]')}>{step}</span>
-            </div>
-            {index < steps.length - 1 && (
-              <div className={cn('mt-3 h-px flex-1', index < currentStep ? 'bg-emerald-500' : 'bg-[var(--border)]')} />
-            )}
-          </div>
-        )
-      })}
+    <div className={cn('grid w-full grid-cols-4 gap-1.5', compact ? 'mt-2' : 'mt-5 max-w-md')} aria-label={`Processing stage: ${steps[currentStep]}`}>
+      {steps.map((step, index) => (
+        <div key={step} className="min-w-0">
+          <span className={cn(
+            'block h-1 rounded-full bg-[var(--border-strong)]',
+            index < currentStep && 'bg-[var(--success)]',
+            index === currentStep && 'bg-[var(--primary)] ring-2 ring-[color-mix(in_srgb,var(--primary)_18%,transparent)]'
+          )} />
+          {!compact && <span className={cn('mt-1.5 block truncate text-[10px]', index === currentStep ? 'font-medium text-[var(--primary)]' : 'text-[var(--text-muted)]')}>{step}</span>}
+        </div>
+      ))}
     </div>
   )
 }
@@ -222,69 +191,17 @@ function FullPageEmptyInbox({
   actionLabel?: string
 }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-[var(--bg)]">
-      <style>{`
-        @keyframes float-large {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(2deg); }
-        }
-        @keyframes scan-line-large {
-          0% { transform: translateY(-100%); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateY(400%); opacity: 0; }
-        }
-      `}</style>
-      
-      {/* Dynamic grid background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,#000_60%,transparent_100%)] opacity-60" />
-      
-      {/* Animated Glowing Orbs */}
-      <div className="absolute top-[20%] left-[25%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] animate-pulse pointer-events-none" style={{ animationDuration: '7s' }} />
-      <div className="absolute bottom-[10%] right-[25%] w-[450px] h-[450px] bg-indigo-500/10 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '9s', animationDelay: '2s' }} />
-
-      {/* Scanning line effect */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
-        <div className="w-full h-48 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent blur-2xl" style={{ animation: 'scan-line-large 8s ease-in-out infinite' }} />
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center gap-10">
-        {/* Floating Icon Setup */}
-        <div className="relative" style={{ animation: 'float-large 8s ease-in-out infinite' }}>
-          <div className="absolute -inset-8 bg-gradient-to-r from-blue-500/30 to-indigo-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '5s' }} />
-          
-          <div className="relative w-32 h-32 rounded-[2.5rem] bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)] shadow-2xl flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
-            <Inbox size={48} className="text-blue-500/80 drop-shadow-lg" strokeWidth={1.5} />
-          </div>
-
-          {/* Little floating orbiting elements */}
-          <div className="absolute -top-6 -right-8 w-14 h-14 rounded-2xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 6s ease-in-out infinite 1.5s' }}>
-            <FileText size={24} className="text-indigo-400" />
-          </div>
-          
-          <div className="absolute -bottom-8 -left-6 w-12 h-12 rounded-xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 8s ease-in-out infinite 0.8s' }}>
-            <Sparkles size={22} className="text-amber-400" />
-          </div>
+    <div className="flex flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6">
+      <div className="flex max-w-md flex-col items-center text-center">
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)] text-[var(--primary)]">
+          <Inbox size={24} aria-hidden="true" />
         </div>
-
-        <div className="text-center space-y-4 max-w-md mt-6">
-          <h2 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">
-            {title}
-          </h2>
-          <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-            {description}
-          </p>
-        </div>
-
-        <button
-          onClick={onUploadClick}
-          className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-blue-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full -translate-x-full transition-transform duration-500 ease-out skew-x-12" />
-          <Plus size={18} />
-          <span>{actionLabel}</span>
-        </button>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--primary)]">Document intake</p>
+        <h2 className="mt-2 text-xl font-semibold text-[var(--text-primary)]">{title}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{description}</p>
+        <Button onClick={onUploadClick} className="mt-6">
+          <Plus size={16} aria-hidden="true" /> {actionLabel}
+        </Button>
       </div>
     </div>
   )
@@ -299,7 +216,7 @@ export function InboxClientView({
   matters: any[]
   preselectedMatterId?: string
 }) {
-  const [documents, setDocuments] = useState(initialDocuments)
+  const [documents, setDocuments] = useState(() => uniqueDocumentsById(initialDocuments))
   const [selectedDocId, setSelectedDocId] = useState<string | null>(
     initialDocuments.length > 0 ? initialDocuments[0].id : null
   )
@@ -316,7 +233,7 @@ export function InboxClientView({
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
 
-  useEffect(() => { setDocuments(initialDocuments) }, [initialDocuments])
+  useEffect(() => { setDocuments(uniqueDocumentsById(initialDocuments)) }, [initialDocuments])
 
   const preselectedMatter = matters.find(m => m.id === preselectedMatterId)
   const isMatterIntake = intakeTab === 'matter' && Boolean(preselectedMatter)
@@ -422,7 +339,11 @@ export function InboxClientView({
           }
         } else if (payload.eventType === 'INSERT') {
           // If a new document is staged, add it to the list
-          setDocuments(currentDocs => [...currentDocs, payload.new])
+          setDocuments(currentDocs => {
+            const existingIndex = currentDocs.findIndex(document => document.id === payload.new.id)
+            if (existingIndex === -1) return [...currentDocs, payload.new]
+            return currentDocs.map((document, index) => index === existingIndex ? { ...document, ...payload.new } : document)
+          })
         } else if (payload.eventType === 'DELETE') {
           // If a document is deleted, remove it from the list
           setDocuments(currentDocs => currentDocs.filter(d => d.id !== payload.old.id))
@@ -436,7 +357,7 @@ export function InboxClientView({
         // joins, rather than briefly rendering as an incomplete "unknown" item.
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = setTimeout(() => {
-          void getStagedDocuments().then(setDocuments)
+          void getStagedDocuments().then(latestDocuments => setDocuments(uniqueDocumentsById(latestDocuments)))
           router.refresh()
         }, 250)
       })
@@ -473,7 +394,7 @@ export function InboxClientView({
         toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
         const latestDocs = await getStagedDocuments()
-        setDocuments(latestDocs)
+        setDocuments(uniqueDocumentsById(latestDocs))
         router.refresh()
       }
     })
@@ -489,7 +410,7 @@ export function InboxClientView({
         toast.success('Matter and client automatically created')
         setIsActionModalOpen(false)
         const latestDocs = await getStagedDocuments()
-        setDocuments(latestDocs)
+        setDocuments(uniqueDocumentsById(latestDocs))
         router.refresh()
       }
     })
@@ -600,31 +521,31 @@ export function InboxClientView({
           actionLabel={isMatterIntake ? 'Add to This Matter' : 'Upload to Global Inbox'}
         />
       ) : (
-        <div className="flex flex-1 gap-0 overflow-hidden pt-2">
+        <div className="flex flex-1 flex-col gap-3 overflow-y-auto pt-2 lg:flex-row lg:gap-0 lg:overflow-hidden">
 
           {/* ── Left Queue Panel ──────────────────── */}
-          <div className="w-[38%] flex flex-col gap-2.5 overflow-y-auto pl-1 pr-3 py-1 custom-scrollbar shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex w-full shrink-0 flex-col gap-2 overflow-visible py-1 lg:w-[42%] lg:overflow-y-auto lg:pr-3 custom-scrollbar">
+          <div className="flex items-center justify-end gap-2">
             <button
               onClick={async () => {
                 const toastId = toast.loading('Syncing queue...')
                 try {
                   const latestDocs = await getStagedDocuments()
-                  setDocuments(latestDocs)
+                  setDocuments(uniqueDocumentsById(latestDocs))
                   router.refresh()
                   toast.success('Queue synced', { id: toastId })
                 } catch (err: any) {
                   toast.error(err.message || 'Failed to refresh', { id: toastId })
                 }
               }}
-              className="flex flex-1 items-center justify-center gap-1.5 h-8 px-3 text-[12px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
             >
               <RefreshCw size={13} />
               Sync
             </button>
             <button
               onClick={() => setIsUploadModalOpen(value => !value)}
-              className="flex flex-1 items-center justify-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shadow-sm"
+              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[12px] font-medium text-[var(--surface)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] dark:text-[#0b1920]"
             >
               <Plus size={13} /> {isUploadModalOpen ? 'Close' : 'Upload'}
             </button>
@@ -636,7 +557,6 @@ export function InboxClientView({
           {visibleDocuments.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
                 const isSelected = doc.id === selectedDocId
-                const isAnalyzing = doc.status === 'analyzing'
                 const isDup = doc.suggestion_reason?.toLowerCase().startsWith('duplicate')
                 const isFailed = doc.status === 'failed'
                 const isReady = doc.suggested_client && doc.suggested_matter
@@ -647,22 +567,15 @@ export function InboxClientView({
                     key={doc.id}
                     onClick={() => handleSelectDoc(doc)}
                     className={cn(
-                      'group relative cursor-pointer rounded-xl overflow-hidden transition-colors border duration-150',
+                      'group relative cursor-pointer overflow-hidden rounded-[var(--radius-md)] border transition-colors duration-150',
                       isSelected
-                        ? 'border-[var(--primary)] bg-[var(--surface)] shadow-[0_2px_12px_rgba(59,130,246,0.12)]'
-                        : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--primary)]/40 hover:bg-[var(--surface-hover)]',
-                      isAnalyzing && 'animated-gradient-border'
+                        ? 'border-[var(--border-strong)] bg-[var(--accent-muted)] shadow-[inset_3px_0_var(--primary)]'
+                        : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]'
                     )}
                   >
-                    {/* selected left glow bar */}
-                    <div className={cn(
-                      "absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[var(--primary)] to-purple-500 rounded-l-xl transition-opacity duration-150",
-                      isSelected ? "opacity-100" : "opacity-0"
-                    )} />
-
-                    <div className="p-3 pl-4 flex items-center gap-3 bg-[var(--surface)]">
+                    <div className="flex items-center gap-3 p-3 pl-4">
                       {/* File Icon */}
-                      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${isSelected ? 'bg-[var(--primary)]/10' : 'bg-[var(--surface-hover)]'
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors ${isSelected ? 'bg-[var(--surface)]' : 'bg-[var(--surface-hover)]'
                         }`}>
                         <FileText size={16} className={isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />
                       </div>
@@ -689,22 +602,23 @@ export function InboxClientView({
 
                     {/* bottom hint strip for ready docs */}
                     {isReady && !isDup && !isFailed && (
-                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-emerald-500/5 text-emerald-500 text-[10px] font-semibold">
+                      <div className="flex items-center gap-1 px-4 pb-2 pt-0.5 text-[10px] font-medium text-[var(--success)]">
                         <Zap size={9} /> AI matched · {doc.suggested_client?.name}
                       </div>
                     )}
                     {queueCopy && (
-                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-[var(--primary)]/5 text-[var(--text-secondary)] text-[10px] font-semibold">
-                        <Loader2 size={9} className={doc.status === 'analyzing' ? 'animate-spin' : ''} /> {queueCopy.title}
+                      <div className="px-4 pb-3 pt-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                        <div className="flex items-center gap-1"><Loader2 size={10} className={doc.status === 'analyzing' ? 'animate-spin' : ''} /> {queueCopy.title}</div>
+                        <ProcessingProgress status={doc.status} compact />
                       </div>
                     )}
                     {isDup && (
-                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-amber-500/5 text-amber-500 text-[10px] font-semibold">
+                      <div className="flex items-center gap-1 px-4 pb-2 pt-0.5 text-[10px] font-medium text-[var(--warning)]">
                         <Copy size={9} /> Duplicate detected
                       </div>
                     )}
                     {isFailed && (
-                      <div className="px-4 pb-2 pt-0.5 flex items-center gap-1 bg-red-500/5 text-red-400 text-[10px] font-semibold">
+                      <div className="flex items-center gap-1 px-4 pb-2 pt-0.5 text-[10px] font-medium text-[var(--danger)]">
                         <AlertCircle size={9} /> AI extraction failed · click to reprocess
                       </div>
                     )}
@@ -714,38 +628,38 @@ export function InboxClientView({
         </div>
 
         {/* ── Vertical Divider ─── */}
-        <div className="w-px bg-[var(--border)] shrink-0 mx-2" />
+        <div className="mx-2 hidden w-px shrink-0 bg-[var(--border)] lg:block" />
 
         {/* ── Right Detail Panel ─────────────────── */}
-        <div className="flex-1 flex flex-col overflow-y-auto pl-4 custom-scrollbar">
+        <div className="flex flex-1 flex-col overflow-visible lg:overflow-y-auto lg:pl-4 custom-scrollbar">
           {activeDoc ? (
             <div className="flex flex-col gap-5">
 
               {/* Document title + action strip */}
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
                 <div className="min-w-0">
                   <h2 className="text-[16px] font-bold text-[var(--text-primary)] leading-snug truncate max-w-[380px]">
                     {activeDoc.storage_path.split('/').pop()}
                   </h2>
-                  <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-widest font-semibold mt-0.5">
-                    Staged Document · {activeDoc.status?.replace(/_/g, ' ')}
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+                    {activeProcessingCopy ? activeProcessingCopy.title : 'Ready for document review'}
                   </p>
                 </div>
 
                 {/* Action Buttons row */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                   <button
                     onClick={() => handleReprocess(activeDoc.id)}
                     disabled={isReprocessing === activeDoc.id}
                     title="Re-run AI extraction"
-                    className="h-8 w-8 rounded-lg border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all disabled:opacity-50"
+                    className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
                   >
                     <RotateCcw size={13} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} />
                   </button>
                   <button
                     onClick={handleViewDocument}
                     title="View original PDF"
-                    className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                   >
                     <ExternalLink size={12} /> PDF
                   </button>
@@ -753,8 +667,7 @@ export function InboxClientView({
                     onClick={() => setIsActionModalOpen(true)}
                     disabled={Boolean(activeProcessingCopy)}
                     title={activeProcessingCopy ? 'Assignment is available after analysis finishes' : 'Choose how to route this document'}
-                    className="h-8 px-4 flex items-center gap-1.5 rounded-lg text-[13px] font-bold text-white transition-all shadow-lg hover:opacity-90 active:scale-95"
-                    style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
+                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[13px] font-medium text-[var(--surface)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50 dark:text-[#0b1920]"
                   >
                     <Zap size={13} /> Take Action
                   </button>
@@ -763,9 +676,9 @@ export function InboxClientView({
 
               {/* ── State panels ── */}
               {activeProcessingCopy ? (
-                <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-[var(--primary)]/30 bg-[var(--primary)]/5 text-center">
+                <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center">
                   <div className="relative mb-5">
-                    <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
                       <Bot size={24} className="text-[var(--primary)]" />
                     </div>
                     <Loader2 size={14} className="animate-spin text-[var(--primary)] absolute -bottom-1 -right-1" />
@@ -777,14 +690,14 @@ export function InboxClientView({
                   <ProcessingProgress status={activeDoc.status} />
                 </div>
               ) : activeDoc.status === 'failed' ? (
-                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 overflow-hidden">
-                  <div className="flex items-center gap-3 p-4 border-b border-red-500/15">
-                    <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
-                      <AlertTriangle size={16} className="text-red-400" />
+                <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[var(--danger-muted)]">
+                  <div className="flex items-center gap-3 border-b border-[color-mix(in_srgb,var(--danger)_22%,transparent)] p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
+                      <AlertTriangle size={16} className="text-[var(--danger)]" />
                     </div>
                     <div>
-                      <div className="text-[14px] font-bold text-red-400">AI Extraction Failed</div>
-                      <div className="text-[12px] text-red-400/70 mt-0.5">The document could not be processed automatically</div>
+                      <div className="text-[14px] font-semibold text-[var(--danger)]">AI extraction failed</div>
+                      <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">The document could not be processed automatically</div>
                     </div>
                   </div>
                   <div className="p-4 flex flex-col gap-3">
@@ -811,7 +724,7 @@ export function InboxClientView({
                   </div>
                 </div>
               ) : !hasExtractedMetadata ? (
-                <div className="flex flex-col items-center justify-center py-14 rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-center">
+                <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] py-14 text-center">
                   <AlertCircle size={28} className="text-[var(--text-muted)] mb-3" />
                   <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">No data could be extracted</h3>
                   <p className="text-[13px] text-[var(--text-muted)] mt-1 max-w-xs">AI could not identify key fields from this document. Assign it manually.</p>
@@ -827,12 +740,12 @@ export function InboxClientView({
 
                   {/* Duplicate warning banner */}
                   {isDuplicate && (
-                    <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-500/25 bg-amber-500/8">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
-                        <Copy size={14} className="text-amber-400" />
+                    <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[var(--warning-muted)] p-4">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
+                        <Copy size={14} className="text-[var(--warning)]" />
                       </div>
                       <div>
-                        <div className="text-[13px] font-bold text-amber-400 mb-1">Duplicate Document Detected</div>
+                        <div className="mb-1 text-[13px] font-semibold text-[var(--warning)]">Duplicate document detected</div>
                         <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
                           {activeDoc.suggestion_reason?.replace('DUPLICATE: ', '')}
                         </p>
@@ -842,13 +755,13 @@ export function InboxClientView({
 
                   {/* AI Match suggestion */}
                   {hasSuggestion && !isDuplicate && (
-                    <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--success)_24%,transparent)] bg-[var(--success-muted)] p-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                          <Zap size={12} className="text-emerald-400" />
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
+                          <Zap size={12} className="text-[var(--success)]" />
                         </div>
                         <div>
-                          <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-wide">AI Recommended Match</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--success)]">AI recommended match</div>
                           <div className="text-[13px] font-medium text-[var(--text-primary)] mt-0.5">
                             {activeDoc.suggested_client?.name} · {activeDoc.suggested_matter?.title}
                           </div>
@@ -856,7 +769,7 @@ export function InboxClientView({
                       </div>
                       <button
                         onClick={() => setIsActionModalOpen(true)}
-                        className="shrink-0 h-7 px-3 text-[11px] font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                        className="h-7 shrink-0 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 text-[11px] font-medium text-[var(--surface)] transition-colors hover:opacity-90 dark:text-[#0b1920]"
                       >
                         Confirm
                       </button>
@@ -864,9 +777,8 @@ export function InboxClientView({
                   )}
 
                   {/* Metadata Card */}
-                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-sm">
-                    {/* accent top line */}
-                    <div className="h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500" />
+                  <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+                    <div className="h-0.5 bg-[var(--primary)]" />
 
                     <div className="p-5 flex flex-col gap-5">
                       <div className="flex items-center gap-2">
@@ -952,66 +864,12 @@ export function InboxClientView({
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center relative overflow-hidden bg-[var(--bg)] rounded-2xl border border-[var(--border)]">
-              <style>{`
-                @keyframes float {
-                  0%, 100% { transform: translateY(0px) rotate(0deg); }
-                  50% { transform: translateY(-15px) rotate(2deg); }
-                }
-                @keyframes float-delayed {
-                  0%, 100% { transform: translateY(0px) rotate(0deg); }
-                  50% { transform: translateY(-10px) rotate(-2deg); }
-                }
-                @keyframes scan-line {
-                  0% { transform: translateY(-100%); opacity: 0; }
-                  10% { opacity: 1; }
-                  90% { opacity: 1; }
-                  100% { transform: translateY(400%); opacity: 0; }
-                }
-              `}</style>
-              
-              {/* Dynamic grid background */}
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] opacity-70" />
-              
-              {/* Animated Glowing Orbs */}
-              <div className="absolute top-[30%] left-[35%] w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '6s' }} />
-              <div className="absolute bottom-[20%] right-[35%] w-[350px] h-[350px] bg-indigo-500/10 rounded-full blur-[90px] animate-pulse pointer-events-none" style={{ animationDuration: '8s', animationDelay: '1s' }} />
-
-              {/* Scanning line effect */}
-              <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
-                <div className="w-full h-32 bg-gradient-to-b from-transparent via-blue-500/10 to-transparent blur-xl" style={{ animation: 'scan-line 6s ease-in-out infinite' }} />
+            <div className="flex h-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-hover)] text-[var(--text-muted)]">
+                <FileText size={22} aria-hidden="true" />
               </div>
-
-              <div className="relative z-10 flex flex-col items-center gap-8">
-                {/* Floating Icon Setup */}
-                <div className="relative" style={{ animation: 'float 6s ease-in-out infinite' }}>
-                  <div className="absolute -inset-6 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-full blur-2xl animate-pulse" style={{ animationDuration: '4s' }} />
-                  
-                  <div className="relative w-24 h-24 rounded-3xl bg-[var(--surface)]/80 backdrop-blur-xl border border-[var(--border)] shadow-2xl flex items-center justify-center overflow-hidden">
-                    {/* Glass reflection */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
-                    <FileText size={40} className="text-blue-500/80 drop-shadow-md" strokeWidth={1.5} />
-                  </div>
-
-                  {/* Little floating orbiting elements */}
-                  <div className="absolute -top-4 -right-6 w-12 h-12 rounded-2xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 5s ease-in-out infinite 1s' }}>
-                    <Search size={20} className="text-indigo-400" />
-                  </div>
-                  
-                  <div className="absolute -bottom-6 -left-4 w-10 h-10 rounded-xl bg-[var(--surface)]/90 backdrop-blur-md border border-[var(--border)] shadow-xl flex items-center justify-center" style={{ animation: 'float-delayed 7s ease-in-out infinite 0.5s' }}>
-                    <Sparkles size={18} className="text-amber-400" />
-                  </div>
-                </div>
-
-                <div className="text-center space-y-3 max-w-sm mt-4">
-                  <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
-                    Ready to Inspect
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-                    Select a document from the queue on the left to review extracted data, AI suggestions, and manage workflow.
-                  </p>
-                </div>
-              </div>
+              <h3 className="mt-4 text-base font-semibold text-[var(--text-primary)]">Select a document</h3>
+              <p className="mt-1 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Review extracted details, processing state, and routing suggestions for the selected queue item.</p>
             </div>
           )}
         </div>
@@ -1022,18 +880,16 @@ export function InboxClientView({
       {isActionModalOpen && activeDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div
-            className="relative w-[92%] max-w-[460px] overflow-hidden flex flex-col rounded-2xl shadow-2xl border border-[var(--border)] animate-in zoom-in-95 duration-200"
+            className="relative flex w-[92%] max-w-[460px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] shadow-xl"
             style={{ background: 'var(--surface)' }}
           >
-            {/* gradient top bar */}
-            <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-violet-500 to-purple-600 shrink-0" />
+            <div className="h-1 w-full shrink-0 bg-[var(--primary)]" />
 
             {/* Header */}
             <div className="flex items-start justify-between p-5 pb-3">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: 'linear-gradient(135deg, #2563EB20, #7C3AED20)' }}>
-                  <Zap size={18} style={{ color: '#6366F1' }} />
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
+                  <Zap size={18} className="text-[var(--primary)]" />
                 </div>
                 <div>
                   <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-none">Assign Document</h2>
@@ -1059,15 +915,14 @@ export function InboxClientView({
 
               {/* AI recommendation chip */}
               {hasSuggestion && !isDuplicate && (
-                <div className="flex items-center gap-2.5 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <div className="flex items-center gap-2.5 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--success)_24%,transparent)] bg-[var(--success-muted)] p-3">
+                  <Check size={14} className="shrink-0 text-[var(--success)]" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">AI Recommended</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--success)]">AI recommended</div>
                     <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate">
                       {activeDoc.suggested_client?.name} · {activeDoc.suggested_matter?.title}
                     </div>
                   </div>
-                  <Check size={14} className="text-emerald-400 shrink-0" />
                 </div>
               )}
 
@@ -1089,8 +944,7 @@ export function InboxClientView({
                 <button
                   onClick={handleAssign}
                   disabled={!selectedMatterId || isPending}
-                  className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-[14px] font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
-                  style={{ background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)' }}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[14px] font-medium text-[var(--surface)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-[#0b1920]"
                 >
                   {isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                   {isPending ? 'Assigning…' : 'Confirm Assignment'}

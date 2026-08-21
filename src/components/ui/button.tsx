@@ -9,7 +9,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variants = {
   default:
-    'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] border-none shadow-sm',
+    'bg-[var(--primary)] text-[var(--surface)] hover:bg-[var(--primary-hover)] border border-[var(--primary)] shadow-sm dark:text-[#0b1920]',
   secondary:
     'bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--surface-hover)]',
   outline:
@@ -37,8 +37,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={cn(
           // Base styles
-          'inline-flex items-center justify-center rounded-[--radius-md] font-medium',
-          'transition-all duration-[--duration-fast] ease-[--ease-smooth]',
+          'inline-flex items-center justify-center rounded-[--radius-sm] font-medium',
+          'transition-colors duration-[--duration-fast] ease-[--ease-smooth]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent-ring] focus-visible:ring-offset-1 focus-visible:ring-offset-[--bg-base]',
           'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
           'select-none cursor-pointer',
