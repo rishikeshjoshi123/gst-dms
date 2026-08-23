@@ -17,6 +17,20 @@ Sizes are `sm`, `md`, `lg`, and `icon`. The shared button supplies focus, disabl
 
 Icon-only buttons require an `aria-label` and should normally expose a tooltip or visible adjacent label when the meaning is not universal.
 
+### Descriptive action language
+
+Visible action text is the default. Use concise verb-led labels such as `View PDF`, `Reprocess`, `Assign document`, or `Delete note`; an icon may reinforce the label but must not carry an unfamiliar meaning alone.
+
+Icon-only buttons are permitted only when all of the following are true:
+
+- the action is universally understood in context, such as Close, Back, Expand/Collapse, or More actions;
+- available space genuinely requires the compact presentation;
+- the button has a programmatic accessible name;
+- an accessible tooltip appears promptly on both hover and keyboard focus rather than after a long delay;
+- touch users have an equally understandable presentation without relying on hover.
+
+Primary actions, destructive actions, workflow transitions, unusual legal operations, and ambiguous icons always use visible text. Native `title` text alone is not an adequate tooltip or explanation. In dense repeated rows, group secondary actions in a clearly labelled menu instead of presenting a strip of unexplained icons.
+
 ## Badge
 
 Use [`badge.tsx`](../../src/components/ui/badge.tsx) for status and compact classification.

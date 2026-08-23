@@ -42,6 +42,7 @@ The authenticated product is the first priority. Authentication and public pages
 - Maintain the current, tool-agnostic UI contract under `docs/design-system/`. The plan archive records the overhaul and its decisions; the living specification, semantic tokens, shared components, and `/dev/design-system` gallery jointly guide future UI work.
 - Adopt **Stable Workspace Chrome** for operational layouts: page or pane identity, interpretation context, and primary actions remain outside the designated scrolling body. Desktop split panes may scroll independently without moving their headers; mobile normally uses one principal scroller with a compact sticky header or bottom action bar.
 - Use thin, semantic, discoverable scrollbars. Do not hide scrolling affordances, allow accidental nested scrollers, or let live updates and loading states unexpectedly move the user's context.
+- Use visible, descriptive, verb-led action labels by default. Icons reinforce labels; icon-only controls are reserved for universally understood compact actions and require an accessible name plus prompt hover/focus help. Ambiguous, primary, destructive, and workflow-changing actions never rely on an icon or delayed tooltip alone.
 
 ## Implementation Plan
 

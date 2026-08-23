@@ -7,6 +7,8 @@ CaseChain targets WCAG 2.2 AA. Accessibility is part of every component contract
 - Every interactive element is keyboard operable and has a visible focus indicator.
 - Touch targets are at least `44px × 44px` in effective area and must not overlap adjacent targets.
 - Icon-only actions have accessible names. Do not rely on `title` alone for essential naming.
+- Prefer visible, verb-led button labels. A tooltip supplements a compact, universally understood icon; it does not replace visible language for an ambiguous, primary, destructive, or workflow-changing action.
+- Tooltips for permitted icon-only controls appear promptly on hover and keyboard focus and cannot be the only way touch users learn the action.
 - Disabled and loading states remain understandable; loading actions prevent duplicate submission.
 - Dialogs, drawers, menus, and popovers use established accessible primitives with focus management and Escape behaviour.
 
@@ -34,4 +36,3 @@ Live processing updates should announce meaningful stage changes without announc
 ## Minimum manual check
 
 Complete a page using only the keyboard; inspect visible focus; open and close every overlay; verify labels in the accessibility tree; test at `200%` zoom and a phone viewport; and confirm that status remains understandable without colour.
-

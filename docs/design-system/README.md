@@ -45,6 +45,7 @@ Decorative gradients, glass effects, arbitrary palette colours, oversized pills,
 - Use mobile drawers, drill-downs, lists, and bottom action bars when desktop tables, graphs, or split panes do not fit.
 - Give every page and pane an explicit scroll owner. Desktop split-pane headers remain stable while their bodies scroll independently; mobile normally uses one principal scroller.
 - Keep scrollbars thin, semantic, and discoverable. Do not hide them completely or allow page-level horizontal overflow.
+- Give actions visible, descriptive labels by default. Do not make users wait for hover text to discover what an ambiguous icon does.
 - Provide an effective target of at least `44px × 44px` for touch interaction. A visual control may remain compact when its effective hit area satisfies this requirement without overlapping adjacent targets.
 - Within a repeated collection, status badges use one fixed width and alignment. Different collections may choose different widths.
 - Support light and dark appearances through the same semantic token names. Components must never branch on the name `Civic Ink`.

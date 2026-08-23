@@ -15,6 +15,7 @@
 - Extend a shared component only when the new contract recurs or clearly belongs to that primitive.
 - Do not add a feature-local colour/status map when a domain pattern already exists.
 - Use real buttons, links, inputs, tables, and headings rather than clickable generic containers.
+- Label actions with concise visible verbs by default. Treat every icon-only button as an exception that requires universal meaning, an accessible name, prompt hover/focus help, and a clear touch presentation.
 - Forward refs and accessible attributes when extending an interactive primitive.
 - Add a representative reusable state to `/dev/design-system`.
 
@@ -48,6 +49,7 @@ Report exact commands and results. A timed-out, interrupted, scoped, or failing 
 - Is there one deliberate scroll owner per page or pane, with stable workspace chrome and discoverable semantic scrollbars?
 - Do selection, loading, and live updates preserve spatial continuity instead of moving the user's context unexpectedly?
 - Are all controls reachable, named, focused visibly, and large enough to operate?
+- Are primary, consequential, and ambiguous actions described with visible text rather than discoverable only through icons or delayed hover text?
 - Are the shared component, gallery, and documentation still consistent?
 - Did the change introduce raw colours, decorative gradients, arbitrary radii, or duplicate primitives?
 

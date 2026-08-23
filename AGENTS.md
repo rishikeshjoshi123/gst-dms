@@ -22,6 +22,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Design desktop and mobile presentations together; preserve capability on mobile and provide effective touch targets of at least 44 by 44 pixels.
 - Define explicit scroll ownership for every page and pane. On desktop, keep workspace identity, interpretation context, and primary actions outside the scrolling content body; split panes may scroll independently without scrolling their headers. On mobile, normally use one principal scroller with a compact sticky header or bottom action bar.
 - Keep scrollbars thin, semantic, and discoverable rather than hidden. Avoid accidental nested scrolling, page-level horizontal overflow, and layout shifts that move controls or live-updating items unexpectedly.
+- Give actions visible, descriptive verb labels by default; icons support labels rather than replace them. Icon-only buttons are limited to universally understood, space-constrained controls, must have an accessible name and prompt hover/focus tooltip, and must never be the sole presentation of an ambiguous, primary, or consequential action.
 - Keep repeated status badges equal in width and alignment within a collection, pair colour with text or an icon, and support light, dark, keyboard, loading, empty, error, and long-content states.
 - When adding or changing a reusable UI contract, update the shared component, `/dev/design-system`, and relevant `docs/design-system/` documentation in the same change.
 <!-- END:casechain-design-system -->
