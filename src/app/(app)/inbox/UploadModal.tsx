@@ -5,12 +5,15 @@ import { uploadToInbox } from '@/lib/actions/inbox'
 import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus, FolderOpen, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface UploadModalProps {
   onClose: () => void
   matterId?: string
   matterName?: string
   inline?: boolean
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>
 }
 
 function formatBytes(bytes: number) {
@@ -28,7 +31,7 @@ interface FileEntry {
   error?: string
 }
 
-export function UploadModal({ onClose, matterId, matterName, inline = false }: UploadModalProps) {
+export function UploadModal({ onClose, matterId, matterName, inline = false, returnFocusRef }: UploadModalProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [isUploading, setIsUploading] = useState(false)
@@ -116,6 +119,9 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
   const doneCount = entries.filter(e => e.status === 'done').length
   const errorCount = entries.filter(e => e.status === 'error').length
   const hasEntries = entries.length > 0
+  const handleClose = useCallback(() => {
+    if (!isUploading) onClose()
+  }, [isUploading, onClose])
 
   // The active intake is the queue itself, so selecting files is enough to
   // begin transfer. There is no second "submit" decision to make.
@@ -127,44 +133,49 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, isUploading])
 
-  return (
-    <div
-      className={cn(
-        inline ? 'relative z-20 w-full animate-in fade-in slide-in-from-top-2 duration-200' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200',
-      )}
-      onClick={(e) => { if (!inline && e.target === e.currentTarget && !isUploading) onClose() }}
-    >
-      <div className={cn(
-        'relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]',
-        inline ? 'w-full shadow-sm' : 'w-[92%] max-w-[500px] shadow-2xl animate-in zoom-in-95 duration-200',
-      )}>
+  const renderSurface = (dialogMode: boolean) => (
+    <div className={cn(
+      'relative flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]',
+      dialogMode ? 'w-full' : 'w-full shadow-sm',
+    )}>
         {/* Semantic processing accent */}
         <div className="h-1 w-full bg-[var(--primary)] shrink-0" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 bg-[var(--accent-muted)]"
-            >
-              <UploadCloud size={18} className="text-[var(--primary)]" />
+        {dialogMode ? (
+          <DialogHeader className="mb-0 flex-row items-center justify-between px-6 pb-4 pt-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)]">
+                <UploadCloud size={18} className="text-[var(--primary)]" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-[17px] leading-none">Add Documents</DialogTitle>
+                <DialogDescription className="mt-1 text-[12px]">PDF files only · Multiple files supported</DialogDescription>
+              </div>
             </div>
-            <div>
-              <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-none">Add Documents</h2>
-              <p className="text-[12px] text-[var(--text-muted)] mt-1">PDF files only · Multiple files supported</p>
+            <Button type="button" variant="ghost" size="sm" onClick={handleClose} disabled={isUploading} className="shrink-0">
+              Close
+            </Button>
+          </DialogHeader>
+        ) : (
+          <div className="flex items-center justify-between px-6 pb-4 pt-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)]">
+                <UploadCloud size={18} className="text-[var(--primary)]" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[17px] font-bold leading-none text-[var(--text-primary)]">Add Documents</h2>
+                <p className="mt-1 text-[12px] text-[var(--text-muted)]">PDF files only · Multiple files supported</p>
+              </div>
             </div>
+            <Button type="button" variant="ghost" size="sm" onClick={handleClose} disabled={isUploading} className="shrink-0">
+              Close
+            </Button>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isUploading}
-            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors disabled:opacity-40"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        )}
 
         {/* Body */}
-        <div className="px-6 pb-6 flex flex-col gap-4">
+        <div className={cn('flex flex-col gap-4 px-6 pb-6', dialogMode && 'min-h-0 flex-1 overflow-y-auto custom-scrollbar')}>
           <div className={cn(
             'flex items-start gap-3 rounded-[var(--radius-md)] border p-3 text-[12px]',
             matterId
@@ -190,61 +201,69 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
           </div>
 
           {/* Drop zone */}
-          <div
-            onClick={() => !isUploading && inputRef.current?.click()}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={cn(
-              'relative flex flex-col items-center justify-center rounded-[var(--radius-md)] border-2 border-dashed transition-all duration-200 cursor-pointer select-none',
-              hasEntries ? 'py-5' : 'py-12',
-              isDragging
-                ? 'border-[var(--primary)] bg-[var(--primary)]/8 scale-[1.01]'
-                : 'border-[var(--border-strong)] hover:border-[var(--primary)]/60 hover:bg-[var(--primary)]/4'
-            )}
-          >
+          <div>
             <input
               ref={inputRef}
               type="file"
               accept="application/pdf"
               multiple
-              className="hidden"
+              className="sr-only"
+              tabIndex={-1}
               onChange={handleFileSelect}
               disabled={isUploading}
             />
-
-            {isDragging ? (
-              <div className="flex flex-col items-center gap-2 pointer-events-none animate-in zoom-in-95 duration-150">
-                <div className="w-12 h-12 rounded-[var(--radius-md)] bg-[var(--primary)]/15 flex items-center justify-center">
-                  <UploadCloud size={22} className="text-[var(--primary)]" />
-                </div>
-                <p className="text-[14px] font-bold text-[var(--primary)]">Drop files here</p>
-              </div>
-            ) : hasEntries ? (
-              <div className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
-                <Plus size={14} />
-                <span>Click or drag to add more PDF files</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 pointer-events-none">
-                <div className="relative">
-                  <div
-                    className="w-16 h-16 rounded-[var(--radius-md)] bg-[var(--accent-muted)] flex items-center justify-center"
-                  >
-                    <UploadCloud size={28} className="text-[var(--primary)]" />
+            <button
+              type="button"
+              aria-label="Choose PDF files to upload. You can also drag and drop files here."
+              onClick={() => !isUploading && inputRef.current?.click()}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && !isUploading) {
+                  e.preventDefault()
+                  inputRef.current?.click()
+                }
+              }}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={cn(
+                'relative flex w-full appearance-none flex-col items-center justify-center rounded-[var(--radius-md)] border-2 border-dashed bg-transparent text-center transition-all duration-200 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--surface)]',
+                hasEntries ? 'py-5' : 'py-12',
+                isDragging
+                  ? 'border-[var(--primary)] bg-[var(--primary)]/8 scale-[1.01]'
+                  : 'border-[var(--border-strong)] hover:border-[var(--primary)]/60 hover:bg-[var(--primary)]/4'
+              )}
+            >
+              {isDragging ? (
+                <div className="pointer-events-none flex animate-in zoom-in-95 flex-col items-center gap-2 duration-150">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary)]/15">
+                    <UploadCloud size={22} className="text-[var(--primary)]" />
                   </div>
-                  <Sparkles size={12} className="absolute -top-1 -right-1 text-[var(--primary)] animate-pulse" />
+                  <p className="text-[14px] font-bold text-[var(--primary)]">Drop files here</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-[15px] font-bold text-[var(--text-primary)]">Drop PDF files here</p>
-                  <p className="text-[13px] text-[var(--text-muted)] mt-1">or click to browse from your computer</p>
+              ) : hasEntries ? (
+                <div className="flex items-center gap-2 text-[13px] text-[var(--text-muted)]">
+                  <Plus size={14} />
+                  <span>Click or drag to add more PDF files</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-4 py-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-white text-[13px] font-semibold mt-1 shadow-sm">
-                  <UploadCloud size={13} />
-                  Browse Files
+              ) : (
+                <div className="pointer-events-none flex flex-col items-center gap-3">
+                  <div className="relative">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
+                      <UploadCloud size={28} className="text-[var(--primary)]" />
+                    </div>
+                    <Sparkles size={12} className="absolute -right-1 -top-1 animate-pulse text-[var(--primary)]" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[15px] font-bold text-[var(--text-primary)]">Drop PDF files here</p>
+                    <p className="mt-1 text-[13px] text-[var(--text-muted)]">or click to browse from your computer</p>
+                  </div>
+                  <span className="mt-1 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 py-2 text-[13px] font-semibold text-[var(--on-accent)] shadow-sm">
+                    <UploadCloud size={13} />
+                    Browse Files
+                  </span>
                 </div>
-              </div>
-            )}
+              )}
+            </button>
           </div>
 
           {/* File list */}
@@ -300,13 +319,17 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
 
                     {/* Remove */}
                     {!isUpl && !isDone && (
-                      <button
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => removeEntry(entry.id)}
                         disabled={isUploading}
-                        className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)] transition-colors shrink-0 disabled:opacity-40"
+                        aria-label={`Remove ${entry.file.name}`}
+                        className="shrink-0 text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)]"
                       >
-                        <X size={13} />
-                      </button>
+                        <X size={13} aria-hidden="true" />
+                      </Button>
                     )}
                   </div>
                 )
@@ -330,25 +353,55 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
                 )}
               </div>
               {errorCount > 0 && !isUploading && (
-                <button
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={retryFailed}
-                  className="h-9 px-3 rounded-[var(--radius-sm)] border border-[var(--border)] text-[12px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   Retry failed
-                </button>
+                </Button>
               )}
               {allDone && (
-                <button
-                  onClick={onClose}
-                  className="h-9 px-5 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[13px] font-bold text-white hover:opacity-90 transition-opacity"
-                >
+                <Button type="button" size="md" onClick={handleClose}>
                   Done
-                </button>
+                </Button>
               )}
             </div>
           )}
         </div>
-      </div>
     </div>
+  )
+
+  if (inline) {
+    return <div className="relative z-20 w-full animate-in fade-in slide-in-from-top-2 duration-200">{renderSurface(false)}</div>
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isUploading) onClose()
+      }}
+    >
+      <DialogContent
+        showClose={false}
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[500px] overflow-hidden p-0 sm:w-[calc(100vw-4rem)]"
+        onEscapeKeyDown={(event) => {
+          if (isUploading) event.preventDefault()
+        }}
+        onPointerDownOutside={(event) => {
+          if (isUploading) event.preventDefault()
+        }}
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef?.current) {
+            event.preventDefault()
+            returnFocusRef.current.focus()
+          }
+        }}
+      >
+        {renderSurface(true)}
+      </DialogContent>
+    </Dialog>
   )
 }

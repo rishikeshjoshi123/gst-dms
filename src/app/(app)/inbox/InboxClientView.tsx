@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  FileText, AlertCircle, X, Check, Loader2, Plus, ExternalLink,
+  FileText, AlertCircle, Check, Loader2, Plus, ExternalLink,
   RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
   FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot,
   FolderPlus, Copy, AlertTriangle, Inbox
@@ -24,6 +24,7 @@ import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
 import { DocumentViewerModal } from './DocumentViewerModal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 function humanizeKey(key: string) {
   return key
@@ -59,6 +60,20 @@ function processingCopy(status: string) {
     return { title: 'AI analysis in progress', detail: 'Extracting metadata, classifying the document, and checking existing records.' }
   }
   return null
+}
+
+function documentStatusLabel(doc: {
+  status?: string
+  suggestion_reason?: string | null
+  suggested_client?: unknown
+  suggested_matter?: unknown
+}) {
+  if (doc.status === 'analyzing') return 'Processing'
+  if (doc.status === 'pending_assignment') return 'Queued'
+  if (doc.status === 'failed') return 'Failed'
+  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return 'Duplicate'
+  if (doc.suggested_client && doc.suggested_matter) return 'Ready'
+  return 'Review'
 }
 
 function ProcessingProgress({ status, compact = false }: { status: string; compact?: boolean }) {
@@ -181,11 +196,13 @@ function MatterSearchBox({
 
 function FullPageEmptyInbox({
   onUploadClick,
+  uploadButtonRef,
   title = 'Your Hub is Empty',
   description = 'Drag and drop files or click below to start uploading tax documents, invoices, or legal filings for AI analysis.',
   actionLabel = 'Upload Document',
 }: {
   onUploadClick: () => void
+  uploadButtonRef?: React.RefObject<HTMLButtonElement | null>
   title?: string
   description?: string
   actionLabel?: string
@@ -199,7 +216,7 @@ function FullPageEmptyInbox({
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--primary)]">Document intake</p>
         <h2 className="mt-2 text-xl font-semibold text-[var(--text-primary)]">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">{description}</p>
-        <Button onClick={onUploadClick} className="mt-6">
+        <Button ref={uploadButtonRef} onClick={onUploadClick} className="mt-6">
           <Plus size={16} aria-hidden="true" /> {actionLabel}
         </Button>
       </div>
@@ -230,6 +247,9 @@ export function InboxClientView({
   const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
   const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
   const [intakeTab, setIntakeTab] = useState<'global' | 'matter'>(preselectedMatterId ? 'matter' : 'global')
+  const uploadTriggerRef = useRef<HTMLButtonElement>(null)
+  const viewPdfButtonRef = useRef<HTMLButtonElement>(null)
+  const takeActionButtonRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
 
@@ -507,6 +527,7 @@ export function InboxClientView({
             onClose={() => setIsUploadModalOpen(false)}
             matterId={isMatterIntake ? preselectedMatterId : undefined}
             matterName={isMatterIntake ? preselectedMatter?.title : undefined}
+            returnFocusRef={uploadTriggerRef}
           />
         </div>
       )}
@@ -514,6 +535,7 @@ export function InboxClientView({
       {visibleDocuments.length === 0 ? (
         <FullPageEmptyInbox
           onUploadClick={() => setIsUploadModalOpen(true)}
+          uploadButtonRef={uploadTriggerRef}
           title={isMatterIntake ? `No files waiting for ${preselectedMatter?.title}` : 'Your Global Inbox is Empty'}
           description={isMatterIntake
             ? 'Files added here are analysed and routed only to this matter. Your global triage queue remains untouched.'
@@ -521,12 +543,20 @@ export function InboxClientView({
           actionLabel={isMatterIntake ? 'Add to This Matter' : 'Upload to Global Inbox'}
         />
       ) : (
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto pt-2 lg:flex-row lg:gap-0 lg:overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pt-2 custom-scrollbar lg:flex-row lg:gap-0 lg:overflow-hidden">
 
           {/* ── Left Queue Panel ──────────────────── */}
-          <div className="flex w-full shrink-0 flex-col gap-2 overflow-visible py-1 lg:w-[42%] lg:overflow-y-auto lg:pr-3 custom-scrollbar">
-          <div className="flex items-center justify-end gap-2">
-            <button
+          <section className="flex w-full shrink-0 flex-col overflow-visible py-1 lg:min-h-0 lg:w-[42%] lg:overflow-hidden lg:pr-3">
+          <header className="shrink-0 border-b border-[var(--border)] pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+              {isMatterIntake ? 'Matter intake' : 'Global inbox'} · {visibleDocuments.length} document{visibleDocuments.length !== 1 ? 's' : ''}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={async () => {
                 const toastId = toast.loading('Syncing queue...')
                 try {
@@ -538,22 +568,23 @@ export function InboxClientView({
                   toast.error(err.message || 'Failed to refresh', { id: toastId })
                 }
               }}
-              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={13} aria-hidden="true" />
               Sync
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              ref={uploadTriggerRef}
               onClick={() => setIsUploadModalOpen(value => !value)}
-              className="flex h-9 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[12px] font-medium text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)]"
             >
-              <Plus size={13} /> {isUploadModalOpen ? 'Close' : 'Upload'}
-            </button>
+              <Plus size={13} aria-hidden="true" /> {isUploadModalOpen ? 'Close upload' : 'Upload'}
+            </Button>
+            </div>
           </div>
-
-          <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest px-0.5">
-            {isMatterIntake ? 'Matter intake' : 'Global inbox'} · {visibleDocuments.length} document{visibleDocuments.length !== 1 ? 's' : ''}
-          </div>
+          </header>
+          <div className="min-h-0 flex-1 overflow-visible lg:overflow-y-auto custom-scrollbar">
+          <div className="flex flex-col gap-2 py-2">
           {visibleDocuments.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
                 const isSelected = doc.id === selectedDocId
@@ -563,11 +594,14 @@ export function InboxClientView({
                 const queueCopy = processingCopy(doc.status)
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={doc.id}
                     onClick={() => handleSelectDoc(doc)}
+                    aria-pressed={isSelected}
+                    aria-label={`${fileName || 'Untitled document'}, ${documentStatusLabel(doc)}${isSelected ? ', selected' : ''}`}
                     className={cn(
-                      'group relative cursor-pointer overflow-hidden rounded-[var(--radius-md)] border transition-colors duration-150',
+                      'group relative block w-full cursor-pointer appearance-none overflow-hidden rounded-[var(--radius-md)] border bg-transparent p-0 text-left font-[inherit] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]',
                       isSelected
                         ? 'border-[var(--border-strong)] bg-[var(--accent-muted)] shadow-[inset_3px_0_var(--primary)]'
                         : 'border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]'
@@ -622,23 +656,25 @@ export function InboxClientView({
                         <AlertCircle size={9} /> AI extraction failed · click to reprocess
                       </div>
                     )}
-                  </div>
+                  </button>
                 )
               })}
-        </div>
+          </div>
+          </div>
+        </section>
 
         {/* ── Vertical Divider ─── */}
         <div className="mx-2 hidden w-px shrink-0 bg-[var(--border)] lg:block" />
 
         {/* ── Right Detail Panel ─────────────────── */}
-        <div className="flex flex-1 flex-col overflow-visible lg:overflow-y-auto lg:pl-4 custom-scrollbar">
+        <section className="flex min-w-0 flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden lg:pl-4">
           {activeDoc ? (
-            <div className="flex flex-col gap-5">
+            <>
 
               {/* Document title + action strip */}
-              <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
-                <div className="min-w-0">
-                  <h2 className="text-[16px] font-bold text-[var(--text-primary)] leading-snug truncate max-w-[380px]">
+              <header className="sticky top-0 z-10 flex shrink-0 flex-col items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg)] py-2 sm:flex-row sm:items-center">
+                <div className="min-w-0 max-w-full">
+                  <h2 className="max-w-full truncate text-[16px] font-bold leading-snug text-[var(--text-primary)] sm:max-w-[380px]">
                     {activeDoc.storage_path.split('/').pop()}
                   </h2>
                   <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
@@ -647,33 +683,40 @@ export function InboxClientView({
                 </div>
 
                 {/* Action Buttons row */}
-                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                  <button
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleReprocess(activeDoc.id)}
                     disabled={isReprocessing === activeDoc.id}
-                    title="Re-run AI extraction"
-                    className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
                   >
-                    <RotateCcw size={13} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} />
-                  </button>
-                  <button
+                    <RotateCcw size={13} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} aria-hidden="true" />
+                    Reprocess
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    ref={viewPdfButtonRef}
                     onClick={handleViewDocument}
-                    title="View original PDF"
-                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                   >
-                    <ExternalLink size={12} /> PDF
-                  </button>
-                  <button
+                    <ExternalLink size={12} aria-hidden="true" /> View PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    ref={takeActionButtonRef}
                     onClick={() => setIsActionModalOpen(true)}
                     disabled={Boolean(activeProcessingCopy)}
-                    title={activeProcessingCopy ? 'Assignment is available after analysis finishes' : 'Choose how to route this document'}
-                    className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--primary)] px-4 text-[13px] font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                   >
-                    <Zap size={13} /> Take Action
-                  </button>
+                    <Zap size={13} aria-hidden="true" /> Take Action
+                  </Button>
                 </div>
-              </div>
+              </header>
 
+              <div className="min-h-0 flex-1 overflow-visible py-3 lg:overflow-y-auto custom-scrollbar">
+              <div className="flex flex-col gap-5">
               {/* ── State panels ── */}
               {activeProcessingCopy ? (
                 <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center">
@@ -704,22 +747,26 @@ export function InboxClientView({
                     <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
                       {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
                     </p>
-                    <div className="flex gap-2">
-                      <button
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleReprocess(activeDoc.id)}
-                        disabled={isReprocessing === activeDoc.id}
-                        className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                        loading={isReprocessing === activeDoc.id}
                       >
-                        <RotateCcw size={12} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} />
+                        {!isReprocessing && <RotateCcw size={12} aria-hidden="true" />}
                         Retry AI
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
                         onClick={() => setIsActionModalOpen(true)}
-                        className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-all"
                       >
-                        <FolderPlus size={12} />
+                        <FolderPlus size={12} aria-hidden="true" />
                         Assign Manually
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -728,12 +775,15 @@ export function InboxClientView({
                   <AlertCircle size={28} className="text-[var(--text-muted)] mb-3" />
                   <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">No data could be extracted</h3>
                   <p className="text-[13px] text-[var(--text-muted)] mt-1 max-w-xs">AI could not identify key fields from this document. Assign it manually.</p>
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setIsActionModalOpen(true)}
-                    className="mt-4 h-8 px-4 text-[13px] font-semibold rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
+                    className="mt-4"
                   >
                     Assign Manually
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
@@ -863,6 +913,8 @@ export function InboxClientView({
                 </div>
               )}
             </div>
+            </div>
+            </>
           ) : (
             <div className="flex h-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-6 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--surface-hover)] text-[var(--text-muted)]">
@@ -872,39 +924,49 @@ export function InboxClientView({
               <p className="mt-1 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Review extracted details, processing state, and routing suggestions for the selected queue item.</p>
             </div>
           )}
-        </div>
+        </section>
       </div>
       )}
 
-      {/* ── Action Modal ── */}
-      {isActionModalOpen && activeDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div
-            className="relative flex w-[92%] max-w-[460px] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] shadow-xl"
-            style={{ background: 'var(--surface)' }}
+      {/* ── Assignment dialog ── */}
+      <Dialog
+        open={isActionModalOpen && Boolean(activeDoc)}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsActionModalOpen(true)
+          } else if (!isPending) {
+            setIsActionModalOpen(false)
+          }
+        }}
+      >
+        {activeDoc && (
+          <DialogContent
+            showClose={false}
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100vw-2rem)] overflow-y-auto custom-scrollbar p-0 sm:max-w-[460px]"
+            onEscapeKeyDown={(event) => {
+              if (isPending) event.preventDefault()
+            }}
+            onPointerDownOutside={(event) => {
+              if (isPending) event.preventDefault()
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              takeActionButtonRef.current?.focus()
+            }}
           >
             <div className="h-1 w-full shrink-0 bg-[var(--primary)]" />
 
-            {/* Header */}
-            <div className="flex items-start justify-between p-5 pb-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
-                  <Zap size={18} className="text-[var(--primary)]" />
-                </div>
-                <div>
-                  <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-none">Assign Document</h2>
-                  <p className="text-[13px] text-[var(--text-muted)] mt-1">Route this document to a matter timeline</p>
-                </div>
+            <DialogHeader className="mb-0 flex-row items-start gap-3 p-5 pb-3">
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
+                <Zap size={18} className="text-[var(--primary)]" aria-hidden="true" />
               </div>
-              <button
-                onClick={() => setIsActionModalOpen(false)}
-                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-[17px] leading-none">Assign Document</DialogTitle>
+                <DialogDescription className="mt-1 text-[13px]">Route this document to a matter timeline</DialogDescription>
+              </div>
+            </DialogHeader>
 
-            <div className="px-5 pb-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-4 px-5 pb-5">
               {/* Document name chip */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)]">
                 <FileText size={13} className="text-[var(--text-muted)] shrink-0" />
@@ -939,16 +1001,20 @@ export function InboxClientView({
               </div>
 
               {/* Action buttons */}
-              <div className="flex flex-col gap-2 pt-2 border-t border-[var(--border)]">
+              <div className="flex flex-col gap-2">
                 {/* Primary: Confirm Assignment */}
-                <button
+                <Button
+                  type="button"
+                  variant="default"
+                  size="md"
                   onClick={handleAssign}
                   disabled={!selectedMatterId || isPending}
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] text-[14px] font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  loading={isPending}
+                  className="w-full"
                 >
-                  {isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                  {isPending ? 'Assigning…' : 'Confirm Assignment'}
-                </button>
+                  {!isPending && <Check size={16} aria-hidden="true" />}
+                  Confirm Assignment
+                </Button>
 
                 {/* Auto-create */}
                 {activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
@@ -974,30 +1040,50 @@ export function InboxClientView({
                         </select>
                       </div>
                     )}
-                    <button
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
                       onClick={handleAutoCreate}
                       disabled={isPending || (activeDoc.raw_metadata?.financial_years?.length > 1 && !selectedFyToCreate)}
-                      className="w-full h-10 flex items-center justify-center gap-2 rounded-[var(--radius-md)] text-[13px] font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all disabled:opacity-50"
+                      loading={isPending}
+                      className="w-full"
                     >
-                      {isPending ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
+                      {!isPending && <FolderPlus size={14} aria-hidden="true" />}
                       Auto-Create Client & Matter
-                    </button>
+                    </Button>
                   </div>
                 )}
 
                 {/* Discard */}
-                <button
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="md"
                   onClick={() => setIsDiscardConfirmOpen(true)}
                   disabled={isPending}
-                  className="w-full h-9 flex items-center justify-center gap-2 rounded-[var(--radius-sm)] text-[12px] font-semibold text-[var(--danger)] hover:bg-[var(--danger-muted)] transition-all disabled:opacity-50"
+                  className="w-full"
                 >
-                  <Trash2 size={13} /> Discard Document
-                </button>
+                  <Trash2 size={13} aria-hidden="true" /> Discard Document
+                </Button>
               </div>
+
+              <DialogFooter className="mt-0 flex-col gap-2 border-t border-[var(--border)] p-0 pt-4 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  onClick={() => setIsActionModalOpen(false)}
+                  disabled={isPending}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+              </DialogFooter>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
 
       <ConfirmDialog
         isOpen={isDiscardConfirmOpen}
@@ -1015,6 +1101,7 @@ export function InboxClientView({
           url={viewDocumentUrl}
           title={activeDoc.storage_path.split('/').pop()}
           onClose={() => setViewDocumentUrl(null)}
+          returnFocusRef={viewPdfButtonRef}
         />
       )}
     </div>

@@ -2,39 +2,44 @@
 
 import { X } from 'lucide-react'
 import { PdfViewer } from '@/components/ui/pdf-viewer'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface DocumentViewerModalProps {
   url: string
   title?: string
   onClose: () => void
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>
 }
 
-export function DocumentViewerModal({ url, title = 'Document Viewer', onClose }: DocumentViewerModalProps) {
+export function DocumentViewerModal({ url, title = 'Document Viewer', onClose, returnFocusRef }: DocumentViewerModalProps) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4 sm:p-8">
-      <div className="bg-[var(--bg-surface)] rounded-[var(--radius-md)] shadow-2xl border border-[var(--border)] w-full max-w-6xl h-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--bg)] shrink-0">
-          <div className="min-w-0 pr-4">
-            <h2 className="text-[16px] font-semibold text-[var(--text-primary)] leading-none truncate">
-              {title}
-            </h2>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--border-subtle)] transition-colors shrink-0"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent
+        showClose={false}
+        className="flex h-[calc(100dvh-2rem)] max-h-[90vh] w-[calc(100vw-2rem)] max-w-6xl flex-col overflow-hidden p-0 sm:h-[calc(100dvh-4rem)] sm:w-[calc(100vw-4rem)]"
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef?.current) {
+            event.preventDefault()
+            returnFocusRef.current.focus()
+          }
+        }}
+      >
+        <DialogHeader className="mb-0 flex shrink-0 flex-row items-center justify-between border-b border-[var(--border)] bg-[var(--bg)] p-4">
+          <DialogTitle className="min-w-0 truncate pr-4 text-[16px] leading-none">
+            {title}
+          </DialogTitle>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} className="shrink-0">
+            <X size={16} aria-hidden="true" />
+            Close
+          </Button>
+        </DialogHeader>
+
         {/* Viewer Content */}
-        <div className="flex-1 overflow-hidden bg-[var(--border)] relative">
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--border)]">
           <PdfViewer url={url} />
         </div>
-        
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
