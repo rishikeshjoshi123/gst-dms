@@ -12,3 +12,16 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Use a `YYYY-MM-DD-descriptive-slug.md` filename, update the existing canonical file for revisions, and keep `docs/plans/README.md` indexed.
 - Do not store secrets, credentials, private reasoning, brainstorming notes, or transient task checklists in the plan archive.
 <!-- END:repository-plan-archive -->
+
+<!-- BEGIN:casechain-design-system -->
+# CaseChain UI work
+
+- Before creating or modifying UI, read `docs/design-system/README.md` and the references it routes to for the task.
+- Treat `docs/design-system/`, the semantic tokens in `src/app/globals.css`, shared primitives in `src/components/ui/`, and `/dev/design-system` as one design-system contract.
+- Reuse shared components and semantic tokens. Do not introduce raw palette colours, decorative gradients, arbitrary radii, glass effects, or feature-local replacements for existing primitives.
+- Design desktop and mobile presentations together; preserve capability on mobile and provide effective touch targets of at least 44 by 44 pixels.
+- Define explicit scroll ownership for every page and pane. On desktop, keep workspace identity, interpretation context, and primary actions outside the scrolling content body; split panes may scroll independently without scrolling their headers. On mobile, normally use one principal scroller with a compact sticky header or bottom action bar.
+- Keep scrollbars thin, semantic, and discoverable rather than hidden. Avoid accidental nested scrolling, page-level horizontal overflow, and layout shifts that move controls or live-updating items unexpectedly.
+- Keep repeated status badges equal in width and alignment within a collection, pair colour with text or an icon, and support light, dark, keyboard, loading, empty, error, and long-content states.
+- When adding or changing a reusable UI contract, update the shared component, `/dev/design-system`, and relevant `docs/design-system/` documentation in the same change.
+<!-- END:casechain-design-system -->

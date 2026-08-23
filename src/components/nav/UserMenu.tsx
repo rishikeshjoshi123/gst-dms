@@ -1,8 +1,7 @@
 'use client'
 
-import { useTransition, useEffect, useState } from 'react'
-import { LogOut, Settings, ChevronsUpDown, Moon, Sun } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useTransition } from 'react'
+import { LogOut, Settings } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,10 +33,6 @@ interface UserMenuProps {
 
 export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
   const [isPending, startTransition] = useTransition()
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
 
   function handleSwitch(orgId: string) {
     startTransition(async () => {
@@ -58,7 +53,7 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
           id="user-menu-trigger"
           aria-label="User menu"
           disabled={isPending}
-          className="flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[--accent] cursor-pointer"
+          className="flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[--accent] cursor-pointer"
         >
           <Avatar
             name={user.fullName || user.email}

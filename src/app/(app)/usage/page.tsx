@@ -2,6 +2,9 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { UsageClientView } from '@/components/usage/UsageClientView'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = { title: { absolute: 'Usage — CaseChain' } }
 
 export default async function UsagePage() {
   const supabase = await createClient()

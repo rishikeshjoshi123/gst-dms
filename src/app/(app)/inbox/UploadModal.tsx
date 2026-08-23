@@ -138,7 +138,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
         'relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]',
         inline ? 'w-full shadow-sm' : 'w-[92%] max-w-[500px] shadow-2xl animate-in zoom-in-95 duration-200',
       )}>
-        {/* animated gradient top accent */}
+        {/* Semantic processing accent */}
         <div className="h-1 w-full bg-[var(--primary)] shrink-0" />
 
         {/* Header */}
@@ -265,7 +265,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false }: U
                         : isError
                         ? 'border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--danger-muted)]'
                         : isUpl
-                        ? 'border-[var(--primary)]/25 bg-[var(--primary)]/5 animated-gradient-border'
+                        ? 'border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] bg-[var(--accent-muted)] shadow-[var(--shadow-sm)]'
                         : 'border-[var(--border)] bg-[var(--surface-hover)]'
                     )}
                   >

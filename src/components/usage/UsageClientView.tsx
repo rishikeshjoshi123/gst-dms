@@ -41,12 +41,34 @@ interface UsageClientViewProps {
   initialPricing: PricingRow[]
 }
 
-// Helper to format date to YYYY-MM-DD in local time
+const USAGE_TIME_ZONE = 'Asia/Kolkata'
+
+const usageTimestampFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: USAGE_TIME_ZONE,
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+  timeZoneName: 'short',
+})
+
+function formatUsageTimestamp(timestamp: string): string {
+  return usageTimestampFormatter.format(new Date(timestamp))
+}
+
+// Helper to format date to YYYY-MM-DD in the usage timezone.
 function toYMD(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: USAGE_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]))
+  return `${values.year}-${values.month}-${values.day}`
 }
 
 export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) {
@@ -622,15 +644,7 @@ export function UsageClientView({ logs, initialPricing }: UsageClientViewProps) 
               {paginatedLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-[var(--surface-hover)] transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-[var(--text-secondary)] text-xs">
-                    {new Date(log.created_at).toLocaleString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric', 
-                      hour: '2-digit', 
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false 
-                    })}
+                    {formatUsageTimestamp(log.created_at)}
                   </td>
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center px-2 py-1 rounded bg-[var(--bg)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-primary)]">

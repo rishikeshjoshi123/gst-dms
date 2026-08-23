@@ -2,7 +2,7 @@
 title: CaseChain Design-System Overhaul
 status: in-progress
 created: 2026-08-20
-updated: 2026-08-22
+updated: 2026-08-23
 owners:
   - product
   - engineering
@@ -39,6 +39,9 @@ The authenticated product is the first priority. Authentication and public pages
 - Make the token architecture capable of supporting additional named themes later, but ship only Civic Ink in the initial system. Do not add a theme selector, Quiet Ledger, Precision Blue, or arbitrary user colour controls in the first release.
 - Treat light/dark appearance and named visual themes as separate concepts. Both Civic Ink appearances must share one semantic token contract.
 - If user colour customization is introduced later, offer a small set of accessibility-tested accent choices rather than unrestricted primary and secondary colour pickers. Semantic success, warning, danger, confidence, and deadline colours are never user-customizable.
+- Maintain the current, tool-agnostic UI contract under `docs/design-system/`. The plan archive records the overhaul and its decisions; the living specification, semantic tokens, shared components, and `/dev/design-system` gallery jointly guide future UI work.
+- Adopt **Stable Workspace Chrome** for operational layouts: page or pane identity, interpretation context, and primary actions remain outside the designated scrolling body. Desktop split panes may scroll independently without moving their headers; mobile normally uses one principal scroller with a compact sticky header or bottom action bar.
+- Use thin, semantic, discoverable scrollbars. Do not hide scrolling affordances, allow accidental nested scrollers, or let live updates and loading states unexpectedly move the user's context.
 
 ## Implementation Plan
 
@@ -54,6 +57,8 @@ The authenticated product is the first priority. Authentication and public pages
 10. Add review or lint safeguards against raw hex colors, undeclared variables, arbitrary status colors, and duplicate primitive controls in feature code.
 
 The Civic Ink visual draft, including its desktop and mobile live-processing treatments, was approved on 2026-08-22. Implementation begins with the authenticated shell and Document Hub pilot before expanding to Matter workflows.
+
+The living design-system charter and contribution guidance were added under `docs/design-system/` on 2026-08-23 and made required reading for UI work through `AGENTS.md`.
 
 Responsive adaptations must include prioritized card or drill-down alternatives for tables, separate metadata/action drawers for PDF review, a chronological list alternative to the timeline graph, selection mode with a bottom action bar for bulk operations, phone-sized drawers in place of unsuitable dialogs, and touch targets of at least 44 by 44 pixels.
 

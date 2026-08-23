@@ -29,7 +29,7 @@ Create another domain only after multiple plans justify a stable new category.
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Design-System Overhaul](./design-system/2026-08-20-casechain-design-system-overhaul.md) | `in-progress` | 2026-08-22 |
+| [CaseChain Design-System Overhaul](./design-system/2026-08-20-casechain-design-system-overhaul.md) | `in-progress` | 2026-08-23 |
 
 ### Features
 
