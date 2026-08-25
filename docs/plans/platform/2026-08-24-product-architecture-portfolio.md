@@ -14,6 +14,7 @@ related:
   - ../features/2026-08-24-universal-search-and-evidence-retrieval.md
   - ../features/2026-08-25-work-review-activity-notifications.md
   - ../features/2026-08-25-document-hub-ingestion-and-workbench.md
+  - ../features/2026-08-25-matter-workspace-and-procedural-timeline.md
   - ./2026-08-25-realtime-delivery-freshness-and-unread-state.md
 ---
 
