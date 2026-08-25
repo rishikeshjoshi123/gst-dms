@@ -39,6 +39,7 @@ Create another domain only after multiple plans justify a stable new category.
 | [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `approved` | 2026-08-25 |
 | [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-08-25 |
 | [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `proposed` | 2026-08-25 |
+| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `proposed` | 2026-08-25 |
 
 ### Platform
 

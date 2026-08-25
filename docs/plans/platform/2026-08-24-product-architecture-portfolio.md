@@ -15,6 +15,7 @@ related:
   - ../features/2026-08-25-work-review-activity-notifications.md
   - ../features/2026-08-25-document-hub-ingestion-and-workbench.md
   - ../features/2026-08-25-matter-workspace-and-procedural-timeline.md
+  - ../features/2026-08-25-notes-and-case-brief.md
   - ./2026-08-25-realtime-delivery-freshness-and-unread-state.md
 ---
 
