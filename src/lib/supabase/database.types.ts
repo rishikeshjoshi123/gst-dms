@@ -426,6 +426,8 @@ export type Database = {
           document_category: string | null
           document_class: string | null
           embedding: string | null
+          embedding_model: string | null
+          embedding_version: string | null
           file_hash_sha256: string | null
           financial_year: string | null
           id: string
@@ -457,6 +459,8 @@ export type Database = {
           document_category?: string | null
           document_class?: string | null
           embedding?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
           file_hash_sha256?: string | null
           financial_year?: string | null
           id?: string
@@ -488,6 +492,8 @@ export type Database = {
           document_category?: string | null
           document_class?: string | null
           embedding?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
           file_hash_sha256?: string | null
           financial_year?: string | null
           id?: string
@@ -1083,10 +1089,40 @@ export type Database = {
           similarity: number
         }[]
       }
+      match_all_documents_v2: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          p_embedding_model: string
+          p_embedding_version: string
+          p_org_id: string
+          query_embedding: string
+        }
+        Returns: {
+          id: string
+          reference_number: string
+          similarity: number
+        }[]
+      }
       match_documents: {
         Args: {
           match_count: number
           match_threshold: number
+          p_matter_id: string
+          query_embedding: string
+        }
+        Returns: {
+          id: string
+          reference_number: string
+          similarity: number
+        }[]
+      }
+      match_documents_v2: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          p_embedding_model: string
+          p_embedding_version: string
           p_matter_id: string
           query_embedding: string
         }

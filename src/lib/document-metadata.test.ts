@@ -5,6 +5,7 @@ import { documentColumnsFromAnalysis } from './document-metadata'
 
 const analysis: AIDocumentResult = {
   doc_type: 'SCN',
+  document_title: 'Show Cause Notice',
   document_class: 'proceeding',
   document_category: null,
   reference_number: 'SCN/E2E/UPLOAD/001',
@@ -27,6 +28,8 @@ const analysis: AIDocumentResult = {
   deadlines: [],
   extracted_amounts: {},
   parties_named: [],
+  legal_references: [],
+  evidence: [],
   confidence: 0.9,
   prompt_version: 'test',
 }

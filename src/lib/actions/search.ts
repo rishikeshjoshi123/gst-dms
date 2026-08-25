@@ -2,7 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
-import { generateEmbedding } from '@/lib/ai/vertex'
+import {
+  generateEmbedding,
+  VERTEX_EMBEDDING_MODEL,
+  VERTEX_EMBEDDING_VERSION,
+} from '@/lib/ai/vertex'
 
 export interface SearchResultItem {
   id: string
@@ -10,6 +14,25 @@ export interface SearchResultItem {
   subtitle?: string
   href: string
   type: 'client' | 'matter' | 'document'
+}
+
+type RelatedEntity = { name?: string | null; title?: string | null }
+type SearchDocumentRow = {
+  id: string
+  storage_path: string
+  reference_number: string | null
+  matter_id: string
+  matters: unknown
+}
+
+function relationValue(
+  relation: unknown,
+  field: 'name' | 'title',
+): string {
+  const entity = Array.isArray(relation) ? relation[0] : relation
+  if (!entity || typeof entity !== 'object') return ''
+  const value = (entity as RelatedEntity)[field]
+  return typeof value === 'string' ? value : ''
 }
 
 export async function searchAll(query: string, semantic: boolean = false): Promise<SearchResultItem[]> {
@@ -23,33 +46,34 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   const formattedQuery = `%${query.trim()}%`
 
   // Generate embedding for query (gracefully fallback if it fails)
-  let vectorMatches: any[] = []
+  let vectorMatches: SearchDocumentRow[] = []
   if (semantic) {
     try {
-      const aiResult = await generateEmbedding(query)
+      const aiResult = await generateEmbedding(query, 'RETRIEVAL_QUERY')
       if (aiResult?.embedding) {
         // Log AI usage for semantic search
         const { logUsage } = await import('@/lib/actions/usage')
-        const { VERTEX_EMBEDDING_MODEL } = await import('@/lib/ai/vertex')
         await logUsage(supabase, {
           orgId,
           userId: user?.id,
           operationType: 'semantic_search',
           modelName: VERTEX_EMBEDDING_MODEL,
-          inputTokens: aiResult.charCount,
+          inputTokens: aiResult.inputTokens,
           outputTokens: 0
         })
 
-        const { data: vMatchesRes } = await (supabase.rpc as any)('match_all_documents', {
+        const { data: vMatchesRes } = await supabase.rpc('match_all_documents_v2', {
           query_embedding: `[${aiResult.embedding.join(',')}]`,
           match_threshold: 0.7,
           match_count: 5,
-          p_org_id: orgId
+          p_org_id: orgId,
+          p_embedding_model: VERTEX_EMBEDDING_MODEL,
+          p_embedding_version: VERTEX_EMBEDDING_VERSION,
         })
-        const vMatches = vMatchesRes as any[]
+        const vMatches = vMatchesRes
         if (vMatches && vMatches.length > 0) {
           // Fetch document details for the vector matches
-          const docIds = vMatches.map((m: any) => m.id)
+          const docIds = vMatches.map((match) => match.id)
           const { data: vDocs } = await supabase
             .from('documents')
             .select('id, storage_path, reference_number, matter_id, matters(title, client_id)')
@@ -90,7 +114,10 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   ])
 
   // Combine text matches with vector matches (avoiding duplicates)
-  const combinedDocs = docsRes.data ? [...docsRes.data] : []
+  const combinedDocs: SearchDocumentRow[] = (docsRes.data ?? []).map((document) => ({
+    ...document,
+    matters: document.matters,
+  }))
   for (const vDoc of vectorMatches) {
     if (!combinedDocs.some(d => d.id === vDoc.id)) {
       combinedDocs.push(vDoc)
@@ -115,7 +142,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   // Map Matters
   if (mattersRes.data) {
     for (const matter of mattersRes.data) {
-      const clientName = (matter.clients as any)?.name ?? ''
+      const clientName = relationValue(matter.clients, 'name')
       results.push({
         id: matter.id,
         title: matter.title,
@@ -127,16 +154,16 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   }
 
   // Map Documents
-  if (docsRes.data) {
-    for (const doc of docsRes.data) {
+  if (combinedDocs.length > 0) {
+    for (const doc of combinedDocs) {
       const rawName = doc.storage_path.split('/').pop() ?? 'Document'
       const cleanName = rawName.replace(/^\d+_/, '')
-      const matterTitle = (doc.matters as any)?.title ?? ''
+      const matterTitle = relationValue(doc.matters, 'title')
       results.push({
         id: doc.id,
         title: cleanName,
         subtitle: `Document${matterTitle ? ` • ${matterTitle}` : ''}${doc.reference_number ? ` (Ref: ${doc.reference_number})` : ''}`,
-        href: `/matters/${doc.matter_id}`,
+        href: `/matters/${doc.matter_id}/documents/${doc.id}`,
         type: 'document'
       })
     }

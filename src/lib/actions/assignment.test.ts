@@ -14,6 +14,7 @@ const MATTER_ID = '00000000-0000-4000-8000-000000000003'
 function documentResult(overrides: Partial<AIDocumentResult> = {}): AIDocumentResult {
   return {
     doc_type: 'OIO',
+    document_title: 'Order-in-Original',
     document_class: 'proceeding',
     document_category: null,
     reference_number: null,
@@ -36,6 +37,8 @@ function documentResult(overrides: Partial<AIDocumentResult> = {}): AIDocumentRe
     deadlines: [],
     extracted_amounts: {},
     parties_named: [],
+    legal_references: [],
+    evidence: [],
     confidence: 0.9,
     prompt_version: 'test',
     ...overrides,

@@ -6,7 +6,7 @@
  * 2.  duplicate-check-exact      (SHA-256 block)
  * 3.  analyze-with-ai            (Vertex AI multimodal)
  * 4.  parse-and-validate         (structured JSON → DB columns)
- * 5.  generate-embedding         (text-embedding-004)
+ * 5.  generate-embedding         (versioned Vertex retrieval model)
  * 6.  duplicate-check-semantic   (cosine similarity > 0.97 = flag)
  * 7.  content-hash-check         (normalized text hash)
  * 8.  run-chain-placement        (reference matching algorithm)
@@ -25,8 +25,13 @@ import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
 import { logUsage } from '@/lib/actions/usage'
 import { isDocumentActive } from '@/lib/utils/resource-checks'
 import { documentColumnsFromAnalysis } from '@/lib/document-metadata'
+import { buildEmbeddingText } from '@/lib/ai/prompts'
 
-import { VERTEX_DOCUMENT_MODEL, VERTEX_EMBEDDING_MODEL } from '@/lib/ai/vertex'
+import {
+  VERTEX_DOCUMENT_MODEL,
+  VERTEX_EMBEDDING_MODEL,
+  VERTEX_EMBEDDING_VERSION,
+} from '@/lib/ai/vertex'
 
 export interface ProcessDocumentPayload {
   docId: string
@@ -209,11 +214,14 @@ export const processDocument = task({
     // ── Step 5: Generate embedding ─────────────────────────────────
     console.log('[Step 5] Generating embedding')
 
-    const embeddingText = [
-      aiResult.doc_type || '',
-      aiResult.reference_number || '',
-      aiResult.summary || ''
-    ].join(' ').trim()
+    const embeddingText = buildEmbeddingText({
+      doc_type: aiResult.doc_type ?? null,
+      reference_number: aiResult.reference_number ?? null,
+      summary: aiResult.summary ?? null,
+      financial_years: aiResult.financial_years ?? [],
+      issued_by: aiResult.issued_by ?? null,
+      client_name: aiResult.client_name ?? null,
+    })
 
     let embeddingStr: string | null = null
     if (embeddingText) {
@@ -221,7 +229,11 @@ export const processDocument = task({
       if (res && res.embedding) {
         embeddingStr = `[${res.embedding.join(',')}]`
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from('documents').update({ embedding: embeddingStr }).eq('id', docId)
+        await (supabase as any).from('documents').update({
+          embedding: embeddingStr,
+          embedding_model: res.model,
+          embedding_version: res.version,
+        }).eq('id', docId)
 
         await logUsage(supabase, {
           orgId,
@@ -229,7 +241,7 @@ export const processDocument = task({
           docId,
           operationType: 'embedding_generation',
           modelName: VERTEX_EMBEDDING_MODEL,
-          inputTokens: res.charCount, // Treating charCount as token count for pricing purposes
+          inputTokens: res.inputTokens,
           outputTokens: 0
         })
       }
@@ -240,11 +252,13 @@ export const processDocument = task({
       console.log('[Step 6] Semantic duplicate check (cosine similarity)')
 
       if (embeddingStr) {
-        const { data: similarDocs, error: simError } = await supabase.rpc('match_documents', {
+        const { data: similarDocs, error: simError } = await supabase.rpc('match_documents_v2', {
           query_embedding: embeddingStr,
           match_threshold: 0.97,
           match_count: 5,
-          p_matter_id: matterId
+          p_matter_id: matterId,
+          p_embedding_model: VERTEX_EMBEDDING_MODEL,
+          p_embedding_version: VERTEX_EMBEDDING_VERSION,
         })
 
         if (!simError && similarDocs) {
@@ -347,6 +361,121 @@ export const processDocument = task({
     await updateDocStatus(supabase, docId, 'placed')
 
     return { status: 'placed', docId }
+  },
+})
+
+// ================================================================
+// Versioned embedding backfill (one matter per run)
+// ================================================================
+
+export interface ReindexMatterEmbeddingsPayload {
+  matterId: string
+  orgId: string
+  triggeredBy?: string
+}
+
+export const reindexMatterEmbeddings = task({
+  id: 'reindex-matter-embeddings',
+  maxDuration: 300,
+  retry: {
+    maxAttempts: 2,
+    minTimeoutInMs: 1000,
+    maxTimeoutInMs: 15000,
+    factor: 2,
+  },
+  run: async (payload: ReindexMatterEmbeddingsPayload) => {
+    const { matterId, orgId, triggeredBy } = payload
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const supabase = createServiceClient() as SupabaseClient<Database>
+
+    const { data: matter } = await supabase
+      .from('matters')
+      .select('id, deleted_at, clients!inner(name, deleted_at)')
+      .eq('id', matterId)
+      .eq('org_id', orgId)
+      .maybeSingle()
+
+    if (!matter || matter.deleted_at || (matter.clients as { deleted_at: string | null }).deleted_at) {
+      return { status: 'skipped', reason: 'matter_or_client_unavailable' }
+    }
+
+    const clientName = (matter.clients as { name: string }).name
+    const { data: documents, error } = await supabase
+      .from('documents')
+      .select('id, doc_type, reference_number, summary, financial_year, issued_by, raw_metadata, embedding_model, embedding_version')
+      .eq('matter_id', matterId)
+      .eq('org_id', orgId)
+      .is('deleted_at', null)
+
+    if (error) throw error
+
+    let indexed = 0
+    let skipped = 0
+    let failed = 0
+
+    for (const document of documents ?? []) {
+      if (
+        document.embedding_model === VERTEX_EMBEDDING_MODEL
+        && document.embedding_version === VERTEX_EMBEDDING_VERSION
+      ) {
+        skipped += 1
+        continue
+      }
+
+      const rawMetadata = document.raw_metadata as {
+        financial_years?: string[]
+      } | null
+      const embeddingText = buildEmbeddingText({
+        doc_type: document.doc_type,
+        reference_number: document.reference_number,
+        summary: document.summary,
+        financial_years: rawMetadata?.financial_years
+          ?? (document.financial_year ? [document.financial_year] : []),
+        issued_by: document.issued_by,
+        client_name: clientName,
+      })
+
+      const result = await generateEmbedding(embeddingText, 'RETRIEVAL_DOCUMENT')
+      if (!result) {
+        failed += 1
+        continue
+      }
+
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({
+          embedding: `[${result.embedding.join(',')}]`,
+          embedding_model: result.model,
+          embedding_version: result.version,
+        })
+        .eq('id', document.id)
+        .eq('org_id', orgId)
+
+      if (updateError) {
+        failed += 1
+        continue
+      }
+
+      await logUsage(supabase, {
+        orgId,
+        userId: triggeredBy,
+        docId: document.id,
+        operationType: 'embedding_reindex',
+        modelName: result.model,
+        inputTokens: result.inputTokens,
+        outputTokens: 0,
+      })
+      indexed += 1
+    }
+
+    return {
+      status: failed > 0 ? 'partial' : 'complete',
+      matterId,
+      embeddingVersion: VERTEX_EMBEDDING_VERSION,
+      indexed,
+      skipped,
+      failed,
+    }
   },
 })
 
@@ -847,7 +976,7 @@ export const generateMatterWiki = task({
 
     // Compile context
     const contextLines = docs.map(d => {
-      return `Document [${d.doc_type || 'Unknown'} - ${d.reference_number || 'No Ref'} - Date: ${d.doc_date || 'N/A'}]:
+      return `Document [ID: ${d.id} - ${d.doc_type || 'Unknown'} - ${d.reference_number || 'No Ref'} - Date: ${d.doc_date || 'N/A'}]:
 Summary: ${d.summary || 'N/A'}
 Details: ${JSON.stringify(d.raw_metadata)}`
     })

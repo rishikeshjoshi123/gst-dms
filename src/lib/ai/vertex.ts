@@ -1,5 +1,5 @@
 /**
- * Vertex AI client — Gemini multimodal document analysis + text-embedding-004
+ * Vertex AI client — Gemini multimodal document analysis and search embeddings.
  *
  * Uses service account credentials stored in GOOGLE_APPLICATION_CREDENTIALS_JSON.
  * The JSON is stored as a single-line string in the env var.
@@ -11,7 +11,22 @@
 
 import { VertexAI, type GenerateContentRequest } from '@google-cloud/vertexai'
 import { GoogleAuth } from 'google-auth-library'
-import { PROMPT_VERSION, buildAnalysisPrompt } from './prompts'
+import {
+  PROMPT_VERSION,
+  buildAnalysisPrompt,
+  buildWikiPrompt,
+} from './prompts'
+import {
+  aiDocumentPayloadSchema,
+  aiWikiPayloadSchema,
+  documentResponseSchema,
+  wikiResponseSchema,
+  type AIDocumentResult,
+  type AIUsage,
+  type AIWikiResult,
+} from './schemas'
+
+export type { AIDocumentResult, AIWikiResult } from './schemas'
 
 // ── Lazy-initialized clients ────────────────────────────────────────────────
 
@@ -41,47 +56,34 @@ function getVertexAI(): VertexAI {
   return _vertexAI
 }
 
-// ── Document analysis ───────────────────────────────────────────────────────
+export const VERTEX_DOCUMENT_MODEL = 'gemini-2.5-flash'
+export const VERTEX_EMBEDDING_MODEL = 'gemini-embedding-001'
+export const VERTEX_EMBEDDING_DIMENSIONS = 768
+export const VERTEX_EMBEDDING_VERSION = 'gemini-embedding-001-768-v1'
 
-export interface AIDocumentResult {
-  doc_type: string | null
-  document_class: 'proceeding' | 'supporting'
-  document_category: string | null
-  reference_number: string | null
-  gstin: string | null
-  client_identifiers: string[] | null
-  client_name: string | null
-  doc_date: string | null
-  financial_years: string[]
-  tax_period: string | null
-  direction: 'incoming' | 'outgoing' | null
-  issued_by: string | null
-  summary: string
-  chaining_attributes: {
-    references_documents: string[]
-    gstin: string | null
-    financial_years: string[]
-    matter_ref: string | null
-    link_type: 'responds_to' | 'arises_from' | 'challenges' | 'summarizes' | null
-  }
-  deadlines: Array<{
-    type: string
-    due_date: string
-    description: string
-  }>
-  extracted_amounts: Record<string, number>
-  parties_named: string[]
-  confidence: number
-  prompt_version: string
-  usage?: {
-    promptTokens: number
-    candidateTokens: number
-    totalTokens: number
+function usageFromResponse(usage: {
+  promptTokenCount?: number
+  candidatesTokenCount?: number
+  totalTokenCount?: number
+} | undefined): AIUsage | undefined {
+  if (!usage) return undefined
+  return {
+    promptTokens: usage.promptTokenCount ?? 0,
+    candidateTokens: usage.candidatesTokenCount ?? 0,
+    totalTokens: usage.totalTokenCount ?? 0,
   }
 }
 
-export const VERTEX_DOCUMENT_MODEL = 'gemini-2.5-flash'
-export const VERTEX_EMBEDDING_MODEL = 'text-embedding-004'
+function extractJsonObject(rawText: string): unknown {
+  const firstBrace = rawText.indexOf('{')
+  const lastBrace = rawText.lastIndexOf('}')
+  const jsonText = firstBrace !== -1 && lastBrace > firstBrace
+    ? rawText.slice(firstBrace, lastBrace + 1)
+    : rawText
+  return JSON.parse(jsonText)
+}
+
+// ── Document analysis ───────────────────────────────────────────────────────
 
 /**
  * Send a PDF buffer to Gemini Flash for structured metadata extraction.
@@ -96,8 +98,9 @@ export async function analyzeDocument(
       model: VERTEX_DOCUMENT_MODEL,
       generationConfig: {
         responseMimeType: 'application/json',
-        temperature: 0.1,   // low temperature for structured extraction
-        maxOutputTokens: 4096,
+        responseSchema: documentResponseSchema,
+        temperature: 0,
+        maxOutputTokens: 8192,
       },
     })
 
@@ -137,44 +140,28 @@ export async function analyzeDocument(
       return null
     }
 
-    let jsonText = rawText
-    const firstBrace = rawText.indexOf('{')
-    const lastBrace = rawText.lastIndexOf('}')
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      jsonText = rawText.slice(firstBrace, lastBrace + 1)
-    }
-
     try {
-      const parsed = JSON.parse(jsonText) as Omit<AIDocumentResult, 'prompt_version'>
-      const usage = response.response.usageMetadata
+      const validation = aiDocumentPayloadSchema.safeParse(extractJsonObject(rawText))
+      if (!validation.success) {
+        console.error(
+          '[Vertex AI] Document response failed validation:',
+          validation.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+        )
+        return null
+      }
+
       return {
-        ...parsed,
+        ...validation.data,
         prompt_version: PROMPT_VERSION,
-        usage: usage ? {
-          promptTokens: usage.promptTokenCount ?? 0,
-          candidateTokens: usage.candidatesTokenCount ?? 0,
-          totalTokens: usage.totalTokenCount ?? 0
-        } : undefined
+        usage: usageFromResponse(response.response.usageMetadata),
       }
     } catch (err) {
       console.error('[Vertex AI] analyzeDocument failed parsing JSON:', err)
-      console.error('[Vertex AI] Raw text was:', rawText)
       return null
     }
   } catch (err) {
     console.error('[Vertex AI] analyzeDocument failed:', err)
     return null
-  }
-}
-
-export interface AIWikiResult {
-  executive_summary: string
-  key_arguments: string
-  outstanding_tasks: string
-  usage?: {
-    promptTokens: number
-    candidateTokens: number
-    totalTokens: number
   }
 }
 
@@ -187,31 +174,13 @@ export async function generateWikiSummary(
       model: VERTEX_DOCUMENT_MODEL,
       generationConfig: {
         responseMimeType: 'application/json',
-        temperature: 0.2,
+        responseSchema: wikiResponseSchema,
+        temperature: 0.1,
+        maxOutputTokens: 6144,
       },
     })
 
-    const prompt = `
-    You are an expert Indian GST (Goods and Services Tax) litigation assistant.
-    Below is a compilation of all documents and their metadata/summaries for a specific legal matter.
-    
-    Your task is to synthesize this information and generate three comprehensive markdown-formatted sections for a Case Wiki:
-    1. executive_summary: A high-level overview of the entire matter, what the core dispute is about, and the current status.
-    2. key_arguments: A breakdown of the primary arguments from both the Tax Department and the Client.
-    3. outstanding_tasks: A list of next steps, open questions, or pending compliance actions.
-    
-    Output JSON exactly in this format:
-    {
-      "executive_summary": "# Executive Summary\\n...",
-      "key_arguments": "# Key Arguments\\n...",
-      "outstanding_tasks": "# Outstanding Tasks\\n..."
-    }
-    
-    Document Context:
-    ${matterContext}
-    `
-
-    const response = await model.generateContent(prompt)
+    const response = await model.generateContent(buildWikiPrompt(matterContext))
     const candidate = response.response.candidates?.[0]
     if (!candidate?.content?.parts?.[0]?.text) {
       console.warn('[Vertex AI] Empty response from model for wiki')
@@ -219,23 +188,19 @@ export async function generateWikiSummary(
     }
 
     const rawText = candidate.content.parts[0].text.trim()
-    let jsonText = rawText
-    const firstBrace = rawText.indexOf('{')
-    const lastBrace = rawText.lastIndexOf('}')
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      jsonText = rawText.slice(firstBrace, lastBrace + 1)
+    const validation = aiWikiPayloadSchema.safeParse(extractJsonObject(rawText))
+    if (!validation.success) {
+      console.error(
+        '[Vertex AI] Case Brief response failed validation:',
+        validation.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+      )
+      return null
     }
 
-    const parsed = JSON.parse(jsonText) as AIWikiResult
-    const usage = response.response.usageMetadata
-    if (usage) {
-      parsed.usage = {
-        promptTokens: usage.promptTokenCount ?? 0,
-        candidateTokens: usage.candidatesTokenCount ?? 0,
-        totalTokens: usage.totalTokenCount ?? 0
-      }
+    return {
+      ...validation.data,
+      usage: usageFromResponse(response.response.usageMetadata),
     }
-    return parsed
   } catch (err) {
     console.error('[Vertex AI] generateWikiSummary failed:', err)
     return null
@@ -245,11 +210,28 @@ export async function generateWikiSummary(
 // ── Embeddings ───────────────────────────────────────────────────────────────
 
 /**
- * Generate a 768-dimensional embedding for semantic search using text-embedding-004.
+ * Generate a versioned 768-dimensional embedding for retrieval.
  * Returns null on failure.
  */
-export async function generateEmbedding(text: string): Promise<{ embedding: number[], charCount: number } | null> {
+export type EmbeddingTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'
+
+export type EmbeddingResult = {
+  embedding: number[]
+  inputTokens: number
+  truncated: boolean
+  model: string
+  version: string
+  taskType: EmbeddingTaskType
+}
+
+export async function generateEmbedding(
+  text: string,
+  taskType: EmbeddingTaskType = 'RETRIEVAL_DOCUMENT',
+): Promise<EmbeddingResult | null> {
   try {
+    const normalizedText = text.trim()
+    if (!normalizedText) return null
+
     const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
     if (!credentialsJson) throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON not set')
 
@@ -257,7 +239,6 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
     const project = process.env.GOOGLE_CLOUD_PROJECT ?? credentials.project_id
     const location = process.env.GOOGLE_CLOUD_REGION ?? 'us-central1'
 
-    // text-embedding-004 uses the REST API endpoint directly
     const auth = new GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
@@ -266,8 +247,6 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
     const token = await client.getAccessToken()
 
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${VERTEX_EMBEDDING_MODEL}:predict`
-
-    const slicedText = text.slice(0, 8000) // model max input
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -278,12 +257,13 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
       body: JSON.stringify({
         instances: [
           {
-            content: slicedText, 
-            task_type: 'RETRIEVAL_DOCUMENT',
+            content: normalizedText,
+            task_type: taskType,
           },
         ],
         parameters: {
-          outputDimensionality: 768,
+          outputDimensionality: VERTEX_EMBEDDING_DIMENSIONS,
+          autoTruncate: false,
         },
       }),
     })
@@ -295,12 +275,32 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
     }
 
     const data = await res.json() as {
-      predictions: Array<{ embeddings: { values: number[] } }>
+      predictions: Array<{
+        embeddings: {
+          values: number[]
+          statistics?: {
+            token_count?: number
+            truncated?: boolean
+          }
+        }
+      }>
     }
 
-    const embedding = data.predictions[0]?.embeddings?.values ?? null
-    if (!embedding) return null
-    return { embedding, charCount: slicedText.length }
+    const prediction = data.predictions[0]?.embeddings
+    const embedding = prediction?.values ?? null
+    if (!embedding || embedding.length !== VERTEX_EMBEDDING_DIMENSIONS) {
+      console.error('[Vertex AI] Embedding response had an unexpected dimension count')
+      return null
+    }
+
+    return {
+      embedding,
+      inputTokens: prediction.statistics?.token_count ?? 0,
+      truncated: prediction.statistics?.truncated ?? false,
+      model: VERTEX_EMBEDDING_MODEL,
+      version: VERTEX_EMBEDDING_VERSION,
+      taskType,
+    }
   } catch (err) {
     console.error('[Vertex AI] generateEmbedding failed:', err)
     return null
