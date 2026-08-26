@@ -43,7 +43,7 @@ Use [`badge.tsx`](../../src/components/ui/badge.tsx) for status and compact clas
 - `muted`: queued, inactive, or neutral metadata.
 - `outline`: non-status classification.
 
-In a repeated list or table, select one `fixedWidth` (`sm`, `md`, or `lg`) for the collection and use it for every row. A badge colour must never be the only carrier of meaning.
+In a repeated list or table, select one `fixedWidth` (`sm`, `md`, `lg`, or `xl`) for the entire collection and use it for every row. Choose the size against the longest approved label in that collection; labels must never escape, resize, or misalign their badge. If the vocabulary outgrows the chosen width, enlarge the whole collection or revise the vocabulary rather than overriding one row. A badge colour must never be the only carrier of meaning.
 
 ## Input and labels
 
@@ -95,3 +95,14 @@ In document review, queue, table, and split-pane workflows, separate stable chro
 - Desktop pane bodies may scroll independently; the header must not scroll away with them.
 - Mobile should use a compact sticky identity header or bottom action bar only when persistence is necessary for the task.
 - Avoid freezing so much content that the usable body becomes cramped.
+
+### Matter section workbars
+
+Non-canvas Matter sections use one stable ordering so controls remain predictable across sections:
+
+1. View or scope switchers at the left.
+2. Optional Search, result interpretation, or freshness context in the flexible middle.
+3. Collaborators, Filters, and other secondary controls at the right.
+4. The current primary action as the rightmost control.
+
+Omit slots that do not apply without reordering the remaining controls. Do not repeat the selected section name, explanatory hero, totals that do not affect decisions, or the same create action again inside the scrolling body. Mobile may wrap or adapt this workbar, but retains the same semantic order and does not introduce page-level horizontal overflow.

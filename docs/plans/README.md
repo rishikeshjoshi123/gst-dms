@@ -40,12 +40,13 @@ Create another domain only after multiple plans justify a stable new category.
 | [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-08-25 |
 | [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `proposed` | 2026-08-25 |
 | [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `proposed` | 2026-08-25 |
+| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-08-26 |
 
 ### Platform
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-25 |
+| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-26 |
 | [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `proposed` | 2026-08-25 |
 | [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-25 |
 | [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-08-24 |

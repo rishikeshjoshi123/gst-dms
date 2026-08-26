@@ -26,7 +26,7 @@ Status sizing is a collection-level decision:
 - Choose one width that fits that collection's vocabulary.
 - Use the same width and alignment for every row, including failed and long-label states.
 - Do not add padding to individual badges to make one status fit.
-- If the vocabulary cannot fit the selected width, change the whole collection's width or revise the labels.
+- Status text must remain contained within the badge. If the vocabulary cannot fit the selected width, change the whole collection's width or revise the labels; never allow one long value to overflow or widen only its own row.
 
 ## Matters and legal direction
 
@@ -49,4 +49,3 @@ Status sizing is a collection-level decision:
 - Split-pane review becomes list/detail navigation on mobile. A user must always have a clear route back to the list.
 - Bulk selection on mobile uses selection mode and a bottom action bar rather than tiny checkboxes and distant toolbar actions.
 - PDF review moves secondary metadata/actions into a suitable drawer when space is constrained.
-

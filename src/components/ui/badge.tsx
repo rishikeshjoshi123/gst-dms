@@ -5,7 +5,7 @@ type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'incoming' | 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant
   dot?: boolean
-  fixedWidth?: 'sm' | 'md' | 'lg'
+  fixedWidth?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
@@ -19,7 +19,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   outline:  'bg-transparent text-[var(--text-primary)] border-[var(--border-strong)]',
 }
 
-const fixedWidths = { sm: 'w-16', md: 'w-20', lg: 'w-24' }
+const fixedWidths = { sm: 'w-16', md: 'w-20', lg: 'w-24', xl: 'w-32' }
 
 const dotColors: Record<BadgeVariant, string> = {
   default:  'bg-[--accent]',
@@ -44,7 +44,7 @@ export function Badge({ className, variant = 'default', dot, fixedWidth, childre
       {...props}
     >
       {dot && <span className={cn('status-dot', dotColors[variant])} />}
-      {children}
+      <span className="inline-block min-w-0 truncate">{children}</span>
     </span>
   )
 }

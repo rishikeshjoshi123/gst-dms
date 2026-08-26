@@ -1,6 +1,7 @@
-import { Check, CircleAlert, Clock3, FileText, Loader2 } from 'lucide-react'
+import { Check, CircleAlert, Clock3, FileText, ListFilter, Loader2, Plus, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { MatterSectionWorkbar } from '@/components/ui/matter-section-workbar'
 
 export const metadata = { title: 'Civic Ink Design System' }
 
@@ -57,6 +58,17 @@ export default function DesignSystemPage() {
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Matter section workbar</h2>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Views remain left, optional context occupies the middle, and the primary action remains rightmost.</p>
+        <MatterSectionWorkbar
+          className="mt-4 rounded-[var(--radius-md)] border border-[var(--border)]"
+          views={<div className="flex rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-0.5"><Button variant="secondary" size="sm" className="shadow-none">Legal position</Button><Button variant="ghost" size="sm">Internal costs</Button></div>}
+          context={<span className="hidden text-xs text-[var(--text-muted)] sm:inline">Verified facts only in solid totals</span>}
+          actions={<><Button variant="outline" size="sm"><Users size={14} />Participants</Button><Button variant="outline" size="sm"><ListFilter size={14} />Filters</Button><Button size="sm"><Plus size={14} />Add entry</Button></>}
+        />
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-base font-semibold">Collection status consistency</h2>
@@ -76,6 +88,12 @@ export default function DesignSystemPage() {
             </div>
           ))}
         </div>
+        <div className="mt-3 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+          <div className="flex items-center gap-3 p-3"><span className="min-w-0 flex-1 text-sm font-medium">Deadline readiness</span><Badge variant="danger" fixedWidth="xl">Outcome required</Badge></div>
+          <div className="flex items-center gap-3 border-t border-[var(--border)] p-3"><span className="min-w-0 flex-1 text-sm font-medium">Deadline readiness</span><Badge variant="warning" fixedWidth="xl">Setup required</Badge></div>
+          <div className="flex items-center gap-3 border-t border-[var(--border)] p-3"><span className="min-w-0 flex-1 text-sm font-medium">Deadline readiness</span><Badge variant="default" fixedWidth="xl">Alerts active</Badge></div>
+        </div>
+        <p className="mt-2 text-xs text-[var(--text-muted)]">This longer vocabulary reserves the same 128px status slot for every row.</p>
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
