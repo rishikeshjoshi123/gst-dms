@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowLeft,
@@ -107,7 +107,7 @@ function SectionNav({ view, onChange }: { view: WorkspaceView; onChange: (view: 
   return (
     <nav aria-label="Matter sections" className="absolute left-1/2 top-2 z-20 hidden -translate-x-1/2 items-center rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface)] p-1 shadow-md lg:flex">
       {sections.map(({ label, count, icon: Icon, view: target }) => (
-        <button key={label} onClick={() => target && onChange(target)} className={cn('flex min-h-9 items-center gap-1.5 rounded-[var(--radius-sm)] px-3 text-xs transition-colors', target === view ? 'bg-[var(--primary)] text-[var(--on-accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]', !target && 'cursor-default')}>
+        <button key={label} onClick={() => target && onChange(target)} className={cn('flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-xs transition-colors', target === view ? 'bg-[var(--primary)] text-[var(--on-accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]', !target && 'cursor-default')}>
           <Icon className="size-4" /><span>{label}</span>{count !== undefined && <span className="text-[10px] opacity-75">{count}</span>}
         </button>
       ))}
@@ -171,13 +171,30 @@ function MessageFeed({ onEvidence }: { onEvidence: () => void }) {
 
 function Composer() {
   const [value, setValue] = useState('')
-  const showMentions = value.endsWith('@')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const mentionMembers = ['Rishikesh Joshi', 'Meera Shah', 'Ananya Kapoor']
+  const mentionMatch = value.match(/@([\p{L}\p{N}._-]*)$/u)
+  const mentionQuery = mentionMatch?.[1] ?? null
+  const matchingMembers = mentionQuery === null
+    ? []
+    : mentionMembers.filter((name) => name.toLocaleLowerCase().includes(mentionQuery.toLocaleLowerCase()))
+
+  const startMention = () => {
+    setValue((current) => `${current}${current && !current.endsWith(' ') ? ' ' : ''}@`)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const selectMention = (name: string) => {
+    if (!mentionMatch || mentionMatch.index === undefined) return
+    setValue(`${value.slice(0, mentionMatch.index)}@${name} `)
+  }
+
   return (
-    <div className="relative shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3">
-      {showMentions && <div className="absolute bottom-[112px] left-4 z-20 w-72 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface)] p-1 shadow-lg"><div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Mention a team member</div>{['Rishikesh Joshi', 'Meera Shah', 'Ananya Kapoor'].map((name) => <button key={name} onClick={() => setValue(value + name)} className="flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-sm)] px-3 text-left text-sm hover:bg-[var(--surface-hover)]"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--accent-muted)] text-[10px] font-semibold text-[var(--accent)]">{name.split(' ').map((part) => part[0]).join('')}</span>{name}</button>)}</div>}
+    <div className="relative shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg)] p-3">
+      {mentionQuery !== null && <div role="listbox" aria-label="Mention a team member" className="absolute bottom-[112px] left-4 z-20 w-[min(18rem,calc(100vw-2rem))] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface)] p-1 shadow-lg"><div className="flex min-h-9 items-center gap-2 border-b border-[var(--border-subtle)] px-3 text-xs text-[var(--text-muted)]"><Search className="size-4" /><span className="truncate">{mentionQuery ? `Searching for “${mentionQuery}”` : 'Type a name to search'}</span></div>{matchingMembers.length > 0 ? matchingMembers.map((name) => <button role="option" aria-selected="false" key={name} onMouseDown={(event) => event.preventDefault()} onClick={() => selectMention(name)} className="flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-sm)] px-3 text-left text-sm hover:bg-[var(--surface-hover)]"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--accent-muted)] text-[10px] font-semibold text-[var(--accent)]">{name.split(' ').map((part) => part[0]).join('')}</span><span className="min-w-0"><span className="block truncate font-medium">{name}</span><span className="block text-[10px] text-[var(--text-muted)]">Matter team</span></span></button>) : <div className="px-3 py-4 text-sm text-[var(--text-muted)]">No accessible members found</div>}</div>}
       <div className="mx-auto max-w-3xl rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--bg)] focus-within:ring-2 focus-within:ring-[var(--accent-ring)]">
-        <textarea value={value} onChange={(event) => setValue(event.target.value)} placeholder="Write a note… Type @ to mention someone" className="min-h-16 w-full resize-none bg-transparent px-3 pt-3 text-sm outline-none placeholder:text-[var(--text-muted)]" />
-        <div className="flex items-center gap-1 border-t border-[var(--border-subtle)] px-2 py-1.5"><Button variant="ghost" size="sm"><AtSign className="size-4" />Mention</Button><Button variant="ghost" size="sm"><Highlighter className="size-4" />Quote document</Button><Button variant="ghost" size="sm" className="hidden sm:inline-flex"><CheckCircle2 className="size-4" />Create task</Button><Button size="sm" className="ml-auto"><Send className="size-4" />Send</Button></div>
+        <textarea ref={textareaRef} value={value} onChange={(event) => setValue(event.target.value)} placeholder="Write a note… Type @ to mention someone" className="min-h-16 w-full resize-none bg-transparent px-3 pt-3 text-sm outline-none focus-visible:!outline-none placeholder:text-[var(--text-muted)]" />
+        <div className="flex items-center gap-1 border-t border-[var(--border-subtle)] px-2 py-1.5"><Button variant="ghost" size="sm" onClick={startMention}><AtSign className="size-4" />Mention</Button><Button variant="ghost" size="sm"><Highlighter className="size-4" />Quote document</Button><Button variant="ghost" size="sm" className="hidden sm:inline-flex"><CheckCircle2 className="size-4" />Create task</Button><Button size="sm" className="ml-auto"><Send className="size-4" />Send</Button></div>
       </div>
     </div>
   )

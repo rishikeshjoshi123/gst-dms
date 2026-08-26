@@ -105,11 +105,17 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
   5. **Open questions** — unresolved evidence conflicts, missing material, and uncertainties. It does not invent deadlines or tasks.
 - Verified canonical deadlines and financial facts may appear in compact current-posture facts. Their owning domains remain Deadlines and Financials.
 - Supporting files are not automatically treated as procedural truth. They contribute only when explicitly cited by a human or promoted into an evidence-backed proposal.
-- Each section contains ordered structured blocks rather than one Markdown blob. Initial block types are paragraph, heading, list, factual callout, quotation, and change notice.
+- Published Brief content separates three layers: verified canonical facts owned by their domains, AI-authored cited narrative, and deterministic UI blocks rendered by CaseChain. The model never supplies HTML, SVG, arbitrary visual styling, or an unvalidated displayed amount/date.
+- Section keys and order are fixed by the application schema. AI may omit an optional block when evidence is insufficient, but it cannot invent or reorder top-level sections.
+- Brief generation returns a strict versioned schema validated after generation. Narrative is divided into claim-level segments; each segment references only source IDs supplied in the generation input. Featured facts reference canonical `fact_id` values and semantic roles such as `current_exposure` or `next_milestone`; the renderer resolves and formats their current verified values.
+- Each section contains ordered structured blocks rather than one Markdown blob. Initial block types are paragraph, heading, list, factual callout, quotation, change notice, and `issue_evidence_matrix`.
+- `issue_evidence_matrix` is the only initial visual-evidence block. AI may propose it using known issue, fact, and source IDs; the server validates every reference and the UI renders a predefined accessible matrix with a tabular fallback.
+- Financial progression, deadline charts, and procedural graphs remain owned by Financials, Deadlines, and Timeline respectively. Case Brief may show a compact current fact and link to the owning section, but it does not duplicate their visualizations.
+- Additional visual block types require a reviewed allow-list addition, typed schema, evidence rules, accessible fallback, mobile design, and tests. Arbitrary model-generated artifacts are excluded.
 
 ### Brief evidence, provenance, and human control
 
-- Every material AI-authored claim has one or more `DocumentSourceLocator` citations or a typed link to a verified canonical fact with its evidence. Generated uncited claims are rejected before publication.
+- Every material AI-authored claim has one or more `DocumentSourceLocator` citations or a typed link to a verified canonical fact with its evidence. The model returns only input-scoped source IDs; the server resolves them to immutable locators and rejects unknown, inaccessible, or mismatched IDs. Generated uncited claims are rejected before publication.
 - Brief content uses a versioned rich-text AST with stable block and segment IDs. Each text segment records provenance: `ai`, `human`, or `accepted_ai_change`, plus actor/run and timestamp.
 - Human editing uses a minimal rich-text editor: bold, italic, bulleted/numbered list, block quote, and citation insertion. Raw Markdown/HTML is not the normal authoring interface.
 - Human-authored ranges receive a subtle non-color-only provenance treatment. Hover/focus reveals `Edited by <member> · <time>`. Full versions remain available in history.
@@ -177,8 +183,8 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 
 ### 5. Implement Brief generation and refresh
 
-1. Implement on-demand initial generation from proceeding documents, verified effective metadata, canonical facts, and exact source locators.
-2. Add grounding validation that rejects missing, inaccessible, version-mismatched, or unsupported citations before publishing.
+1. Implement on-demand initial generation from proceeding documents, verified effective metadata, canonical facts, and exact source locators. Supply opaque source/fact IDs and require the fixed, versioned section/block/claim schema.
+2. Validate the response with the versioned schema, resolve canonical facts independently, and add grounding validation that rejects missing, invented, inaccessible, version-mismatched, or unsupported citations before publishing.
 3. Implement durable trigger coalescing, affected-section selection, input hashing, idempotent runs, protected-segment constraints, and no-op detection.
 4. Implement risk classification: publish safe AI-only block updates; route consequential/conflicting/human-touching diffs into Review.
 5. Store usage telemetry for initial and incremental runs and expose aggregate use only to authorized administration surfaces.
@@ -213,7 +219,7 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 
 - `case_briefs`: one per Matter, publication state, last successful refresh, source/input hash, settings snapshot.
 - `case_brief_sections`: stable section key, order, title, refresh/source metadata.
-- `case_brief_blocks`: stable block identity, type, order, current version pointer, lifecycle state.
+- `case_brief_blocks`: stable block identity, allow-listed type, order, typed payload/fact references, current version pointer, lifecycle state.
 - `case_brief_block_versions`: structured content AST, actor/run, source hash, version reason, created timestamp.
 - `case_brief_segment_provenance`: stable segment ID, provenance type, actor/run, protected state, timestamps.
 - `case_brief_citations`: block/segment, typed source locator or canonical-fact locator, claim range, evidence status.
@@ -243,7 +249,7 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 - Domain tests cover same-organisation/access revalidation, mention edit deltas, message version/tombstone behavior, thread sequencing, personal pins, and task independence.
 - Source-locator tests cover text-native selection, multi-region quote, scanned-region quote, manual transcription label, immutable version routing, reclassification, unavailable asset, and purge dependency.
 - Unread tests cover first open, viewport observation, multiple devices, out-of-order/duplicate Broadcast, reconnect reconciliation, deleted message, and Organisation Notes aggregate counts.
-- Brief tests cover first generation, section selection, source hashing/no-op, coalesced triggers, idempotent retry, citation validation, protected human segment, consequential fact change, conflicting evidence, review acceptance/rejection, failure preservation, and version restore.
+- Brief tests cover fixed section order, schema rejection, unknown block type, forged source/fact ID, first generation, section selection, source hashing/no-op, coalesced triggers, idempotent retry, citation validation, protected human segment, consequential fact change, conflicting evidence, issue/evidence matrix fallback, review acceptance/rejection, failure preservation, and version restore.
 - Search tests prove only authorized published/live content is indexed and all result deep links resolve to the correct thread/message or Brief block/source.
 - Migration tests compare legacy/live counts per organisation/matter, preserve human-edited CaseWiki content, never fabricate legacy citation coordinates, and support rollback before contract phase.
 - Component/accessibility tests cover keyboard composer, mention picker, focus-visible citations, screen-reader provenance/change states, 44px mobile targets, long names/content, empty/loading/error/read-only states, and reduced motion.
