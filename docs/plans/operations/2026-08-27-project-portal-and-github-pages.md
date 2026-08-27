@@ -24,11 +24,13 @@ The portal must be fast, static, public only by deliberate choice, and independe
 
 ## Decisions
 
-- A dependency-free Node.js build script reads `docs/plans/**/*.md` and `docs/project-portal-status.json`, then emits static HTML, CSS, and browser JavaScript into `project-portal/dist`.
-- Existing plan frontmatter is the canonical source for plan title, status, and update date. The progress JSON is the explicit source for implementation claims and must be updated when delivery status changes.
+- A dependency-free Node.js build script reads `docs/plans/**/*.md`, then emits static HTML, CSS, and browser JavaScript into `project-portal/dist`.
+- Existing plan frontmatter is the canonical source for plan title, status, and update date. The portal intentionally focuses on the plan archive and does not present a detailed delivery snapshot on its dashboard.
+- The plan list follows the portfolio's dependency-based reading sequence so a public reader receives context before dependent domains. The portal build rejects an archived plan that has not been placed in this sequence.
 - GitHub Actions deploys the static artifact to GitHub Pages after qualifying pushes to `dev`. It does not deploy the CaseChain application or modify Vercel.
 - The Pages workflow has one active source branch at a time. When `dev` is merged and retired, change the workflow trigger to `main`; do not deploy both branches to the one Pages site concurrently.
-- The public site offers a compact dashboard, status filtering, plan detail pages, a progress report, light/dark appearance, responsive layout, and source links.
+- The public site offers a compact dashboard, status filtering, plan detail pages, light/dark appearance, responsive layout, and source links.
+- When an approved plan has an approved companion layout or visual pattern, include a compact, static visual reference. A central portal catalogue owns the specimen markup; plan-specific references only select an approved specimen and the heading after which it appears.
 - No credentials, user data, production secrets, or security-sensitive operational detail may be added to public portal content.
 
 ## Implementation Plan
@@ -41,8 +43,9 @@ The portal must be fast, static, public only by deliberate choice, and independe
 
 ## Interfaces and Data Changes
 
-- `docs/project-portal-status.json`: public, manually maintained delivery snapshot with `updated`, `summary`, `implemented`, `active`, and `remaining` fields.
 - `scripts/build-project-portal.mjs`: local/CI generator invoked with Node.js; it has no network, server, database, or application-runtime dependency.
+- `project-portal/plan-visual-references.mjs`: curated mapping from a canonical plan path and section heading to an approved static visual reference.
+- `project-portal/plan-visual-references.mjs`: also contains the complete portal reading sequence for canonical plans.
 - `.github/workflows/deploy-project-portal.yml`: GitHub Pages deployment workflow.
 
 ## Testing and Acceptance Criteria

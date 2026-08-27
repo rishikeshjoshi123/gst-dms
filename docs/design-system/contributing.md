@@ -18,6 +18,7 @@
 - Label actions with concise visible verbs by default. Treat every icon-only button as an exception that requires universal meaning, an accessible name, prompt hover/focus help, and a clear touch presentation.
 - Forward refs and accessible attributes when extending an interactive primitive.
 - Add a representative reusable state to `/dev/design-system`.
+- When an approved plan has an approved companion layout or visual pattern, add one compact reference through `project-portal/plan-visual-references.mjs`. Keep it explanatory and static; the gallery and shared component remain the source of truth.
 
 ## New component checklist
 
