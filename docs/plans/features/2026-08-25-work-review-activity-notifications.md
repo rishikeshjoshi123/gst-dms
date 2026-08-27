@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: approved
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-27
 owners:
   - product
   - engineering
@@ -116,7 +116,8 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 ### Preferences and delivery
 
 - Replace boolean email columns with per-event-family preferences for in-app and email, delivery mode (`immediate`, `weekly_email_digest`, `off` where allowed), verified-deadline lead times, quiet hours, timezone, and email-digest schedule.
-- Initial configurable email families are mentions, task assignments, Review assignments, verified deadline reminders, invitations/security, and assigned failures. Routine processing has no preference because it is not a notification.
+- Optional email families and the weekly digest default to `off` for new users and require explicit opt-in. Mandatory access/security delivery is not exposed as an optional toggle and cannot be disabled.
+- Initial configurable email families are mentions, task assignments, Review assignments, verified deadline reminders, and assigned failures. Invitation/security delivery follows its mandatory access policy and is not presented as an optional toggle. Routine processing has no preference because it is not a notification.
 - Deadline offsets support a validated set such as 30, 14, 7, 3, and 1 day plus due/overdue policy. Deduplicate by deadline, recipient, effective due date, and offset. Correcting a deadline cancels stale scheduled deliveries and creates new ones only after verification.
 - Quiet hours defer ordinary immediate deliveries until the next allowed time. Security events, invitations nearing expiry, and verified deadlines within 24 hours may bypass quiet hours under explicit policy.
 - A **weekly email digest** is a configurable bundled email of eligible non-urgent notifications and work that would otherwise arrive separately. Each user can turn it off, choose the included families, weekday, local send time, and timezone. Organisation settings may provide defaults but cannot force non-mandatory email on a user.

@@ -23,6 +23,12 @@ Allowed statuses are `proposed`, `approved`, `in-progress`, `completed`, and `su
 
 Create another domain only after multiple plans justify a stable new category.
 
+## Portfolio handoff
+
+The canonical cross-domain status and resumption contract lives in the [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md#portfolio-status-and-resumption-contract). As of 2026-08-27, the fourteen child domains comprise four approved plans, six decision-complete proposed plans awaiting final approval, two in-progress implementation/revision tracks, and two domains without an archived plan. The umbrella portfolio remains proposed until the pending contracts receive final approval.
+
+A fresh planning task should read `AGENTS.md`, this index, the portfolio status table, and only the plan for the active domain. It must not reconstruct approved decisions from chat history. The canonical next planning action is the final approval pass for Organisation Administration; Platform Operations is the next new plan to create. External Acquisition and Imports remains deliberately deferred until representative spreadsheets are available.
+
 ## Plan index
 
 ### Design system
@@ -36,7 +42,7 @@ Create another domain only after multiple plans justify a stable new category.
 | Plan | Status | Updated |
 | --- | --- | --- |
 | [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `proposed` | 2026-08-24 |
-| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `approved` | 2026-08-25 |
+| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `approved` | 2026-08-27 |
 | [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-08-25 |
 | [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `proposed` | 2026-08-25 |
 | [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `proposed` | 2026-08-25 |
@@ -46,11 +52,12 @@ Create another domain only after multiple plans justify a stable new category.
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-26 |
+| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-27 |
 | [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `proposed` | 2026-08-25 |
 | [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-25 |
 | [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-08-24 |
 | [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `proposed` | 2026-08-25 |
+| [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `proposed` | 2026-08-27 |
 
 ### Operations
 

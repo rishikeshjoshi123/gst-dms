@@ -2,7 +2,7 @@
 title: CaseChain Product Architecture Portfolio
 status: proposed
 created: 2026-08-24
-updated: 2026-08-26
+updated: 2026-08-27
 owners:
   - product
   - engineering
@@ -18,6 +18,7 @@ related:
   - ../features/2026-08-25-notes-and-case-brief.md
   - ../features/2026-08-26-deadlines-and-financials.md
   - ./2026-08-25-realtime-delivery-freshness-and-unread-state.md
+  - ./2026-08-26-organisation-administration.md
 ---
 
 # CaseChain Product Architecture Portfolio
@@ -112,6 +113,37 @@ The overhaul is split into these canonical plans. A plan is archived only when i
 13. **External Acquisition and Imports:** spreadsheet mapping/import and GST-document acquisition. Spreadsheet template versus arbitrary-column mapping remains deliberately undecided until representative sheets are reviewed; both must target one validated import contract.
 14. **Realtime Delivery and Freshness:** selective private matter/intake/Review delivery, connection and freshness state, quota-aware lifecycle, and durable per-user unread cursors. Realtime is a non-authoritative hint and is not enabled on every screen.
 
+### Portfolio status and resumption contract
+
+This table is the durable handoff ledger for a fresh planning task. `Status` is the canonical archive status from the child plan. `Maturity` records why a plan has or has not advanced without treating browser concepts or conversational review as implementation.
+
+| Domain | Status | Maturity | Required next action |
+| --- | --- | --- | --- |
+| Design System and Application Shell | `in-progress` | Contract is established and shared UI work is underway. | Continue implementation as a cross-cutting dependency; revise the canonical plan when a reusable contract changes. |
+| Document Record and File Lifecycle | `proposed` | Decision-complete; final approval pending. | Perform a short final approval pass before its first schema implementation tranche. |
+| Hierarchical Resource Trash | `approved` | Approved implementation contract. | Implement in dependency order; no further architecture pass is required unless a conflicting requirement appears. |
+| AI Extraction and Provenance | `in-progress` | Transitional hardening exists; normalized provenance/model-lifecycle work remains active. | Reconcile implementation and QA findings against the canonical plan before cut-over. |
+| Universal Search and Evidence Retrieval | `proposed` | Decision-complete; final approval pending. | Approve after confirming its dependencies on versioned document text and provenance. |
+| Work, Review, Activity, Notifications, and Today | `approved` | Approved implementation contract, including opt-in optional email and digest defaults. | Implement after the shared Activity/outbox and work-state foundations are ready. |
+| Document Hub and Workbench | `approved` | Approved implementation contract. | Implement against stable document-version, provenance, and Review contracts. |
+| Matter Workspace and Timeline | `proposed` | Decision-complete and browser concept reviewed; final approval pending. | Perform a focused contract approval pass rather than redesigning the reviewed concept. |
+| Notes and Case Brief | `proposed` | Decision-complete and browser concept reviewed; final approval pending. | Perform a focused contract approval pass after quotation/source-locator dependencies are confirmed. |
+| Deadlines and Financials | `approved` | Approved implementation contract and browser concept reviewed. | Implement against effective metadata, Work, and organisation capability contracts. |
+| Organisation Administration | `proposed` | Decision-complete; the latest Team, single-scroll Settings, initials-only avatar, opt-in email, deferred MFA, and compact-layout review decisions are incorporated. | This is the next final approval pass. Do not repeat the completed concept review. |
+| Platform Operations | `not archived` | Required before onboarding beyond the controlled pilot. | Create the next new canonical plan for isolated platform administration, usage, quotas, job health, audit, and privacy boundaries. |
+| External Acquisition and Imports | `not archived` | Architecture boundary is known, but spreadsheet field mapping is intentionally undecided. | Defer detailed planning until representative organisation spreadsheets are supplied; do not implement direct database-population scripts. |
+| Realtime Delivery and Freshness | `proposed` | Decision-complete; final approval pending. | Approve the selective, quota-aware contract before replacing existing subscriptions. |
+
+The count is therefore exact for this portfolio snapshot: **4 approved**, **6 decision-complete proposed**, **2 in progress**, and **2 not yet archived**, for **14 child domains**. The umbrella portfolio remains `proposed`. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
+
+To resume in a new task:
+
+1. Read `AGENTS.md`, `docs/plans/README.md`, and this status table.
+2. Read only the canonical plan and directly linked dependencies for the active domain.
+3. Treat approved decisions as fixed unless new evidence creates a concrete conflict.
+4. Keep architecture approval, bounded implementation, and read-only QA as separate work assignments; do not pass the full historical conversation to implementation or QA workers.
+5. Return material implementation deviations to the owning plan before allowing feature-local architecture to emerge.
+
 ### Dependency order
 
 Dependency order constrains architecture; it does not force a single release order.
@@ -146,13 +178,12 @@ Dependency order constrains architecture; it does not force a single release ord
 
 ## Implementation Plan
 
-1. Approve this portfolio vocabulary, ownership matrix, invariants, domain boundaries, and dependency graph.
-2. Complete the Document Record and File Lifecycle plan and use it as the first data-foundation implementation contract.
-3. Revise the existing AI plan after the read-only QA audit, then extend it with normalized extraction runs/candidates/overrides rather than leaving validated payloads only in `raw_metadata`.
-4. Create the Work/Review/Activity plan because its events and decisions are cross-cutting dependencies for later screens.
-5. Create UI/domain plans in dependency order, cross-linking their required schemas, commands, events, locators, and mobile behavior.
-6. For each plan, add a current-state code/schema audit, additive migration sequence, permission matrix, failure/retry behavior, data backfill, observability, automated tests, and manual acceptance matrix.
-7. Keep `docs/plans/README.md` as the canonical plan index and update plan status in place as decisions are approved and implemented.
+1. Complete final approval passes for the six decision-complete proposed plans without reopening reviewed UI direction absent a concrete conflict. Organisation Administration is first; Document Record and File Lifecycle remains the first unapproved data-foundation contract required for implementation.
+2. Continue the in-progress Design System and AI tracks. Reconcile the AI implementation and read-only QA findings with normalized extraction runs/candidates/overrides rather than leaving validated payloads only in `raw_metadata`.
+3. Create the Platform Operations plan before onboarding beyond the controlled pilot. Keep global usage, quotas, job health, and platform administration outside ordinary tenant routes and credentials.
+4. Defer the detailed External Acquisition and Imports plan until representative spreadsheets are supplied; preserve the validated intake/import boundary in the meantime.
+5. For each implementation tranche, include the owning plan's code/schema audit, additive migration sequence, permission matrix, failure/retry behavior, backfill, observability, automated tests, and manual acceptance matrix.
+6. Keep `docs/plans/README.md` and the portfolio status table synchronized whenever a plan is created, approved, started, completed, or superseded.
 
 ## Interfaces and Data Changes
 
