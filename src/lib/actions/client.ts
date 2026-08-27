@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { appendActivity } from '@/lib/activity'
 
 // ── Read Clients ──────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export async function createClientAction(formData: FormData) {
   }
 
   // Log activity
-  await db.from('activity_logs').insert({
+  await appendActivity({
     org_id: orgId,
     user_id: user.id,
     action: 'client_created',

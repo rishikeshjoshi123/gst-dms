@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 import { AIDocumentResult } from '@/lib/ai/vertex'
+import { appendActivity } from '@/lib/activity'
 
 type LinkType = Database['public']['Enums']['link_type']
 
@@ -166,7 +167,7 @@ export async function resolvePendingLinks(
     
     // Log activity
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('activity_logs').insert({
+    await appendActivity({
       org_id: orgId,
       user_id: uploadedBy,
       action: 'link_resolved',

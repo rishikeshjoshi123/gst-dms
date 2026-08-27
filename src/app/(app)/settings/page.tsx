@@ -23,51 +23,33 @@ export default async function SettingsPage() {
 
   if (!org) redirect('/onboarding')
 
-  // Fetch members with user info via join on org_members
-  const { data: memberRows } = await supabase
-    .from('org_members')
-    .select('user_id, role, joined_at')
-    .eq('org_id', orgId)
-    .order('joined_at', { ascending: true })
+  const { data: memberRows } = await (supabase.rpc as any)('get_my_team_members')
+  const members = (memberRows ?? []).map((m: any) => ({ membership_id: m.membership_id, role: m.role as 'admin' | 'associate' | 'viewer', email: m.authorised_email ?? null, full_name: m.display_name ?? null, professional_title: m.professional_title ?? null, is_owner: m.is_owner, state: m.state, joined_at: m.joined_at }))
 
-  // For each member, get their auth metadata via admin query isn't available client-side.
-  // Instead, store display info from user_metadata at sign-up — check profiles via email.
-  // We'll fetch email from auth.users via RPC or just use user_id to label members.
-  // For now: show the current user's own info and label others by user_id (Phase 2 scope).
-  const members = (memberRows ?? []).map((m) => ({
-    user_id: m.user_id,
-    role: m.role as 'admin' | 'associate' | 'viewer',
-    email: m.user_id === user.id ? (user.email ?? '') : `User (${m.user_id.slice(0, 8)}…)`,
-    full_name: m.user_id === user.id ? (user.user_metadata?.full_name ?? null) : null,
-    joined_at: m.joined_at,
-  }))
-
-  const currentUserRole = members.find(m => m.user_id === user.id)?.role ?? 'member'
+  const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
+  const currentContext = (contexts ?? []).find((context: any) => context.org_id === orgId)
+  const currentUserRole = currentContext?.role ?? 'member'
+  const capabilities = currentContext?.capabilities ?? []
 
   // Invite addresses are administrative data; do not even fetch them for a
   // non-admin and rely on RLS as a second line of defense.
-  const { data: pendingInvites } = currentUserRole === 'admin'
-    ? await supabase
-      .from('org_invites')
-      .select('id, invited_email, role, status, expires_at')
-      .eq('org_id', orgId)
-      .in('status', ['pending', 'rejected'])
-      .order('created_at', { ascending: false })
+  const { data: pendingInvites } = (capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin'))
+    ? await (supabase.rpc as any)('get_organisation_invites')
     : { data: [] }
 
   return (
     <SettingsClient
       orgId={orgId}
       orgName={org.name}
-      ownerId={org.created_by}
-      currentUserId={user.id}
+      currentMembershipId={(contexts ?? []).find((context: any) => context.org_id === orgId)?.membership_id ?? ''}
       currentUserRole={currentUserRole}
+      capabilities={capabilities}
       members={members}
-      pendingInvites={(pendingInvites ?? []).map(i => ({
+      pendingInvites={(pendingInvites ?? []).map((i: any) => ({
         id: i.id,
-        invited_email: i.invited_email,
+        invited_email: i.authorized_email,
         role: i.role as 'admin' | 'associate' | 'viewer',
-        status: i.status,
+        status: i.state,
         expires_at: i.expires_at,
       }))}
     />

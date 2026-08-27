@@ -4,6 +4,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { sendOrgInviteEmail } from '@/lib/email'
+import { randomUUID } from 'node:crypto'
+import { createInvitationSelector, hashInvitationOpaqueValue } from '@/lib/invitations'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -21,35 +23,30 @@ export async function getCurrentOrgId(): Promise<string | null> {
   const cookieStore = await cookies()
   const orgId = cookieStore.get('current_org_id')?.value
 
-  // The cookie is only a UI preference, not an authorization grant. Every
-  // server action that uses this helper may subsequently use a service-role
-  // client, so validate both the authenticated user and their membership here.
+  // The cookie is only a UI preference, never an authorization grant.
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
   if (orgId) {
-    const { data: membership } = await supabase
-      .from('org_members')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .eq('org_id', orgId)
-      .maybeSingle()
+    const { data } = await (supabase.rpc as any)('get_my_organisation_context')
+    const membership = (data ?? []).find((row: { org_id: string; state: string }) => row.org_id === orgId && row.state === 'active')
     if (membership) return membership.org_id
   }
 
   // A preference can be absent or stale (for example, an older session). Use
   // a verified membership for this request; a later sign-in/org switch writes
   // the preference from a Server Action.
-  const { data: fallbackMembership } = await supabase
-    .from('org_members')
-    .select('org_id')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
+  const { data } = await (supabase.rpc as any)('get_my_organisation_context')
+  return ((data ?? []).find((row: { state: string }) => row.state === 'active') as { org_id?: string } | undefined)?.org_id ?? null
+}
 
-  return fallbackMembership?.org_id ?? null
+const invitationError = (code?: string) => {
+  if (code === 'rate_limited') return 'Please wait before sending another invitation.'
+  if (code === 'pending_exists') return 'A pending invitation already exists for this address.'
+  if (code === 'not_available') return 'This invitation is not available.'
+  if (code === 'conflict') return 'This invitation changed. Refresh and try again.'
+  return 'You do not have permission to complete this invitation action.'
 }
 
 // ── Create Organisation ───────────────────────────────────────────
@@ -65,29 +62,14 @@ export async function createOrganisation(formData: FormData) {
   const { data: { user }, error: userErr } = await supabase.auth.getUser()
   if (userErr || !user) return { error: 'Not authenticated.' }
 
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  // Check if user is already in an org
-  const { data: existingMember } = await supabaseAdmin
-    .from('org_members')
-    .select('org_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (existingMember) {
-    return { error: 'You are already a member of an organization. You must leave it before creating a new one.' }
-  }
-
-  const { data: org, error: orgErr } = await supabaseAdmin
+  const { data: org, error: orgErr } = await supabase
     .from('organisations')
     .insert({ name, created_by: user.id })
     .select('id')
     .single()
 
   if (orgErr || !org) {
-    console.error('Organisation Creation Error:', orgErr)
-    return { error: orgErr?.message ?? 'Failed to create organisation.' }
+    return { error: 'Unable to create an organisation at this time.' }
   }
 
   await setCurrentOrg(org.id)
@@ -101,15 +83,8 @@ export async function switchOrganisation(orgId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  // Verify membership
-  const { data: member } = await supabase
-    .from('org_members')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (!member) return { error: 'Access denied.' }
+  const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
+  if (!(contexts ?? []).some((context: { org_id: string; state: string }) => context.org_id === orgId && context.state === 'active')) return { error: 'Access denied.' }
 
   await setCurrentOrg(orgId)
   redirect('/dashboard')
@@ -119,82 +94,15 @@ export async function switchOrganisation(orgId: string) {
 
 export async function inviteMember(formData: FormData) {
   const supabase = await createClient()
-  const email = (formData.get('email') as string)?.trim().toLowerCase()
-  const role = (formData.get('role') as string) ?? 'member'
-  const orgId = await getCurrentOrgId()
-
-  if (!email) return { error: 'Email is required.' }
-  if (!orgId) return { error: 'No active organisation.' }
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  // Check caller is admin
-  const { data: caller } = await supabaseAdmin
-    .from('org_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (!caller || caller.role !== 'admin') {
-    return { error: 'Only admins can invite members.' }
-  }
-
-  // 1. Check if the invited email is already in ANY organization
-  const { data: isAlreadyInOrg } = await supabaseAdmin.rpc('is_email_in_any_org', { search_email: email })
-  if (isAlreadyInOrg) {
-    return { error: 'This user is already a member of an organization and cannot be invited.' }
-  }
-
-  // 2. Check for an existing pending invite
-  const { data: existingInvite } = await supabaseAdmin
-    .from('org_invites')
-    .select('id, status')
-    .eq('org_id', orgId)
-    .eq('invited_email', email)
-    .eq('status', 'pending')
-    .maybeSingle()
-
-  if (existingInvite) {
-    return { error: 'A pending invite already exists for this email.' }
-  }
-
-  // Create invite
-  const { data: invite, error: inviteErr } = await supabaseAdmin
-    .from('org_invites')
-    .insert({
-      org_id: orgId,
-      invited_email: email,
-      invited_by: user.id,
-      role: role as 'admin' | 'associate' | 'viewer',
-    })
-    .select('id, token')
-    .single()
-
-  if (inviteErr || !invite) {
-    return { error: inviteErr?.message ?? 'Failed to create invite.' }
-  }
-
-  // Get org name for email
-  const { data: org } = await supabaseAdmin
-    .from('organisations')
-    .select('name')
-    .eq('id', orgId)
-    .single()
-
-  // Send invite email (no-op in dev)
-  await sendOrgInviteEmail({
-    to: email,
-    orgName: org?.name ?? 'your organisation',
-    inviterName: user.user_metadata?.full_name ?? user.email ?? 'A team member',
-    inviteToken: invite.token,
-    appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  })
-
+  const email = (formData.get('email') as string | null)?.trim().toLowerCase() ?? ''
+  const role = formData.get('role')
+  if (!email || !['admin', 'associate', 'viewer'].includes(String(role))) return { error: 'Enter a valid email address and role.' }
+  const selector = createInvitationSelector()
+  const { data, error } = await (supabase.rpc as any)('create_organisation_invite', { p_email: email, p_role: role, p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: randomUUID() })
+  const result = data?.[0]
+  if (error || !result || result.code !== 'created') return { error: invitationError(result?.code) }
+  const delivery = await sendOrgInviteEmail({ to: email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
+  await (supabase.rpc as any)('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? null : 'delivery_failed' })
   return { success: true }
 }
 
@@ -203,27 +111,9 @@ export async function inviteMember(formData: FormData) {
 export async function getMyPendingInvites() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !user.email) return []
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  const { data, error } = await supabaseAdmin
-    .from('org_invites')
-    .select('id, role, expires_at, organisations(id, name)')
-    .ilike('invited_email', user.email.trim())
-    .eq('status', 'pending')
-
-  if (error) {
-    console.error('Error fetching pending invites:', error)
-    return []
-  }
-
-  return (data ?? []).filter(inv => new Date(inv.expires_at) > new Date()).map(inv => ({
-    id: inv.id,
-    role: inv.role,
-    orgName: (inv.organisations as { id: string; name: string })?.name ?? 'Organisation',
-  }))
+  if (!user) return []
+  const { data } = await (supabase.rpc as any)('get_my_pending_organisation_invites')
+  return (data ?? []).map((invite: { id: string; role: string; org_name: string }) => ({ id: invite.id, role: invite.role, orgName: invite.org_name }))
 }
 
 // ── Accept / Reject Invite (Tokenless) ────────────────────────────
@@ -231,82 +121,23 @@ export async function getMyPendingInvites() {
 export async function acceptInvite(inviteId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !user.email) return { error: 'You must be logged in to accept an invite.' }
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  // Check if user is already in an org
-  const { data: existingMember } = await supabaseAdmin
-    .from('org_members')
-    .select('org_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (existingMember) {
-    return { error: 'You are already a member of an organization. You must leave it before joining a new one.' }
-  }
-
-  // Find valid invite
-  const { data: invite, error: inviteErr } = await supabaseAdmin
-    .from('org_invites')
-    .select('id, org_id, invited_email, role, expires_at, status')
-    .eq('id', inviteId)
-    .single()
-
-  if (inviteErr || !invite) return { error: 'Invalid invite.' }
-  if (invite.status !== 'pending') return { error: `Invite is already ${invite.status}.` }
-  if (new Date(invite.expires_at) < new Date()) return { error: 'This invite has expired.' }
-  if (invite.invited_email.toLowerCase() !== user.email.toLowerCase()) {
-    return { error: `This invite was sent to ${invite.invited_email}.` }
-  }
-
-  // Add to org
-  const { error: memberErr } = await supabaseAdmin
-    .from('org_members')
-    .insert({ org_id: invite.org_id, user_id: user.id, role: invite.role })
-
-  if (memberErr) {
-    if (memberErr.code === '23505') {
-      return { error: 'You are already a member of an organization.' }
-    }
-    return { error: memberErr.message }
-  }
-
-  // Update invite status
-  await supabaseAdmin
-    .from('org_invites')
-    .update({ status: 'accepted' })
-    .eq('id', invite.id)
-
-  await setCurrentOrg(invite.org_id)
+  if (!user) return { error: 'You must be logged in to accept an invitation.' }
+  const { data } = await (supabase.rpc as any)('accept_organisation_invite', { p_invite_id: inviteId, p_idempotency_key: randomUUID() })
+  const result = data?.[0]
+  if (!result || result.code !== 'accepted') return { error: invitationError(result?.code) }
+  await setCurrentOrg(result.org_id)
   redirect('/dashboard')
 }
 
 export async function rejectInvite(inviteId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !user.email) return { error: 'Not logged in.' }
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  const { data: invite, error: inviteErr } = await supabaseAdmin
-    .from('org_invites')
-    .select('id, invited_email, status')
-    .eq('id', inviteId)
-    .single()
-
-  if (inviteErr || !invite) return { error: 'Invalid invite.' }
-  if (invite.invited_email.toLowerCase() !== user.email.toLowerCase()) return { error: 'Access denied.' }
-  if (invite.status !== 'pending') return { error: `Invite is already ${invite.status}.` }
-
-  await supabaseAdmin
-    .from('org_invites')
-    .update({ status: 'rejected' })
-    .eq('id', invite.id)
-
-  return { success: true }
+  if (!user) return { error: 'Not logged in.' }
+  const { data: rows } = await (supabase.rpc as any)('get_my_pending_organisation_invites')
+  const invite = rows?.find((row: { id: string }) => row.id === inviteId)
+  if (!invite) return { error: 'This invitation is not available.' }
+  const { data } = await (supabase.rpc as any)('transition_organisation_invite', { p_invite_id: inviteId, p_expected_revision: invite.revision, p_idempotency_key: randomUUID(), p_action: 'reject', p_reason: null })
+  return data?.[0]?.code === 'ok' ? { success: true } : { error: invitationError(data?.[0]?.code) }
 }
 
 // ── Get user's organisations ──────────────────────────────────────
@@ -316,74 +147,43 @@ export async function getUserOrgs() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data } = await supabase
-    .from('org_members')
-    .select('role, organisations(id, name, created_at)')
-    .eq('user_id', user.id)
-
-  return (data ?? []).map((m) => ({
-    ...(m.organisations as { id: string; name: string; created_at: string }),
-    role: m.role,
+  const { data } = await (supabase.rpc as any)('get_my_organisation_context')
+  const contexts = (data ?? []).filter((m: { state: string }) => m.state === 'active') as Array<{ org_id: string; role: string }>
+  const organisations = await Promise.all(contexts.map(async (context) => {
+    const { data: org } = await supabase.from('organisations').select('id, name, created_at').eq('id', context.org_id).maybeSingle()
+    return org ? { ...org, role: context.role } : null
   }))
+  return organisations.filter(Boolean)
 }
 
 // ── Admin: Get Pending Invites for Settings ───────────────────────
 
 export async function getPendingInvitesForOrg() {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return []
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data: membership } = await supabase
-    .from('org_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (membership?.role !== 'admin') return []
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  const { data } = await supabaseAdmin
-    .from('org_invites')
-    .select('id, invited_email, role, status, created_at')
-    .eq('org_id', orgId)
-    .in('status', ['pending', 'rejected'])
-    .order('created_at', { ascending: false })
-
+  const { data } = await (supabase.rpc as any)('get_organisation_invites')
   return data ?? []
 }
 
 export async function deleteInvite(inviteId: string) {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active org.' }
+  const { data: rows } = await (supabase.rpc as any)('get_organisation_invites')
+  const invite = rows?.find((row: { id: string }) => row.id === inviteId)
+  if (!invite) return { error: 'This invitation is not available.' }
+  const { data } = await (supabase.rpc as any)('transition_organisation_invite', { p_invite_id: inviteId, p_expected_revision: invite.revision, p_idempotency_key: randomUUID(), p_action: 'revoke', p_reason: 'Revoked by an administrator' })
+  return data?.[0]?.code === 'ok' ? { success: true } : { error: invitationError(data?.[0]?.code) }
+}
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
-
-  const { createServiceClient } = await import('@/lib/supabase/server')
-  const supabaseAdmin = createServiceClient()
-
-  const { data: caller } = await supabaseAdmin
-    .from('org_members')
-    .select('role')
-    .eq('org_id', orgId)
-    .eq('user_id', user.id)
-    .single()
-
-  if (!caller || caller.role !== 'admin') return { error: 'Only admins can delete invites.' }
-
-  await supabaseAdmin
-    .from('org_invites')
-    .delete()
-    .eq('id', inviteId)
-    .eq('org_id', orgId)
-
+export async function resendInvite(inviteId: string) {
+  const supabase = await createClient()
+  const { data: rows } = await (supabase.rpc as any)('get_organisation_invites')
+  const previous = rows?.find((row: { id: string }) => row.id === inviteId)
+  if (!previous) return { error: 'This invitation is not available.' }
+  const selector = createInvitationSelector()
+  const { data } = await (supabase.rpc as any)('resend_organisation_invite', { p_invite_id: inviteId, p_expected_revision: previous.revision, p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: randomUUID() })
+  const result = data?.[0]
+  if (!result || result.code !== 'created') return { error: invitationError(result?.code) }
+  const delivery = await sendOrgInviteEmail({ to: previous.authorized_email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
+  await (supabase.rpc as any)('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? null : 'delivery_failed' })
   return { success: true }
 }
 

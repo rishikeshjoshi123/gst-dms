@@ -5,6 +5,7 @@ import { getCurrentOrgId } from './org'
 import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
+import { appendActivity } from '@/lib/activity'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -308,7 +309,7 @@ export async function deleteMatterAction(matterId: string) {
   }
 
   // 5. Log activity
-  await db.from('activity_logs').insert({
+  await appendActivity({
     org_id: orgId,
     user_id: user.id,
     action: 'matter_deleted',

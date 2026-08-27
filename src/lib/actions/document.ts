@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import type { Database } from '@/lib/supabase/database.types'
 import { tasks } from '@trigger.dev/sdk/v3'
+import { appendActivity } from '@/lib/activity'
 
 async function enqueueDocumentProcessing(
   document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
@@ -328,9 +329,7 @@ export async function reassignDocumentMatter(
     processingStoragePath = copiedStoragePath
 
     // Log reversible activity
-    await supabase
-      .from('activity_logs')
-      .insert({
+    await appendActivity({
         org_id: orgId,
         user_id: user.id,
         action: 'document_copied',

@@ -49,18 +49,18 @@ export async function proxy(request: NextRequest) {
     '/login',
     '/signup',
     '/auth/callback',
-    '/invites/accept',
+    '/api/invites/accept',
     '/contact',
     // Static, non-production-data concept route used for in-app design review.
     '/dev/matter-workspace-concept',
   ]
-  const isPublicRoute = pathname === '/' || publicRoutes.some((route) => pathname.startsWith(route))
+  const isPublicRoute = pathname === '/' || publicRoutes.some((route) => route === '/api/invites/accept' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
 
   if (!user && !isPublicRoute) {
     // Redirect unauthenticated users to login
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('next', pathname)
+    url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(url)
   }
 

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { UserPlus, Mail, ShieldCheck, User, UserMinus, Crown, Building2, Users, Settings as SettingsIcon, X, Trash2 } from 'lucide-react'
-import { inviteMember, deleteInvite, removeMember } from '@/lib/actions/org'
+import { UserPlus, Mail, User, UserMinus, Crown, Building2, Users, X } from 'lucide-react'
+import { inviteMember, deleteInvite, resendInvite } from '@/lib/actions/org'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/label'
@@ -18,13 +18,15 @@ import {
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 interface Member {
-  user_id: string
+  membership_id: string
   role: 'admin' | 'associate' | 'viewer'
-  email: string
+  email: string | null
   full_name: string | null
+  professional_title: string | null
+  is_owner: boolean
+  state: 'active' | 'suspended' | 'removed'
   joined_at: string
 }
 
@@ -39,9 +41,9 @@ interface Invite {
 interface SettingsClientProps {
   orgId: string
   orgName: string
-  ownerId: string
-  currentUserId: string
+  currentMembershipId: string
   currentUserRole: string
+  capabilities: string[]
   members: Member[]
   pendingInvites: Invite[]
 }
@@ -55,9 +57,9 @@ const roleIcon: Record<string, React.ElementType> = {
 export function SettingsClient({
   orgId,
   orgName,
-  ownerId,
-  currentUserId,
+  currentMembershipId,
   currentUserRole,
+  capabilities,
   members,
   pendingInvites,
 }: SettingsClientProps) {
@@ -66,8 +68,6 @@ export function SettingsClient({
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
   
-  // Kickout state
-  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
 
   function handleInvite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -99,20 +99,13 @@ export function SettingsClient({
     })
   }
 
-  function handleRemoveMember() {
-    if (!memberToRemove) return
+  function handleResendInvite(inviteId: string) {
     startTransition(async () => {
-      const result = await removeMember(memberToRemove.user_id)
-      if (result?.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Member removed successfully.')
-      }
-      setMemberToRemove(null)
+      const result = await resendInvite(inviteId)
+      if (result?.error) toast.error(result.error)
+      else toast.success('Invitation resent.')
     })
   }
-
-  const isCallerOwner = ownerId === currentUserId
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar animate-fade-in -mt-2">
@@ -156,7 +149,7 @@ export function SettingsClient({
               </div>
             </div>
 
-            {currentUserRole === 'admin' && (
+            {(capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin')) && (
               <Button
                 size="sm"
                 onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
@@ -171,39 +164,29 @@ export function SettingsClient({
           <div className="space-y-1.5">
             {members.map((member) => {
               const RoleIcon = roleIcon[member.role] ?? User
-              const isTargetOwner = member.user_id === ownerId
-              const isSelf = member.user_id === currentUserId
-              
-              let canRemove = false
-              if (currentUserRole === 'admin' && !isSelf && !isTargetOwner) {
-                if (member.role === 'admin' && !isCallerOwner) {
-                  canRemove = false
-                } else {
-                  canRemove = true
-                }
-              }
+              const isTargetOwner = member.is_owner
 
               return (
                 <div
-                  key={member.user_id}
+                  key={member.membership_id}
                   className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[var(--bg)] transition-colors group"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <Avatar
-                      name={member.full_name || member.email}
+                      name={member.full_name || member.email || 'Team member'}
                       size="sm"
                     />
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-[var(--text-primary)] truncate leading-tight">
-                          {member.full_name ?? member.email}
+                          {member.full_name ?? member.email ?? 'Team member'}
                         </span>
                         {isTargetOwner && (
                           <span className="text-[10px] font-medium text-[var(--warning)] bg-[var(--warning-muted)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">Owner</span>
                         )}
                       </div>
-                      {member.full_name && (
-                        <span className="text-[11px] text-[var(--text-muted)] truncate leading-none mt-0.5">{member.email}</span>
+                      {(member.professional_title || member.email) && (
+                        <span className="text-[11px] text-[var(--text-muted)] truncate leading-none mt-0.5">{member.professional_title ?? member.email}</span>
                       )}
                     </div>
                   </div>
@@ -218,19 +201,7 @@ export function SettingsClient({
                       <span className="capitalize">{member.role}</span>
                     </span>
 
-                    {canRemove ? (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setMemberToRemove(member)}
-                        className="text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] h-6 w-6 opacity-0 group-hover:opacity-100 transition-all"
-                        title="Remove member"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    ) : (
-                      <div className="w-6" /> // spacer to keep alignment
-                    )}
+                    <div className="w-6" />
                   </div>
                 </div>
               )
@@ -269,7 +240,12 @@ export function SettingsClient({
                       }`}>
                         {invite.status}
                       </span>
-                      {currentUserRole === 'admin' ? (
+                      {invite.status === 'pending' && (capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin')) ? (
+                        <Button variant="outline" size="sm" onClick={() => handleResendInvite(invite.id)} disabled={isPending} className="h-7 px-2 text-[10px]">
+                          Resend invitation
+                        </Button>
+                      ) : null}
+                      {invite.status === 'pending' && (capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin')) ? (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -326,7 +302,7 @@ export function SettingsClient({
               >
                 <option value="associate">Associate — can view and edit</option>
                 <option value="viewer">Viewer — read-only access</option>
-                <option value="admin">Admin — full access</option>
+                {capabilities.includes('team.invite.admin') && <option value="admin">Admin — full access</option>}
               </select>
             </FormField>
 
@@ -342,18 +318,6 @@ export function SettingsClient({
         </DialogContent>
       </Dialog>
 
-      {/* Remove Member Dialog */}
-      <ConfirmDialog
-        isOpen={!!memberToRemove}
-        onClose={() => setMemberToRemove(null)}
-        title="Remove Team Member"
-        description={`Are you sure you want to remove ${memberToRemove?.full_name ?? memberToRemove?.email} from the organization? They will immediately lose access to all cases and documents.`}
-        confirmText="Remove Member"
-        cancelText="Cancel"
-        onConfirm={handleRemoveMember}
-        variant="destructive"
-        isPending={isPending}
-      />
     </div>
   )
 }

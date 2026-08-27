@@ -24,10 +24,7 @@ async function sendEmail(options: {
   html: string
 }): Promise<EmailResult> {
   if (!isProduction()) {
-    console.log('[Email skipped in dev]', {
-      to: options.to,
-      subject: options.subject,
-    })
+    console.log('[Email skipped in development]', { subject: options.subject })
     return { success: true, id: 'dev-skipped' }
   }
 
@@ -40,15 +37,15 @@ async function sendEmail(options: {
     })
 
     if (error) {
-      console.error('[Resend error]', error)
-      return { success: false, error: error.message }
+      console.error('[Email provider delivery failed]')
+      return { success: false, error: 'delivery_failed' }
     }
 
     return { success: true, id: data?.id }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[Resend exception]', message)
-    return { success: false, error: message }
+    console.error('[Email provider delivery failed]')
+    return { success: false, error: 'delivery_failed' }
   }
 }
 
@@ -68,22 +65,28 @@ export async function sendOrgInviteEmail(options: {
   /** Legacy param name support */
   invitedByName?: string
 }): Promise<EmailResult> {
+  const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]!)
   const inviterDisplay = options.inviterName ?? options.invitedByName ?? 'A team member'
+  const subjectOrgName = options.orgName.replace(/[\r\n]/g, ' ').trim()
   const acceptUrl = options.inviteUrl
     ?? `${options.appUrl}/api/invites/accept?token=${options.inviteToken}`
+  const safeInviter = escapeHtml(inviterDisplay)
+  const safeOrgName = escapeHtml(options.orgName)
+  const parsedUrl = new URL(acceptUrl)
+  const safeAcceptUrl = escapeHtml((parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:') ? parsedUrl.toString() : 'https://invalid.local/')
 
   return sendEmail({
     to: options.to,
-    subject: `You've been invited to join ${options.orgName} on GST DMS`,
+    subject: `You've been invited to join ${subjectOrgName} on GST DMS`,
     html: `
       <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
         <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 8px;">You're invited!</h1>
         <p style="color: #4a4a6a; font-size: 16px; line-height: 1.6;">
-          <strong>${inviterDisplay}</strong> has invited you to join
-          <strong>${options.orgName}</strong> on GST DMS.
+          <strong>${safeInviter}</strong> has invited you to join
+          <strong>${safeOrgName}</strong> on GST DMS.
         </p>
         <div style="margin: 32px 0;">
-          <a href="${acceptUrl}"
+          <a href="${safeAcceptUrl}"
              style="background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px;
                     text-decoration: none; font-weight: 600; display: inline-block;">
             Accept Invitation

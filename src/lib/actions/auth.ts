@@ -40,20 +40,21 @@ export async function signIn(_previousState: SignInState, formData: FormData): P
     return { error: error.message }
   }
 
-  // Check if user already has an org
+  const cookieStore = await cookies()
+  const intent = cookieStore.get('organisation_invitation_intent')?.value
+  if (intent) redirect(`/api/invites/accept?next=${encodeURIComponent(cookieStore.get('organisation_invitation_next')?.value ?? '/dashboard')}`)
+
+  // Canonical context is authoritative for active/suspended routing.
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
-    const { data: membership } = await supabase
-      .from('org_members')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single()
-
-    if (membership) {
+    const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
+    const context = (contexts ?? [])[0]
+    if (context?.state === 'suspended') {
+      return { error: 'Access suspended.' }
+    }
+    if (context?.state === 'active') {
       // Save current org into cookie
-      const cookieStore = await cookies()
-      cookieStore.set('current_org_id', membership.org_id, {
+      cookieStore.set('current_org_id', context.org_id, {
         httpOnly: true,
         path: '/',
         maxAge: 60 * 60 * 24 * 365, // 1 year
