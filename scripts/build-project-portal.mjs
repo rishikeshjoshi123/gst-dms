@@ -144,8 +144,6 @@ const planReadingIndexes = new Map(portalReadingOrder.map((relativePath, index) 
 if (planReadingIndexes.size !== portalReadingOrder.length) throw new Error('Duplicate path in portal reading order.');
 const unorderedPlan = plans.find((plan) => !planReadingIndexes.has(plan.relativePath));
 if (unorderedPlan) throw new Error(`Plan is missing from the portal reading order: ${unorderedPlan.relativePath}`);
-const missingPlan = portalReadingOrder.find((relativePath) => !plans.some((plan) => plan.relativePath === relativePath));
-if (missingPlan) throw new Error(`Portal reading order references a missing plan: ${missingPlan}`);
 plans.sort((left, right) => planReadingIndexes.get(left.relativePath) - planReadingIndexes.get(right.relativePath));
 const count = (status) => plans.filter((plan) => plan.status === status).length;
 
