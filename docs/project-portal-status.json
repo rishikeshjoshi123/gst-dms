@@ -1,0 +1,38 @@
+{
+  "updated": "2026-08-27",
+  "summary": "CaseChain is in its architecture-and-foundations delivery phase. The approved plans define the target product; a plan's approval is not a claim that every capability described in it is already shipped.",
+  "implemented": [
+    {
+      "title": "Plan archive and portfolio tracking",
+      "detail": "The repository maintains canonical, decision-complete plans with a shared status vocabulary and cross-domain portfolio index."
+    },
+    {
+      "title": "Public project portal",
+      "detail": "This lightweight static site makes the plans and a review-friendly progress snapshot easy to share without exposing the application runtime."
+    }
+  ],
+  "active": [
+    {
+      "title": "Design system and application shell",
+      "detail": "The Civic Ink design-system overhaul is marked in progress."
+    },
+    {
+      "title": "AI extraction and model lifecycle",
+      "detail": "The extraction/provenance implementation and hardening track is marked in progress."
+    }
+  ],
+  "remaining": [
+    {
+      "title": "Approved product and platform contracts",
+      "detail": "The approved feature and platform plans remain the delivery backlog. They are ready for implementation in their documented dependency order."
+    },
+    {
+      "title": "Platform Operations",
+      "detail": "The next new operational plan: platform administration, usage, quotas, job health, audit, and privacy boundaries."
+    },
+    {
+      "title": "External Acquisition and Imports",
+      "detail": "Intentionally deferred until representative organisation spreadsheets are available."
+    }
+  ]
+}

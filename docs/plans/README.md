@@ -61,4 +61,6 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 
 ### Operations
 
-No plans yet.
+| Plan | Status | Updated |
+| --- | --- | --- |
+| [Project Portal and GitHub Pages](./operations/2026-08-27-project-portal-and-github-pages.md) | `in-progress` | 2026-08-27 |
