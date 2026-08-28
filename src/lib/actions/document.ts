@@ -277,10 +277,13 @@ export async function reassignDocumentMatter(
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
-  let documentToProcess: { id: string; matterId: string } | null = null
-  let processingStoragePath = doc.storage_path
+  let documentToProcess: { id: string; matterId: string; storagePath: string } | null = null
 
   if (mode === 'copy') {
+    if (!doc.storage_path) {
+      return { error: 'This document has no file attached, so it cannot be copied yet.' }
+    }
+
     const originalName = doc.storage_path.split('/').pop() || 'document.pdf'
     const copiedStoragePath = `${orgId}/${newMatterId}/${Date.now()}_${originalName}`
     const { data: sourceFile, error: sourceFileError } = await supabase.storage
@@ -325,8 +328,7 @@ export async function reassignDocumentMatter(
       console.error('Copy document error:', insertError)
       return { error: insertError?.message ?? 'Failed to copy document' }
     }
-    documentToProcess = { id: newDoc.id, matterId: newMatterId }
-    processingStoragePath = copiedStoragePath
+    documentToProcess = { id: newDoc.id, matterId: newMatterId, storagePath: copiedStoragePath }
 
     // Log reversible activity
     await appendActivity({
@@ -350,21 +352,27 @@ export async function reassignDocumentMatter(
       .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
 
     // 2. Reassign document
+    const moveUpdate = doc.storage_path
+      ? {
+          matter_id: newMatterId,
+          status: 'processing' as const,
+          review_reason: null,
+          source: 'inbox',
+        }
+      : { matter_id: newMatterId }
+
     const { error: updateError } = await supabase
       .from('documents')
-      .update({
-        matter_id: newMatterId,
-        status: 'processing',    // re-queue for chaining
-        review_reason: null,
-        source: 'inbox',         // treated as confirmed, skips routing check
-      })
+      .update(moveUpdate)
       .eq('id', documentId)
 
     if (updateError) {
       console.error('Reassign document error:', updateError)
       return { error: updateError.message }
     }
-    documentToProcess = { id: documentId, matterId: newMatterId }
+    if (doc.storage_path) {
+      documentToProcess = { id: documentId, matterId: newMatterId, storagePath: doc.storage_path }
+    }
 
     // 3. Update any deadlines tied to this document
     await supabase
@@ -392,7 +400,7 @@ export async function reassignDocumentMatter(
       id: documentToProcess.id,
       matterId: documentToProcess.matterId,
       orgId,
-      storagePath: processingStoragePath,
+      storagePath: documentToProcess.storagePath,
       uploadedBy: user.id,
       // Metadata already exists, so this re-runs placement without paying for AI again.
     }, { skipDuplicateCheck: true })
@@ -443,7 +451,7 @@ export async function setDocumentClass(
   // Get current class to decide if we need to clean up chains
   const { data: doc } = await supabase
     .from('documents')
-    .select('id, document_class, matter_id')
+    .select('id, document_class, matter_id, storage_path, created_by, status')
     .eq('id', documentId)
     .eq('org_id', orgId)
     .single()
@@ -458,12 +466,15 @@ export async function setDocumentClass(
       .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
   }
 
+  const nextStatus = doc.storage_path
+    ? (newClass === 'proceeding' ? 'processing' : 'analyzed')
+    : doc.status
+
   const { error } = await supabase
     .from('documents')
     .update({
       document_class: newClass,
-      // If promoting to proceeding, re-queue for chaining
-      status: newClass === 'proceeding' ? 'processing' : 'analyzed',
+      status: nextStatus,
     })
     .eq('id', documentId)
     .eq('org_id', orgId)
@@ -473,20 +484,13 @@ export async function setDocumentClass(
     return { error: error.message }
   }
 
-  if (newClass === 'proceeding') {
-    const fullDoc = await supabase
-      .from('documents')
-      .select('storage_path, created_by')
-      .eq('id', documentId)
-      .eq('org_id', orgId)
-      .single()
-    if (!fullDoc.data) return { error: 'Document not found.' }
+  if (newClass === 'proceeding' && doc.storage_path) {
     const queued = await enqueueDocumentProcessing({
       id: documentId,
       matterId: doc.matter_id,
       orgId,
-      storagePath: fullDoc.data.storage_path,
-      uploadedBy: fullDoc.data.created_by ?? '',
+      storagePath: doc.storage_path,
+      uploadedBy: doc.created_by ?? '',
     }, { skipDuplicateCheck: true })
     if ('error' in queued) return queued
   }

@@ -49,19 +49,21 @@ BEGIN
     'team.view', 'team.invite.standard', 'team.role.manage_standard',
     'team.membership.suspend_standard', 'organisation.profile.manage',
     'organisation.operations.manage', 'team.invite.admin', 'team.role.manage_admin',
-    'team.membership.manage_admin', 'team.ownership.transfer', 'trash.purge', 'document.view', 'document.intake.create'
+    'team.membership.manage_admin', 'team.ownership.transfer', 'trash.purge', 'document.view', 'document.intake.create',
+    'document.record.create', 'document.intake.assign', 'document.version.attach', 'document.version.replace'
   ]::text[] THEN RAISE EXCEPTION 'owner capability matrix failed'; END IF;
   IF NOT public.has_team_capability(fixture_org, 'trash.purge') THEN
     RAISE EXCEPTION 'owner trash purge capability failed'; END IF;
   PERFORM set_config('request.jwt.claim.sub', fixture_admin::text, true);
   IF (SELECT capabilities FROM public.get_my_organisation_context()) <> ARRAY[
     'team.view', 'team.invite.standard', 'team.role.manage_standard',
-    'team.membership.suspend_standard', 'organisation.profile.manage', 'organisation.operations.manage', 'trash.purge', 'document.view', 'document.intake.create'
+    'team.membership.suspend_standard', 'organisation.profile.manage', 'organisation.operations.manage', 'trash.purge', 'document.view', 'document.intake.create',
+    'document.record.create', 'document.intake.assign', 'document.version.attach', 'document.version.replace'
   ]::text[] THEN RAISE EXCEPTION 'admin capability matrix failed'; END IF;
   IF NOT public.has_team_capability(fixture_org, 'trash.purge') THEN
     RAISE EXCEPTION 'admin trash purge capability failed'; END IF;
   PERFORM set_config('request.jwt.claim.sub', fixture_associate::text, true);
-  IF (SELECT capabilities FROM public.get_my_organisation_context()) <> ARRAY['team.view','document.view','document.intake.create']::text[] THEN
+  IF (SELECT capabilities FROM public.get_my_organisation_context()) <> ARRAY['team.view','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[] THEN
     RAISE EXCEPTION 'associate capability matrix failed'; END IF;
   IF public.has_team_capability(fixture_org, 'trash.purge') THEN
     RAISE EXCEPTION 'associate trash purge capability must be denied'; END IF;
@@ -146,7 +148,7 @@ BEGIN
     RAISE EXCEPTION 'ordinary directory projection exposed restricted data'; END IF;
   IF (SELECT capabilities FROM public.get_my_team_members()
       WHERE membership_id = (SELECT membership_id FROM public.get_my_organisation_context()))
-      <> ARRAY['team.view','document.view','document.intake.create']::text[] THEN
+      <> ARRAY['team.view','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[] THEN
     RAISE EXCEPTION 'associate directory capability projection failed'; END IF;
   PERFORM set_config('request.jwt.claim.sub', fixture_admin::text, true);
   IF NOT EXISTS (SELECT 1 FROM public.get_my_team_members() WHERE state = 'suspended')
@@ -158,14 +160,16 @@ BEGIN
            'team.view', 'team.invite.standard', 'team.role.manage_standard',
            'team.membership.suspend_standard', 'organisation.profile.manage',
            'organisation.operations.manage', 'team.invite.admin', 'team.role.manage_admin',
-           'team.membership.manage_admin', 'team.ownership.transfer', 'trash.purge', 'document.view', 'document.intake.create'
+           'team.membership.manage_admin', 'team.ownership.transfer', 'trash.purge', 'document.view', 'document.intake.create',
+           'document.record.create', 'document.intake.assign', 'document.version.attach', 'document.version.replace'
          ]::text[] THEN
     RAISE EXCEPTION 'admin directory capability projection failed'; END IF;
   IF (SELECT capabilities FROM public.get_my_team_members()
       WHERE membership_id = (SELECT id FROM public.organisation_memberships WHERE org_id = fixture_org AND user_id = fixture_admin AND state = 'active')) <> ARRAY[
         'team.view', 'team.invite.standard', 'team.role.manage_standard',
         'team.membership.suspend_standard', 'organisation.profile.manage', 'organisation.operations.manage',
-        'trash.purge', 'document.view', 'document.intake.create'
+        'trash.purge', 'document.view', 'document.intake.create',
+        'document.record.create', 'document.intake.assign', 'document.version.attach', 'document.version.replace'
       ]::text[] THEN RAISE EXCEPTION 'admin target capability projection failed'; END IF;
   UPDATE public.organisation_memberships
   SET state = 'active', suspended_at = NULL, suspended_by = NULL, suspension_reason = NULL

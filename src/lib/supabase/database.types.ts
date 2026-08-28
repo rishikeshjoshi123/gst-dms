@@ -403,6 +403,70 @@ export type Database = {
           },
         ]
       }
+      document_command_receipts: {
+        Row: {
+          actor_user_id: string | null
+          command_kind: string
+          created_at: string
+          document_id: string | null
+          document_version_id: string | null
+          id: string
+          idempotency_key: string
+          lifecycle_revision: number | null
+          org_id: string
+          result_code: string
+          subject_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          command_kind: string
+          created_at?: string
+          document_id?: string | null
+          document_version_id?: string | null
+          id?: string
+          idempotency_key: string
+          lifecycle_revision?: number | null
+          org_id: string
+          result_code: string
+          subject_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          command_kind?: string
+          created_at?: string
+          document_id?: string | null
+          document_version_id?: string | null
+          id?: string
+          idempotency_key?: string
+          lifecycle_revision?: number | null
+          org_id?: string
+          result_code?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_command_receipts_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_links: {
         Row: {
           confidence: number | null
@@ -728,6 +792,7 @@ export type Database = {
           current_version_id: string | null
           deleted_at: string | null
           direction: Database["public"]["Enums"]["doc_direction"] | null
+          display_title: string | null
           doc_date: string | null
           doc_type: string | null
           document_category: string | null
@@ -758,7 +823,7 @@ export type Database = {
           search_vector: unknown
           source: string | null
           status: Database["public"]["Enums"]["doc_status"]
-          storage_path: string
+          storage_path: string | null
           summary: string | null
           trashed_at: string | null
           trashed_by: string | null
@@ -775,6 +840,7 @@ export type Database = {
           current_version_id?: string | null
           deleted_at?: string | null
           direction?: Database["public"]["Enums"]["doc_direction"] | null
+          display_title?: string | null
           doc_date?: string | null
           doc_type?: string | null
           document_category?: string | null
@@ -805,7 +871,7 @@ export type Database = {
           search_vector?: unknown
           source?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
-          storage_path: string
+          storage_path?: string | null
           summary?: string | null
           trashed_at?: string | null
           trashed_by?: string | null
@@ -822,6 +888,7 @@ export type Database = {
           current_version_id?: string | null
           deleted_at?: string | null
           direction?: Database["public"]["Enums"]["doc_direction"] | null
+          display_title?: string | null
           doc_date?: string | null
           doc_type?: string | null
           document_category?: string | null
@@ -852,7 +919,7 @@ export type Database = {
           search_vector?: unknown
           source?: string | null
           status?: Database["public"]["Enums"]["doc_status"]
-          storage_path?: string
+          storage_path?: string | null
           summary?: string | null
           trashed_at?: string | null
           trashed_by?: string | null
@@ -905,6 +972,7 @@ export type Database = {
           org_id: string
           sha256: string | null
           validated_at: string | null
+          validated_page_count: number | null
         }
         Insert: {
           availability?: Database["public"]["Enums"]["file_asset_availability"]
@@ -921,6 +989,7 @@ export type Database = {
           org_id: string
           sha256?: string | null
           validated_at?: string | null
+          validated_page_count?: number | null
         }
         Update: {
           availability?: Database["public"]["Enums"]["file_asset_availability"]
@@ -937,6 +1006,7 @@ export type Database = {
           org_id?: string
           sha256?: string | null
           validated_at?: string | null
+          validated_page_count?: number | null
         }
         Relationships: [
           {
@@ -2295,6 +2365,14 @@ export type Database = {
         }
         Relationships: []
       }
+      document_materialization_diagnostics: {
+        Row: {
+          document_id: string | null
+          issue: string | null
+          org_id: string | null
+        }
+        Relationships: []
+      }
       document_upload_command_diagnostics: {
         Row: {
           issue: string | null
@@ -2334,6 +2412,35 @@ export type Database = {
           org_id: string
         }[]
       }
+      assign_intake_to_new_document: {
+        Args: {
+          p_display_title: string
+          p_expected_intake_uploader: string
+          p_idempotency: string
+          p_intake_id: string
+          p_matter_id: string
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
+      attach_intake_to_document: {
+        Args: {
+          p_document_id: string
+          p_expected_intake_uploader: string
+          p_expected_revision: number
+          p_idempotency: string
+          p_intake_id: string
+        }
+        Returns: {
+          code: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
       begin_organisation_invitation_accept_intent: {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
@@ -2356,6 +2463,21 @@ export type Database = {
           upload_session_id: string
         }[]
       }
+      create_metadata_only_document: {
+        Args: {
+          p_display_title: string
+          p_doc_date: string
+          p_doc_type: string
+          p_idempotency: string
+          p_matter_id: string
+          p_reference_number: string
+        }
+        Returns: {
+          code: string
+          document_id: string
+          lifecycle_revision: number
+        }[]
+      }
       create_organisation_invite: {
         Args: {
           p_email: string
@@ -2375,6 +2497,33 @@ export type Database = {
       document_lifecycle_payload_is_safe: {
         Args: { payload: Json }
         Returns: boolean
+      }
+      document_materialization_actor: {
+        Args: { p_capability: string }
+        Returns: {
+          actor_id: string
+          org_id: string
+        }[]
+      }
+      document_materialization_insert_version: {
+        Args: {
+          p_actor: string
+          p_document: string
+          p_intake: string
+          p_org: string
+          p_reason?: string
+        }
+        Returns: string
+      }
+      document_materialization_safe_event: {
+        Args: {
+          p_aggregate: string
+          p_key: string
+          p_kind: string
+          p_org: string
+          p_payload: Json
+        }
+        Returns: undefined
       }
       document_upload_safe_event: {
         Args: {
@@ -2571,6 +2720,21 @@ export type Database = {
           code: string
         }[]
       }
+      replace_document_version: {
+        Args: {
+          p_document_id: string
+          p_expected_intake_uploader: string
+          p_expected_revision: number
+          p_idempotency: string
+          p_intake_id: string
+          p_replacement_reason: string
+        }
+        Returns: {
+          code: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
       resend_organisation_invite: {
         Args: {
           p_expected_revision: number
@@ -2618,6 +2782,19 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      validate_document_intake_asset: {
+        Args: {
+          p_idempotency: string
+          p_intake_id: string
+          p_outcome: string
+          p_page_count: number
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          intake_item_id: string
         }[]
       }
     }

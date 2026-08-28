@@ -19,7 +19,8 @@ export interface SearchResultItem {
 type RelatedEntity = { name?: string | null; title?: string | null }
 type SearchDocumentRow = {
   id: string
-  storage_path: string
+  display_title: string | null
+  storage_path: string | null
   reference_number: string | null
   matter_id: string
   matters: unknown
@@ -76,7 +77,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
           const docIds = vMatches.map((match) => match.id)
           const { data: vDocs } = await supabase
             .from('documents')
-            .select('id, storage_path, reference_number, matter_id, matters(title, client_id)')
+            .select('id, display_title, storage_path, reference_number, matter_id, matters(title, client_id)')
             .in('id', docIds)
             
           if (vDocs) {
@@ -106,10 +107,10 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
       .limit(10),
     supabase
       .from('documents')
-      .select('id, storage_path, reference_number, matter_id, matters(title, client_id)')
+      .select('id, display_title, storage_path, reference_number, matter_id, matters(title, client_id)')
       .eq('org_id', orgId)
       .is('deleted_at', null)
-      .or(`storage_path.ilike.${formattedQuery},reference_number.ilike.${formattedQuery}`)
+      .or(`display_title.ilike.${formattedQuery},storage_path.ilike.${formattedQuery},reference_number.ilike.${formattedQuery}`)
       .limit(10)
   ])
 
@@ -156,12 +157,12 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   // Map Documents
   if (combinedDocs.length > 0) {
     for (const doc of combinedDocs) {
-      const rawName = doc.storage_path.split('/').pop() ?? 'Document'
-      const cleanName = rawName.replace(/^\d+_/, '')
+      const rawName = doc.storage_path?.split('/').pop()
+      const cleanName = rawName?.replace(/^\d+_/, '')
       const matterTitle = relationValue(doc.matters, 'title')
       results.push({
         id: doc.id,
-        title: cleanName,
+        title: doc.display_title || doc.reference_number || cleanName || 'Document',
         subtitle: `Document${matterTitle ? ` • ${matterTitle}` : ''}${doc.reference_number ? ` (Ref: ${doc.reference_number})` : ''}`,
         href: `/matters/${doc.matter_id}/documents/${doc.id}`,
         type: 'document'
