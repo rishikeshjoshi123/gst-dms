@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { planVisualReferences, portalReadingOrder } from '../project-portal/plan-visual-references.mjs';
+import { plainLanguagePlans } from '../project-portal/plain-language-plans.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const plansRoot = path.join(root, 'docs/plans');
@@ -62,6 +63,20 @@ function renderSpecimen(specimenId) {
   return specimen;
 }
 
+function renderPlainLanguagePlan(plan) {
+  const edition = plainLanguagePlans[plan.relativePath];
+  if (!edition) throw new Error(`Plan is missing its public-reader edition: ${plan.relativePath}`);
+  const supportingVisuals = (planVisualReferences[plan.relativePath] ?? []).map((reference) => renderSpecimen(reference.specimenId)).join('');
+  return `<section class="plain-language-intro" aria-labelledby="plain-language-heading"><p class="eyebrow">In plain language</p><h2 id="plain-language-heading">What this plan means</h2><p>${escapeHtml(edition.overview)}</p></section>
+<section class="reader-section" aria-labelledby="why-heading"><h2 id="why-heading">Why it matters</h2><p>${escapeHtml(edition.why)}</p></section>
+<section class="reader-section" aria-labelledby="outcomes-heading"><h2 id="outcomes-heading">What people can expect</h2><ul class="outcome-list">${edition.outcomes.map((outcome) => `<li>${escapeHtml(outcome)}</li>`).join('')}</ul></section>
+<figure class="plan-journey" aria-labelledby="journey-caption"><figcaption id="journey-caption"><span class="visual-reference-label">Plan journey</span><strong>How the work comes together</strong><span>A simple view of the three main stages in this plan.</span></figcaption><ol>${edition.steps.map((step, index) => `<li><span>${index + 1}</span><b>${escapeHtml(step)}</b></li>`).join('')}</ol></figure>${supportingVisuals}`;
+}
+
+// Retained for the canonical-source renderer should the public portal ever need
+// an opt-in technical edition again; public pages deliberately use the friendlier
+// summaries below instead.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function renderMarkdown(markdown, visualReferences = []) {
   const lines = markdown.split('\n');
   const html = [];
@@ -137,6 +152,7 @@ await mkdir(path.join(outputRoot, 'plans'), { recursive: true });
 await mkdir(path.join(outputRoot, 'assets'), { recursive: true });
 await cp(path.join(root, 'project-portal/site.css'), path.join(outputRoot, 'assets/site.css'));
 await cp(path.join(root, 'project-portal/site.js'), path.join(outputRoot, 'assets/site.js'));
+await cp(path.join(root, 'project-portal/assets/planning-journey.png'), path.join(outputRoot, 'assets/planning-journey.png'));
 
 const planFiles = (await walk(plansRoot)).filter((file) => file.endsWith('.md') && !file.endsWith('_template.md'));
 const plans = (await Promise.all(planFiles.map(async (file) => parsePlan(await readFile(file, 'utf8'), file)))).filter(Boolean);
@@ -144,21 +160,23 @@ const planReadingIndexes = new Map(portalReadingOrder.map((relativePath, index) 
 if (planReadingIndexes.size !== portalReadingOrder.length) throw new Error('Duplicate path in portal reading order.');
 const unorderedPlan = plans.find((plan) => !planReadingIndexes.has(plan.relativePath));
 if (unorderedPlan) throw new Error(`Plan is missing from the portal reading order: ${unorderedPlan.relativePath}`);
+const missingEdition = plans.find((plan) => !plainLanguagePlans[plan.relativePath]);
+if (missingEdition) throw new Error(`Plan is missing its public-reader edition: ${missingEdition.relativePath}`);
 plans.sort((left, right) => planReadingIndexes.get(left.relativePath) - planReadingIndexes.get(right.relativePath));
 const count = (status) => plans.filter((plan) => plan.status === status).length;
 
 const metrics = statusOrder.filter((status) => count(status)).map((status) => `<div class="metric"><span class="metric-value">${count(status)}</span><span class="metric-label">${escapeHtml(statusLabel(status))}</span></div>`).join('');
 const filterButtons = ['all', ...statusOrder.filter((status) => count(status))].map((status, index) => `<button class="filter-button" type="button" data-plan-filter="${status}" aria-pressed="${index === 0}">${status === 'all' ? 'All plans' : statusLabel(status)}${status === 'all' ? ` (${plans.length})` : ` (${count(status)})`}</button>`).join('');
-const cards = plans.map((plan) => `<article class="plan-card" data-plan-status="${escapeHtml(plan.status)}"><div><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span></div><h3><a href="plans/${plan.slug}.html">${escapeHtml(plan.title)}</a></h3><p>${escapeHtml(plan.summary)}</p><div class="plan-meta"><span>${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</span><span>Updated ${escapeHtml(plan.updated)}</span></div></article>`).join('');
+const cards = plans.map((plan) => `<article class="plan-card" data-plan-status="${escapeHtml(plan.status)}"><div><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span></div><h3><a href="plans/${plan.slug}.html">${escapeHtml(plan.title)}</a></h3><p>${escapeHtml(plainLanguagePlans[plan.relativePath].overview)}</p><div class="plan-meta"><span>${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</span><span>Updated ${escapeHtml(plan.updated)}</span></div></article>`).join('');
 
-const dashboard = `<p class="eyebrow">Public review space</p><h1>CaseChain, clearly mapped.</h1><p class="lede">A readable view of the project’s canonical plans and the work still ahead. Plan status reflects planning maturity, not a claim that every planned capability has shipped.</p>
+const dashboard = `<section class="portal-hero"><div><p class="eyebrow">Public review space</p><h1>CaseChain, clearly mapped.</h1><p class="lede">A friendly guide to what we are building, why it matters, and how the pieces fit together. Plan status shows how settled the thinking is—it does not mean every feature has shipped.</p></div><img src="assets/planning-journey.png" alt="Illustration of documents, people, and a connected project journey." width="1536" height="1024"></section>
 <section class="section"><div class="section-heading"><div><h2>Plan overview</h2><p>${plans.length} archived plans · source status from plan frontmatter</p></div></div><div class="metric-grid">${metrics}</div></section>
-<section class="section" id="plans"><div class="section-heading"><div><h2>Plans</h2><p>Read in the recommended architectural order for the full decision context.</p></div></div><div class="filter-bar" aria-label="Filter plans by status">${filterButtons}</div><div class="plan-list">${cards}</div><p class="empty-filter" data-empty-filter>No plans match this filter.</p></section>`;
+<section class="section" id="plans"><div class="section-heading"><div><h2>Plans</h2><p>Read in the recommended order. Each page is written for people first, with the detailed source plan always one click away.</p></div></div><div class="filter-bar" aria-label="Filter plans by status">${filterButtons}</div><div class="plan-list">${cards}</div><p class="empty-filter" data-empty-filter>No plans match this filter.</p></section>`;
 await writeFile(path.join(outputRoot, 'index.html'), layout('Overview', dashboard));
 
 await Promise.all(plans.map(async (plan) => {
   const sourceUrl = `${repositoryUrl}/blob/${sourceBranch}/${plan.relativePath}`;
-  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span><a href="${sourceUrl}" target="_blank" rel="noreferrer">View source on GitHub</a></div><div class="article-body">${renderMarkdown(plan.body, planVisualReferences[plan.relativePath])}</div></article>`;
+  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><div class="article-body">${renderPlainLanguagePlan(plan)}<aside class="source-note"><h2>Want the technical detail?</h2><p>The original plan is kept unchanged in the repository as the complete decision record.</p><a href="${sourceUrl}" target="_blank" rel="noreferrer">Read the detailed source plan on GitHub</a></aside></div></article>`;
   await writeFile(path.join(outputRoot, 'plans', `${plan.slug}.html`), layout(plan.title, content, 'plans'));
 }));
 
