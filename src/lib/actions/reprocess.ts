@@ -1,14 +1,22 @@
 'use server'
 
-import { getCurrentOrgId } from './org'
+export const reprocessScopes = ['extract', 'ocr', 'relationships', 'search_index', 'full'] as const
+export type ReprocessScope = typeof reprocessScopes[number]
 
-export async function reprocessDocument(docId: string, isStaged: boolean = false) {
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
-  void docId
-  void isStaged
-  // Reprocessing needs an explicit database command with a selected scope.
-  // The legacy UI must not make a privileged Trigger task/payload choice while
-  // that durable authority is still being introduced.
-  return { error: 'Reprocessing is temporarily unavailable while the durable processing command is being completed.' }
+export function isReprocessScope(scope: unknown): scope is ReprocessScope {
+  return typeof scope === 'string' && (reprocessScopes as readonly string[]).includes(scope)
+}
+
+export async function reprocessDocument(
+  documentId: string,
+  scope: ReprocessScope,
+) {
+  if (!documentId || !isReprocessScope(scope)) {
+    return { error: 'Choose one supported reprocessing scope.' }
+  }
+
+  // The command exists in the database, but is deliberately not exposed until
+  // the dedicated scoped worker is deployed. A durable event without that
+  // worker would create an indefinite queued state and mislead the user.
+  return { error: 'Scoped reprocessing is unavailable until its dedicated worker is deployed.' }
 }

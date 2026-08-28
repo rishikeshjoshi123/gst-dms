@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   FileText, AlertCircle, Check, Loader2, Plus, ExternalLink,
-  RotateCcw, ChevronDown, ChevronUp, Sparkles, Search,
+  ChevronDown, ChevronUp, Sparkles, Search,
   FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot,
   FolderPlus, Copy, AlertTriangle, Inbox
 } from 'lucide-react'
@@ -19,7 +19,6 @@ import {
   getStagedDocuments
 } from '@/lib/actions/inbox'
 import { getDocumentSignedUrl, getIntakeItemSignedUrl } from '@/lib/actions/document'
-import { reprocessDocument } from '@/lib/actions/reprocess'
 import { canonicalIntakeActions } from '@/lib/inbox-compat'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
@@ -245,7 +244,6 @@ export function InboxClientView({
   const [selectedMatterId, setSelectedMatterId] = useState<string>(preselectedMatterId || '')
   const [selectedFyToCreate, setSelectedFyToCreate] = useState<string>('')
   const [isPending, startTransition] = useTransition()
-  const [isReprocessing, setIsReprocessing] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false)
@@ -504,15 +502,6 @@ export function InboxClientView({
     toast.error('The matching document is not available. Refresh the queue or contact support.')
   }
 
-  const handleReprocess = async (docId: string) => {
-    setIsReprocessing(docId)
-    toast.info('Triggering AI reprocessing for this document...')
-    const res = await reprocessDocument(docId, true)
-    setIsReprocessing(null)
-    if (res.error) toast.error(res.error)
-    else toast.success('Reprocessing triggered. AI engine is working in the background...')
-  }
-
   const hasExtractedMetadata = activeDoc && activeDoc.raw_metadata && Object.keys(activeDoc.raw_metadata).length > 0 && (
     activeDoc.raw_metadata.client_name ||
     activeDoc.raw_metadata.gstin ||
@@ -750,16 +739,6 @@ export function InboxClientView({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleReprocess(activeDoc.id)}
-                    disabled={isReprocessing === activeDoc.id}
-                  >
-                    <RotateCcw size={13} className={isReprocessing === activeDoc.id ? 'animate-spin' : ''} aria-hidden="true" />
-                    Reprocess
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
                     ref={viewPdfButtonRef}
                     onClick={handleViewDocument}
                   >
@@ -864,7 +843,7 @@ export function InboxClientView({
                     </div>
                     <div>
                       <div className="text-[14px] font-semibold text-[var(--danger)]">AI extraction failed</div>
-                      <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">The document could not be processed automatically</div>
+                      <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">Retrying this legacy staging item is unavailable. Assign it manually or use the canonical intake workflow.</div>
                     </div>
                   </div>
                   <div className="p-4 flex flex-col gap-3">
@@ -872,16 +851,6 @@ export function InboxClientView({
                       {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleReprocess(activeDoc.id)}
-                        loading={isReprocessing === activeDoc.id}
-                      >
-                        {!isReprocessing && <RotateCcw size={12} aria-hidden="true" />}
-                        Retry AI
-                      </Button>
                       <Button
                         type="button"
                         variant="default"

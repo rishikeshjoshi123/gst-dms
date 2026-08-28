@@ -3062,6 +3062,22 @@ export type Database = {
           validation_requeued: number
         }[]
       }
+      request_document_reprocess: {
+        Args: {
+          p_capability_version: number
+          p_document_id: string
+          p_idempotency: string
+          p_scope: Database["public"]["Enums"]["document_processing_scope"]
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          outbox_event_id: string
+          processing_run_id: string
+          scope: Database["public"]["Enums"]["document_processing_scope"]
+        }[]
+      }
       record_document_asset_storage_deleted: {
         Args: { p_asset_id: string }
         Returns: {

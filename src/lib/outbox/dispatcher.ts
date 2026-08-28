@@ -8,6 +8,7 @@ export const documentLifecycleEventKinds = [
   'document.intake_validation_failed.v1',
   'document.metadata_created.v1',
   'document.processing_requested.v1',
+  'document.reprocess_requested.v1',
   'intake.assigned.v1',
   'intake.discarded.v1',
 ] as const
@@ -54,6 +55,7 @@ const safeCodeByKey: Record<string, readonly string[]> = {
   error_code: ['upload_failed', 'invalid_pdf', 'malware_suspect', 'storage_missing', 'validation_failed', 'upload_rejected'],
   result_code: ['ok', 'already_ready', 'not_available', 'invalid_pdf', 'encrypted_pdf', 'malware_suspect', 'storage_missing', 'validation_failed', 'discarded'],
 }
+const safeScopeValues = ['extract', 'ocr', 'relationships', 'search_index', 'full'] as const
 
 const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType: 'document' | 'document_upload'; aggregateKey: string; keys: readonly string[] }> = {
   'document.upload_reserved.v1': { aggregateType: 'document_upload', aggregateKey: 'session_id', keys: ['session_id', 'intake_id', 'asset_id'] },
@@ -65,6 +67,7 @@ const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType:
   'document.intake_validation_failed.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'asset_id', 'result_code'] },
   'document.metadata_created.v1': { aggregateType: 'document', aggregateKey: 'document_id', keys: ['document_id', 'matter_id'] },
   'document.processing_requested.v1': { aggregateType: 'document', aggregateKey: 'document_id', keys: ['document_id', 'version_id', 'intake_id'] },
+  'document.reprocess_requested.v1': { aggregateType: 'document', aggregateKey: 'document_id', keys: ['document_id', 'version_id', 'scope'] },
   'intake.assigned.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'document_id', 'document_version_id'] },
   'intake.discarded.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'result_code'] },
 }
@@ -102,6 +105,7 @@ export function isSafeLeasedOutboxEvent(value: unknown): value is LeasedOutboxEv
   return contract.keys.every((key) => {
     const payloadValue = payload[key]
     if (key in safeCodeByKey) return safeCodeByKey[key].includes(payloadValue)
+    if (key === 'scope') return safeScopeValues.includes(payloadValue as typeof safeScopeValues[number])
     return isUuid(payloadValue)
   })
 }

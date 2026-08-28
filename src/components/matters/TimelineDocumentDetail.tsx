@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
-import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
@@ -156,7 +155,6 @@ export function TimelineDocumentDetail({
   const [newNoteContent, setNewNoteContent] = useState('')
   const [newNoteType, setNewNoteType] = useState<'general' | 'hearing_note' | 'client_instruction' | 'research_note'>('general')
   const [isPending, startTransition] = useTransition()
-  const [isReprocessing, setIsReprocessing] = useState(false)
   const [activeQuote, setActiveQuote] = useState<{ text: string, pageNumber: number } | null>(null)
 
   const [isDeleting, setIsDeleting] = useState(false)
@@ -177,17 +175,6 @@ export function TimelineDocumentDetail({
     }
   }
 
-  const handleReprocess = async () => {
-    setIsReprocessing(true)
-    toast.info('Triggering reprocessing for this document...')
-    const res = await reprocessDocument(doc.id, false)
-    setIsReprocessing(false)
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      toast.success('Reprocessing triggered. Processing in the background...')
-    }
-  }
   useEffect(() => {
     const handleQuote = (e: CustomEvent) => {
       if (e.detail && e.detail.quote) {
@@ -299,27 +286,46 @@ export function TimelineDocumentDetail({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button variant="outline" size="icon" onClick={() => setIsReassignOpen(true)} className="h-7 w-7 text-[--text-secondary]" title="Reassign Document">
-            <MoveRight size={12} />
+        <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
+            <MoveRight size={14} aria-hidden="true" />
+            Reassign
           </Button>
-          <Button variant="outline" size="icon" onClick={handleReprocess} disabled={isReprocessing || isDeleting} className="h-7 w-7 text-[--text-secondary]" title="Reprocess Document">
-            {isReprocessing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled
+            aria-describedby="scoped-reprocess-unavailable"
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            Reprocess unavailable
           </Button>
-          <Button variant="outline" size="icon" onClick={() => setIsDocConfirmOpen(true)} disabled={isDeleting || isReprocessing} className="h-7 w-7 text-[var(--danger)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] border-transparent hover:border-[var(--danger)]" title="Delete Document">
-            {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsDocConfirmOpen(true)}
+            disabled={isDeleting}
+            loading={isDeleting}
+          >
+            <Trash2 size={14} aria-hidden="true" />
+            Delete document
           </Button>
           <a href={viewUrl} className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[11px] font-medium h-7 px-2.5 gap-1 bg-[var(--primary)] text-white hover:opacity-90 shadow-sm transition-opacity">
             <ExternalLink size={12} />
             View
           </a>
           {onClose && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-[--text-muted] hover:text-[--text-primary] ml-0.5" onClick={onClose}>
-              <X size={14} />
+            <Button variant="ghost" size="icon" className="text-[--text-muted] hover:text-[--text-primary] ml-0.5" onClick={onClose} aria-label="Close document details">
+              <X size={14} aria-hidden="true" />
             </Button>
           )}
         </div>
       </div>
+      <p id="scoped-reprocess-unavailable" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+        Scoped reprocessing will be available when its dedicated worker is deployed.
+      </p>
 
       {/* Tabs Selector */}
       <div className="flex border-b border-[var(--border)] bg-[var(--surface-hover)] px-3 shrink-0">

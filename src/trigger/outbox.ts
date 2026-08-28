@@ -79,6 +79,11 @@ export const documentLifecycleEvent = task({
       await rpc(client, 'finish_document_processing_work', { p_processing_run_id: claim.processing_run_id, p_lease_token: claim.lease_token, p_outcome: outcome })
       return { accepted: true, routed: 'processing', outcome }
     }
+    if (payload.eventKind === 'document.reprocess_requested.v1') {
+      // Durable scoped intent must never fall through to the legacy generic
+      // pipeline. A later scoped worker claims the persisted run fence.
+      return { accepted: true, routed: 'scoped-reprocess', outcome: 'queued_for_scoped_worker' }
+    }
     return { accepted: true, routed: 'observed', eventId: payload.eventId, eventKind: payload.eventKind }
   },
 })
