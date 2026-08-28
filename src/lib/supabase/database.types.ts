@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -85,6 +80,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "activity_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      administration_events: {
+        Row: {
+          actor_user_id: string | null
+          correlation_id: string
+          created_at: string
+          event_kind: string
+          id: string
+          idempotency_key: string | null
+          metadata: Json
+          org_id: string
+          reason: string | null
+          target_snapshot: Json
+          target_user_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          correlation_id: string
+          created_at?: string
+          event_kind: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          org_id: string
+          reason?: string | null
+          target_snapshot?: Json
+          target_user_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          event_kind?: string
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json
+          org_id?: string
+          reason?: string | null
+          target_snapshot?: Json
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "administration_events_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
@@ -412,19 +457,283 @@ export type Database = {
           },
         ]
       }
+      document_processing_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          document_id: string
+          document_version_id: string
+          failed_at: string | null
+          id: string
+          idempotency_key: string
+          org_id: string
+          safe_error_code: string | null
+          scope: Database["public"]["Enums"]["document_processing_scope"]
+          source_analysis_run_id: string | null
+          stage: Database["public"]["Enums"]["document_processing_stage"]
+          started_at: string | null
+          state: Database["public"]["Enums"]["document_processing_state"]
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          failed_at?: string | null
+          id?: string
+          idempotency_key: string
+          org_id: string
+          safe_error_code?: string | null
+          scope: Database["public"]["Enums"]["document_processing_scope"]
+          source_analysis_run_id?: string | null
+          stage?: Database["public"]["Enums"]["document_processing_stage"]
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["document_processing_state"]
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          failed_at?: string | null
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          safe_error_code?: string | null
+          scope?: Database["public"]["Enums"]["document_processing_scope"]
+          source_analysis_run_id?: string | null
+          stage?: Database["public"]["Enums"]["document_processing_stage"]
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["document_processing_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_runs_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_processing_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_runs_source_org_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_processing_runs_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_upload_command_receipts: {
+        Row: {
+          code: string
+          command: string
+          created_at: string
+          duplicate_asset_id: string | null
+          id: string
+          idempotency_key: string
+          org_id: string
+          upload_session_id: string
+        }
+        Insert: {
+          code: string
+          command: string
+          created_at?: string
+          duplicate_asset_id?: string | null
+          id?: string
+          idempotency_key: string
+          org_id: string
+          upload_session_id: string
+        }
+        Update: {
+          code?: string
+          command?: string
+          created_at?: string
+          duplicate_asset_id?: string | null
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          upload_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_upload_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_upload_command_receipts_upload_session_id_fkey"
+            columns: ["upload_session_id"]
+            isOneToOne: false
+            referencedRelation: "upload_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_version_analysis_bindings: {
+        Row: {
+          binding_reason: string
+          created_at: string
+          created_by: string | null
+          document_version_id: string
+          id: string
+          org_id: string
+          source_analysis_run_id: string
+        }
+        Insert: {
+          binding_reason: string
+          created_at?: string
+          created_by?: string | null
+          document_version_id: string
+          id?: string
+          org_id: string
+          source_analysis_run_id: string
+        }
+        Update: {
+          binding_reason?: string
+          created_at?: string
+          created_by?: string | null
+          document_version_id?: string
+          id?: string
+          org_id?: string
+          source_analysis_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_version_analysis_bindings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_version_analysis_bindings_run_org_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_version_analysis_bindings_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          asset_id: string
+          created_at: string
+          created_by: string | null
+          document_id: string
+          failed_at: string | null
+          id: string
+          org_id: string
+          original_filename: string
+          page_count: number | null
+          promoted_at: string | null
+          replacement_reason: string | null
+          state: Database["public"]["Enums"]["document_version_state"]
+          superseded_at: string | null
+          validated_at: string | null
+          validation_state: Database["public"]["Enums"]["document_version_validation_state"]
+          version_number: number
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          failed_at?: string | null
+          id?: string
+          org_id: string
+          original_filename: string
+          page_count?: number | null
+          promoted_at?: string | null
+          replacement_reason?: string | null
+          state?: Database["public"]["Enums"]["document_version_state"]
+          superseded_at?: string | null
+          validated_at?: string | null
+          validation_state?: Database["public"]["Enums"]["document_version_validation_state"]
+          version_number: number
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          failed_at?: string | null
+          id?: string
+          org_id?: string
+          original_filename?: string
+          page_count?: number | null
+          promoted_at?: string | null
+          replacement_reason?: string | null
+          state?: Database["public"]["Enums"]["document_version_state"]
+          superseded_at?: string | null
+          validated_at?: string | null
+          validation_state?: Database["public"]["Enums"]["document_version_validation_state"]
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_asset_org_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_versions_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           ai_prompt_version: string | null
           confidence_scores: Json | null
+          content_availability: Database["public"]["Enums"]["document_content_availability"]
           content_hash: string | null
+          copied_from_document_id: string | null
           created_at: string
           created_by: string | null
+          current_version_id: string | null
           deleted_at: string | null
           direction: Database["public"]["Enums"]["doc_direction"] | null
           doc_date: string | null
           doc_type: string | null
           document_category: string | null
           document_class: string | null
+          effective_filename: string | null
+          effective_size_bytes: number | null
           embedding: string | null
           embedding_model: string | null
           embedding_version: string | null
@@ -432,10 +741,16 @@ export type Database = {
           financial_year: string | null
           id: string
           issued_by: string | null
+          lifecycle_revision: number
+          lifecycle_updated_at: string
           matter_id: string
           org_id: string
+          origin_external_key: string | null
+          origin_kind: Database["public"]["Enums"]["document_origin_kind"]
           raw_metadata: Json | null
+          record_state: Database["public"]["Enums"]["document_record_state"]
           reference_number: string | null
+          restored_at: string | null
           review_reason: string | null
           review_status: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at: string | null
@@ -445,19 +760,27 @@ export type Database = {
           status: Database["public"]["Enums"]["doc_status"]
           storage_path: string
           summary: string | null
+          trashed_at: string | null
+          trashed_by: string | null
+          trashed_reason: string | null
         }
         Insert: {
           ai_prompt_version?: string | null
           confidence_scores?: Json | null
+          content_availability?: Database["public"]["Enums"]["document_content_availability"]
           content_hash?: string | null
+          copied_from_document_id?: string | null
           created_at?: string
           created_by?: string | null
+          current_version_id?: string | null
           deleted_at?: string | null
           direction?: Database["public"]["Enums"]["doc_direction"] | null
           doc_date?: string | null
           doc_type?: string | null
           document_category?: string | null
           document_class?: string | null
+          effective_filename?: string | null
+          effective_size_bytes?: number | null
           embedding?: string | null
           embedding_model?: string | null
           embedding_version?: string | null
@@ -465,10 +788,16 @@ export type Database = {
           financial_year?: string | null
           id?: string
           issued_by?: string | null
+          lifecycle_revision?: number
+          lifecycle_updated_at?: string
           matter_id: string
           org_id: string
+          origin_external_key?: string | null
+          origin_kind?: Database["public"]["Enums"]["document_origin_kind"]
           raw_metadata?: Json | null
+          record_state?: Database["public"]["Enums"]["document_record_state"]
           reference_number?: string | null
+          restored_at?: string | null
           review_reason?: string | null
           review_status?: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at?: string | null
@@ -478,19 +807,27 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path: string
           summary?: string | null
+          trashed_at?: string | null
+          trashed_by?: string | null
+          trashed_reason?: string | null
         }
         Update: {
           ai_prompt_version?: string | null
           confidence_scores?: Json | null
+          content_availability?: Database["public"]["Enums"]["document_content_availability"]
           content_hash?: string | null
+          copied_from_document_id?: string | null
           created_at?: string
           created_by?: string | null
+          current_version_id?: string | null
           deleted_at?: string | null
           direction?: Database["public"]["Enums"]["doc_direction"] | null
           doc_date?: string | null
           doc_type?: string | null
           document_category?: string | null
           document_class?: string | null
+          effective_filename?: string | null
+          effective_size_bytes?: number | null
           embedding?: string | null
           embedding_model?: string | null
           embedding_version?: string | null
@@ -498,10 +835,16 @@ export type Database = {
           financial_year?: string | null
           id?: string
           issued_by?: string | null
+          lifecycle_revision?: number
+          lifecycle_updated_at?: string
           matter_id?: string
           org_id?: string
+          origin_external_key?: string | null
+          origin_kind?: Database["public"]["Enums"]["document_origin_kind"]
           raw_metadata?: Json | null
+          record_state?: Database["public"]["Enums"]["document_record_state"]
           reference_number?: string | null
+          restored_at?: string | null
           review_reason?: string | null
           review_status?: Database["public"]["Enums"]["doc_review_status"]
           reviewed_at?: string | null
@@ -511,8 +854,25 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string
           summary?: string | null
+          trashed_at?: string | null
+          trashed_by?: string | null
+          trashed_reason?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_copied_from_org_fkey"
+            columns: ["org_id", "copied_from_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "documents_current_version_org_fkey"
+            columns: ["org_id", "current_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "documents_matter_id_fkey"
             columns: ["matter_id"]
@@ -526,6 +886,204 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_assets: {
+        Row: {
+          availability: Database["public"]["Enums"]["file_asset_availability"]
+          bucket_id: string
+          byte_size: number | null
+          created_at: string
+          created_by: string | null
+          detected_mime_type: string | null
+          expired_at: string | null
+          failed_at: string | null
+          failure_code: string | null
+          id: string
+          object_key: string
+          org_id: string
+          sha256: string | null
+          validated_at: string | null
+        }
+        Insert: {
+          availability?: Database["public"]["Enums"]["file_asset_availability"]
+          bucket_id: string
+          byte_size?: number | null
+          created_at?: string
+          created_by?: string | null
+          detected_mime_type?: string | null
+          expired_at?: string | null
+          failed_at?: string | null
+          failure_code?: string | null
+          id?: string
+          object_key: string
+          org_id: string
+          sha256?: string | null
+          validated_at?: string | null
+        }
+        Update: {
+          availability?: Database["public"]["Enums"]["file_asset_availability"]
+          bucket_id?: string
+          byte_size?: number | null
+          created_at?: string
+          created_by?: string | null
+          detected_mime_type?: string | null
+          expired_at?: string | null
+          failed_at?: string | null
+          failure_code?: string | null
+          id?: string
+          object_key?: string
+          org_id?: string
+          sha256?: string | null
+          validated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_assets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intake_item_assignments: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          document_id: string
+          document_version_id: string | null
+          id: string
+          intake_item_id: string
+          org_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          document_id: string
+          document_version_id?: string | null
+          id?: string
+          intake_item_id: string
+          org_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          document_id?: string
+          document_version_id?: string | null
+          id?: string
+          intake_item_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_item_assignments_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_item_assignments_intake_org_fkey"
+            columns: ["org_id", "intake_item_id"]
+            isOneToOne: false
+            referencedRelation: "intake_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_item_assignments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_item_assignments_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      intake_items: {
+        Row: {
+          asset_id: string
+          assigned_at: string | null
+          created_at: string
+          discarded_at: string | null
+          expired_at: string | null
+          failed_at: string | null
+          failure_code: string | null
+          id: string
+          intended_matter_id: string | null
+          org_id: string
+          state: Database["public"]["Enums"]["intake_item_state"]
+          updated_at: string
+          upload_session_id: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          asset_id: string
+          assigned_at?: string | null
+          created_at?: string
+          discarded_at?: string | null
+          expired_at?: string | null
+          failed_at?: string | null
+          failure_code?: string | null
+          id?: string
+          intended_matter_id?: string | null
+          org_id: string
+          state?: Database["public"]["Enums"]["intake_item_state"]
+          updated_at?: string
+          upload_session_id?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          asset_id?: string
+          assigned_at?: string | null
+          created_at?: string
+          discarded_at?: string | null
+          expired_at?: string | null
+          failed_at?: string | null
+          failure_code?: string | null
+          id?: string
+          intended_matter_id?: string | null
+          org_id?: string
+          state?: Database["public"]["Enums"]["intake_item_state"]
+          updated_at?: string
+          upload_session_id?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_items_asset_org_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_items_matter_org_fkey"
+            columns: ["org_id", "intended_matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_items_session_org_fkey"
+            columns: ["org_id", "upload_session_id"]
+            isOneToOne: false
+            referencedRelation: "upload_sessions"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -664,7 +1222,7 @@ export type Database = {
           org_id: string
           role: Database["public"]["Enums"]["org_member_role"]
           status: Database["public"]["Enums"]["invite_status"]
-          token: string
+          token: string | null
         }
         Insert: {
           created_at?: string
@@ -675,7 +1233,7 @@ export type Database = {
           org_id: string
           role?: Database["public"]["Enums"]["org_member_role"]
           status?: Database["public"]["Enums"]["invite_status"]
-          token?: string
+          token?: string | null
         }
         Update: {
           created_at?: string
@@ -686,7 +1244,7 @@ export type Database = {
           org_id?: string
           role?: Database["public"]["Enums"]["org_member_role"]
           status?: Database["public"]["Enums"]["invite_status"]
-          token?: string
+          token?: string | null
         }
         Relationships: [
           {
@@ -727,26 +1285,535 @@ export type Database = {
           },
         ]
       }
+      organisation_invitation_accept_intents: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          invite_id: string
+          nonce_hash: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          invite_id: string
+          nonce_hash: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invite_id?: string
+          nonce_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_invitation_accept_intents_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisation_invitation_command_receipts: {
+        Row: {
+          actor_user_id: string
+          command_kind: string
+          created_at: string
+          idempotency_key: string
+          invite_id: string | null
+          result_code: string
+          result_org_id: string | null
+        }
+        Insert: {
+          actor_user_id: string
+          command_kind: string
+          created_at?: string
+          idempotency_key: string
+          invite_id?: string | null
+          result_code: string
+          result_org_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string
+          command_kind?: string
+          created_at?: string
+          idempotency_key?: string
+          invite_id?: string | null
+          result_code?: string
+          result_org_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_invitation_command_receipts_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisation_invitation_command_receipts_result_org_id_fkey"
+            columns: ["result_org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisation_invite_deliveries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_code: string | null
+          failed_at: string | null
+          id: string
+          idempotency_key: string
+          invite_id: string
+          provider_reference: string | null
+          scheduled_at: string
+          sent_at: string | null
+          state: string
+          token_version: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_code?: string | null
+          failed_at?: string | null
+          id?: string
+          idempotency_key?: string
+          invite_id: string
+          provider_reference?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          state?: string
+          token_version: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_code?: string | null
+          failed_at?: string | null
+          id?: string
+          idempotency_key?: string
+          invite_id?: string
+          provider_reference?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          state?: string
+          token_version?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_invite_deliveries_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisation_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_user_id: string | null
+          accepted_membership_id: string | null
+          correlation_id: string
+          created_at: string
+          expired_at: string | null
+          expires_at: string
+          id: string
+          idempotency_key: string
+          invited_by_membership_id: string | null
+          invited_by_user_id: string | null
+          lifecycle_actor_id: string | null
+          lifecycle_reason: string | null
+          normalized_email: string
+          org_id: string
+          rejected_at: string | null
+          revision: number
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["org_member_role"]
+          selector_hash: string | null
+          state: Database["public"]["Enums"]["organisation_invite_state"]
+          superseded_at: string | null
+          superseded_by_id: string | null
+          token_version: number
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          accepted_membership_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          expired_at?: string | null
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          invited_by_membership_id?: string | null
+          invited_by_user_id?: string | null
+          lifecycle_actor_id?: string | null
+          lifecycle_reason?: string | null
+          normalized_email: string
+          org_id: string
+          rejected_at?: string | null
+          revision?: number
+          revoked_at?: string | null
+          role: Database["public"]["Enums"]["org_member_role"]
+          selector_hash?: string | null
+          state?: Database["public"]["Enums"]["organisation_invite_state"]
+          superseded_at?: string | null
+          superseded_by_id?: string | null
+          token_version?: number
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          accepted_membership_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          expired_at?: string | null
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          invited_by_membership_id?: string | null
+          invited_by_user_id?: string | null
+          lifecycle_actor_id?: string | null
+          lifecycle_reason?: string | null
+          normalized_email?: string
+          org_id?: string
+          rejected_at?: string | null
+          revision?: number
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["org_member_role"]
+          selector_hash?: string | null
+          state?: Database["public"]["Enums"]["organisation_invite_state"]
+          superseded_at?: string | null
+          superseded_by_id?: string | null
+          token_version?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_invites_accepted_membership_id_fkey"
+            columns: ["accepted_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisation_invites_invited_by_membership_id_fkey"
+            columns: ["invited_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisation_invites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisation_invites_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisation_memberships: {
+        Row: {
+          created_at: string
+          generation: number
+          id: string
+          invited_through_id: string | null
+          joined_at: string
+          joined_by: string | null
+          org_id: string
+          removal_reason: string | null
+          removed_at: string | null
+          removed_by: string | null
+          revision: number
+          role: Database["public"]["Enums"]["org_member_role"]
+          state: Database["public"]["Enums"]["organisation_membership_state"]
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation: number
+          id?: string
+          invited_through_id?: string | null
+          joined_at?: string
+          joined_by?: string | null
+          org_id: string
+          removal_reason?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
+          revision?: number
+          role?: Database["public"]["Enums"]["org_member_role"]
+          state?: Database["public"]["Enums"]["organisation_membership_state"]
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generation?: number
+          id?: string
+          invited_through_id?: string | null
+          joined_at?: string
+          joined_by?: string | null
+          org_id?: string
+          removal_reason?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
+          revision?: number
+          role?: Database["public"]["Enums"]["org_member_role"]
+          state?: Database["public"]["Enums"]["organisation_membership_state"]
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisation_storage_policies: {
+        Row: {
+          created_at: string
+          max_pdf_bytes: number
+          org_id: string
+          unique_asset_entitlement_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          max_pdf_bytes?: number
+          org_id: string
+          unique_asset_entitlement_bytes?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          max_pdf_bytes?: number
+          org_id?: string
+          unique_asset_entitlement_bytes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_storage_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisations: {
         Row: {
           created_at: string
           created_by: string
           id: string
           name: string
+          owner_membership_id: string | null
+          revision: number
+          updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
           id?: string
           name: string
+          owner_membership_id?: string | null
+          revision?: number
+          updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
           id?: string
           name?: string
+          owner_membership_id?: string | null
+          revision?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisations_owner_membership_id_fkey"
+            columns: ["owner_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbox_events: {
+        Row: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count: number
+          created_at: string
+          delivered_at: string | null
+          delivery_state: Database["public"]["Enums"]["outbox_delivery_state"]
+          event_kind: string
+          failed_at: string | null
+          id: string
+          idempotency_key: string
+          last_error_code: string | null
+          lease_expires_at: string | null
+          org_id: string
+          payload: Json
+          updated_at: string
+        }
+        Insert: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: Database["public"]["Enums"]["outbox_delivery_state"]
+          event_kind: string
+          failed_at?: string | null
+          id?: string
+          idempotency_key: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          org_id: string
+          payload?: Json
+          updated_at?: string
+        }
+        Update: {
+          aggregate_id?: string
+          aggregate_type?: string
+          attempt_count?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: Database["public"]["Enums"]["outbox_delivery_state"]
+          event_kind?: string
+          failed_at?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          org_id?: string
+          payload?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbox_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_storage_policy: {
+        Row: {
+          created_at: string
+          singleton: boolean
+          unique_asset_guard_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          singleton?: boolean
+          unique_asset_guard_bytes?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          singleton?: boolean
+          unique_asset_guard_bytes?: number
+          updated_at?: string
         }
         Relationships: []
+      }
+      source_analysis_runs: {
+        Row: {
+          asset_id: string
+          completed_at: string | null
+          created_at: string
+          failed_at: string | null
+          id: string
+          org_id: string
+          page_content_version: number
+          request_key: string
+          safe_error_code: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["source_analysis_run_state"]
+        }
+        Insert: {
+          asset_id: string
+          completed_at?: string | null
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          org_id: string
+          page_content_version?: number
+          request_key: string
+          safe_error_code?: string | null
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["source_analysis_run_state"]
+        }
+        Update: {
+          asset_id?: string
+          completed_at?: string | null
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          org_id?: string
+          page_content_version?: number
+          request_key?: string
+          safe_error_code?: string | null
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["source_analysis_run_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_analysis_runs_asset_org_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "source_analysis_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staged_documents: {
         Row: {
@@ -831,6 +1898,60 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "matters"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      storage_reservations: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expired_at: string | null
+          expires_at: string
+          id: string
+          org_id: string
+          released_at: string | null
+          reserved_bytes: number
+          state: Database["public"]["Enums"]["storage_reservation_state"]
+          upload_session_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expired_at?: string | null
+          expires_at?: string
+          id?: string
+          org_id: string
+          released_at?: string | null
+          reserved_bytes: number
+          state?: Database["public"]["Enums"]["storage_reservation_state"]
+          upload_session_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expired_at?: string | null
+          expires_at?: string
+          id?: string
+          org_id?: string
+          released_at?: string | null
+          reserved_bytes?: number
+          state?: Database["public"]["Enums"]["storage_reservation_state"]
+          upload_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storage_reservations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storage_reservations_session_org_fkey"
+            columns: ["org_id", "upload_session_id"]
+            isOneToOne: false
+            referencedRelation: "upload_sessions"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -945,6 +2066,78 @@ export type Database = {
           },
         ]
       }
+      upload_sessions: {
+        Row: {
+          asset_id: string
+          created_at: string
+          created_by: string | null
+          declared_byte_size: number
+          declared_filename: string
+          declared_mime_type: string | null
+          expired_at: string | null
+          expires_at: string
+          failed_at: string | null
+          failure_code: string | null
+          finalized_at: string | null
+          id: string
+          idempotency_key: string | null
+          org_id: string
+          state: Database["public"]["Enums"]["upload_session_state"]
+          uploaded_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          created_by?: string | null
+          declared_byte_size: number
+          declared_filename: string
+          declared_mime_type?: string | null
+          expired_at?: string | null
+          expires_at?: string
+          failed_at?: string | null
+          failure_code?: string | null
+          finalized_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          org_id: string
+          state?: Database["public"]["Enums"]["upload_session_state"]
+          uploaded_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          created_by?: string | null
+          declared_byte_size?: number
+          declared_filename?: string
+          declared_mime_type?: string | null
+          expired_at?: string | null
+          expires_at?: string
+          failed_at?: string | null
+          failure_code?: string | null
+          finalized_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          org_id?: string
+          state?: Database["public"]["Enums"]["upload_session_state"]
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_sessions_asset_org_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "upload_sessions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_notification_prefs: {
         Row: {
           email_on_deadline: boolean
@@ -982,6 +2175,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          locale: string
+          professional_title: string | null
+          revision: number
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          locale?: string
+          professional_title?: string | null
+          revision?: number
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          locale?: string
+          professional_title?: string | null
+          revision?: number
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       wiki_section_versions: {
         Row: {
@@ -1061,9 +2287,114 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      document_lifecycle_foundation_diagnostics: {
+        Row: {
+          document_id: string | null
+          issue: string | null
+          org_id: string | null
+        }
+        Relationships: []
+      }
+      document_upload_command_diagnostics: {
+        Row: {
+          issue: string | null
+          org_id: string | null
+          upload_session_id: string | null
+        }
+        Relationships: []
+      }
+      organisation_identity_cutover_diagnostics: {
+        Row: {
+          detail: Json | null
+          issue_code: string | null
+          membership_id: string | null
+          org_id: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      organisation_invitation_cutover_diagnostics: {
+        Row: {
+          id: string | null
+          issue_code: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      accept_organisation_invite: {
+        Args: {
+          p_idempotency_key?: string
+          p_invite_id?: string
+          p_nonce_hash?: string
+          p_selector_hash?: string
+        }
+        Returns: {
+          code: string
+          org_id: string
+        }[]
+      }
+      begin_organisation_invitation_accept_intent: {
+        Args: { p_nonce_hash: string; p_selector_hash: string }
+        Returns: {
+          code: string
+        }[]
+      }
+      complete_document_upload: {
+        Args: {
+          p_detected_mime: string
+          p_idempotency: string
+          p_observed_bytes: number
+          p_session: string
+          p_sha256: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          duplicate_asset_id: string
+          intake_item_id: string
+          upload_session_id: string
+        }[]
+      }
+      create_organisation_invite: {
+        Args: {
+          p_email: string
+          p_idempotency_key: string
+          p_role: Database["public"]["Enums"]["org_member_role"]
+          p_selector_hash: string
+        }
+        Returns: {
+          code: string
+          invite_id: string
+          inviter_name: string
+          org_name: string
+          retry_after: string
+          token_version: number
+        }[]
+      }
+      document_lifecycle_payload_is_safe: {
+        Args: { payload: Json }
+        Returns: boolean
+      }
+      document_upload_safe_event: {
+        Args: {
+          p_aggregate: string
+          p_key: string
+          p_kind: string
+          p_org: string
+          p_payload: Json
+        }
+        Returns: undefined
+      }
+      fail_document_upload: {
+        Args: { p_error_code: string; p_idempotency: string; p_session: string }
+        Returns: {
+          asset_id: string
+          code: string
+          intake_item_id: string
+          upload_session_id: string
+        }[]
+      }
       fuzzy_match_reference: {
         Args: { p_matter_id: string; p_reference_number: string }
         Returns: {
@@ -1073,9 +2404,96 @@ export type Database = {
           sim_score: number
         }[]
       }
+      get_my_organisation_context: {
+        Args: never
+        Returns: {
+          capabilities: string[]
+          capability_version: number
+          is_owner: boolean
+          membership_id: string
+          org_id: string
+          revision: number
+          role: Database["public"]["Enums"]["org_member_role"]
+          state: Database["public"]["Enums"]["organisation_membership_state"]
+        }[]
+      }
+      get_my_pending_organisation_invites: {
+        Args: never
+        Returns: {
+          id: string
+          org_name: string
+          revision: number
+          role: Database["public"]["Enums"]["org_member_role"]
+        }[]
+      }
+      get_my_team_members: {
+        Args: never
+        Returns: {
+          authorised_email: string
+          capabilities: string[]
+          display_name: string
+          is_owner: boolean
+          joined_at: string
+          membership_id: string
+          professional_title: string
+          revision: number
+          role: Database["public"]["Enums"]["org_member_role"]
+          state: Database["public"]["Enums"]["organisation_membership_state"]
+        }[]
+      }
+      get_organisation_invites: {
+        Args: never
+        Returns: {
+          authorized_email: string
+          created_at: string
+          expires_at: string
+          id: string
+          revision: number
+          role: Database["public"]["Enums"]["org_member_role"]
+          state: Database["public"]["Enums"]["organisation_invite_state"]
+        }[]
+      }
+      has_organisation_capability: {
+        Args: { check_org_id: string; requested_capability: string }
+        Returns: boolean
+      }
+      has_team_capability: {
+        Args: { check_org_id: string; requested_capability: string }
+        Returns: boolean
+      }
+      invitation_actor: {
+        Args: { org: string }
+        Returns: {
+          is_owner: boolean
+          membership_id: string
+        }[]
+      }
+      invitation_event: {
+        Args: {
+          p_actor: string
+          p_correlation: string
+          p_idempotency: string
+          p_kind: string
+          p_org: string
+          p_reason: string
+          p_target: string
+        }
+        Returns: boolean
+      }
+      is_active_org_member: { Args: { check_org_id: string }; Returns: boolean }
       is_email_in_any_org: { Args: { search_email: string }; Returns: boolean }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      maintain_document_upload_sessions: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          expired_assets: number
+          expired_intakes: number
+          expired_reservations: number
+          expired_sessions: number
+        }[]
+      }
+      maintain_organisation_invitations: { Args: never; Returns: undefined }
       match_all_documents: {
         Args: {
           match_count: number
@@ -1142,8 +2560,66 @@ export type Database = {
           sim_score: number
         }[]
       }
+      record_organisation_invite_delivery: {
+        Args: {
+          p_error_code?: string
+          p_invite_id: string
+          p_provider_reference?: string
+          p_state: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      resend_organisation_invite: {
+        Args: {
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_invite_id: string
+          p_selector_hash: string
+        }
+        Returns: {
+          code: string
+          invite_id: string
+          inviter_name: string
+          org_name: string
+          retry_after: string
+          token_version: number
+        }[]
+      }
+      reserve_document_upload: {
+        Args: {
+          p_declared_bytes: number
+          p_filename: string
+          p_idempotency: string
+          p_intended_matter: string
+          p_mime: string
+        }
+        Returns: {
+          asset_id: string
+          bucket_id: string
+          code: string
+          expires_at: string
+          intake_item_id: string
+          object_key: string
+          retry_after: string
+          upload_session_id: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      transition_organisation_invite: {
+        Args: {
+          p_action: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_invite_id: string
+          p_reason?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
     }
     Enums: {
       deadline_type:
@@ -1163,6 +2639,42 @@ export type Database = {
         | "pending_placement"
         | "failed"
         | "needs_review"
+      document_content_availability:
+        | "metadata_only"
+        | "source_attached"
+        | "source_indexed"
+        | "source_unreadable"
+      document_origin_kind:
+        | "upload"
+        | "spreadsheet_import"
+        | "manual_record"
+        | "email_intake"
+        | "api_intake"
+        | "legacy_migration"
+      document_processing_scope:
+        | "validate"
+        | "extract"
+        | "ocr"
+        | "relationships"
+        | "search_index"
+        | "full"
+      document_processing_stage:
+        | "queued"
+        | "validating"
+        | "extracting"
+        | "matching"
+        | "ready"
+        | "review"
+        | "failed"
+      document_processing_state:
+        | "queued"
+        | "running"
+        | "completed"
+        | "failed"
+        | "cancelled"
+      document_record_state: "active" | "trashed"
+      document_version_state: "pending" | "current" | "superseded" | "failed"
+      document_version_validation_state: "pending" | "valid" | "invalid"
       entity_type:
         | "document"
         | "matter"
@@ -1175,6 +2687,25 @@ export type Database = {
         | "user"
         | "staged_document"
         | "supporting_document"
+      file_asset_availability:
+        | "reserved"
+        | "uploaded"
+        | "validating"
+        | "available"
+        | "quarantined"
+        | "failed"
+        | "expired"
+      intake_item_state:
+        | "awaiting_upload"
+        | "uploaded"
+        | "validating"
+        | "processing"
+        | "ready"
+        | "assigned"
+        | "duplicate"
+        | "failed"
+        | "discarded"
+        | "expired"
       invite_status: "pending" | "accepted" | "rejected" | "expired"
       link_status: "confirmed" | "pending" | "rejected"
       link_type:
@@ -1211,19 +2742,43 @@ export type Database = {
         | "staged_doc_ready"
         | "wiki_ai_suggestion"
       org_member_role: "admin" | "associate" | "viewer"
+      organisation_invite_state:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "expired"
+        | "revoked"
+        | "superseded"
+      organisation_membership_state: "active" | "suspended" | "removed"
+      outbox_delivery_state:
+        | "pending"
+        | "leased"
+        | "delivered"
+        | "failed"
+        | "dead_letter"
+      source_analysis_run_state: "queued" | "running" | "succeeded" | "failed"
       staged_status:
         | "pending_assignment"
         | "analyzing"
         | "ready_to_assign"
         | "manually_assigned"
-        | "auto_assigned"
         | "failed"
+        | "auto_assigned"
+      storage_reservation_state: "active" | "consumed" | "released" | "expired"
       supporting_doc_category:
         | "invoices"
         | "bank_statements"
         | "contracts"
         | "correspondence"
         | "others"
+      upload_session_state:
+        | "reserved"
+        | "uploading"
+        | "uploaded"
+        | "finalized"
+        | "failed"
+        | "expired"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1373,6 +2928,47 @@ export const Constants = {
         "failed",
         "needs_review",
       ],
+      document_content_availability: [
+        "metadata_only",
+        "source_attached",
+        "source_indexed",
+        "source_unreadable",
+      ],
+      document_origin_kind: [
+        "upload",
+        "spreadsheet_import",
+        "manual_record",
+        "email_intake",
+        "api_intake",
+        "legacy_migration",
+      ],
+      document_processing_scope: [
+        "validate",
+        "extract",
+        "ocr",
+        "relationships",
+        "search_index",
+        "full",
+      ],
+      document_processing_stage: [
+        "queued",
+        "validating",
+        "extracting",
+        "matching",
+        "ready",
+        "review",
+        "failed",
+      ],
+      document_processing_state: [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      document_record_state: ["active", "trashed"],
+      document_version_state: ["pending", "current", "superseded", "failed"],
+      document_version_validation_state: ["pending", "valid", "invalid"],
       entity_type: [
         "document",
         "matter",
@@ -1385,6 +2981,27 @@ export const Constants = {
         "user",
         "staged_document",
         "supporting_document",
+      ],
+      file_asset_availability: [
+        "reserved",
+        "uploaded",
+        "validating",
+        "available",
+        "quarantined",
+        "failed",
+        "expired",
+      ],
+      intake_item_state: [
+        "awaiting_upload",
+        "uploaded",
+        "validating",
+        "processing",
+        "ready",
+        "assigned",
+        "duplicate",
+        "failed",
+        "discarded",
+        "expired",
       ],
       invite_status: ["pending", "accepted", "rejected", "expired"],
       link_status: ["confirmed", "pending", "rejected"],
@@ -1426,20 +3043,47 @@ export const Constants = {
         "wiki_ai_suggestion",
       ],
       org_member_role: ["admin", "associate", "viewer"],
+      organisation_invite_state: [
+        "pending",
+        "accepted",
+        "rejected",
+        "expired",
+        "revoked",
+        "superseded",
+      ],
+      organisation_membership_state: ["active", "suspended", "removed"],
+      outbox_delivery_state: [
+        "pending",
+        "leased",
+        "delivered",
+        "failed",
+        "dead_letter",
+      ],
+      source_analysis_run_state: ["queued", "running", "succeeded", "failed"],
       staged_status: [
         "pending_assignment",
         "analyzing",
         "ready_to_assign",
         "manually_assigned",
-        "auto_assigned",
         "failed",
+        "auto_assigned",
       ],
+      storage_reservation_state: ["active", "consumed", "released", "expired"],
       supporting_doc_category: [
         "invoices",
         "bank_statements",
         "contracts",
         "correspondence",
         "others",
+      ],
+      upload_session_state: [
+        "reserved",
+        "uploading",
+        "uploaded",
+        "finalized",
+        "failed",
+        "expired",
+        "cancelled",
       ],
     },
   },

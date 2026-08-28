@@ -242,9 +242,13 @@ END $$;
 CREATE OR REPLACE FUNCTION public.document_lifecycle_related_identity_immutable()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
- IF TG_TABLE_NAME = 'source_analysis_runs' AND (NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.asset_id IS DISTINCT FROM OLD.asset_id OR NEW.request_key IS DISTINCT FROM OLD.request_key OR NEW.page_content_version IS DISTINCT FROM OLD.page_content_version OR NEW.created_at IS DISTINCT FROM OLD.created_at) THEN RAISE EXCEPTION 'source analysis identity is immutable'; END IF;
- IF TG_TABLE_NAME = 'document_version_analysis_bindings' AND (NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.document_version_id IS DISTINCT FROM OLD.document_version_id OR NEW.source_analysis_run_id IS DISTINCT FROM OLD.source_analysis_run_id OR NEW.binding_reason IS DISTINCT FROM OLD.binding_reason OR NEW.created_at IS DISTINCT FROM OLD.created_at) THEN RAISE EXCEPTION 'analysis binding identity is immutable'; END IF;
- IF TG_TABLE_NAME = 'storage_reservations' AND (NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.upload_session_id IS DISTINCT FROM OLD.upload_session_id OR NEW.reserved_bytes IS DISTINCT FROM OLD.reserved_bytes OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.expires_at IS DISTINCT FROM OLD.expires_at) THEN RAISE EXCEPTION 'storage reservation identity is immutable'; END IF;
+ IF TG_TABLE_NAME = 'source_analysis_runs' THEN
+   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.asset_id IS DISTINCT FROM OLD.asset_id OR NEW.request_key IS DISTINCT FROM OLD.request_key OR NEW.page_content_version IS DISTINCT FROM OLD.page_content_version OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN RAISE EXCEPTION 'source analysis identity is immutable'; END IF;
+ ELSIF TG_TABLE_NAME = 'document_version_analysis_bindings' THEN
+   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.document_version_id IS DISTINCT FROM OLD.document_version_id OR NEW.source_analysis_run_id IS DISTINCT FROM OLD.source_analysis_run_id OR NEW.binding_reason IS DISTINCT FROM OLD.binding_reason OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN RAISE EXCEPTION 'analysis binding identity is immutable'; END IF;
+ ELSIF TG_TABLE_NAME = 'storage_reservations' THEN
+   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.upload_session_id IS DISTINCT FROM OLD.upload_session_id OR NEW.reserved_bytes IS DISTINCT FROM OLD.reserved_bytes OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.expires_at IS DISTINCT FROM OLD.expires_at THEN RAISE EXCEPTION 'storage reservation identity is immutable'; END IF;
+ END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER file_assets_immutable BEFORE UPDATE ON public.file_assets FOR EACH ROW EXECUTE FUNCTION public.document_lifecycle_asset_immutable();

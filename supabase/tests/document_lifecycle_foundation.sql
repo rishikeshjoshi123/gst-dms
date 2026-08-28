@@ -54,6 +54,10 @@ BEGIN
 
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_byte_size,state,uploaded_at) VALUES(session_a,org_a,asset_a,'a.pdf',100,'uploaded',now());
   INSERT INTO public.storage_reservations(org_id,upload_session_id,reserved_bytes) VALUES(org_a,session_a,100);
+  -- The shared related-identity trigger must allow each table's ordinary
+  -- lifecycle/audit transition while retaining its own row shape.
+  UPDATE public.storage_reservations SET state='released',released_at=now() WHERE upload_session_id=session_a;
+  IF (SELECT state FROM public.storage_reservations WHERE upload_session_id=session_a)<>'released' THEN RAISE EXCEPTION 'reservation transition blocked'; END IF;
   failed := false; BEGIN INSERT INTO public.upload_sessions(org_id,asset_id,declared_filename,declared_byte_size,expires_at) VALUES(org_a,asset_a,'too-long.pdf',100,now()+interval '25 hours'); EXCEPTION WHEN check_violation THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'session expiry boundary allowed'; END IF;
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_byte_size) VALUES('35700000-0000-0000-0000-000000000002',org_a,asset_a,'reservation.pdf',100);
   failed := false; BEGIN INSERT INTO public.storage_reservations(org_id,upload_session_id,reserved_bytes,expires_at) VALUES(org_a,'35700000-0000-0000-0000-000000000002',100,now()+interval '25 hours'); EXCEPTION WHEN check_violation THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'reservation expiry boundary allowed'; END IF;
@@ -62,7 +66,12 @@ BEGIN
   failed := false; BEGIN INSERT INTO public.intake_items(org_id,asset_id,intended_matter_id) VALUES(org_a,asset_a,matter_b); EXCEPTION WHEN foreign_key_violation THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'cross-org intended matter allowed'; END IF;
   INSERT INTO public.source_analysis_runs(id,org_id,asset_id,request_key,state,started_at,completed_at) VALUES(run_a,org_a,asset_a,'analysis-a','succeeded',now(),now());
   INSERT INTO public.document_version_analysis_bindings(org_id,document_version_id,source_analysis_run_id,binding_reason) VALUES(org_a,version_a,run_a,'assignment');
+  UPDATE public.document_version_analysis_bindings SET created_by=user_a WHERE document_version_id=version_a AND source_analysis_run_id=run_a;
+  IF (SELECT created_by FROM public.document_version_analysis_bindings WHERE document_version_id=version_a AND source_analysis_run_id=run_a)<>user_a THEN RAISE EXCEPTION 'binding audit transition blocked'; END IF;
   INSERT INTO public.source_analysis_runs(org_id,asset_id,request_key) VALUES(org_a,asset_b,'analysis-b');
+  UPDATE public.source_analysis_runs SET state='running',started_at=now() WHERE request_key='analysis-b';
+  UPDATE public.source_analysis_runs SET state='succeeded',completed_at=now() WHERE request_key='analysis-b';
+  IF (SELECT state FROM public.source_analysis_runs WHERE request_key='analysis-b')<>'succeeded' THEN RAISE EXCEPTION 'analysis transition blocked'; END IF;
   failed := false; BEGIN INSERT INTO public.document_version_analysis_bindings(org_id,document_version_id,source_analysis_run_id,binding_reason) SELECT org_a,version_a,id,'wrong asset' FROM public.source_analysis_runs WHERE request_key='analysis-b'; EXCEPTION WHEN raise_exception THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'cross-asset binding allowed'; END IF;
   INSERT INTO public.document_processing_runs(org_id,document_id,document_version_id,source_analysis_run_id,scope,idempotency_key) VALUES(org_a,doc_a,version_a,run_a,'extract','processing-a');
   failed := false; BEGIN INSERT INTO public.document_processing_runs(org_id,document_id,document_version_id,scope,idempotency_key) VALUES(org_a,doc_b,version_a,'extract','processing-b'); EXCEPTION WHEN raise_exception OR foreign_key_violation THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'processing lineage allowed'; END IF;
