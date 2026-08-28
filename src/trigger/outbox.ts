@@ -1,6 +1,7 @@
 import { schedules, task } from '@trigger.dev/sdk'
 import { createSupabaseOutboxTransport } from '@/lib/outbox/supabase-transport'
 import { dispatchLeasedEvents, type DocumentLifecycleEnvelope } from '@/lib/outbox/dispatcher'
+import type { DocumentOutboxWakePayload } from '@/lib/outbox/wake'
 import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orchestration'
 import { validatePdfBytes } from '@/lib/documents/validation'
 
@@ -19,6 +20,12 @@ const rpc = async (client: RpcClient, name: string, args: Record<string, unknown
   return (result.data as Array<Record<string, unknown>> | null)?.[0] ?? null
 }
 
+function isExplicitStorageNotFound(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { status?: unknown; statusCode?: unknown; code?: unknown }
+  return String(candidate.status) === '404' || String(candidate.statusCode) === '404' || candidate.code === '404'
+}
+
 export const documentLifecycleEvent = task({
   id: 'document-lifecycle-event',
   retry: { maxAttempts: 5 },
@@ -33,7 +40,12 @@ export const documentLifecycleEvent = task({
         expectedBytes: Number(claim.expected_bytes),
         download: async () => {
           const file = await client.storage.from(String(claim.bucket_id)).download(String(claim.object_key))
-          return file.data ? new Uint8Array(await file.data.arrayBuffer()) : null
+          if (file.error) {
+            if (isExplicitStorageNotFound(file.error)) return null
+            throw new Error('Document validation storage is temporarily unavailable')
+          }
+          if (!file.data) throw new Error('Document validation storage response was empty')
+          return new Uint8Array(await file.data.arrayBuffer())
         },
         finish: (outcome, pageCount) => rpc(client, 'finish_document_validation_work', { p_source_run_id: claim.source_run_id, p_lease_token: claim.lease_token, p_outcome: outcome, p_page_count: pageCount }),
       }, validatePdfBytes)
@@ -49,12 +61,17 @@ export const documentLifecycleEvent = task({
       return { accepted: true, routed: 'intended-assignment', outcome: String(assignment?.code ?? 'no_work') }
     }
     if (payload.eventKind === 'document.processing_requested.v1') {
-      const claim = await rpc(client, 'claim_document_processing_work', { p_event_id: payload.eventId, p_trigger_run_id: ctx.run.id })
+      const claim = await rpc(client, 'claim_document_processing_work_for_dispatch', {
+        p_event_id: payload.eventId,
+        p_trigger_run_id: ctx.run.id,
+        p_expected_org_id: payload.orgId,
+      })
       if (!claim || claim.code !== 'claimed') return { accepted: true, routed: 'processing', outcome: String(claim?.code ?? 'no_work') }
       let outcome: ReturnType<typeof safeProcessingOutcome> = 'failed'
       try {
         const { processDocument } = await import('./jobs')
-        const child = await processDocument.triggerAndWait({ docId: String(claim.document_id), matterId: String(claim.matter_id), orgId: payload.orgId, storagePath: String(claim.object_key), uploadedBy: String(claim.actor_id) }, { idempotencyKey: `document-processing:${payload.eventId}:${claim.document_version_id}`, concurrencyKey: payload.orgId })
+        const claimOrgId = String(claim.org_id)
+        const child = await processDocument.triggerAndWait({ docId: String(claim.document_id), matterId: String(claim.matter_id), orgId: claimOrgId, storagePath: String(claim.object_key), uploadedBy: String(claim.actor_id) }, { idempotencyKey: `document-processing:${payload.eventId}:${claim.document_version_id}`, concurrencyKey: claimOrgId })
         outcome = child.ok ? safeProcessingOutcome(child.output?.status) : 'failed'
       } catch {
         outcome = 'failed'
@@ -66,13 +83,29 @@ export const documentLifecycleEvent = task({
   },
 })
 
-export const dispatchDocumentOutbox = schedules.task({
+const drainDocumentOutbox = () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
+  trigger: (envelope, options) => documentLifecycleEvent.trigger(envelope, options),
+}, { maxBatches: 4 })
+
+// All immediate and scheduled wakes enter this one bounded dispatcher. The
+// task payload is intentionally empty: it must lease the authoritative,
+// content-free envelopes from the database rather than trust a caller.
+export const documentOutboxDispatcher = task({
   id: 'dispatch-document-outbox',
-  cron: { pattern: '* * * * *', timezone: 'UTC' },
+  retry: { maxAttempts: 1 },
   queue: { concurrencyLimit: 1 },
-  run: async () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
-    trigger: (envelope, options) => documentLifecycleEvent.trigger(envelope, options),
-  }, { maxBatches: 4 }),
+  run: async (payload: DocumentOutboxWakePayload) => {
+    void payload
+    return drainDocumentOutbox()
+  },
+})
+
+// Recovery never dispatches events itself. It submits the same singleton task
+// as an immediate wake, so queue concurrency protects both paths together.
+export const recoverDocumentOutbox = schedules.task({
+  id: 'recover-document-outbox',
+  cron: { pattern: '* * * * *', timezone: 'UTC' },
+  run: async () => documentOutboxDispatcher.trigger({}),
 })
 
 // A successful gateway delivery only proves Trigger accepted the event. This

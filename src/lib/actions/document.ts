@@ -3,10 +3,9 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
-import { after } from 'next/server'
 import type { Database } from '@/lib/supabase/database.types'
-import { tasks } from '@trigger.dev/sdk/v3'
 import { appendActivity } from '@/lib/activity'
+import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import {
   observeStoredPdf,
   ownsTerminalUploadCleanup,
@@ -14,38 +13,6 @@ import {
   uploadFailureResult,
   uploadIdempotencyKey,
 } from '@/lib/document-upload'
-
-async function enqueueDocumentProcessing(
-  document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
-  options: { reprocessMode?: 'metadata_only' | 'full'; skipDuplicateCheck?: boolean } = {},
-) {
-  // The document row is already durable. Trigger the long-running job only
-  // after this Server Action responds, so an intermittent task gateway never
-  // blocks the caller's UI from returning to the matter timeline.
-  after(async () => {
-    try {
-      await tasks.trigger('process-document', {
-        docId: document.id,
-        matterId: document.matterId,
-        orgId: document.orgId,
-        storagePath: document.storagePath,
-        uploadedBy: document.uploadedBy,
-        reprocessMode: options.reprocessMode ?? 'full',
-        skipDuplicateCheck: options.skipDuplicateCheck ?? false,
-      })
-    } catch (error) {
-      console.error('Failed to queue document processing:', error)
-      const serviceClient = createServiceClient()
-      await serviceClient
-        .from('documents')
-        .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
-        .eq('id', document.id)
-        .eq('org_id', document.orgId)
-    }
-  })
-
-  return { success: true as const }
-}
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -320,7 +287,9 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   }
 
   // complete_document_upload writes the validation event in the same database
-  // transaction. The outbox dispatcher, rather than this request, starts work.
+  // transaction. The fixed singleton wake is only a latency hint: the outbox
+  // and scheduled recovery remain the authority if the gateway is unavailable.
+  scheduleDocumentOutboxWake()
   revalidatePath('/inbox')
   if (intendedMatterId) revalidatePath(`/matters/${intendedMatterId}`)
   return { success: true, intakeId: completion.intake_item_id }
@@ -376,8 +345,6 @@ export async function reassignDocumentMatter(
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
-  let documentToProcess: { id: string; matterId: string; storagePath: string } | null = null
-
   if (mode === 'copy') {
     if (!doc.storage_path) {
       return { error: 'This document has no file attached, so it cannot be copied yet.' }
@@ -405,7 +372,9 @@ export async function reassignDocumentMatter(
         org_id: orgId,
         matter_id: newMatterId,
         storage_path: copiedStoragePath,
-        status: 'processing', // re-queue for chaining
+        // Legacy copies cannot manufacture a privileged processing request.
+        // Canonical attach/replacement commands write their own outbox event.
+        status: 'analyzed',
         review_status: 'unreviewed',
         source: 'inbox',
         created_by: user.id,
@@ -427,8 +396,6 @@ export async function reassignDocumentMatter(
       console.error('Copy document error:', insertError)
       return { error: insertError?.message ?? 'Failed to copy document' }
     }
-    documentToProcess = { id: newDoc.id, matterId: newMatterId, storagePath: copiedStoragePath }
-
     // Log reversible activity
     await appendActivity({
         org_id: orgId,
@@ -452,12 +419,7 @@ export async function reassignDocumentMatter(
 
     // 2. Reassign document
     const moveUpdate = doc.storage_path
-      ? {
-          matter_id: newMatterId,
-          status: 'processing' as const,
-          review_reason: null,
-          source: 'inbox',
-        }
+      ? { matter_id: newMatterId, source: 'inbox' }
       : { matter_id: newMatterId }
 
     const { error: updateError } = await supabase
@@ -469,10 +431,6 @@ export async function reassignDocumentMatter(
       console.error('Reassign document error:', updateError)
       return { error: updateError.message }
     }
-    if (doc.storage_path) {
-      documentToProcess = { id: documentId, matterId: newMatterId, storagePath: doc.storage_path }
-    }
-
     // 3. Update any deadlines tied to this document
     await supabase
       .from('deadlines')
@@ -492,18 +450,6 @@ export async function reassignDocumentMatter(
         new_matter_id: newMatterId,
       },
     })
-  }
-
-  if (documentToProcess) {
-    const queued = await enqueueDocumentProcessing({
-      id: documentToProcess.id,
-      matterId: documentToProcess.matterId,
-      orgId,
-      storagePath: documentToProcess.storagePath,
-      uploadedBy: user.id,
-      // Metadata already exists, so this re-runs placement without paying for AI again.
-    }, { skipDuplicateCheck: true })
-    if ('error' in queued) return queued
   }
 
   revalidatePath(`/matters/${oldMatterId}`)
@@ -565,15 +511,10 @@ export async function setDocumentClass(
       .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
   }
 
-  const nextStatus = doc.storage_path
-    ? (newClass === 'proceeding' ? 'processing' : 'analyzed')
-    : doc.status
-
   const { error } = await supabase
     .from('documents')
     .update({
       document_class: newClass,
-      status: nextStatus,
     })
     .eq('id', documentId)
     .eq('org_id', orgId)
@@ -581,17 +522,6 @@ export async function setDocumentClass(
   if (error) {
     console.error('Set document class error:', error)
     return { error: error.message }
-  }
-
-  if (newClass === 'proceeding' && doc.storage_path) {
-    const queued = await enqueueDocumentProcessing({
-      id: documentId,
-      matterId: doc.matter_id,
-      orgId,
-      storagePath: doc.storage_path,
-      uploadedBy: doc.created_by ?? '',
-    }, { skipDuplicateCheck: true })
-    if ('error' in queued) return queued
   }
 
   revalidatePath(`/matters/${doc.matter_id}`)

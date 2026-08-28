@@ -1,4 +1,4 @@
--- Run after migration 00051 against a disposable local Supabase database.
+-- Run after migration 00052 against a disposable local Supabase database.
 BEGIN;
 
 DO $fixture$
@@ -279,6 +279,27 @@ BEGIN
     RAISE EXCEPTION 'delivery authority grant surface is too broad';
   END IF;
 END $safety_surface$;
+
+-- A server wake is deliberately outside the database transaction. Once a
+-- canonical writer has committed a safe outbox event, a later gateway failure
+-- cannot remove, mutate, or mark that durable work as delivery-complete.
+DO $post_commit_wake_durability$
+DECLARE event_id uuid := '51200000-0000-0000-0000-000000000001';
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.outbox_events
+    WHERE id=event_id
+      AND delivery_state IN ('pending','leased','delivered','dead_letter')
+      AND public.document_lifecycle_outbox_envelope_is_safe(
+        event_kind, aggregate_type, aggregate_id, payload
+      )
+  ) THEN
+    RAISE EXCEPTION 'durable safe outbox work was not retained independently of an immediate wake';
+  END IF;
+  IF (SELECT trigger_run_id FROM public.outbox_events WHERE id=event_id) IS NOT NULL THEN
+    RAISE EXCEPTION 'a post-commit wake was incorrectly recorded as event delivery';
+  END IF;
+END $post_commit_wake_durability$;
 
 SET LOCAL ROLE service_role;
 DO $diagnostics$

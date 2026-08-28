@@ -3,8 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
-import { after } from 'next/server'
-import { tasks } from '@trigger.dev/sdk/v3'
+import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
 import { uploadToDocumentIntake } from './document'
 import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
@@ -265,7 +264,10 @@ export async function assignStagedDocument(
       matter_id: matterId,
       org_id: orgId,
       storage_path: newPath, // Correct path in documents bucket
-      status: 'processing',
+      // This legacy compatibility path has no canonical lifecycle command to
+      // create a processing event. Keep it reviewable instead of bypassing
+      // the outbox with a caller-shaped Trigger payload.
+      status: 'needs_review',
       source: 'inbox',
       created_by: user.id,
       document_class: documentClass,
@@ -290,29 +292,7 @@ export async function assignStagedDocument(
     return { error: docError?.message ?? 'Failed to create document record.' }
   }
 
-  // 3. The copied document is durable. Dispatch processing after the response
-  // has been sent, so a slow task gateway cannot block the review UI.
-  after(async () => {
-    try {
-      await tasks.trigger('process-document', {
-        docId: doc.id,
-        matterId,
-        orgId,
-        storagePath: newPath,
-        uploadedBy: user.id,
-      })
-    } catch (err) {
-      console.error('Failed to trigger process-document task:', err)
-      const serviceClient = createServiceClient()
-      await serviceClient
-        .from('documents')
-        .update({ status: 'failed', review_reason: 'Processing could not be queued. Retry this document.' })
-        .eq('id', doc.id)
-        .eq('org_id', orgId)
-    }
-  })
-
-  // 4. Re-read the grant immediately before deleting Storage. The active
+  // 3. Re-read the grant immediately before deleting Storage. The active
   // reservation makes this check and the later source update mutually
   // exclusive with mapping; never remove a source on a stale app-only guard.
   const deleteGrant = await getLegacyStagedDocumentActionSource(service, orgId, stagedId, leaseToken, 'assign')
@@ -370,6 +350,10 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
     return { error: error?.message ?? 'This intake could not be assigned. Refresh the queue and try again.' }
   }
 
+  // The materialisation command committed its processing event before this
+  // fixed, best-effort wake. The singleton dispatcher reads the event back
+  // from the database; none of the browser's assignment fields reach Trigger.
+  scheduleDocumentOutboxWake()
   revalidatePath('/inbox')
   revalidatePath('/', 'layout')
   revalidatePath(`/matters/${matterId}`)

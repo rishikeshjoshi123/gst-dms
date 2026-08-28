@@ -1,140 +1,14 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { tasks } from '@trigger.dev/sdk/v3'
-import { revalidatePath } from 'next/cache'
-import { after } from 'next/server'
 import { getCurrentOrgId } from './org'
 
 export async function reprocessDocument(docId: string, isStaged: boolean = false) {
-  const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
-  
-  if (isStaged) {
-    const backfillService = createServiceClient()
-    const { data: reservationRows, error: reservationError } = await (backfillService as any)
-      .rpc('reserve_legacy_staged_document_action', {
-        p_org_id: orgId,
-        p_legacy_staged_document_id: docId,
-        p_action_kind: 'analyze',
-      })
-    const reservation = reservationRows?.[0]
-    if (reservationError || reservation?.code !== 'ok' || !reservation.lease_token) {
-      return { error: 'This legacy intake is being preserved by the migration and cannot be retried from the legacy workflow.' }
-    }
-    const releaseReservation = async () => {
-      await (backfillService as any).rpc('release_legacy_staged_document_action', {
-        p_org_id: orgId,
-        p_legacy_staged_document_id: docId,
-        p_lease_token: reservation.lease_token,
-      })
-    }
-
-    const { data: staged } = await supabase
-      .from('staged_documents')
-      .select('org_id')
-      .eq('id', docId)
-      .eq('org_id', orgId)
-      .single()
-    if (!staged) {
-      await releaseReservation()
-      return { error: 'Document not found' }
-    }
-
-    // Claim only a failed row. The worker then atomically claims the pending
-    // state; this prevents two Retry clicks from dispatching two workers.
-    const { data: claimed, error } = await supabase
-      .from('staged_documents')
-      .update({ status: 'pending_assignment', suggestion_reason: null })
-      .eq('id', docId)
-      .eq('org_id', orgId)
-      .eq('status', 'failed')
-      .select('id')
-      .maybeSingle()
-    if (error) {
-      await releaseReservation()
-      return { error: error.message }
-    }
-    if (!claimed) {
-      await releaseReservation()
-      return { error: 'This document is already being processed or is no longer available for retry.' }
-    }
-    
-    after(async () => {
-      try {
-        await tasks.trigger('analyze-staged-document', {
-          stagedDocId: docId,
-          orgId: staged.org_id,
-          actionLeaseToken: reservation.lease_token,
-        })
-      } catch (triggerError) {
-        console.error('Failed to queue staged document retry:', triggerError)
-        const serviceClient = createServiceClient()
-        await serviceClient
-          .from('staged_documents')
-          .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Please retry again.' })
-          .eq('id', docId)
-          .eq('org_id', orgId)
-        await releaseReservation()
-      }
-    })
-    
-    revalidatePath('/inbox')
-  } else {
-    const { data: doc } = await supabase
-      .from('documents')
-      .select('matter_id, org_id, storage_path, created_by, raw_metadata, doc_type')
-      .eq('id', docId)
-      .eq('org_id', orgId)
-      .is('deleted_at', null)
-      .single()
-    if (!doc) return { error: 'Document not found' }
-
-    // Claim a terminal/review state before dispatching, so an in-flight job
-    // cannot be retried again and stale UI actions cannot create duplicates.
-    const { data: claimed, error } = await supabase
-      .from('documents')
-      .update({ status: 'processing', raw_metadata: null, doc_type: null })
-      .eq('id', docId)
-      .eq('org_id', orgId)
-      .in('status', ['failed', 'needs_review', 'analyzed', 'placed'])
-      .select('id')
-      .maybeSingle()
-    if (error) return { error: error.message }
-    if (!claimed) return { error: 'This document is already being processed or is not ready for retry.' }
-    
-    after(async () => {
-      try {
-        await tasks.trigger('process-document', {
-          docId,
-          matterId: doc.matter_id,
-          orgId: doc.org_id,
-          storagePath: doc.storage_path,
-          uploadedBy: doc.created_by || '',
-          reprocessMode: 'full',
-          skipDuplicateCheck: true,
-        })
-      } catch (triggerError) {
-        console.error('Failed to queue document retry:', triggerError)
-        const serviceClient = createServiceClient()
-        await serviceClient
-          .from('documents')
-          .update({
-            status: 'failed',
-            raw_metadata: doc.raw_metadata,
-            doc_type: doc.doc_type,
-            review_reason: 'Processing could not be queued. Please retry again.',
-          })
-          .eq('id', docId)
-          .eq('org_id', orgId)
-      }
-    })
-    
-    if (doc.matter_id) {
-      revalidatePath(`/matters/${doc.matter_id}`)
-    }
-  }
-
-  return { success: true }
+  void docId
+  void isStaged
+  // Reprocessing needs an explicit database command with a selected scope.
+  // The legacy UI must not make a privileged Trigger task/payload choice while
+  // that durable authority is still being introduced.
+  return { error: 'Reprocessing is temporarily unavailable while the durable processing command is being completed.' }
 }

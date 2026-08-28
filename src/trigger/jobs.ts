@@ -706,11 +706,8 @@ export const analyzeStagedDocument = task({
     // ── 6. Auto-assign to resolved matter(s) ─────────────────────
     const { assignments } = assignmentResult
     const baseName = storagePath.split('/').pop() || 'document.pdf'
-    const isMultiMatter = assignments.length > 1
 
-    const { tasks } = await import('@trigger.dev/sdk/v3')
     const createdDocIds: string[] = []
-    let allOk = true
 
     for (let i = 0; i < assignments.length; i++) {
       const assignment = assignments[i]
@@ -725,7 +722,6 @@ export const analyzeStagedDocument = task({
 
       if (!matterCheck || matterCheck.deleted_at || (matterCheck.clients as any)?.deleted_at) {
         console.warn(`[analyze-staged-document] Matter ${assignment.matterId} or its client was deleted — skipping`)
-        allOk = false
         continue
       }
 
@@ -738,7 +734,6 @@ export const analyzeStagedDocument = task({
         .upload(docStoragePath, fileData, { contentType: 'application/pdf' })
       if (uploadErr) {
         console.error(`[analyze-staged-document] Storage upload failed for matter ${assignment.matterId}:`, uploadErr)
-        allOk = false
         continue
       }
 
@@ -752,7 +747,10 @@ export const analyzeStagedDocument = task({
           matter_id: assignment.matterId,
           storage_path: docStoragePath,
           created_by: uploadedBy,
-          status: 'processing',
+          // Legacy staged assignment predates the canonical outbox command.
+          // Keep the record reviewable rather than dispatching legacy work
+          // with a storage path or other privileged task payload.
+          status: 'needs_review',
           review_status: reviewStatus,
           source: 'inbox',
           ...documentColumnsFromAnalysis(
@@ -767,23 +765,11 @@ export const analyzeStagedDocument = task({
       if (newDocErr || !newDoc) {
         console.error(`[analyze-staged-document] Failed to create document for matter ${assignment.matterId}:`, newDocErr)
         await supabase.storage.from('documents').remove([docStoragePath])
-        allOk = false
         continue
       }
 
       createdDocIds.push(newDoc.id)
 
-      // Additional copies from one deliberate multi-matter assignment are not
-      // accidental duplicates of one another.
-      await tasks.trigger('process-document', {
-        docId: newDoc.id,
-        matterId: assignment.matterId,
-        orgId,
-        storagePath: docStoragePath,
-        uploadedBy,
-        reprocessMode: 'full',
-        skipDuplicateCheck: isMultiMatter && i > 0,
-      })
     }
 
     if (createdDocIds.length > 0) {
@@ -887,61 +873,6 @@ export const deadlineReminderCron = task({
 
     console.log('[Deadline cron] Checking approaching deadlines...')
     return { checked: true }
-  },
-})
-
-// ================================================================
-// Retry failed documents cron (runs hourly)
-// ================================================================
-export const retryFailedDocumentsCron = task({
-  id: 'retry-failed-documents',
-  run: async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient() as SupabaseClient<Database>
-    const { tasks } = await import('@trigger.dev/sdk/v3')
-
-    console.log('[Retry cron] Fetching failed documents...')
-    const { data: failedDocs } = await supabase
-      .from('documents')
-      .select('id, matter_id, org_id, storage_path, created_by')
-      .eq('status', 'failed')
-      .is('deleted_at', null)
-      .limit(50)
-
-    if (failedDocs && failedDocs.length > 0) {
-      console.log(`[Retry cron] Found ${failedDocs.length} failed documents. Triggering reprocessing...`)
-      
-      for (const doc of failedDocs) {
-        // Claim the row before dispatching. Without this compare-and-set, the
-        // hourly cron and a user Retry click can both enqueue the same work.
-        const { data: claimed } = await supabase
-          .from('documents')
-          .update({ status: 'processing' })
-          .eq('id', doc.id)
-          .eq('org_id', doc.org_id)
-          .eq('status', 'failed')
-          .select('id')
-          .maybeSingle()
-
-        if (!claimed) continue
-
-        try {
-          await tasks.trigger('process-document', {
-            docId: doc.id,
-            matterId: doc.matter_id,
-            orgId: doc.org_id,
-            storagePath: doc.storage_path,
-            uploadedBy: doc.created_by,
-            reprocessMode: 'full',
-          })
-        } catch (triggerError) {
-          console.error(`[Retry cron] Failed to queue document ${doc.id}:`, triggerError)
-          await updateDocStatus(supabase, doc.id, 'failed', 'Processing could not be queued. Please retry again.')
-        }
-      }
-    }
-
-    return { retried: failedDocs?.length || 0 }
   },
 })
 
