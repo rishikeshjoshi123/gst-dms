@@ -1,4 +1,4 @@
--- Run after migration 00048 against a disposable local Supabase database.
+-- Run after migration 00049 against a disposable local Supabase database.
 -- SQL cannot inspect Storage. It claims only a path proven to use the old
 -- staging namespace, then accepts a trusted worker's safe observation result.
 BEGIN;
@@ -58,7 +58,12 @@ DECLARE
   valid_but_oversize_lease uuid;
   action_lease uuid;
   org_b_lease uuid;
+  transfer_lease uuid;
+  org_b_transfer_lease uuid;
   present_asset uuid;
+  org_b_transfer_asset uuid;
+  org_b_duplicate_asset uuid := '48400000-0000-0000-0000-000000000002';
+  present_intake uuid;
   result record;
   report_a public.staged_document_backfill_reports%ROWTYPE;
   report_b public.staged_document_backfill_reports%ROWTYPE;
@@ -236,6 +241,7 @@ BEGIN
     '48000000-0000-0000-0000-000000000002','48500000-0000-0000-0000-000000000006',org_b_lease,'valid_pdf',11,repeat('a',64));
   IF result.code <> 'transfer_pending' OR result.asset_id IS NULL THEN
     RAISE EXCEPTION 'cross-tenant bytes were incorrectly deduplicated'; END IF;
+  org_b_transfer_asset := result.asset_id;
 
   SELECT * INTO result FROM public.release_legacy_staged_document_action(
     '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000015',action_lease);
@@ -250,25 +256,120 @@ BEGIN
     '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000015',result.verification_lease_token,'missing');
   IF result.code <> 'missing_object' THEN RAISE EXCEPTION 'released ready-to-assign source did not complete normally'; END IF;
 
+  BEGIN
+    PERFORM * FROM public.claim_staged_document_backfill_transfer_batch('48000000-0000-0000-0000-000000000001', 26);
+    RAISE EXCEPTION 'transfer batch size was not rate limited';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'invalid staged-document backfill transfer batch request' THEN RAISE; END IF;
+  END;
+  SELECT * INTO result FROM public.claim_staged_document_backfill_transfer_batch(
+    '48000000-0000-0000-0000-000000000001', 1);
+  IF result.code <> 'transfer_pending' OR result.legacy_staged_document_id <> '48500000-0000-0000-0000-000000000001'::uuid
+     OR result.transfer_lease_token IS NULL THEN
+    RAISE EXCEPTION 'transfer-pending map was not leased as bounded opaque work';
+  END IF;
+  transfer_lease := result.transfer_lease_token;
+  SELECT * INTO source_grant FROM public.get_staged_document_backfill_transfer_grant(
+    '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',transfer_lease);
+  IF source_grant.code <> 'ok' OR source_grant.source_bucket_id <> 'staging'
+     OR source_grant.source_object_key <> 'staging/48000000-0000-0000-0000-000000000001/49000000-0000-0000-0000-000000000001/original.pdf'
+     OR source_grant.destination_bucket_id <> 'documents'
+     OR source_grant.destination_object_key <> 'orgs/48000000-0000-0000-0000-000000000001/assets/' || present_asset::text || '/original.pdf'
+     OR source_grant.expected_byte_size <> 12 OR source_grant.expected_sha256 <> repeat('b',64) THEN
+    RAISE EXCEPTION 'transfer grant did not bind fresh source and predetermined destination';
+  END IF;
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',transfer_lease,
+    12,repeat('b',64),1,11,repeat('b',64));
+  IF result.code <> 'destination_observation_conflict' THEN
+    RAISE EXCEPTION 'mismatched destination was allowed to clear the staging fence';
+  END IF;
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',transfer_lease,
+    12,repeat('b',64),1,12,repeat('b',64));
+  IF result.code <> 'transferred' OR result.asset_id <> present_asset OR result.intake_item_id IS NULL THEN
+    RAISE EXCEPTION 'verified destination did not atomically create canonical Intake';
+  END IF;
+  present_intake := result.intake_item_id;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.file_assets AS asset
+    JOIN public.intake_items AS intake ON intake.asset_id=asset.id AND intake.org_id=asset.org_id
+    WHERE asset.id=present_asset AND asset.org_id='48000000-0000-0000-0000-000000000001'
+      AND asset.bucket_id='documents' AND asset.availability='available'
+      AND NOT asset.legacy_staged_backfill_pending AND asset.sha256=repeat('b',64)
+      AND asset.byte_size=12 AND asset.validated_page_count=1
+      AND intake.id=present_intake AND intake.state='ready'
+      AND intake.intended_matter_id='48300000-0000-0000-0000-000000000001'::uuid
+  ) THEN RAISE EXCEPTION 'canonical Intake asset facts or context were not preserved'; END IF;
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',transfer_lease,
+    12,repeat('b',64),1,12,repeat('b',64));
+  IF result.code <> 'already_transferred' OR result.intake_item_id <> present_intake THEN
+    RAISE EXCEPTION 'completed transfer was not idempotent';
+  END IF;
+  SELECT * INTO result FROM public.claim_staged_document_backfill_transfer_batch(
+    '48000000-0000-0000-0000-000000000002', 1);
+  IF result.code <> 'transfer_pending' OR result.legacy_staged_document_id <> '48500000-0000-0000-0000-000000000006'::uuid
+     OR result.transfer_lease_token IS NULL THEN RAISE EXCEPTION 'other tenant transfer was not independently claimable'; END IF;
+  org_b_transfer_lease := result.transfer_lease_token;
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000006',org_b_transfer_lease,
+    11,repeat('a',64),1,11,repeat('a',64));
+  IF result.code <> 'not_found' THEN RAISE EXCEPTION 'cross-org transfer could address another tenant mapping'; END IF;
+  -- Reproduce a same-org upload completing after verification but before
+  -- transfer finalisation. This must be terminal duplicate reference work,
+  -- not a retry loop, and it must retain both copied and staging bytes.
+  INSERT INTO public.file_assets(
+    id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,created_by
+  ) VALUES (
+    org_b_duplicate_asset,'48000000-0000-0000-0000-000000000002','documents',
+    'orgs/48000000-0000-0000-0000-000000000002/assets/' || org_b_duplicate_asset::text || '/original.pdf',
+    repeat('a',64),11,'application/pdf','available',now(),'48100000-0000-0000-0000-000000000002'
+  );
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000002','48500000-0000-0000-0000-000000000006',org_b_transfer_lease,
+    11,repeat('a',64),1,11,repeat('a',64));
+  IF result.code <> 'duplicate_reference' OR result.asset_id <> org_b_duplicate_asset OR result.intake_item_id IS NOT NULL THEN
+    RAISE EXCEPTION 'post-verification same-org duplicate did not terminally resolve'; END IF;
+  SELECT * INTO source_grant FROM public.get_staged_document_backfill_transfer_grant(
+    '48000000-0000-0000-0000-000000000002','48500000-0000-0000-0000-000000000006',org_b_transfer_lease);
+  IF source_grant.code <> 'duplicate_reference' OR source_grant.source_object_key IS NOT NULL
+     OR source_grant.destination_object_key IS NOT NULL THEN
+    RAISE EXCEPTION 'post-verification duplicate map was not terminal and fenced'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.file_assets AS asset
+    WHERE asset.id=org_b_transfer_asset AND asset.org_id='48000000-0000-0000-0000-000000000002'
+      AND asset.legacy_staged_backfill_pending AND asset.availability='quarantined'
+      AND asset.storage_deleted_at IS NULL
+  ) OR EXISTS (SELECT 1 FROM public.intake_items WHERE asset_id=org_b_transfer_asset) THEN
+    RAISE EXCEPTION 'duplicate race deleted or materialised the copied canonical asset'; END IF;
+  IF EXISTS (SELECT 1 FROM public.claim_staged_document_backfill_transfer_batch('48000000-0000-0000-0000-000000000002', 1)) THEN
+    RAISE EXCEPTION 'terminal duplicate transfer was reclaimed'; END IF;
+  SELECT * INTO result FROM public.complete_staged_document_backfill_transfer(
+    '48000000-0000-0000-0000-000000000002','48500000-0000-0000-0000-000000000006',org_b_transfer_lease,
+    11,repeat('a',64),1,11,repeat('a',64));
+  IF result.code <> 'duplicate_reference' OR result.asset_id <> org_b_duplicate_asset THEN
+    RAISE EXCEPTION 'terminal duplicate transfer was not idempotent'; END IF;
+
   IF EXISTS (SELECT 1 FROM public.claim_staged_document_backfill_batch('48000000-0000-0000-0000-000000000001', 100)) THEN
     RAISE EXCEPTION 'completed backfill batch was not resumably idempotent'; END IF;
   SELECT * INTO report_a FROM public.staged_document_backfill_reports WHERE org_id='48000000-0000-0000-0000-000000000001';
   IF report_a.legacy_source_count <> 14 OR report_a.active_source_count <> 13
      OR report_a.unmapped_source_count <> 0 OR report_a.verification_required_count <> 0
-     OR report_a.transfer_pending_count <> 1 OR report_a.missing_object_count <> 2
+     OR report_a.transfer_pending_count <> 0 OR report_a.transfer_completed_count <> 1 OR report_a.missing_object_count <> 2
      OR report_a.unreadable_source_count <> 1 OR report_a.malformed_pdf_count <> 1
      OR report_a.encrypted_pdf_count <> 1 OR report_a.non_pdf_count <> 1 OR report_a.oversize_count <> 2
      OR report_a.invalid_lineage_count <> 3 OR report_a.duplicate_reference_count <> 1
      OR report_a.already_migrated_count <> 1 OR NOT report_a.classification_complete
      OR report_a.staging_retirement_ready THEN RAISE EXCEPTION 'backfill count/report contract failed'; END IF;
   SELECT * INTO report_b FROM public.staged_document_backfill_reports WHERE org_id='48000000-0000-0000-0000-000000000002';
-  IF report_b.transfer_pending_count <> 1 OR NOT report_b.classification_complete THEN
+  IF report_b.transfer_pending_count <> 0 OR report_b.duplicate_reference_count <> 1 OR NOT report_b.classification_complete THEN
     RAISE EXCEPTION 'other tenant report was not isolated'; END IF;
   IF EXISTS (SELECT 1 FROM public.staged_document_backfill_diagnostics) THEN RAISE EXCEPTION 'backfill diagnostics are not clean'; END IF;
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema='public' AND table_name='staged_document_backfill_diagnostics'
-      AND column_name IN ('storage_path','object_key','raw_metadata','filename','content')
+      AND column_name IN ('storage_path','object_key','raw_metadata','filename','content','legacy_staged_document_id','safe_item_key','sha256','byte_size')
   ) THEN RAISE EXCEPTION 'diagnostics expose legal source data'; END IF;
 
   SELECT md5(string_agg(id::text || ':' || status::text || ':' || storage_path, ',' ORDER BY id))
@@ -287,6 +388,26 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN denied := true;
   END;
   IF NOT denied THEN RAISE EXCEPTION 'browser could execute service-only backfill command'; END IF;
+  denied := false;
+  BEGIN
+    PERFORM * FROM public.claim_staged_document_backfill_transfer_batch('48000000-0000-0000-0000-000000000001', 1);
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could execute service-only transfer claim'; END IF;
+  denied := false;
+  BEGIN
+    PERFORM * FROM public.get_staged_document_backfill_transfer_grant(
+      '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',gen_random_uuid());
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could obtain a controlled transfer storage grant'; END IF;
+  denied := false;
+  BEGIN
+    PERFORM * FROM public.complete_staged_document_backfill_transfer(
+      '48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',gen_random_uuid(),12,repeat('b',64),1,12,repeat('b',64));
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could finalise a controlled transfer'; END IF;
   denied := false;
   BEGIN
     PERFORM * FROM public.get_staged_document_backfill_source_grant('48000000-0000-0000-0000-000000000001','48500000-0000-0000-0000-000000000001',gen_random_uuid());

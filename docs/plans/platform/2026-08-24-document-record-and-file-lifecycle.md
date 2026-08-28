@@ -168,7 +168,15 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 
 ### Canonical next action
 
-Implement the separate controlled staging-transfer operation for only `transfer_pending` mappings: re-acquire an explicit per-item transfer lease, obtain the legacy source key through a fresh trusted grant, copy the verified bytes to the predetermined canonical private asset key without deleting or overwriting the source, then independently prove destination existence, byte size, and SHA-256 before atomically creating the canonical Intake and clearing the `legacy_staged_backfill_pending` fence. It must be idempotent and expose only safe aggregate reports. Do not cut over reads, remove legacy assignment, delete staging rows/objects, or retire the adapter until transfer counts, source/destination hash equality, access controls, duplicates, and object-reachability reports are verified.
+Run the separately verified staging retirement tranche only after controlled-transfer counts, source/destination hash equality, access controls, duplicate handling, and object-reachability reports have been reviewed. Its inventory must include canonical preallocated assets left quarantined by a late duplicate race, alongside their terminal `duplicate_reference` maps, before any retention decision. Keep legacy reads and assignment behind their compatibility/fence contracts until that retirement proof succeeds; do not delete staging rows or objects, remove the adapter, or otherwise cut over as part of this review.
+
+### Completed: controlled staged-document transfer (2026-08-29)
+
+- Added a service-only, fixed/bounded serial transfer worker for `transfer_pending` mappings. It obtains opaque work claims and a fresh per-item lease before receiving either source or destination key through a database grant; no task payload can provide a storage path.
+- The worker revalidates the staging source against its prior verified byte size and SHA-256, uploads only to the preallocated canonical private asset key with overwrite disabled, and independently downloads the canonical target to prove reachability, exact byte size, and SHA-256 before finalisation.
+- Database finalisation rechecks the trusted observations, atomically creates ready canonical Intake, marks the canonical asset available, and clears `legacy_staged_backfill_pending`. It is idempotent, organisation-scoped, and preserves every legacy staging row/object and legacy adapter fence.
+- If a same-organisation duplicate appears after source verification, finalisation terminally records the existing asset as `duplicate_reference` instead of retrying. It preserves any already-copied preallocated canonical asset in its quarantined state for the separately verified retirement audit; that audit must account for these quarantined orphan assets before any retention or cleanup decision.
+- Safe reports now separate pending and completed transfers without exposing object paths, source IDs, byte values, hashes, contents, or provider errors. No staging deletion, adapter retirement, or consumer cutover is included in this tranche.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 

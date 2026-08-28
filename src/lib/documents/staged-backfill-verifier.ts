@@ -82,7 +82,7 @@ export async function observeStagedDocumentBytes(
   bytes: Uint8Array,
   validate: (bytes: Uint8Array, expectedBytes: number) => Promise<{ outcome: ValidationOutcome; pageCount: number | null }> = validatePdfBytes,
   maxBytes = STAGED_BACKFILL_MAX_OBJECT_BYTES,
-): Promise<{ sourceResult: StagedBackfillSourceResult; observedBytes?: number; sha256?: string }> {
+): Promise<{ sourceResult: StagedBackfillSourceResult; observedBytes?: number; sha256?: string; pageCount?: number }> {
   const observedBytes = bytes.byteLength
   const sha256 = createHash('sha256').update(bytes).digest('hex')
 
@@ -91,7 +91,7 @@ export async function observeStagedDocumentBytes(
 
   const validation = await validate(bytes, observedBytes)
   if (validation.outcome !== 'ready') return { sourceResult: mapValidationOutcome(validation.outcome) }
-  return { sourceResult: 'valid_pdf', observedBytes, sha256 }
+  return { sourceResult: 'valid_pdf', observedBytes, sha256, pageCount: validation.pageCount ?? undefined }
 }
 
 function isMissingStorageError(error: unknown) {
