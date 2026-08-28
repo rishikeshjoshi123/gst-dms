@@ -2,7 +2,7 @@
 title: Document Record and File Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-28
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -159,9 +159,16 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - Canonical assets awaiting the later controlled staging transfer are fenced from signing, validation, processing, ordinary Intake visibility, and terminal-storage cleanup. Mapped legacy rows are hidden from the compatibility adapter, Review/notification projection, and legacy signed URLs. Legacy assign, discard, and analysis paths must atomically reserve a source-row action lease before any Storage effect and use a database-issued source grant; backfill claims skip active leases, so map creation cannot race an old-flow copy/delete. Legacy rows and staging objects remain unchanged by this foundation.
 - Local reset plus dedicated repeated-batch, cross-organisation, missing-object, malformed-source, duplicate, report-count, RLS/grant, legacy-action-fence, and legacy-source-preservation SQL coverage passed, along with adjacent upload/Inbox fixtures, TypeScript checking, migration checks, and diff checks.
 
+### Completed: server-only staged-document verifier (2026-08-29)
+
+- Added a Trigger-scheduled, service-role-only verifier. It selects incomplete organisations, claims bounded opaque batches, obtains each actual staging key only through the active lease's database source grant, and never accepts a path from a task payload.
+- The worker derives the actual object byte count and SHA-256, checks a PDF signature, uses the existing PDF reader to distinguish readable, malformed, and encrypted sources, and records only the migration contract's typed safe outcomes. A hard worker ceiling protects the verifier; the database remains authoritative for the organisation-specific size ceiling.
+- Missing is recorded only for an explicit trusted Storage 404. Transient download and worker failures record no terminal observation, so the short database lease expires and the source is safely retried. Task output contains bounded aggregate outcome counts only—never object keys, source IDs, hashes, bytes, document content, or storage/parser errors.
+- The worker creates no Intake, makes no copy or delete request, changes no legacy source or read path, and does not retire the adapter or release the staging-transfer fence. Mocked worker/storage tests cover the grant-only path, safe hash observation, non-PDF handling, explicit missing classification, and retryable storage failure.
+
 ### Canonical next action
 
-Run a server-only per-organisation verifier that claims opaque staged IDs, obtains the leased source grant, validates PDF readability and size, and records the typed safe observation with server-derived SHA-256 until each report is classification-complete. Then implement the separate controlled staging-transfer operation that proves canonical object reachability, creates the canonical Intake only after that proof, and clears the transfer fence; do not cut over reads, remove legacy assignment, or delete staging rows/objects until its count, access, duplicate, and object-reachability reports are verified.
+Implement the separate controlled staging-transfer operation for only `transfer_pending` mappings: re-acquire an explicit per-item transfer lease, obtain the legacy source key through a fresh trusted grant, copy the verified bytes to the predetermined canonical private asset key without deleting or overwriting the source, then independently prove destination existence, byte size, and SHA-256 before atomically creating the canonical Intake and clearing the `legacy_staged_backfill_pending` fence. It must be idempotent and expose only safe aggregate reports. Do not cut over reads, remove legacy assignment, delete staging rows/objects, or retire the adapter until transfer counts, source/destination hash equality, access controls, duplicates, and object-reachability reports are verified.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 
