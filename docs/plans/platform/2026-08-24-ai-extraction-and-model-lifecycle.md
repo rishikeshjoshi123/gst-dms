@@ -2,7 +2,7 @@
 title: AI Extraction, Provenance, and Model Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-25
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -48,6 +48,7 @@ The target system must preserve source evidence and prior runs, prevent incompat
 ### Schema and prompt contract
 
 - Zod is the authoritative CaseChain runtime schema. Generate the provider response schema from the same contract through a tested compatibility adapter; do not maintain semantically independent handwritten schemas.
+- Vertex structured generation requests set `responseMimeType: application/json` and provide the compatible response schema derived from the canonical Zod contract. Regex or substring extraction from conversational prose is not a supported canonical recovery path.
 - The adapter removes or transforms constructs Vertex structured output does not support, and CI tests parity with representative payloads. A provider accepting JSON does not replace post-response Zod validation.
 - Version prompt semantics, response schema, normalization rules, and document-type catalogue independently. Store every effective version on the extraction run.
 - The document extraction contract includes source language and supported English translations while retaining original text; identity/classification; client identifiers, parties, issuer, direction, periods and financial years; relationships; normalized legal references; explicit deadlines; typed financial facts; and page/quotation evidence for each material candidate.
@@ -73,8 +74,11 @@ The target system must preserve source evidence and prior runs, prevent incompat
 
 - Validation has three layers: provider response-schema guidance, strict Zod validation with unknown-key rejection, then deterministic domain validation and normalization.
 - Domain validation covers real ISO dates, valid financial years, GSTIN/PAN syntax and checksum when available, non-negative INR values, page bounds, catalogue membership, relationship consistency, semantic deduplication, and allegation/finding qualification.
-- Structurally invalid responses write a failed extraction run with safe errors and no candidates or effective metadata.
+- Structurally invalid, truncated, or non-JSON responses write an `invalid_model_output` extraction attempt with safe errors and no candidates, effective metadata, or partial canonical domain writes. The raw response may be preserved only as access-restricted extraction evidence under retention policy; it never enters the outbox, ordinary application payloads, or operational logs.
+- Transient transport, timeout, throttling, and provider 5xx failures may retry at most twice with capped exponential backoff and jitter, using the same run/document-version identity. Concurrency is smoothed through the shared dispatcher rather than creating an unbounded retry burst.
+- Invalid model output receives at most one fresh controlled generation attempt. If that attempt is still invalid, the run enters `Review required` or an operator recovery state with a safe failure category; the system does not repeatedly ask the model until a parse happens.
 - Domain-invalid candidates are retained for audit but cannot become effective. Material uncertainty or conflict creates a typed Review item with candidate and evidence.
+- A response that is structurally valid but contains uncertain or contradictory fields does not fail the entire document. Valid fields become field-level candidates, while only the affected fields become provisional, conflicting, or Review-required according to the fixed acceptance policy.
 - CaseChain uses **review by exception**, not approval of every extracted field. Valid extraction should reduce work rather than create a second data-entry pass.
 - Tier A candidates apply automatically and remain editable: display title, language, document type, reference number, document date, issuer, direction, and financial year when structurally/domain-valid, page-evidenced, non-conflicting, and unopposed by a human decision. Automated acceptance is fully audited and can be sampled for quality review.
 - Tier B candidates appear immediately as provisional facts without blocking the document: parties, legal references, stated monetary components, and exact calendar dates. They require human attention only when confidence/evidence is weak, validation fails, another source conflicts, or a consequential action depends on them.
@@ -119,7 +123,7 @@ The target system must preserve source evidence and prior runs, prevent incompat
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
-3. **Add provider-contract tests.** Mock Vertex structured-generation and embedding responses to cover response extraction, malformed candidates, token statistics, dimensions, task type, HTTP/provider failures, truncation, and safe logging. Keep these tests credit-free.
+3. **Add provider-contract tests and controlled failure handling.** Mock Vertex structured-generation and embedding responses to cover JSON MIME/schema configuration, strict parsing, unknown keys, malformed/non-JSON/truncated output, one controlled regeneration, capped transient retries with backoff/jitter, token statistics, dimensions, task type, safe restricted evidence, and content-safe logging. Keep these tests credit-free.
 4. **Introduce append-only provenance storage.** Add asset-scoped source-analysis runs/candidates, document-version bindings, document candidates, field decisions, effective metadata projection/recompute, RLS, immutability constraints, semantic candidate keys, and source locators.
 5. **Migrate the processing write path.** Store the run first, validate, materialize candidates, run domain validation, create Review items for material issues, and recompute effective metadata. Transitional `raw_metadata` may dual-write until consumers migrate.
 6. **Normalize high-use consumers.** Move assignment, inspector, legal references, deadlines, financials, relationships, and search indexing from ad hoc JSON parsing to typed candidates and effective projections.
@@ -161,7 +165,8 @@ type ExtractionRunResult = {
 
 ### Core provenance storage
 
-- `source_analysis_runs`: source asset and organisation; page/OCR content version; idempotency key; provider/model and prompt/schema/catalogue/normalizer versions; state; restricted payload; errors; usage; latency; timestamps; supersession.
+- `source_analysis_runs`: source asset and organisation; page/OCR content version; idempotency key; provider/model and prompt/schema/catalogue/normalizer versions; state; current attempt; validated payload reference; safe error category; usage/cost; latency; timestamps; and supersession.
+- `source_analysis_attempts`: append-only provider/model/prompt/schema versions, provider request/run identity, start/end and latency, token/billable usage and cost, retry reason, failure category, and access-restricted raw-response evidence reference where retention permits. The outbox and ordinary logs never store the raw response.
 - `source_field_candidates`: source run/asset/organisation; semantic key; field path/type; typed and normalized value; page/quote/region evidence; confidence; validation errors/state; timestamps.
 - `document_version_analysis_bindings`: organisation/document/version/source run; binding reason and actor/time; compatibility and uniqueness constraints.
 - `document_field_candidates`: binding/source candidate/document/version/organisation; semantic key; field path/type; applicable normalized value; validation/lifecycle state; timestamps.
@@ -217,8 +222,10 @@ The adapter rejects unexpected dimensions, missing token statistics where requir
 
 - TypeScript compilation, repository unit tests, targeted lint for touched code, and migration uniqueness/schema-drift checks pass before application.
 - Zod/provider-schema parity tests prove canonical fixtures accepted by provider guidance are accepted at runtime and unsupported or unknown shapes are rejected safely.
-- Mocked provider tests cover document analysis, Case Brief generation, embedding shape/dimensions/tokens/task types, provider failures, timeouts, malformed payloads, and content-safe logs without spending Vertex credits.
-- Invalid structural output writes a controlled failed run and no candidate/effective metadata. Domain-invalid candidates remain auditable but cannot become effective.
+- Mocked provider tests cover document analysis, Case Brief generation, embedding shape/dimensions/tokens/task types, JSON MIME/schema configuration, provider failures, timeouts, throttling/5xx responses, malformed/non-JSON/truncated payloads, controlled regeneration, retry exhaustion, and content-safe logs without spending Vertex credits.
+- Invalid structural output writes an `invalid_model_output` attempt and no candidate/effective metadata or partial domain effects. Only one fresh controlled generation follows invalid output; a second invalid result creates Review/recovery. Transient failures retry no more than twice with the same run/document-version identity and capped exponential backoff with jitter.
+- Strict parsing does not use regex recovery. Unknown keys fail Zod validation, access-restricted raw evidence never leaks to outbox/logs/client payloads, and every attempt records provider/model/prompt/schema version, usage/cost, latency, and failure category.
+- Structurally valid responses with isolated uncertain or contradictory values preserve valid candidates and route only the affected fields to provisional/conflicting/Review states. Domain-invalid candidates remain auditable but cannot become effective.
 - Re-extraction preserves previous runs and human decisions. A conflicting new value creates Review and does not silently replace the effective value.
 - A clean high-confidence document completes without requiring a field-by-field approval pass. Tier A auto-applies, Tier B remains visibly provisional where appropriate, and Review contains only exceptions or Tier C decisions.
 - Deadline fixtures never produce an effective date from only a relative period. Amount fixtures preserve stated components/totals exactly in paise without uncertain aggregation.

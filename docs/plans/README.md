@@ -25,9 +25,9 @@ Create another domain only after multiple plans justify a stable new category.
 
 ## Portfolio handoff
 
-The canonical cross-domain status and resumption contract lives in the [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md#portfolio-status-and-resumption-contract). As of 2026-08-28, the fourteen child domains comprise nine approved plans, zero decision-complete proposed plans, four in-progress implementation/revision tracks, and one deliberately deferred, not-archived domain. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains proposed until External Acquisition and Imports is archived, but planning no longer blocks implementation.
+The canonical cross-domain status and resumption contract lives in the [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md#portfolio-status-and-resumption-contract). As of 2026-08-29, the fourteen child domains comprise nine approved plans, zero decision-complete proposed plans, four in-progress implementation/revision tracks, and one deliberately deferred, not-archived domain. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains proposed until External Acquisition and Imports is archived, but planning no longer blocks implementation.
 
-A fresh planning task should read `AGENTS.md`, this index, the portfolio status table, and only the plan for the active domain. It must not reconstruct approved decisions from chat history. Organisation Administration remains in progress, but its identity/RBAC foundation is a completed foundation tranche. Document Record and File Lifecycle is in progress: direct-matter and global Inbox canonical upload, placement, recovery, staged-source verification, controlled staging transfer, and the non-destructive retirement evidence inventory are complete; the canonical next action is user review of evidence and separate retention/cutover decision. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot. External Acquisition and Imports remains deliberately deferred until representative spreadsheets are available.
+A fresh planning task should read `AGENTS.md`, this index, the portfolio status table, and only the plan for the active domain. It must not reconstruct approved decisions from chat history. Organisation Administration remains in progress, but its identity/RBAC foundation is a completed foundation tranche. Document Record and File Lifecycle is in progress: direct-matter and global Inbox canonical upload, placement, recovery, staged-source verification, controlled staging transfer, and the non-destructive retirement evidence inventory are complete. The canonical next action is to implement and independently verify the approved durable outbox dispatch, organisation-aware draining, retention/compaction, explicit reprocess, and structured Vertex failure contracts while keeping the separate staged retention/cutover fence intact. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot. External Acquisition and Imports remains deliberately deferred until representative spreadsheets are available.
 
 ## Plan index
 
@@ -53,9 +53,9 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-27 |
+| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-29 |
 | [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `in-progress` | 2026-08-29 |
-| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-25 |
+| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-29 |
 | [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-08-24 |
 | [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `approved` | 2026-08-27 |
 | [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-08-27 |
