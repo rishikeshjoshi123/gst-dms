@@ -633,9 +633,26 @@ export async function getDocumentSignedUrl(bucket: 'documents' | 'staging', path
   }
 
   const storage = createServiceClient()
+  let issuedPath = path
+  if (bucket === 'staging') {
+    // A mapped legacy source is intentionally no longer a presentation
+    // surface. Resolve the path through a service-only read grant so callers
+    // cannot retain an old raw path and bypass the backfill fence.
+    const { data: grants, error: grantError } = await (storage as any)
+      .rpc('get_legacy_staged_document_read_grant', {
+        p_org_id: orgId,
+        p_legacy_staged_document_id: record.id,
+      })
+    const grant = grants?.[0]
+    if (grantError || grant?.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
+      return { error: 'This legacy document is not available for viewing.' }
+    }
+    if (grant.bucket_id !== bucket) return { error: 'Document is not available in this organisation.' }
+    issuedPath = grant.object_key
+  }
   const { data, error } = await storage.storage
     .from(bucket)
-    .createSignedUrl(path, 60 * 15) // 15 mins valid
+    .createSignedUrl(issuedPath, 60 * 15) // 15 mins valid
 
   if (error || !data) {
     console.error('Failed to create signed URL:', error)

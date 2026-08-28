@@ -12,13 +12,35 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
   if (!orgId) return { error: 'No active organisation.' }
   
   if (isStaged) {
+    const backfillService = createServiceClient()
+    const { data: reservationRows, error: reservationError } = await (backfillService as any)
+      .rpc('reserve_legacy_staged_document_action', {
+        p_org_id: orgId,
+        p_legacy_staged_document_id: docId,
+        p_action_kind: 'analyze',
+      })
+    const reservation = reservationRows?.[0]
+    if (reservationError || reservation?.code !== 'ok' || !reservation.lease_token) {
+      return { error: 'This legacy intake is being preserved by the migration and cannot be retried from the legacy workflow.' }
+    }
+    const releaseReservation = async () => {
+      await (backfillService as any).rpc('release_legacy_staged_document_action', {
+        p_org_id: orgId,
+        p_legacy_staged_document_id: docId,
+        p_lease_token: reservation.lease_token,
+      })
+    }
+
     const { data: staged } = await supabase
       .from('staged_documents')
-      .select('org_id, uploaded_by, storage_path')
+      .select('org_id')
       .eq('id', docId)
       .eq('org_id', orgId)
       .single()
-    if (!staged) return { error: 'Document not found' }
+    if (!staged) {
+      await releaseReservation()
+      return { error: 'Document not found' }
+    }
 
     // Claim only a failed row. The worker then atomically claims the pending
     // state; this prevents two Retry clicks from dispatching two workers.
@@ -30,16 +52,21 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
       .eq('status', 'failed')
       .select('id')
       .maybeSingle()
-    if (error) return { error: error.message }
-    if (!claimed) return { error: 'This document is already being processed or is no longer available for retry.' }
+    if (error) {
+      await releaseReservation()
+      return { error: error.message }
+    }
+    if (!claimed) {
+      await releaseReservation()
+      return { error: 'This document is already being processed or is no longer available for retry.' }
+    }
     
     after(async () => {
       try {
         await tasks.trigger('analyze-staged-document', {
           stagedDocId: docId,
           orgId: staged.org_id,
-          uploadedBy: staged.uploaded_by,
-          storagePath: staged.storage_path,
+          actionLeaseToken: reservation.lease_token,
         })
       } catch (triggerError) {
         console.error('Failed to queue staged document retry:', triggerError)
@@ -49,6 +76,7 @@ export async function reprocessDocument(docId: string, isStaged: boolean = false
           .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Please retry again.' })
           .eq('id', docId)
           .eq('org_id', orgId)
+        await releaseReservation()
       }
     })
     

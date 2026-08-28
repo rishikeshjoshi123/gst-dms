@@ -486,8 +486,7 @@ export const reindexMatterEmbeddings = task({
 export interface AnalyzeStagedPayload {
   stagedDocId: string
   orgId: string
-  uploadedBy: string
-  storagePath: string
+  actionLeaseToken: string
 }
 
 export const analyzeStagedDocument = task({
@@ -500,10 +499,27 @@ export const analyzeStagedDocument = task({
     factor: 2,
   },
   run: async (payload: AnalyzeStagedPayload) => {
-    const { stagedDocId, orgId, uploadedBy, storagePath } = payload
+    const { stagedDocId, orgId, actionLeaseToken } = payload
 
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
+
+    // Do not trust a Trigger payload path. The action reservation is acquired
+    // before dispatch; this grant binds the job to that row/org and emits the
+    // only Storage key it may download.
+    const { data: sourceGrantRows, error: sourceGrantError } = await (supabase as any)
+      .rpc('get_legacy_staged_document_action_source_grant', {
+        p_org_id: orgId,
+        p_legacy_staged_document_id: stagedDocId,
+        p_lease_token: actionLeaseToken,
+        p_action_kind: 'analyze',
+      })
+    const sourceGrant = sourceGrantRows?.[0]
+    if (sourceGrantError || sourceGrant?.code !== 'ok' || !sourceGrant.bucket_id || !sourceGrant.object_key) {
+      return { stagedDocId, status: 'source_not_available' }
+    }
+    const storagePath = sourceGrant.object_key as string
+    const uploadedBy = sourceGrant.uploaded_by as string
 
     // Mark as analyzing (atomic CAS to prevent parallel analysis of same doc)
     const { data: updated } = await (supabase as any)
@@ -515,12 +531,13 @@ export const analyzeStagedDocument = task({
       .maybeSingle()
 
     if (!updated) {
+      await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
       return { stagedDocId, status: 'already_processing' }
     }
 
     // ── 1. Download document (once — reused for all assignments) ──
     const { data: fileData, error: downloadError } = await supabase.storage
-      .from('staging')
+      .from(sourceGrant.bucket_id)
       .download(storagePath)
 
     if (downloadError || !fileData) {
@@ -582,6 +599,7 @@ export const analyzeStagedDocument = task({
         entityId: stagedDocId,
       })
 
+      await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
       return { stagedDocId, status: 'duplicate' }
     }
 
@@ -608,6 +626,7 @@ export const analyzeStagedDocument = task({
           suggestion_reason: 'AI analysis failed: Gemini model returned invalid response or JSON parsing failed.',
         })
         .eq('id', stagedDocId)
+      await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
       return { stagedDocId, status: 'failed' }
     }
 
@@ -672,6 +691,15 @@ export const analyzeStagedDocument = task({
         entityId: stagedDocId,
       })
 
+      // This is terminal for the leased analysis attempt. Releasing here is
+      // required for the manual Inbox action or a backfill claim to proceed
+      // immediately; otherwise the source would remain artificially fenced
+      // until the lease expiry.
+      await (supabase as any).rpc('release_legacy_staged_document_action', {
+        p_org_id: orgId,
+        p_legacy_staged_document_id: stagedDocId,
+        p_lease_token: actionLeaseToken,
+      })
       return { stagedDocId, status: 'ready_to_assign' }
     }
 
@@ -760,7 +788,15 @@ export const analyzeStagedDocument = task({
 
     if (createdDocIds.length > 0) {
       // Clean up staging file
-      await supabase.storage.from('staging').remove([storagePath])
+      const deleteGrantRows = await (supabase as any).rpc('get_legacy_staged_document_action_source_grant', {
+        p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken, p_action_kind: 'analyze',
+      })
+      const deleteGrant = deleteGrantRows.data?.[0]
+      if (deleteGrant?.code !== 'ok' || !deleteGrant.bucket_id || !deleteGrant.object_key) {
+        await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
+        return { stagedDocId, status: 'source_not_available' }
+      }
+      await supabase.storage.from(deleteGrant.bucket_id).remove([deleteGrant.object_key])
 
       // Mark staged doc as assigned
       await supabase
@@ -807,6 +843,7 @@ export const analyzeStagedDocument = task({
         console.error('[analyze-staged-document] Proactive re-evaluation failed (non-fatal):', err)
       }
 
+      await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
       return { stagedDocId, status: 'auto_assigned', docIds: createdDocIds }
     }
 
@@ -824,6 +861,7 @@ export const analyzeStagedDocument = task({
       })
       .eq('id', stagedDocId)
 
+    await (supabase as any).rpc('release_legacy_staged_document_action', { p_org_id: orgId, p_legacy_staged_document_id: stagedDocId, p_lease_token: actionLeaseToken })
     return { stagedDocId, status: 'ready_to_assign' }
   },
 })

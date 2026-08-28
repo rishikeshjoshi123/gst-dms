@@ -288,13 +288,20 @@ export async function deleteMatterAction(matterId: string) {
     .delete()
     .eq('matter_id', matterId)
 
-  // 3b. Un-suggest staged documents waiting for this matter
-  await db
-    .from('staged_documents')
-    .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
-    .eq('status', 'ready_to_assign')
-    .eq('suggested_matter_id', matterId)
-    .eq('org_id', orgId)
+  // 3b. Mapped/reserved legacy rows are excluded before this cleanup update;
+  // their source state belongs exclusively to the migration/action command.
+  const { data: eligibleLegacyRows } = await (db as any)
+    .rpc('get_legacy_staged_document_eligible_ids', { p_org_id: orgId })
+  const eligibleLegacyIds = (eligibleLegacyRows ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id)
+  if (eligibleLegacyIds.length > 0) {
+    await db
+      .from('staged_documents')
+      .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
+      .eq('status', 'ready_to_assign')
+      .eq('suggested_matter_id', matterId)
+      .in('id', eligibleLegacyIds)
+      .eq('org_id', orgId)
+  }
 
   // 4. Soft delete the matter
   const { error } = await db

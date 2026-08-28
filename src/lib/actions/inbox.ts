@@ -9,6 +9,67 @@ import type { AIDocumentResult } from '@/lib/ai/vertex'
 import { uploadToDocumentIntake } from './document'
 import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
 
+async function getLegacyStagedDocumentActionGuard(orgId: string, stagedId: string) {
+  const service = createServiceClient()
+  const { data, error } = await (service as any).rpc('get_staged_document_backfill_action_guard', {
+    p_org_id: orgId,
+    p_legacy_staged_document_id: stagedId,
+  })
+  const code = data?.[0]?.code as string | undefined
+  return error || !code ? 'unavailable' : code
+}
+
+type LegacyActionKind = 'assign' | 'discard' | 'analyze'
+
+async function reserveLegacyStagedDocumentAction(orgId: string, stagedId: string, actionKind: LegacyActionKind) {
+  const service = createServiceClient()
+  const { data, error } = await (service as any).rpc('reserve_legacy_staged_document_action', {
+    p_org_id: orgId,
+    p_legacy_staged_document_id: stagedId,
+    p_action_kind: actionKind,
+  })
+  const reservation = data?.[0]
+  if (error || reservation?.code !== 'ok' || !reservation.lease_token) {
+    return { error: legacyStagedDocumentFenceError(reservation?.code ?? 'unavailable') } as const
+  }
+  return { service, leaseToken: reservation.lease_token as string } as const
+}
+
+async function releaseLegacyStagedDocumentAction(orgId: string, stagedId: string, leaseToken: string) {
+  const service = createServiceClient()
+  await (service as any).rpc('release_legacy_staged_document_action', {
+    p_org_id: orgId,
+    p_legacy_staged_document_id: stagedId,
+    p_lease_token: leaseToken,
+  })
+}
+
+async function getLegacyStagedDocumentActionSource(
+  service: ReturnType<typeof createServiceClient>, orgId: string, stagedId: string, leaseToken: string, actionKind: LegacyActionKind,
+) {
+  const { data, error } = await (service as any).rpc('get_legacy_staged_document_action_source_grant', {
+    p_org_id: orgId,
+    p_legacy_staged_document_id: stagedId,
+    p_lease_token: leaseToken,
+    p_action_kind: actionKind,
+  })
+  const grant = data?.[0]
+  return !error && grant?.code === 'ok' && grant.bucket_id && grant.object_key ? grant : null
+}
+
+async function getLegacyStagedEligibleIds(orgId: string) {
+  const service = createServiceClient()
+  const { data, error } = await (service as any).rpc('get_legacy_staged_document_eligible_ids', { p_org_id: orgId })
+  if (error) return null
+  return (data ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id)
+}
+
+function legacyStagedDocumentFenceError(code: string) {
+  if (code === 'backfill_fenced') {
+    return 'This legacy intake is being preserved by the migration and cannot be changed from the legacy workflow.'
+  }
+  return 'This legacy intake is no longer available. Refresh the queue and try again.'
+}
 
 // ── Transitional Inbox projection ─────────────────────────────────
 
@@ -38,31 +99,45 @@ export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
 
-  const { data, error } = await supabase
-    .from('staged_documents')
-    .select(`
-      *,
-      suggested_client:clients(id, name, gstin),
-      suggested_matter:matters!staged_documents_suggested_matter_id_fkey(id, title, financial_year, matter_code)
-    `)
-    .eq('org_id', orgId)
-    .in('status', ['pending_assignment', 'analyzing', 'ready_to_assign', 'failed'])
-    .order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('Failed to load staged documents:', error)
-  }
-
-  const legacyItems: InboxQueueDocument[] = (data ?? []).map((document) => ({
-    ...(document as unknown as InboxQueueDocument),
-    source_kind: 'legacy_staged_document' as const,
-  }))
-
   // Lifecycle tables intentionally have no authenticated table grant. The
   // server has already resolved the active organisation from the user's
   // session, so this narrowly-scoped service read is the compatibility
   // projection rather than a new client data-access surface.
   const service = createServiceClient()
+  const { data: fenceRows, error: fenceError } = await (service as any)
+    .rpc('get_staged_document_backfill_adapter_fences', { p_org_id: orgId })
+  const fencedLegacyIds = new Set(
+    (fenceRows ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id),
+  )
+  if (fenceError) {
+    // Failing closed keeps a mapped row out of the legacy action surface when
+    // the service-only fence cannot be resolved.
+    console.error('Failed to resolve staged-document backfill fences:', fenceError)
+  }
+  const eligibleLegacyIds = fenceError ? [] : (await getLegacyStagedEligibleIds(orgId))
+  // Resolve eligibility before the compatibility projection reads raw legacy
+  // metadata. A mapped or action-reserved row never enters this surface.
+  const { data, error } = eligibleLegacyIds && eligibleLegacyIds.length > 0
+    ? await supabase
+      .from('staged_documents')
+      .select(`
+        *,
+        suggested_client:clients(id, name, gstin),
+        suggested_matter:matters!staged_documents_suggested_matter_id_fkey(id, title, financial_year, matter_code)
+      `)
+      .eq('org_id', orgId)
+      .in('id', eligibleLegacyIds)
+      .in('status', ['pending_assignment', 'analyzing', 'ready_to_assign', 'failed'])
+      .order('created_at', { ascending: true })
+    : { data: [] as any[], error: null }
+  if (error) console.error('Failed to load staged documents:', error)
+  const legacyItems: InboxQueueDocument[] = fenceError ? [] : (data ?? [])
+    .filter((document) => !fencedLegacyIds.has(document.id))
+    .map((document) => ({
+      ...(document as unknown as InboxQueueDocument),
+      source_kind: 'legacy_staged_document' as const,
+    }))
+
   const { data: intakeItems, error: intakeError } = await service
     .from('intake_items')
     .select('id, state, failure_code, created_at, intended_matter_id, upload_session:upload_sessions(declared_filename)')
@@ -127,17 +202,6 @@ export async function assignStagedDocument(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  // Verify staged document belongs to this org
-  const { data: staged } = await supabase
-    .from('staged_documents')
-    .select('id, storage_path, status, raw_metadata')
-    .eq('id', stagedId)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!staged) return { error: 'Staged document not found.' }
-  if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned') return { error: 'Document already assigned.' }
-
   // Verify matter belongs to this org
   const { data: matter } = await supabase
     .from('matters')
@@ -148,20 +212,40 @@ export async function assignStagedDocument(
 
   if (!matter) return { error: 'Matter not found.' }
 
-  // 1. Copy file from 'staging' bucket to 'documents' bucket
-  const baseName = staged.storage_path.split('/').pop() || 'document.pdf'
+  // This reservation locks the legacy row and prevents a backfill map from
+  // being created until every legacy Storage side effect has finished.
+  const reservation = await reserveLegacyStagedDocumentAction(orgId, stagedId, 'assign')
+  if ('error' in reservation) return reservation
+  const { service, leaseToken } = reservation
+  try {
+    const sourceGrant = await getLegacyStagedDocumentActionSource(service, orgId, stagedId, leaseToken, 'assign')
+    if (!sourceGrant) return { error: 'This legacy intake is no longer available. Refresh the queue and try again.' }
+
+    // Read metadata only after the database reservation. Storage paths always
+    // come from the grant, never from this legacy row or a browser payload.
+    const { data: staged } = await supabase
+      .from('staged_documents')
+      .select('id, status, raw_metadata')
+      .eq('id', stagedId)
+      .eq('org_id', orgId)
+      .single()
+    if (!staged) return { error: 'Staged document not found.' }
+    if (staged.status === 'manually_assigned' || staged.status === 'auto_assigned') return { error: 'Document already assigned.' }
+
+  // 1. Copy file from the server-issued staging grant to 'documents'.
+  const baseName = sourceGrant.object_key.split('/').pop() || 'document.pdf'
   const newPath = `${orgId}/${matterId}/${Date.now()}_${baseName}`
 
-  const { data: fileData, error: downloadError } = await supabase.storage
-    .from('staging')
-    .download(staged.storage_path)
+  const { data: fileData, error: downloadError } = await service.storage
+    .from(sourceGrant.bucket_id)
+    .download(sourceGrant.object_key)
 
   if (downloadError || !fileData) {
     console.error('Failed to download from staging:', downloadError)
     return { error: 'Failed to access document file in staging storage.' }
   }
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await service.storage
     .from('documents')
     .upload(newPath, fileData, { contentType: 'application/pdf' })
 
@@ -202,7 +286,7 @@ export async function assignStagedDocument(
   if (docError || !doc) {
     console.error('Document insert error:', docError)
     // Clean up uploaded file if DB insert fails
-    await supabase.storage.from('documents').remove([newPath])
+    await service.storage.from('documents').remove([newPath])
     return { error: docError?.message ?? 'Failed to create document record.' }
   }
 
@@ -228,8 +312,13 @@ export async function assignStagedDocument(
     }
   })
 
-  // 4. The matter document is now the durable retry target, so clear staging.
-  await supabase.storage.from('staging').remove([staged.storage_path])
+  // 4. Re-read the grant immediately before deleting Storage. The active
+  // reservation makes this check and the later source update mutually
+  // exclusive with mapping; never remove a source on a stale app-only guard.
+  const deleteGrant = await getLegacyStagedDocumentActionSource(service, orgId, stagedId, leaseToken, 'assign')
+  if (!deleteGrant) return { error: 'The document was copied but its legacy source could not be safely retired. Please contact support.' }
+  const { error: removeError } = await service.storage.from(deleteGrant.bucket_id).remove([deleteGrant.object_key])
+  if (removeError) return { error: 'The document was copied but the legacy source could not be removed. Please retry later.' }
   await supabase
     .from('staged_documents')
     .update({ status: 'manually_assigned' })
@@ -239,6 +328,9 @@ export async function assignStagedDocument(
   revalidatePath('/', 'layout')
   revalidatePath(`/matters/${matterId}`)
   return { success: true, documentId: doc.id }
+  } finally {
+    await releaseLegacyStagedDocumentAction(orgId, stagedId, leaseToken)
+  }
 }
 
 // ── Canonical Intake placement and discard ───────────────────────
@@ -323,6 +415,9 @@ export async function autoCreateClientAndMatterForStagedDocument(stagedId: strin
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
+
+  const backfillGuard = await getLegacyStagedDocumentActionGuard(orgId, stagedId)
+  if (backfillGuard !== 'ok') return { error: legacyStagedDocumentFenceError(backfillGuard) }
 
   // 1. Fetch staged document
   const { data: staged } = await supabase
@@ -459,34 +554,34 @@ export async function deleteStagedDocument(stagedId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const db = createServiceClient()
+  const reservation = await reserveLegacyStagedDocumentAction(orgId, stagedId, 'discard')
+  if ('error' in reservation) return reservation
+  const { service: db, leaseToken } = reservation
+  try {
+    // This grant is the final database confirmation before the irreversible
+    // Storage remove. It also binds the operation to this organisation/source.
+    const sourceGrant = await getLegacyStagedDocumentActionSource(db, orgId, stagedId, leaseToken, 'discard')
+    if (!sourceGrant) return { error: 'This legacy intake is no longer available. Refresh the queue and try again.' }
+    const { error: storageError } = await db.storage.from(sourceGrant.bucket_id).remove([sourceGrant.object_key])
+    if (storageError) return { error: 'Failed to remove the staged document file. The intake was left unchanged.' }
 
-  const { data: staged } = await db
-    .from('staged_documents')
-    .select('id, storage_path')
-    .eq('id', stagedId)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!staged) return { error: 'Staged document not found.' }
-
-  // Delete from storage
-  await db.storage.from('staging').remove([staged.storage_path])
-
-  // Delete record
-  const { error } = await db
+    const { error } = await db
     .from('staged_documents')
     .delete()
     .eq('id', stagedId)
+    .eq('org_id', orgId)
 
-  if (error) {
-    console.error('Discard staged error:', error)
-    return { error: error.message }
+    if (error) {
+      console.error('Discard staged error:', error)
+      return { error: error.message }
+    }
+
+    revalidatePath('/inbox')
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } finally {
+    await releaseLegacyStagedDocumentAction(orgId, stagedId, leaseToken)
   }
-
-  revalidatePath('/inbox')
-  revalidatePath('/', 'layout')
-  return { success: true }
 }
 
 export const discardStagedDocument = deleteStagedDocument
@@ -499,11 +594,14 @@ export async function reevaluateStagedDocuments() {
   const orgId = await getCurrentOrgId()
   if (!orgId) return
 
+  const eligibleIds = await getLegacyStagedEligibleIds(orgId)
+  if (!eligibleIds || eligibleIds.length === 0) return
   const { data: staged } = await supabase
     .from('staged_documents')
     .select('*')
     .eq('org_id', orgId)
     .eq('status', 'ready_to_assign')
+    .in('id', eligibleIds)
 
   if (!staged || staged.length === 0) return
 
@@ -562,11 +660,15 @@ export async function reevaluateStagedDocuments() {
 export async function reevaluateStagedDocumentsForOrg(orgId: string) {
   const supabase = createServiceClient()
 
+  const eligibleIds = await getLegacyStagedEligibleIds(orgId)
+  if (!eligibleIds || eligibleIds.length === 0) return
+
   const { data: staged } = await supabase
     .from('staged_documents')
     .select('*')
     .eq('org_id', orgId)
     .eq('status', 'ready_to_assign')
+    .in('id', eligibleIds)
 
   if (!staged || staged.length === 0) return
 

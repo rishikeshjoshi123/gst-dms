@@ -206,22 +206,36 @@ export async function deleteClientAction(id: string) {
       .in('id', matterIds)
       .eq('org_id', orgId)
 
-    // 4b. Un-suggest staged documents waiting for these matters
-    await db
-      .from('staged_documents')
-      .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
-      .eq('status', 'ready_to_assign')
-      .in('suggested_matter_id', matterIds)
-      .eq('org_id', orgId)
+    // 4b. Never mutate a mapped/reserved compatibility row as part of a
+    // client cleanup. The service projection fences it before this update.
+    const { data: eligibleLegacyRows } = await (db as any)
+      .rpc('get_legacy_staged_document_eligible_ids', { p_org_id: orgId })
+    const eligibleLegacyIds = (eligibleLegacyRows ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id)
+    if (eligibleLegacyIds.length > 0) {
+      await db
+        .from('staged_documents')
+        .update({ suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested matter was deleted.' })
+        .eq('status', 'ready_to_assign')
+        .in('suggested_matter_id', matterIds)
+        .in('id', eligibleLegacyIds)
+        .eq('org_id', orgId)
+    }
   }
 
-  // 4c. Un-suggest staged documents waiting for this client
-  await db
-    .from('staged_documents')
-    .update({ suggested_client_id: null, suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested client was deleted.' })
-    .eq('status', 'ready_to_assign')
-    .eq('suggested_client_id', id)
-    .eq('org_id', orgId)
+  // 4c. Re-resolve because a concurrent backfill/action reservation may have
+  // changed eligibility while the surrounding client operation was running.
+  const { data: remainingEligibleRows } = await (db as any)
+    .rpc('get_legacy_staged_document_eligible_ids', { p_org_id: orgId })
+  const remainingEligibleIds = (remainingEligibleRows ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id)
+  if (remainingEligibleIds.length > 0) {
+    await db
+      .from('staged_documents')
+      .update({ suggested_client_id: null, suggested_matter_id: null, suggested_matter_ids: [], suggestion_reason: 'Previously suggested client was deleted.' })
+      .eq('status', 'ready_to_assign')
+      .eq('suggested_client_id', id)
+      .in('id', remainingEligibleIds)
+      .eq('org_id', orgId)
+  }
 
   // 5. Soft delete client
   const { error } = await db

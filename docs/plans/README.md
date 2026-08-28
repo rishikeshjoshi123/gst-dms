@@ -36,6 +36,7 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 | Plan | Status | Updated |
 | --- | --- | --- |
 | [CaseChain Design-System Overhaul](./design-system/2026-08-20-casechain-design-system-overhaul.md) | `in-progress` | 2026-08-23 |
+| [Public Brand and Landing Page](./design-system/2026-08-28-public-brand-and-landing-page.md) | `in-progress` | 2026-08-29 |
 
 ### Features
 

@@ -151,9 +151,17 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - Added conservative recovery: validation leases can resume safely; legacy processing work that cannot prove idempotent downstream effects is fenced into a service recovery case and cannot be replayed automatically.
 - Local Supabase reset and lifecycle SQL acceptance suites passed, as did focused TypeScript tests, type checking, migration checks, upload-limit checks, and the replay-fence regression. Repository-wide lint remains baseline-red outside this tranche.
 
+### Completed: staged-document backfill validation contract foundation (2026-08-28)
+
+- Added migration `00048` with a service-only, per-organisation claim/verification contract for legacy `staged_documents`. It preserves every legacy ID through an opaque mapping, limits claims to rate-safe leased batches, and never stores a legacy path, filename, raw metadata, or document content in its diagnostics or reports.
+- A trusted external verifier now has explicit outcomes: only a readable, validated, bounded PDF maps to a quarantined **mapping-only** canonical asset; missing, unreadable, malformed, encrypted, non-PDF, oversize, invalid-lineage, duplicate/reference, and already-migrated sources receive durable, safe terminal classifications. Same-byte matching remains organisation-local.
+- The verifier receives a legacy object key only through a leased service-only grant after exact `staging/{org UUID}/{temporary UUID}/original.pdf` validation. Foreign prefixes, traversal, alternate names, and cross-organisation lineage are rejected before Storage access.
+- Canonical assets awaiting the later controlled staging transfer are fenced from signing, validation, processing, ordinary Intake visibility, and terminal-storage cleanup. Mapped legacy rows are hidden from the compatibility adapter, Review/notification projection, and legacy signed URLs. Legacy assign, discard, and analysis paths must atomically reserve a source-row action lease before any Storage effect and use a database-issued source grant; backfill claims skip active leases, so map creation cannot race an old-flow copy/delete. Legacy rows and staging objects remain unchanged by this foundation.
+- Local reset plus dedicated repeated-batch, cross-organisation, missing-object, malformed-source, duplicate, report-count, RLS/grant, legacy-action-fence, and legacy-source-preservation SQL coverage passed, along with adjacent upload/Inbox fixtures, TypeScript checking, migration checks, and diff checks.
+
 ### Canonical next action
 
-Validate and execute the **resumable legacy staged-document backfill** into canonical Intake/documents, including explicit terminal classification for every legacy source. Then retire legacy staging assignment and its bounded Inbox adapter only after verified count, access, duplicate, and object-reachability reports.
+Run a server-only per-organisation verifier that claims opaque staged IDs, obtains the leased source grant, validates PDF readability and size, and records the typed safe observation with server-derived SHA-256 until each report is classification-complete. Then implement the separate controlled staging-transfer operation that proves canonical object reachability, creates the canonical Intake only after that proof, and clears the transfer fence; do not cut over reads, remove legacy assignment, or delete staging rows/objects until its count, access, duplicate, and object-reachability reports are verified.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 
