@@ -523,52 +523,70 @@ export type Database = {
       }
       document_processing_runs: {
         Row: {
+          attempt_count: number
           completed_at: string | null
           created_at: string
           document_id: string
           document_version_id: string
           failed_at: string | null
+          heartbeat_at: string | null
           id: string
           idempotency_key: string
+          lease_expires_at: string | null
+          lease_token: string | null
           org_id: string
+          outbox_event_id: string | null
           safe_error_code: string | null
           scope: Database["public"]["Enums"]["document_processing_scope"]
           source_analysis_run_id: string | null
           stage: Database["public"]["Enums"]["document_processing_stage"]
           started_at: string | null
           state: Database["public"]["Enums"]["document_processing_state"]
+          trigger_run_id: string | null
         }
         Insert: {
+          attempt_count?: number
           completed_at?: string | null
           created_at?: string
           document_id: string
           document_version_id: string
           failed_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           idempotency_key: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           org_id: string
+          outbox_event_id?: string | null
           safe_error_code?: string | null
           scope: Database["public"]["Enums"]["document_processing_scope"]
           source_analysis_run_id?: string | null
           stage?: Database["public"]["Enums"]["document_processing_stage"]
           started_at?: string | null
           state?: Database["public"]["Enums"]["document_processing_state"]
+          trigger_run_id?: string | null
         }
         Update: {
+          attempt_count?: number
           completed_at?: string | null
           created_at?: string
           document_id?: string
           document_version_id?: string
           failed_at?: string | null
+          heartbeat_at?: string | null
           id?: string
           idempotency_key?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           org_id?: string
+          outbox_event_id?: string | null
           safe_error_code?: string | null
           scope?: Database["public"]["Enums"]["document_processing_scope"]
           source_analysis_run_id?: string | null
           stage?: Database["public"]["Enums"]["document_processing_stage"]
           started_at?: string | null
           state?: Database["public"]["Enums"]["document_processing_state"]
+          trigger_run_id?: string | null
         }
         Relationships: [
           {
@@ -583,6 +601,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_runs_outbox_event_id_fkey"
+            columns: ["outbox_event_id"]
+            isOneToOne: true
+            referencedRelation: "outbox_events"
             referencedColumns: ["id"]
           },
           {
@@ -1894,11 +1919,16 @@ export type Database = {
       source_analysis_runs: {
         Row: {
           asset_id: string
+          attempt_count: number
           completed_at: string | null
           created_at: string
           failed_at: string | null
+          heartbeat_at: string | null
           id: string
+          lease_expires_at: string | null
+          lease_token: string | null
           org_id: string
+          outbox_event_id: string | null
           page_content_version: number
           request_key: string
           safe_error_code: string | null
@@ -1907,11 +1937,16 @@ export type Database = {
         }
         Insert: {
           asset_id: string
+          attempt_count?: number
           completed_at?: string | null
           created_at?: string
           failed_at?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           org_id: string
+          outbox_event_id?: string | null
           page_content_version?: number
           request_key: string
           safe_error_code?: string | null
@@ -1920,11 +1955,16 @@ export type Database = {
         }
         Update: {
           asset_id?: string
+          attempt_count?: number
           completed_at?: string | null
           created_at?: string
           failed_at?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           org_id?: string
+          outbox_event_id?: string | null
           page_content_version?: number
           request_key?: string
           safe_error_code?: string | null
@@ -1944,6 +1984,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_analysis_runs_outbox_event_id_fkey"
+            columns: ["outbox_event_id"]
+            isOneToOne: true
+            referencedRelation: "outbox_events"
             referencedColumns: ["id"]
           },
         ]
@@ -2447,6 +2494,16 @@ export type Database = {
         }
         Relationships: []
       }
+      document_processing_orchestration_diagnostics: {
+        Row: {
+          oldest_age: string | null
+          run_count: number | null
+          run_kind: string | null
+          safe_error_code: string | null
+          state: string | null
+        }
+        Relationships: []
+      }
       document_upload_command_diagnostics: {
         Row: {
           issue: string | null
@@ -2529,6 +2586,33 @@ export type Database = {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
           code: string
+        }[]
+      }
+      claim_document_processing_work: {
+        Args: { p_event_id: string; p_trigger_run_id?: string }
+        Returns: {
+          actor_id: string
+          bucket_id: string
+          code: string
+          document_id: string
+          document_version_id: string
+          lease_token: string
+          matter_id: string
+          object_key: string
+          processing_run_id: string
+        }[]
+      }
+      claim_document_validation_work: {
+        Args: { p_event_id: string }
+        Returns: {
+          asset_id: string
+          bucket_id: string
+          code: string
+          expected_bytes: number
+          intake_id: string
+          lease_token: string
+          object_key: string
+          source_run_id: string
         }[]
       }
       complete_document_upload: {
@@ -2637,6 +2721,27 @@ export type Database = {
           code: string
           intake_item_id: string
           upload_session_id: string
+        }[]
+      }
+      finish_document_processing_work: {
+        Args: {
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_document_validation_work: {
+        Args: {
+          p_lease_token: string
+          p_outcome: string
+          p_page_count: number
+          p_source_run_id: string
+        }
+        Returns: {
+          code: string
         }[]
       }
       fuzzy_match_reference: {
