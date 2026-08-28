@@ -1,8 +1,8 @@
 ---
 title: Matter Notes and Cited Case Brief
-status: proposed
+status: approved
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-27
 owners:
   - product
   - engineering
@@ -274,7 +274,7 @@ Completion requires typecheck, lint for touched files, unit/integration/RLS/migr
 - The Work/Review/Activity plan supplies first-class tasks, Review items, outbox, notification intent, and configurable mention email delivery.
 - Initial rich-text storage uses a sanitized versioned JSON AST with a controlled renderer/editor; raw arbitrary HTML is never accepted.
 - Case Brief auto-maintenance is opt-out per organisation after first creation and may remain feature-flagged during the pilot.
-- One user may be a member of multiple organisations; cursors, preferences, mentions, and searches remain organisation-scoped.
+- Under the controlled-pilot contract, one ordinary user may have exactly one active or suspended organisation membership. Notes/Brief cursors, preferences, mentions, and search remain organisation-scoped so a future approved multi-organisation migration is compatible.
 
 ## Open Questions
 

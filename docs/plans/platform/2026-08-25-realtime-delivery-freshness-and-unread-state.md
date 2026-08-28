@@ -1,8 +1,8 @@
 ---
 title: Selective Realtime Delivery, Freshness, and Unread State
-status: proposed
+status: approved
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-27
 owners:
   - product
   - engineering
@@ -10,6 +10,8 @@ related:
   - ./2026-08-24-product-architecture-portfolio.md
   - ../features/2026-08-25-document-hub-ingestion-and-workbench.md
   - ../features/2026-08-25-work-review-activity-notifications.md
+  - ../features/2026-08-25-matter-workspace-and-procedural-timeline.md
+  - ../features/2026-08-25-notes-and-case-brief.md
 ---
 
 # Selective Realtime Delivery, Freshness, and Unread State
@@ -55,7 +57,7 @@ The intended outcome is:
 | Matter workspace | One compact matter-scoped channel while the workspace is visible | Documents, relationships, notes, and selected derived projections may change the flagship shared record |
 | Matter Notes conversation | Note events are consumed from the matter topic while Notes is active; unread state remains durable when it is not active | Immediate message delivery has high collaboration value |
 | Review queue | Live only while Review is open | Claim/resolution changes must prevent two users acting on stale work |
-| Direct user attention | Defer a shell-wide channel in the controlled pilot; notification/My Work counts refresh on navigation, mutation, or manual refresh | Avoid keeping every ordinary app session connected merely for a badge |
+| Direct user attention | Defer a shell-wide channel in the controlled pilot; notification/My Work counts refresh on navigation, mutation, or browser/tab reload | Avoid keeping every ordinary app session connected merely for a badge |
 
 Search results, collection tables, Today, My Work, Activity, Case Brief reading, Files, Deadlines, Financials, Details, Settings, Team, usage reports, and ordinary dashboards do not receive live subscriptions initially. Their domain mutations still create durable Activity/notification/work projections. A later surface must demonstrate a latency-sensitive user outcome and an acceptable connection/message budget before joining the allowlist.
 
@@ -88,7 +90,7 @@ type RealtimeInvalidationV1 = {
 }
 ```
 
-- The event catalogue is allowlisted and versioned. Initial families are intake stage/placement/failure, document bound/reclassified/trashed/restored, relationship proposed/confirmed/rejected, note created/edited/deleted, Review claimed/resolved/superseded, and approved deadline/financial verification changes.
+- The event catalogue is allowlisted and versioned. Initial families are intake stage/placement/failure, document bound/reclassified/trashed/restored, relationship proposed/confirmed/rejected, note created/edited/deleted, and Review claimed/resolved/superseded. Approved deadline and financial verification changes are future candidates, not initial live bodies or counts, until separately approved and measured.
 - Events invalidate named projections rather than send whole rows. Multiple events for the same projection inside a short render window are coalesced into one fetch. No handler calls both a data fetch and a full `router.refresh()` unless separate server-rendered state demonstrably requires both.
 - Use one singleton browser Supabase client per tab. Channel lifecycle is owned by one shared connection manager so route components cannot create duplicate channels or reconnect loops.
 
@@ -115,8 +117,8 @@ type RealtimeInvalidationV1 = {
 ### Notes, unread state, and “New” treatment
 
 - “New” means unseen by the current user, not recently created globally. It requires durable per-user state and is not inferred from browser memory or a relative time window.
-- Add `note_read_cursors` keyed by organisation, user, and conversation stream. The initial stream is a matter's Notes conversation; the schema can later support explicit threads. Store the greatest seen server ordering key (`created_at`, `id`) and `updated_at`. Cursor advancement is monotonic and tenant constrained.
-- Server queries compute unread notes after the cursor, excluding notes authored by the current user, deleted/inaccessible notes, and rows outside the conversation. A direct mention separately creates an unread personal notification; reading the conversation may mark the mention seen but does not resolve a task or Review item.
+- Add `note_read_cursors` keyed by organisation, user/member, and note thread, or by a typed stream whose initial concrete stream is `note_thread`. Store the greatest seen server ordering key (`created_at`, `id`) and `updated_at`. Cursor advancement is monotonic and tenant constrained.
+- Server queries compute unread notes after the cursor, excluding notes authored by the current user, deleted/inaccessible notes, and rows outside the authorized thread. Matter and Organisation Notes unread counts are projections across authorized threads. A direct mention separately creates an unread personal notification; reading the thread may mark the mention seen but does not resolve a task or Review item.
 - The Notes tab shows an unread count. Inside the conversation, use a single `N new notes` divider at the read boundary instead of adding a repetitive `New` chip to every message.
 - If a note arrives while Notes is open, the window is focused, and the newest note is visible, append it without moving the user's context and advance the cursor after it is rendered. If the user is scrolled away, keep it unread and show a `N new notes` jump affordance.
 - Opening Notes does not mark unseen content read before it is successfully loaded and presented. Edits use an `Edited` provenance marker; editing an old note does not make the note globally new.
@@ -167,8 +169,8 @@ type LiveProjectionState = {
 }
 ```
 
-- New `note_read_cursors` table with `org_id`, `user_id`, stream type/id, last-seen ordering key, and timestamps; unique by user and stream.
-- New secured note unread-count query and monotonic mark-seen command.
+- New `note_read_cursors` table with `org_id`, `user_id`/member identity, `note_thread_id` (or typed stream with initial `note_thread`), last-seen ordering key, and timestamps; unique by organisation, user/member, and thread/stream.
+- New secured thread unread-count query and monotonic mark-seen command, plus Matter and Organisation Notes aggregate projections across authorized threads.
 - Existing broad `postgres_changes` subscriptions are removed after migration.
 
 ## Testing and Acceptance Criteria
@@ -182,7 +184,7 @@ type LiveProjectionState = {
 - Duplicate, reordered, missing, and malformed events do not duplicate records or regress revisions. Reconnect after a missed event converges to authoritative state.
 - Quota/auth refusal never shows Live, never starts a rapid retry loop, and exposes only the muted `Refreshed … ago` freshness state.
 - Live is keyboard discoverable, has an accessible description, and its pulse stops with reduced motion.
-- A new note increments only other eligible users' unread counts. The author's own note is read for the author. The divider and jump affordance preserve scroll position, and the cursor advances only after content is presented.
+- A new note increments only other eligible users' unread counts for its authorized thread. The author's own note is read for the author. Matter and Organisation Notes counts aggregate only authorized-thread cursors. The divider and jump affordance preserve scroll position, and the cursor advances only after content is presented.
 - Mentions remain addressable notification items; reading a note does not complete related tasks or Review work.
 - Application and Supabase reports expose connection, message, egress, join/error, refetch, and event-to-render metrics. Pilot thresholds and feature-flag rollback are exercised.
 - Legacy subscriptions are not removed until parity tests cover insert/update/delete, Trash/restore, processing, note, relationship, and Review events.

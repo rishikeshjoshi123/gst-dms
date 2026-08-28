@@ -1,13 +1,15 @@
 ---
 title: CaseChain Universal Search and Evidence Retrieval
-status: proposed
+status: approved
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-27
 owners:
   - product
   - engineering
 related:
   - ../design-system/2026-08-20-casechain-design-system-overhaul.md
+  - ../platform/2026-08-24-document-record-and-file-lifecycle.md
+  - ../platform/2026-08-24-ai-extraction-and-model-lifecycle.md
 ---
 
 # CaseChain Universal Search and Evidence Retrieval
@@ -52,7 +54,7 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
 - Document results show client, matter, document type/reference/date, a highlighted passage, and PDF page. Selecting one opens the shared Document Workbench at that page and highlights the cited passage or region.
 - Matter results are aggregated from matching matter fields, structured facts, and child content. They show the strongest supporting matches so users can understand why the matter was returned.
 - Preserve the submitted query, scope, filters, active group, and pagination in the URL so searches are shareable within the same authorised organisation.
-- Saved searches are private by default. Explicit sharing with the organisation is available only to members with access to every included scope. Raw query history is not stored by default.
+- Saved searches are private by default. Explicit sharing with the organisation is available only to members with access to every included scope. Organisation-shared saved searches are re-authorized against the current caller and current scopes whenever listed, opened, or run; sharing never exposes raw query/filter text or the existence of inaccessible scopes, and permission changes cannot leave a stale shared-search leak. Raw query history is not stored by default.
 
 ### Retrieval model
 
@@ -183,6 +185,7 @@ The old `documents.embedding`, `match_documents`, and `match_all_documents` cont
 - Achieve at least 95% Recall@5 for exact/reference and structured-fact queries and at least 85% Recall@10 for judged semantic queries before cutover. No critical expected result may regress from rank 1 to outside the first page without explicit adjudication.
 - Return the correct `> INR 14 lakh` set for boundary values below, equal to, and above INR 1,400,000; cover lakh/lac/L and crore/Cr inputs and paise-safe comparisons.
 - Prove with automated cross-tenant tests that a user cannot infer inaccessible result counts, titles, snippets, filenames, saved searches, or vectors through RPC parameters, malformed filters, timing-oriented pagination, or direct table access.
+- Prove that listing, opening, and running an organisation-shared saved search re-authorizes the current caller and every current scope after access changes, without exposing its query/filter text or the existence of inaccessible scopes.
 - Verify current and future matter-level permissions across search items, chunks, notes, Case Brief blocks, deadlines, and financial entries.
 - Every passage fixture deep-links to the correct document version and PDF page. When a text/region anchor exists, the expected passage is highlighted after zoom, rotation, and responsive layout changes.
 - Spreadsheet-imported records appear in exact and structured search before a PDF exists, are labelled `Metadata only`, do not claim passage matches, and gain page-level results after attachment without changing their document ID or timeline relationships.

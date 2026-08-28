@@ -1,6 +1,6 @@
 ---
 title: Organisation Administration, Team Access, and Personal Settings
-status: proposed
+status: in-progress
 created: 2026-08-26
 updated: 2026-08-27
 owners:
@@ -75,23 +75,23 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 | Invite or promote Admin | Yes | No | No | No |
 | Edit organisation profile/defaults | Yes | Yes | No | No |
 | Edit organisation operations policy | Yes | Yes | No | No |
-| Change Associate/Viewer role | Yes | Yes | No | No |
+| Change between Associate and Viewer | Yes | Yes | No | No |
 | Suspend/reactivate/remove Associate/Viewer | Yes | Yes | No | No |
 | Change, suspend, or remove an Admin | Yes | No | No | No |
 | Transfer ownership | Yes | No | No | No |
 | Permanently purge eligible Trash | Yes | Yes | No | No |
 | Edit personal settings | Self | Self | Self | Self |
 
-- An Admin cannot create another Admin, demote/remove an Admin, transfer ownership, or weaken an Owner-only safeguard. Owner actions requiring elevated consequence use recent authentication and typed confirmation where specified.
+- An Admin cannot create another Admin, demote/remove an Admin, transfer ownership, or weaken an Owner-only safeguard. Owner actions requiring elevated consequence use typed confirmation now; provider-backed recent authentication is added only when the deferred advanced-security contract ships.
 - Associates and Viewers may leave the organisation after an impact preview. Admins may leave only after the Owner resolves their privileged role and any sole-admin dependency. The Owner must transfer ownership before leaving.
 - Feature-specific access remains the intersection of tenant role, resource access, and explicit grant. A Matter financial-cost grant can narrow or reveal that ledger as already approved, but cannot elevate a Viewer to edit or confer administration.
 
 ### Membership lifecycle and offboarding
 
 - Membership state is separate from role: `active`, `suspended`, or `removed`. Invitation state is not a membership state.
-- Suspension is reversible and immediately blocks tenant reads, writes, realtime joins, signed asset access, Search, notifications, email digests, and worker actions for that member. Existing authored content remains attributed and readable according to other users' access.
+- Suspension is reversible and immediately blocks tenant reads, writes, all authenticated loaders and actions, realtime joins, new signed asset issuance, Search, notifications, email digests, and worker actions for that member. Already-issued short-lived signed URLs expire at their bounded TTL. Existing authored content remains attributed and readable according to other users' access.
 - Reactivation restores the role that remained valid at suspension time but does not automatically restore feature grants that were explicitly revoked during review.
-- Removal is durable offboarding, not row deletion. It immediately revokes tenant access, personal delivery schedules, realtime eligibility, open signed URLs, and Matter-specific grants. Historical notes, decisions, activity, and audit render from member/profile snapshots without exposing removed users to current data.
+- Removal is durable offboarding, not row deletion. It immediately revokes tenant access, all authenticated loaders and actions, personal delivery schedules, realtime eligibility, new signed asset issuance, and Matter-specific grants. Already-issued short-lived signed URLs expire at their bounded TTL. Historical notes, decisions, activity, and audit render from member/profile snapshots without exposing removed users to current data.
 - Before suspension, removal, role downgrade, or self-leave, return an impact projection covering open tasks, Review assignments, verified deadlines, Matter responsibility, internal-cost grants, pending invitations sent by the member, scheduled digests, and privileged-role coverage.
 - Consequential open work must receive an explicit disposition in the command: reassign to an eligible active member, return to the team/unassigned queue where the owning domain permits it, or block the change where an accountable owner is mandatory. No command silently marks work complete.
 - Role downgrade or membership loss revokes incompatible Matter grants in the same transaction. Every feature still recalculates effective capability on read/write so stale rows or clients cannot preserve access.
@@ -120,7 +120,7 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 
 ### Organisation profile and operational policy
 
-- Organisation profile fields are: display name, optional registered name, optional logo asset, optional establishment date, optional short tagline, default timezone, locale/date format, and default currency. India-first defaults are `Asia/Kolkata`, `en-IN`, and `INR`.
+- Organisation profile fields are: display name, optional registered name, optional logo asset, optional establishment date, optional short tagline, locale/date format, and default currency. India-first defaults are operational timezone `Asia/Kolkata` and profile locale/currency `en-IN` and `INR`.
 - `created_at` is immutable system metadata. `established_on` is optional historical information supplied by the organisation and is never presented as the account creation date.
 - The tagline is limited to restrained organisation/profile and invitation contexts; it does not consume Matter headers, Today, loading screens, or operational workspaces.
 - Do not create AI-generated motivational quotes, a rotating quote table, or background quote-refresh jobs. They add cost and distraction without helping legal work. A later content feature would require evidence of user value.
@@ -194,8 +194,8 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - `user_profiles`: auth user ID, display name, professional title, locale, timezone, revision, and timestamps. No avatar asset, password, MFA secret, or provider token.
 - `organisation_memberships`: stable membership ID, organisation/user, role, state, generation, invited-through ID, join/suspend/remove actors/reasons/timestamps, revision, and created time. One active/suspended organisation per user during the pilot and one active/suspended generation per user/organisation.
 - `organisations`: retain immutable `created_by`; add current `owner_membership_id`, revision, and update metadata.
-- `organisation_profiles`: names, logo asset, establishment date, tagline, timezone, locale/date format, currency, revision, and actor/timestamps.
-- `organisation_operational_settings`: retention policy reference, auto-purge, deadline reminder defaults, digest defaults, storage entitlement reference/read model, and revision.
+- `organisation_profiles`: names, logo asset, establishment date, tagline, locale/date format, currency, revision, and actor/timestamps.
+- `organisation_operational_settings`: organisation timezone, retention policy reference, auto-purge, deadline reminder defaults, digest defaults, storage entitlement reference/read model, and revision.
 - `organisation_security_policies` is deferred; do not create an unused MFA-policy table in the initial migration.
 - `organisation_invites`: normalised email, current token-hash/version, role, state, expiry, inviter, accepted user/membership, superseded/revoked/rejected data, delivery counters, revision, and timestamps.
 - `organisation_invite_deliveries`: invite/version, channel/provider reference, attempt, scheduled/sent/failure state, safe error, and timestamps.
@@ -221,6 +221,7 @@ type TeamCapability =
   | 'team.ownership.transfer'
   | 'organisation.profile.manage'
   | 'organisation.operations.manage'
+  | 'trash.purge'
 
 type MembershipImpact = {
   membershipId: string
@@ -279,7 +280,7 @@ Every mutation accepts an idempotency key and expected revision where relevant a
 - Owner/Admin/Associate/Viewer capability tests cover every Team and organisation setting action. Admin cannot manage another Admin or create one; Viewer/Associate cannot invoke hidden administration commands directly.
 - Role downgrade, suspension, removal, self-leave, and ownership transfer calculate current impact, require explicit dispositions, reconcile tasks/Review/deadlines/grants transactionally, and preserve historical authorship.
 - The last eligible Admin and sole Owner invariants cannot be broken. Ownership transfer requires an eligible recipient and explicit confirmation; MFA/recent-auth enforcement is deferred until the provider-backed contract is implemented.
-- Suspended/removed access disappears immediately from RLS, Workbench signing, Search, realtime joins, notification delivery, digest schedules, and Matter-specific grants without relying on sign-out.
+- Suspended/removed users are immediately denied by RLS and all authenticated loaders/actions, including Workbench signing, Search, realtime joins, notification delivery, digest schedules, and Matter-specific grants, without relying on sign-out. New signed asset issuance is blocked; already-issued short-lived signed URLs remain usable only until their bounded TTL expires.
 - Personal profile data is visible only through the approved member projection. Ordinary members do not receive invitation history, security posture, suspension reasons, or unauthorised email data.
 - Organisation settings distinguish immutable system creation date from optional establishment date, enforce approved retention values, keep auto-purge off initially, and never permit tenant quota elevation or legal-hold bypass.
 - Personal settings implement per-family delivery, quiet hours, verified-deadline offsets, timezone, and the approved weekly digest. Optional email and digest preferences begin off; routine processing has no notification toggle; mandatory security delivery cannot be disabled.

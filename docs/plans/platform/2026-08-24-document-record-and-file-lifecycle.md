@@ -1,8 +1,8 @@
 ---
 title: Document Record and File Lifecycle
-status: proposed
+status: approved
 created: 2026-08-24
-updated: 2026-08-25
+updated: 2026-08-27
 owners:
   - product
   - engineering

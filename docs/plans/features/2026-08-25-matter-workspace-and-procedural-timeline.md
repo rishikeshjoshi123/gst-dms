@@ -1,8 +1,8 @@
 ---
 title: Matter Workspace and Procedural Timeline
-status: proposed
+status: approved
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-27
 owners:
   - product
   - engineering
@@ -68,7 +68,7 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 - Canonical deadline and financial schemas, verification, reminders, charts, internal-cost privacy, and organisation-wide pages will be specified in the separate Deadlines and Financials plan. This plan fixes their Matter navigation and projection integration only.
 - Document ingestion, placement, immutable versions, extraction, relationship resolution, Workbench, PDF quotations, reclassification, and scoped retries remain owned by the approved Document Hub and lifecycle plans.
 - The Timeline does not visualize supporting evidence, statutes, sections, rules, circulars, note replies, tasks, deadlines, financial events, or ordinary cross-matter citations as document nodes/edges.
-- Shared custom organisation fields and matter-level access control are deferred to Organisation Administration. Details does not render arbitrary JSON or imply that a responsibility label changes document access.
+- Shared custom organisation fields and matter-level access control remain deferred to a future dedicated access/custom-fields plan. Details does not render arbitrary JSON or imply that a responsibility label changes document access.
 
 ## Decisions
 
@@ -252,7 +252,7 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 - Record/Trash state remains separate under the Trash plan. Changing work state/forum does not move a resource to Trash or rewrite document metadata.
 - Use the approved `matter_identifiers` contract from the Document Hub plan for external case/proceeding/portal identifiers and their verification/provenance. Financial year is an attribute and placement signal, not matter identity; multiple matters for one client/year remain valid.
 - `Edit details` uses a desktop side sheet and mobile dedicated form with shared inputs, not a feature-local modal. Title/synopsis/work state/forum edits use optimistic concurrency. Client reassignment and matter-code change are separate Owner/Admin impact-preview commands because they affect Search, placement, Activity lineage, and identifiers.
-- Arbitrary custom JSON fields, decorative cards, and duplicate Client-edit controls are excluded. Organisation-defined custom-field architecture requires its own administration contract before appearing here.
+- Arbitrary custom JSON fields, decorative cards, and duplicate Client-edit controls are excluded. Organisation-defined custom fields require a future dedicated access/custom-fields plan before appearing here.
 
 ### Permissions and mutation boundaries
 

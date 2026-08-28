@@ -19,6 +19,7 @@ related:
   - ../features/2026-08-26-deadlines-and-financials.md
   - ./2026-08-25-realtime-delivery-freshness-and-unread-state.md
   - ./2026-08-26-organisation-administration.md
+  - ./2026-08-27-platform-operations.md
 ---
 
 # CaseChain Product Architecture Portfolio
@@ -120,21 +121,23 @@ This table is the durable handoff ledger for a fresh planning task. `Status` is 
 | Domain | Status | Maturity | Required next action |
 | --- | --- | --- | --- |
 | Design System and Application Shell | `in-progress` | Contract is established and shared UI work is underway. | Continue implementation as a cross-cutting dependency; revise the canonical plan when a reusable contract changes. |
-| Document Record and File Lifecycle | `proposed` | Decision-complete; final approval pending. | Perform a short final approval pass before its first schema implementation tranche. |
+| Document Record and File Lifecycle | `approved` | Approved implementation contract. | Implement in dependency order before dependent provenance, search, and Workbench work. |
 | Hierarchical Resource Trash | `approved` | Approved implementation contract. | Implement in dependency order; no further architecture pass is required unless a conflicting requirement appears. |
 | AI Extraction and Provenance | `in-progress` | Transitional hardening exists; normalized provenance/model-lifecycle work remains active. | Reconcile implementation and QA findings against the canonical plan before cut-over. |
-| Universal Search and Evidence Retrieval | `proposed` | Decision-complete; final approval pending. | Approve after confirming its dependencies on versioned document text and provenance. |
+| Universal Search and Evidence Retrieval | `approved` | Approved implementation contract. | Implement after versioned document text and provenance dependencies are ready. |
 | Work, Review, Activity, Notifications, and Today | `approved` | Approved implementation contract, including opt-in optional email and digest defaults. | Implement after the shared Activity/outbox and work-state foundations are ready. |
 | Document Hub and Workbench | `approved` | Approved implementation contract. | Implement against stable document-version, provenance, and Review contracts. |
-| Matter Workspace and Timeline | `proposed` | Decision-complete and browser concept reviewed; final approval pending. | Perform a focused contract approval pass rather than redesigning the reviewed concept. |
-| Notes and Case Brief | `proposed` | Decision-complete and browser concept reviewed; final approval pending. | Perform a focused contract approval pass after quotation/source-locator dependencies are confirmed. |
+| Matter Workspace and Timeline | `approved` | Approved implementation contract. | Implement after document lifecycle, Workbench, relationship, and Activity dependencies are ready. |
+| Notes and Case Brief | `approved` | Approved implementation contract. | Implement after quotation/source-locator, Work/Review, and evidence dependencies are ready. |
 | Deadlines and Financials | `approved` | Approved implementation contract and browser concept reviewed. | Implement against effective metadata, Work, and organisation capability contracts. |
 | Organisation Administration | `in-progress` | The identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche; remaining approved work stays in progress. | Begin the approved Document Record and File Lifecycle foundation; resume remaining Organisation Administration work in its approved rollout sequence. |
-| Platform Operations | `not archived` | Required before onboarding beyond the controlled pilot. | Create the next new canonical plan for isolated platform administration, usage, quotas, job health, audit, and privacy boundaries. |
+| Platform Operations | `approved` | Approved implementation contract; it must ship and pass its gates before rollout beyond the controlled pilot. | Implement after Organisation Administration identity/RBAC and Document Record and File Lifecycle foundations; complete the backup/restore gate before broader rollout. |
 | External Acquisition and Imports | `not archived` | Architecture boundary is known, but spreadsheet field mapping is intentionally undecided. | Defer detailed planning until representative organisation spreadsheets are supplied; do not implement direct database-population scripts. |
-| Realtime Delivery and Freshness | `proposed` | Decision-complete; final approval pending. | Approve the selective, quota-aware contract before replacing existing subscriptions. |
+| Realtime Delivery and Freshness | `approved` | Approved implementation contract. | Implement selectively after its Matter, Notes, Document Hub, and Review consumers are ready. |
 
-The count is therefore exact for this portfolio snapshot: **4 approved**, **6 decision-complete proposed**, **2 in progress**, and **2 not yet archived**, for **14 child domains**. The umbrella portfolio remains `proposed`. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
+The count is therefore exact for this portfolio snapshot: **10 approved**, **0 decision-complete proposed**, **3 in progress**, and **1 not archived**, across **14 child domains**. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains `proposed` until External Acquisition and Imports is archived, but planning no longer blocks implementation. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
+
+All final approval passes, including Platform Operations, are complete; there are no remaining proposed-plan approval passes. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche; its remaining approved work stays governed by that plan. The canonical next action is the approved Document Record and File Lifecycle foundation. Keep External Acquisition and Imports deliberately deferred until representative spreadsheets are available, and allow implementation work to consume only approved contracts and their dependencies. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot.
 
 To resume in a new task:
 
@@ -149,7 +152,7 @@ To resume in a new task:
 Dependency order constrains architecture; it does not force a single release order.
 
 1. Continue the Design System contract in parallel with backend foundations.
-2. Establish tenant/RBAC invariants needed by a touched domain before expanding its UI.
+2. Establish Organisation Administration identity/RBAC invariants before expanding dependent UI or platform authority.
 3. Establish Document Record and File Lifecycle before normalised provenance, page citations, search chunks, or the shared Workbench.
 4. Establish hierarchy-aware Trash contracts before rebuilding deleted-resource routes, retention settings, or purge behavior.
 5. Complete AI extraction run/candidate/effective-value boundaries before making extracted deadlines or financials authoritative.
@@ -158,7 +161,7 @@ Dependency order constrains architecture; it does not force a single release ord
 8. Build Matter Timeline and Files against stable document classification, relationships, and Workbench routes.
 9. Build Notes/Case Brief, Deadlines/Financials, and Search as consumers of the shared evidence/provenance contracts; their implementation may proceed in parallel once those contracts exist.
 10. Rebuild shell-level Today and collection pages after their underlying projections have stable semantics.
-11. Add the platform console before onboarding beyond a controlled pilot. Implement external acquisition/import only through the same ingestion and provenance contracts.
+11. Implement Platform Operations after its identity/RBAC and document lifecycle foundations; it must pass its security, usage, quota, job, and backup/restore gates before rollout beyond the controlled pilot. Implement external acquisition/import only through the same ingestion and provenance contracts.
 
 ### Migration policy
 
@@ -178,11 +181,11 @@ Dependency order constrains architecture; it does not force a single release ord
 
 ## Implementation Plan
 
-1. Complete final approval passes for the six decision-complete proposed plans without reopening reviewed UI direction absent a concrete conflict. Organisation Administration is first; Document Record and File Lifecycle remains the first unapproved data-foundation contract required for implementation.
+1. All final approval passes, including Platform Operations, are complete. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche; its remaining approved work stays governed by that plan. Begin implementation from approved dependency order with the approved Document Record and File Lifecycle foundation; no proposed-plan approval pass remains.
 2. Continue the in-progress Design System and AI tracks. Reconcile the AI implementation and read-only QA findings with normalized extraction runs/candidates/overrides rather than leaving validated payloads only in `raw_metadata`.
-3. Create the Platform Operations plan before onboarding beyond the controlled pilot. Keep global usage, quotas, job health, and platform administration outside ordinary tenant routes and credentials.
+3. Implement Platform Operations after its foundations. Keep global usage, quotas, job health, and platform administration outside ordinary tenant routes and credentials; it must ship and pass its gates before rollout beyond the controlled pilot.
 4. Defer the detailed External Acquisition and Imports plan until representative spreadsheets are supplied; preserve the validated intake/import boundary in the meantime.
-5. For each implementation tranche, include the owning plan's code/schema audit, additive migration sequence, permission matrix, failure/retry behavior, backfill, observability, automated tests, and manual acceptance matrix.
+5. Actual implementation may consume only approved contracts and their dependencies. For each implementation tranche, include the owning plan's code/schema audit, additive migration sequence, permission matrix, failure/retry behavior, backfill, observability, automated tests, and manual acceptance matrix.
 6. Keep `docs/plans/README.md` and the portfolio status table synchronized whenever a plan is created, approved, started, completed, or superseded.
 
 ## Interfaces and Data Changes
