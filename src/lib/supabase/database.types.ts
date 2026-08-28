@@ -521,6 +521,51 @@ export type Database = {
           },
         ]
       }
+      document_processing_recovery_cases: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          processing_run_id: string
+          recovery_reason: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          processing_run_id: string
+          recovery_reason: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          processing_run_id?: string
+          recovery_reason?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_recovery_cases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_recovery_cases_processing_run_id_fkey"
+            columns: ["processing_run_id"]
+            isOneToOne: true
+            referencedRelation: "document_processing_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_processing_runs: {
         Row: {
           attempt_count: number
@@ -996,6 +1041,11 @@ export type Database = {
           object_key: string
           org_id: string
           sha256: string | null
+          storage_delete_attempted_at: string | null
+          storage_delete_failure_code: string | null
+          storage_deleted_at: string | null
+          storage_deletion_lease_expires_at: string | null
+          storage_deletion_lease_token: string | null
           validated_at: string | null
           validated_page_count: number | null
         }
@@ -1013,6 +1063,11 @@ export type Database = {
           object_key: string
           org_id: string
           sha256?: string | null
+          storage_delete_attempted_at?: string | null
+          storage_delete_failure_code?: string | null
+          storage_deleted_at?: string | null
+          storage_deletion_lease_expires_at?: string | null
+          storage_deletion_lease_token?: string | null
           validated_at?: string | null
           validated_page_count?: number | null
         }
@@ -1030,6 +1085,11 @@ export type Database = {
           object_key?: string
           org_id?: string
           sha256?: string | null
+          storage_delete_attempted_at?: string | null
+          storage_delete_failure_code?: string | null
+          storage_deleted_at?: string | null
+          storage_deletion_lease_expires_at?: string | null
+          storage_deletion_lease_token?: string | null
           validated_at?: string | null
           validated_page_count?: number | null
         }
@@ -2582,10 +2642,28 @@ export type Database = {
           lifecycle_revision: number
         }[]
       }
+      auto_assign_intended_matter_intake: {
+        Args: { p_intake_id: string; p_validation_event_id: string }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
       begin_organisation_invitation_accept_intent: {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
           code: string
+        }[]
+      }
+      claim_document_asset_storage_deletion_work: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          asset_id: string
+          bucket_id: string
+          lease_token: string
+          object_key: string
         }[]
       }
       claim_document_processing_work: {
@@ -2693,6 +2771,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      document_platform_retained_asset_bytes: { Args: never; Returns: number }
+      document_retained_asset_bytes: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       document_upload_safe_event: {
         Args: {
           p_aggregate: string
@@ -2723,6 +2806,12 @@ export type Database = {
           upload_session_id: string
         }[]
       }
+      finish_document_asset_storage_deletion_work: {
+        Args: { p_asset_id: string; p_lease_token: string; p_outcome: string }
+        Returns: {
+          code: string
+        }[]
+      }
       finish_document_processing_work: {
         Args: {
           p_lease_token: string
@@ -2751,6 +2840,14 @@ export type Database = {
           id: string
           reference_number: string
           sim_score: number
+        }[]
+      }
+      get_document_version_read_grant: {
+        Args: { p_document_version_id: string }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
         }[]
       }
       get_my_organisation_context: {
@@ -2921,6 +3018,25 @@ export type Database = {
           matter_id: string
           reference_number: string
           sim_score: number
+        }[]
+      }
+      reconcile_document_processing_work: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          processing_requeued: number
+          validation_requeued: number
+        }[]
+      }
+      record_document_asset_storage_deleted: {
+        Args: { p_asset_id: string }
+        Returns: {
+          code: string
+        }[]
+      }
+      record_document_upload_observed_bytes: {
+        Args: { p_observed_bytes: number; p_session: string }
+        Returns: {
+          code: string
         }[]
       }
       record_organisation_invite_delivery: {

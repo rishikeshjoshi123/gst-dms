@@ -4,7 +4,15 @@ import { dispatchLeasedEvents, type DocumentLifecycleEnvelope } from '@/lib/outb
 import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orchestration'
 import { validatePdfBytes } from '@/lib/documents/validation'
 
-type RpcClient = { rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>; storage: { from(bucket: string): { download(path: string): Promise<{ data: Blob | null; error: unknown }> } } }
+type RpcClient = {
+  rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
+  storage: {
+    from(bucket: string): {
+      download(path: string): Promise<{ data: Blob | null; error: unknown }>
+      remove(paths: string[]): Promise<{ data: unknown; error: unknown }>
+    }
+  }
+}
 const rpc = async (client: RpcClient, name: string, args: Record<string, unknown>) => {
   const result = await client.rpc(name, args)
   if (result.error) throw new Error('Document orchestration RPC unavailable')
@@ -13,7 +21,7 @@ const rpc = async (client: RpcClient, name: string, args: Record<string, unknown
 
 export const documentLifecycleEvent = task({
   id: 'document-lifecycle-event',
-  retry: { maxAttempts: 1 },
+  retry: { maxAttempts: 5 },
   queue: { concurrencyLimit: 4 },
   run: async (payload: Omit<DocumentLifecycleEnvelope, 'leaseToken'>, { ctx }) => {
     const { createServiceClient } = await import('@/lib/supabase/server')
@@ -30,6 +38,15 @@ export const documentLifecycleEvent = task({
         finish: (outcome, pageCount) => rpc(client, 'finish_document_validation_work', { p_source_run_id: claim.source_run_id, p_lease_token: claim.lease_token, p_outcome: outcome, p_page_count: pageCount }),
       }, validatePdfBytes)
       return { accepted: true, routed: 'validation', outcome: result.outcome }
+    }
+    if (payload.eventKind === 'document.intake_validated.v1') {
+      const intakeId = payload.payload.intake_id
+      if (typeof intakeId !== 'string') return { accepted: true, routed: 'intended-assignment', outcome: 'invalid_event' }
+      const assignment = await rpc(client, 'auto_assign_intended_matter_intake', {
+        p_intake_id: intakeId,
+        p_validation_event_id: payload.eventId,
+      })
+      return { accepted: true, routed: 'intended-assignment', outcome: String(assignment?.code ?? 'no_work') }
     }
     if (payload.eventKind === 'document.processing_requested.v1') {
       const claim = await rpc(client, 'claim_document_processing_work', { p_event_id: payload.eventId, p_trigger_run_id: ctx.run.id })
@@ -55,4 +72,49 @@ export const dispatchDocumentOutbox = schedules.task({
   run: async () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
     trigger: (envelope, options) => documentLifecycleEvent.trigger(envelope, options),
   }),
+})
+
+// A successful gateway delivery only proves Trigger accepted the event. This
+// The reconciler replays only expired validation leases. Legacy document
+// processing is fenced into a durable recovery case because its downstream
+// effects predate run-level idempotency.
+export const reconcileDocumentLifecycleWork = schedules.task({
+  id: 'reconcile-document-lifecycle-work',
+  cron: { pattern: '*/5 * * * *', timezone: 'UTC' },
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const client = createServiceClient() as unknown as RpcClient
+    const result = await client.rpc('reconcile_document_processing_work', { p_batch_size: 100 })
+    if (result.error) throw new Error('Document lifecycle reconciliation unavailable')
+    return (result.data as Array<Record<string, unknown>> | null)?.[0] ?? { validation_requeued: 0, processing_requeued: 0 }
+  },
+})
+
+// Terminal/expired intake rows are retained for audit. Their object is removed
+// separately so quota reflects actual retained bytes until Storage confirms the
+// delete; failed deletes are intentionally left for a later retry.
+export const cleanTerminalDocumentAssets = schedules.task({
+  id: 'clean-terminal-document-assets',
+  cron: { pattern: '*/5 * * * *', timezone: 'UTC' },
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const client = createServiceClient() as unknown as RpcClient
+    const result = await client.rpc('claim_document_asset_storage_deletion_work', { p_batch_size: 100 })
+    if (result.error) throw new Error('Terminal document asset cleanup unavailable')
+
+    let deleted = 0
+    let failed = 0
+    for (const asset of (result.data as Array<Record<string, unknown>> | null) ?? []) {
+      const removal = await client.storage.from(String(asset.bucket_id)).remove([String(asset.object_key)])
+      const outcome = removal.error ? 'failed' : 'deleted'
+      const finish = await rpc(client, 'finish_document_asset_storage_deletion_work', {
+        p_asset_id: asset.asset_id,
+        p_lease_token: asset.lease_token,
+        p_outcome: outcome,
+      })
+      if (finish?.code === 'deleted') deleted += 1
+      if (finish?.code === 'failed') failed += 1
+    }
+    return { deleted, failed }
+  },
 })

@@ -2,7 +2,7 @@
 title: CaseChain Product Architecture Portfolio
 status: proposed
 created: 2026-08-24
-updated: 2026-08-27
+updated: 2026-08-28
 owners:
   - product
   - engineering
@@ -121,7 +121,7 @@ This table is the durable handoff ledger for a fresh planning task. `Status` is 
 | Domain | Status | Maturity | Required next action |
 | --- | --- | --- | --- |
 | Design System and Application Shell | `in-progress` | Contract is established and shared UI work is underway. | Continue implementation as a cross-cutting dependency; revise the canonical plan when a reusable contract changes. |
-| Document Record and File Lifecycle | `approved` | Approved implementation contract. | Implement in dependency order before dependent provenance, search, and Workbench work. |
+| Document Record and File Lifecycle | `in-progress` | Direct-matter canonical intake, durable validation/assignment, version-authorised read access, quota/tombstone controls, and conservative recovery are implemented and locally verified. | Convert global Inbox/staged assignment to the canonical upload-session and intake pipeline, then proceed to resumable legacy backfill. |
 | Hierarchical Resource Trash | `approved` | Approved implementation contract. | Implement in dependency order; no further architecture pass is required unless a conflicting requirement appears. |
 | AI Extraction and Provenance | `in-progress` | Transitional hardening exists; normalized provenance/model-lifecycle work remains active. | Reconcile implementation and QA findings against the canonical plan before cut-over. |
 | Universal Search and Evidence Retrieval | `approved` | Approved implementation contract. | Implement after versioned document text and provenance dependencies are ready. |
@@ -135,9 +135,9 @@ This table is the durable handoff ledger for a fresh planning task. `Status` is 
 | External Acquisition and Imports | `not archived` | Architecture boundary is known, but spreadsheet field mapping is intentionally undecided. | Defer detailed planning until representative organisation spreadsheets are supplied; do not implement direct database-population scripts. |
 | Realtime Delivery and Freshness | `approved` | Approved implementation contract. | Implement selectively after its Matter, Notes, Document Hub, and Review consumers are ready. |
 
-The count is therefore exact for this portfolio snapshot: **10 approved**, **0 decision-complete proposed**, **3 in progress**, and **1 not archived**, across **14 child domains**. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains `proposed` until External Acquisition and Imports is archived, but planning no longer blocks implementation. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
+The count is therefore exact for this portfolio snapshot: **9 approved**, **0 decision-complete proposed**, **4 in progress**, and **1 not archived**, across **14 child domains**. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains `proposed` until External Acquisition and Imports is archived, but planning no longer blocks implementation. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
 
-All final approval passes, including Platform Operations, are complete; there are no remaining proposed-plan approval passes. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche; its remaining approved work stays governed by that plan. The canonical next action is the approved Document Record and File Lifecycle foundation. Keep External Acquisition and Imports deliberately deferred until representative spreadsheets are available, and allow implementation work to consume only approved contracts and their dependencies. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot.
+All final approval passes, including Platform Operations, are complete; there are no remaining proposed-plan approval passes. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche. The Document Record and File Lifecycle plan is now in progress: its direct-matter canonical intake foundation is complete and verified. The canonical next action is conversion of global Inbox/staged assignment to that same intake pipeline. Keep External Acquisition and Imports deliberately deferred until representative spreadsheets are available, and allow implementation work to consume only approved contracts and their dependencies. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot.
 
 To resume in a new task:
 

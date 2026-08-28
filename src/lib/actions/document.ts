@@ -7,6 +7,7 @@ import { after } from 'next/server'
 import type { Database } from '@/lib/supabase/database.types'
 import { tasks } from '@trigger.dev/sdk/v3'
 import { appendActivity } from '@/lib/activity'
+import { observeStoredPdf, uploadIdempotencyKey } from '@/lib/document-upload'
 
 async function enqueueDocumentProcessing(
   document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
@@ -163,81 +164,146 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
   const file = formData.get('file') as File
   if (!file) return { error: 'No file provided.' }
 
-  const allowedTypes = ['application/pdf']
-  if (!allowedTypes.includes(file.type)) {
-    return { error: 'Only PDF files are supported.' }
-  }
-
-  const maxSize = 50 * 1024 * 1024 // 50MB
-  if (file.size > maxSize) {
-    return { error: 'File must be under 50MB.' }
-  }
-
-  // Verify matter belongs to this org
-  const { data: matter } = await supabase
-    .from('matters')
-    .select('id, status')
-    .eq('id', matterId)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!matter) return { error: 'Matter not found.' }
-
-  const fileName = `${orgId}/${matterId}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
-  const { createHash } = await import('crypto')
-  const fileHash = createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex')
-
-  const { data: duplicate } = await supabase
-    .from('documents')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('file_hash_sha256', fileHash)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (duplicate) return { error: 'This file has already been uploaded to this organisation.' }
-
-  const { error: uploadError } = await supabase.storage
-    .from('documents')
-    .upload(fileName, file, { contentType: file.type })
-
-  if (uploadError) {
-    console.error('Storage upload error:', uploadError)
-    return { error: uploadError.message }
-  }
-
-  const { data: doc, error: docError } = await supabase
-    .from('documents')
-    .insert({
-      matter_id: matterId,
-      org_id: orgId,
-      storage_path: fileName,
-      status: 'processing',
-      source: 'direct',
-      created_by: user.id,
-      file_hash_sha256: fileHash,
-    })
-    .select('id')
-    .single()
-
-  if (docError || !doc) {
-    // Clean up storage if DB insert fails
-    await supabase.storage.from('documents').remove([fileName])
-    console.error('Document insert error:', docError)
-    return { error: docError?.message ?? 'Failed to create document record.' }
-  }
-
-  const queued = await enqueueDocumentProcessing({
-    id: doc.id,
-    matterId,
-    orgId,
-    storagePath: fileName,
-    uploadedBy: user.id,
+  const idempotencyKey = uploadIdempotencyKey(formData.get('upload_idempotency_key'))
+  if (!idempotencyKey) return { error: 'This upload could not be prepared. Please choose the file again.' }
+  const { data: reservations, error: reservationError } = await supabase.rpc('reserve_document_upload', {
+    p_filename: file.name,
+    p_mime: 'application/pdf',
+    p_declared_bytes: file.size,
+    p_intended_matter: matterId,
+    p_idempotency: idempotencyKey,
   })
+  const reservation = reservations?.[0]
 
+  if (reservationError || !reservation) {
+    console.error('Document upload reservation failed:', reservationError)
+    return { error: 'Could not reserve this upload. Please try again.' }
+  }
+  if (reservation.code !== 'ok' || !reservation.upload_session_id || !reservation.intake_item_id || !reservation.bucket_id || !reservation.object_key) {
+    return { error: documentUploadError(reservation.code) }
+  }
+
+  const storage = createServiceClient()
+  const recordObservedBytes = async (observedBytes: number) => {
+    const { data, error } = await storage.rpc('record_document_upload_observed_bytes', {
+      p_session: reservation.upload_session_id,
+      p_observed_bytes: observedBytes,
+    })
+    if (error || data?.[0]?.code !== 'ok') {
+      // Keep the session and object retryable. Terminalising it with a
+      // browser-declared size could undercount if physical deletion fails.
+      console.error('Document upload observed bytes could not be recorded:', error ?? data?.[0]?.code)
+      return false
+    }
+    return true
+  }
+  const recordStorageDeletion = async () => {
+    const { error } = await storage.rpc('record_document_asset_storage_deleted', {
+      p_asset_id: reservation.asset_id,
+    })
+    if (error) {
+      // The object has gone, but until the durable tombstone is recorded we
+      // intentionally continue to count it against quota. The scheduled
+      // terminal-asset cleaner can reconcile this safely.
+      console.error('Document asset deletion could not be recorded:', error)
+    }
+  }
+  const removeTerminalAsset = async () => {
+    const { error } = await storage.storage.from(reservation.bucket_id).remove([reservation.object_key])
+    if (error) {
+      // A failed physical deletion must remain counted; do not tombstone it.
+      console.error('Terminal document asset could not be deleted:', error)
+      return false
+    }
+    await recordStorageDeletion()
+    return true
+  }
+  const failUpload = async (errorCode: 'upload_failed' | 'invalid_pdf' | 'storage_missing' | 'upload_rejected') => {
+    const { error } = await storage.rpc('fail_document_upload', {
+      p_session: reservation.upload_session_id,
+      p_error_code: errorCode,
+      p_idempotency: idempotencyKey,
+    })
+    if (error) {
+      // Do not remove the only copy unless the lifecycle has durably recorded
+      // the terminal state. The caller retains the same key for a transient
+      // retry, so a later reservation resumes this one asset/session.
+      console.error('Document upload failure could not be recorded:', error)
+      return false
+    }
+    await removeTerminalAsset()
+    return true
+  }
+
+  const { error: uploadError } = await storage.storage
+    .from(reservation.bucket_id)
+    .upload(reservation.object_key, file, { contentType: 'application/pdf', upsert: false })
+  // An object may already exist when a request timed out after Storage accepted
+  // the bytes. Read the reserved key before treating that retry as a failure.
+  const { data: storedObject, error: downloadError } = await storage.storage
+    .from(reservation.bucket_id)
+    .download(reservation.object_key)
+  if (downloadError || !storedObject) {
+    console.error('Reserved document storage upload or observation failed:', uploadError ?? downloadError)
+    await failUpload(uploadError ? 'upload_failed' : 'storage_missing')
+    return { error: uploadError ? 'Could not upload the PDF. Retry this file.' : 'The uploaded PDF could not be verified. Retry this file.', retryable: true }
+  }
+
+  const observation = await observeStoredPdf(storedObject)
+  if (!observation.ok) {
+    if (!await recordObservedBytes(observation.byteSize)) {
+      return { error: 'The uploaded PDF could not be recorded safely. Retry this file.', retryable: true }
+    }
+    await failUpload('invalid_pdf')
+    return { error: 'The uploaded file is not a valid PDF.', retryable: false }
+  }
+
+  const { data: completions, error: completionError } = await storage.rpc('complete_document_upload', {
+    p_session: reservation.upload_session_id,
+    p_observed_bytes: observation.byteSize,
+    p_sha256: observation.sha256,
+    p_detected_mime: observation.detectedMime,
+    p_idempotency: idempotencyKey,
+  })
+  const completion = completions?.[0]
+  if (completionError || !completion) {
+    console.error('Document upload completion failed:', completionError)
+    // The database may have committed despite an interrupted RPC response.
+    // Leave this reserved key intact so the same idempotency key can complete.
+    return { error: 'The uploaded PDF could not be finalised. Retry this file.', retryable: true }
+  }
+  if (completion.code !== 'ok') {
+    if (completion.code === 'duplicate') {
+      await removeTerminalAsset()
+    } else {
+      // Policy/finalisation rejections are terminal. Persist their declared
+      // server-observed bytes before releasing the reservation so a failed
+      // physical deletion cannot evade organisation or platform accounting.
+      if (!await recordObservedBytes(observation.byteSize)) {
+        return { error: 'The uploaded PDF could not be recorded safely. Retry this file.', retryable: true }
+      }
+      await failUpload('upload_rejected')
+    }
+    return { error: documentUploadError(completion.code), retryable: false, resolution: completion.code === 'duplicate' ? 'duplicate' : 'terminal' }
+  }
+
+  // complete_document_upload writes the validation event in the same database
+  // transaction. The outbox dispatcher, rather than this request, starts work.
   revalidatePath(`/matters/${matterId}`)
-  if ('error' in queued) return queued
-  return { success: true, documentId: doc.id }
+  return { success: true, intakeId: completion.intake_item_id }
+}
+
+function documentUploadError(code: string) {
+  switch (code) {
+    case 'invalid_matter': return 'Matter not found or no longer active.'
+    case 'file_too_large': return 'File exceeds the organisation upload limit.'
+    case 'organisation_quota_exceeded': return 'Your organisation has reached its storage limit.'
+    case 'platform_capacity_unavailable': return 'Uploads are temporarily unavailable. Please try again later.'
+    case 'duplicate': return 'This PDF already exists in this organisation.'
+    case 'invalid_filename': return 'Choose a PDF filename that ends in .pdf.'
+    case 'invalid_mime': return 'Only PDF files are supported.'
+    default: return 'Could not prepare this upload. Please try again.'
+  }
 }
 
 // ── Reassign Document to a Different Matter ───────────────────────
@@ -540,6 +606,37 @@ export async function getDocumentSignedUrl(bucket: 'documents' | 'staging', path
 
   if (error || !data) {
     console.error('Failed to create signed URL:', error)
+    return { error: error?.message ?? 'Failed to generate view link.' }
+  }
+
+  return { url: data.signedUrl }
+}
+
+/**
+ * Generate a short-lived PDF URL from an authorised immutable version. The
+ * version lookup happens under the user's RLS context; callers never provide a
+ * Storage path, and the service client sees it only after that grant succeeds.
+ */
+export async function getDocumentVersionSignedUrl(documentVersionId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: grants, error: grantError } = await supabase.rpc('get_document_version_read_grant', {
+    p_document_version_id: documentVersionId,
+  })
+  const grant = grants?.[0]
+  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
+    return { error: 'This document version is not available.' }
+  }
+
+  const storage = createServiceClient()
+  const { data, error } = await storage.storage
+    .from(grant.bucket_id)
+    .createSignedUrl(grant.object_key, 60 * 15)
+
+  if (error || !data) {
+    console.error('Failed to create versioned document URL:', error)
     return { error: error?.message ?? 'Failed to generate view link.' }
   }
 

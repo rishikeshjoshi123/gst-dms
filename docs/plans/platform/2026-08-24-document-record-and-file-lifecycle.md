@@ -1,8 +1,8 @@
 ---
 title: Document Record and File Lifecycle
-status: approved
+status: in-progress
 created: 2026-08-24
-updated: 2026-08-27
+updated: 2026-08-28
 owners:
   - product
   - engineering
@@ -140,6 +140,20 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 10. **Enable classification and reassignment workflows.** Add consequence previews, archival provenance, version-stable copy/move, and automatic scoped reevaluation. Remove destructive delete-and-recreate behavior.
 11. **Enable quotas and integrate Trash.** Add reservations, organisation/platform guards, usage projections, warnings, and expiration cleanup. Integrate document versions/assets with the approved Trash restore, retention, hold, and privileged purge orchestration.
 12. **Verify and contract.** Compare legacy/new counts, object reachability, hashes, RLS, current versions, signed access, and processing coverage. Stop dual writes, then remove `staged_documents`, legacy `supporting_documents`, raw-path signing, bucket-copy assignment, and finally obsolete `storage_path`/overloaded status columns in separate migrations.
+
+## Implementation Status
+
+### Completed: direct-matter canonical intake foundation (2026-08-28)
+
+- Added the additive lifecycle migrations through `00042`, including private asset/upload-session/intake/version foundations, materialization, durable outbox delivery, intended-matter auto-assignment, lifecycle integrity controls, and version-authorised signed reads.
+- Direct matter upload now reserves the canonical private asset key, derives completion facts from the stored object, and emits durable validation work. Validated intended-matter Intake is materialised atomically into a logical document and current version without a binary copy or legacy document insert.
+- Added server-verified duplicate, quota, retry, terminal-cleanup, Storage tombstone, and document-version access boundaries. The request path supports the 25 MiB application limit, and policy overrides remain capped by the 50 MiB Storage ceiling.
+- Added conservative recovery: validation leases can resume safely; legacy processing work that cannot prove idempotent downstream effects is fenced into a service recovery case and cannot be replayed automatically.
+- Local Supabase reset and lifecycle SQL acceptance suites passed, as did focused TypeScript tests, type checking, migration checks, upload-limit checks, and the replay-fence regression. Repository-wide lint remains baseline-red outside this tranche.
+
+### Canonical next action
+
+Convert the **global Inbox upload and staged-assignment flow** to the same canonical upload-session/intake-item pipeline. Preserve legacy reads only behind a bounded compatibility adapter, eliminate staging-bucket copy on assignment, and then run the same independent database, authorization, and UI QA gates before beginning backfill work.
 
 ## Interfaces and Data Changes
 

@@ -1,4 +1,4 @@
--- Run after migration 00036 against a disposable local Supabase database.
+-- Run after migration 00042 against a disposable local Supabase database.
 BEGIN;
 
 DO $setup$
@@ -60,7 +60,7 @@ RESET ROLE;
 
 SET LOCAL ROLE service_role;
 DO $service$
-DECLARE r record; first_session uuid; duplicate_session uuid; cross_session uuid; count_before integer; h text:=repeat('a',64); denied boolean:=false;
+DECLARE r record; first_session uuid; duplicate_session uuid; cross_session uuid; count_before integer; retained_before bigint; retained_after bigint; h text:=repeat('a',64); denied boolean:=false;
 BEGIN
  -- Unique completion and stable retry; observed facts are the one allowed
  -- identity mutation and exact outbox payloads remain free of storage secrets.
@@ -75,20 +75,33 @@ BEGIN
  SELECT * INTO r FROM public.complete_document_upload(duplicate_session,5,h,'application/pdf','36600000-0000-0000-0000-000000000020'); IF r.code<>'duplicate' OR r.duplicate_asset_id IS NULL THEN RAISE EXCEPTION 'same org duplicate'; END IF;
  EXECUTE 'SET LOCAL ROLE authenticated'; PERFORM set_config('request.jwt.claim.sub','36100000-0000-0000-0000-000000000006',true); SELECT * INTO r FROM public.reserve_document_upload('cross.pdf','application/pdf',5,NULL,'36500000-0000-0000-0000-000000000021'); EXECUTE 'SET LOCAL ROLE service_role'; cross_session:=r.upload_session_id;
  SELECT * INTO r FROM public.complete_document_upload(cross_session,5,h,'application/pdf','36600000-0000-0000-0000-000000000021'); IF r.code<>'ok' THEN RAISE EXCEPTION 'cross org hash isolation'; END IF;
- -- Fail is allowlisted, terminal and idempotent.
+ -- Only transport/storage failures are retryable. The idempotency key keeps
+ -- the same reservation identity; invalid/PDF-policy outcomes stay terminal.
  EXECUTE 'SET LOCAL ROLE authenticated'; PERFORM set_config('request.jwt.claim.sub','36100000-0000-0000-0000-000000000001',true); SELECT * INTO r FROM public.reserve_document_upload('fail.pdf','application/pdf',5,NULL,'36500000-0000-0000-0000-000000000022'); EXECUTE 'SET LOCAL ROLE service_role'; SELECT * INTO r FROM public.fail_document_upload(r.upload_session_id,'bad-error','36600000-0000-0000-0000-000000000022'); IF r.code<>'invalid_error_code' THEN RAISE EXCEPTION 'failure allowlist'; END IF;
- SELECT * INTO r FROM public.fail_document_upload((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000022'),'upload_failed','36600000-0000-0000-0000-000000000023'); IF r.code<>'ok' THEN RAISE EXCEPTION 'fail command'; END IF; SELECT * INTO r FROM public.fail_document_upload(r.upload_session_id,'upload_failed','36600000-0000-0000-0000-000000000024'); IF r.code<>'ok' THEN RAISE EXCEPTION 'fail retry'; END IF;
+ SELECT * INTO r FROM public.fail_document_upload((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000022'),'upload_failed','36600000-0000-0000-0000-000000000023'); IF r.code<>'retryable' OR (SELECT state FROM public.upload_sessions WHERE id=r.upload_session_id)<>'reserved' THEN RAISE EXCEPTION 'transient failure must retain reservation'; END IF;
+ EXECUTE 'SET LOCAL ROLE authenticated'; PERFORM set_config('request.jwt.claim.sub','36100000-0000-0000-0000-000000000001',true); SELECT * INTO r FROM public.reserve_document_upload('fail.pdf','application/pdf',5,NULL,'36500000-0000-0000-0000-000000000022'); EXECUTE 'SET LOCAL ROLE service_role'; IF r.code<>'ok' OR r.upload_session_id<>(SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000022') THEN RAISE EXCEPTION 'transient retry changed identity'; END IF;
  -- The initial 25MiB per-file boundary is exact; 100MiB entitlement and
  -- 750MiB platform guard defaults were asserted above. Observed size is
  -- independently rechecked rather than trusting the reservation.
- EXECUTE 'SET LOCAL ROLE authenticated'; SELECT * INTO r FROM public.reserve_document_upload('ceiling.pdf','application/pdf',26214400,NULL,'36500000-0000-0000-0000-000000000030'); IF r.code<>'ok' THEN RAISE EXCEPTION '25MiB file boundary'; END IF; SELECT * INTO r FROM public.reserve_document_upload('over.pdf','application/pdf',26214401,NULL,'36500000-0000-0000-0000-000000000031'); IF r.code<>'file_too_large' THEN RAISE EXCEPTION '25MiB boundary exceed'; END IF; EXECUTE 'SET LOCAL ROLE service_role'; SELECT * INTO r FROM public.complete_document_upload((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000030'),26214401,repeat('b',64),'application/pdf','36600000-0000-0000-0000-000000000030'); IF r.code<>'file_too_large' THEN RAISE EXCEPTION 'observed quota recheck'; END IF;
+ EXECUTE 'SET LOCAL ROLE authenticated'; SELECT * INTO r FROM public.reserve_document_upload('ceiling.pdf','application/pdf',26214400,NULL,'36500000-0000-0000-0000-000000000030'); IF r.code<>'ok' THEN RAISE EXCEPTION '25MiB file boundary'; END IF; SELECT * INTO r FROM public.reserve_document_upload('over.pdf','application/pdf',26214401,NULL,'36500000-0000-0000-0000-000000000031'); IF r.code<>'file_too_large' THEN RAISE EXCEPTION '25MiB boundary exceed'; END IF; EXECUTE 'SET LOCAL ROLE service_role'; SELECT * INTO r FROM public.complete_document_upload((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000030'),26214401,repeat('b',64),'application/pdf','36600000-0000-0000-0000-000000000030'); IF r.code<>'file_too_large' THEN RAISE EXCEPTION 'observed quota recheck'; END IF; SELECT * INTO r FROM public.record_document_upload_observed_bytes((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000030'),26214401); IF r.code<>'ok' THEN RAISE EXCEPTION 'terminal observed size recording'; END IF; SELECT * INTO r FROM public.fail_document_upload((SELECT id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000030'),'upload_rejected','36600000-0000-0000-0000-000000000031'); IF r.code<>'ok' OR (SELECT byte_size FROM public.file_assets WHERE id=(SELECT asset_id FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000030'))<>26214401 THEN RAISE EXCEPTION 'failed terminal asset must retain observed bytes'; END IF;
  -- Stale reservation release uses a valid historical fixture, not immutable
  -- timestamp mutation; finalised history remains untouched.
  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,availability,created_by,created_at) VALUES ('36700000-0000-0000-0000-000000000001','36000000-0000-0000-0000-000000000001','documents','orgs/36000000-0000-0000-0000-000000000001/assets/36700000-0000-0000-0000-000000000001/original.pdf','reserved','36100000-0000-0000-0000-000000000002',now()-interval '25 hours');
  INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,created_at,expires_at) VALUES ('36800000-0000-0000-0000-000000000001','36000000-0000-0000-0000-000000000001','36700000-0000-0000-0000-000000000001','stale.pdf','application/pdf',1,'reserved','36100000-0000-0000-0000-000000000002',now()-interval '25 hours',now()-interval '1 hour');
  INSERT INTO public.storage_reservations(org_id,upload_session_id,reserved_bytes,state,created_at,expires_at) VALUES ('36000000-0000-0000-0000-000000000001','36800000-0000-0000-0000-000000000001',1,'active',now()-interval '25 hours',now()-interval '1 hour');
  INSERT INTO public.intake_items(org_id,asset_id,upload_session_id,uploaded_by) VALUES('36000000-0000-0000-0000-000000000001','36700000-0000-0000-0000-000000000001','36800000-0000-0000-0000-000000000001','36100000-0000-0000-0000-000000000002');
- SELECT * INTO r FROM public.maintain_document_upload_sessions(100); IF r.expired_sessions<1 OR (SELECT us.state FROM public.upload_sessions AS us WHERE us.id='36800000-0000-0000-0000-000000000001')<>'expired' OR (SELECT us.state FROM public.upload_sessions AS us WHERE us.idempotency_key='36500000-0000-0000-0000-000000000001')<>'finalized' THEN RAISE EXCEPTION 'expiry maintenance'; END IF;
+ SELECT * INTO r FROM public.maintain_document_upload_sessions(100); IF r.expired_sessions<1 OR (SELECT us.state FROM public.upload_sessions AS us WHERE us.id='36800000-0000-0000-0000-000000000001')<>'expired' OR (SELECT byte_size FROM public.file_assets WHERE id='36700000-0000-0000-0000-000000000001')<>1 OR (SELECT us.state FROM public.upload_sessions AS us WHERE us.idempotency_key='36500000-0000-0000-0000-000000000001')<>'finalized' THEN RAISE EXCEPTION 'expiry maintenance/accounting'; END IF;
+ SELECT public.document_retained_asset_bytes('36000000-0000-0000-0000-000000000001') INTO retained_before;
+ SELECT * INTO r FROM public.record_document_asset_storage_deleted('36700000-0000-0000-0000-000000000001');
+ IF r.code<>'deleted' THEN RAISE EXCEPTION 'terminal storage tombstone'; END IF;
+ SELECT public.document_retained_asset_bytes('36000000-0000-0000-0000-000000000001') INTO retained_after;
+ IF retained_after<>retained_before-1
+    OR (SELECT storage_deleted_at IS NOT NULL FROM public.file_assets WHERE id='36700000-0000-0000-0000-000000000001') IS NOT TRUE
+    OR retained_after<>(SELECT coalesce(sum(byte_size),0) FROM public.file_assets WHERE org_id='36000000-0000-0000-0000-000000000001' AND byte_size IS NOT NULL AND storage_deleted_at IS NULL) THEN
+   RAISE EXCEPTION 'quota must equal physically retained assets';
+ END IF;
+ SELECT * INTO r FROM public.record_document_asset_storage_deleted('36700000-0000-0000-0000-000000000001');
+ IF r.code<>'already_deleted' THEN RAISE EXCEPTION 'storage tombstone idempotency'; END IF;
  IF EXISTS(SELECT 1 FROM public.document_upload_command_diagnostics) THEN RAISE EXCEPTION 'upload diagnostics'; END IF;
 END $service$;
 RESET ROLE;

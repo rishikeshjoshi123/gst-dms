@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getDocumentSignedUrl, getDocumentsByMatter } from '@/lib/actions/document'
+import { getDocumentVersionSignedUrl, getDocumentsByMatter } from '@/lib/actions/document'
 import { getNotes } from '@/lib/actions/notes'
 import { notFound } from 'next/navigation'
 import { PdfViewer } from '@/components/ui/pdf-viewer'
@@ -26,8 +26,8 @@ export default async function DocumentPage(props: { params: Promise<{ id: string
     notFound()
   }
 
-  const signedDocument = doc.storage_path
-    ? await getDocumentSignedUrl('documents', doc.storage_path)
+  const signedDocument = doc.current_version_id
+    ? await getDocumentVersionSignedUrl(doc.current_version_id)
     : null
   const notes = await getNotes({ documentId: params.docId })
   const allDocsData = await getDocumentsByMatter(params.id)
