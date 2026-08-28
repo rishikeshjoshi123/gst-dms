@@ -7,6 +7,42 @@ export type StoredPdfObservation =
   | { ok: true; byteSize: number; sha256: string; detectedMime: 'application/pdf' }
   | { ok: false; byteSize: number }
 
+export type UploadFailureResolution = 'retry' | 'terminal' | 'duplicate'
+
+export type UploadFailureResult = {
+  error: string
+  retryable: boolean
+  resolution: UploadFailureResolution
+  /** Keep this key when retrying so the reservation can be resumed safely. */
+  retainIdempotencyKey: boolean
+}
+
+/**
+ * A fail command owns cleanup only after it has durably terminalised the
+ * session. `not_available` is intentionally excluded: another request may
+ * have finalised the same asset between the browser's read and this command.
+ */
+export function ownsTerminalUploadCleanup(code: string | null | undefined) {
+  return code === 'ok'
+}
+
+/** A storage tombstone changes quota accounting only when the RPC confirms it. */
+export function storageDeletionWasRecorded(code: string | null | undefined) {
+  return code === 'deleted' || code === 'already_deleted'
+}
+
+export function uploadFailureResult(
+  error: string,
+  resolution: UploadFailureResolution = 'retry',
+): UploadFailureResult {
+  return {
+    error,
+    retryable: resolution === 'retry',
+    resolution,
+    retainIdempotencyKey: resolution === 'retry',
+  }
+}
+
 /**
  * Derive finalisation facts from the object read back from private Storage.
  * Browser-declared MIME types and hashes are never used as lifecycle facts.
