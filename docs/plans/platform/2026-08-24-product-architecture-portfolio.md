@@ -2,7 +2,7 @@
 title: CaseChain Product Architecture Portfolio
 status: proposed
 created: 2026-08-24
-updated: 2026-08-28
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -121,7 +121,7 @@ This table is the durable handoff ledger for a fresh planning task. `Status` is 
 | Domain | Status | Maturity | Required next action |
 | --- | --- | --- | --- |
 | Design System and Application Shell | `in-progress` | Contract is established and shared UI work is underway. | Continue implementation as a cross-cutting dependency; revise the canonical plan when a reusable contract changes. |
-| Document Record and File Lifecycle | `in-progress` | Direct-matter and global Inbox canonical upload, placement, authorised preview, and recovery boundaries are implemented and verified. | Run resumable legacy staged-document backfill validation, then retire staging assignment/copy and the compatibility adapter after explicit terminal classifications. |
+| Document Record and File Lifecycle | `in-progress` | Direct-matter and global Inbox canonical upload, placement, authorised preview, recovery, staged-source verification, and controlled non-destructive transfer are implemented and verified. | Review the explicit terminal-classification and retention inventory, including quarantined late-duplicate assets, before any separately authorised staging retirement or compatibility-adapter cutover. |
 | Hierarchical Resource Trash | `approved` | Approved implementation contract. | Implement in dependency order; no further architecture pass is required unless a conflicting requirement appears. |
 | AI Extraction and Provenance | `in-progress` | Transitional hardening exists; normalized provenance/model-lifecycle work remains active. | Reconcile implementation and QA findings against the canonical plan before cut-over. |
 | Universal Search and Evidence Retrieval | `approved` | Approved implementation contract. | Implement after versioned document text and provenance dependencies are ready. |
@@ -137,7 +137,7 @@ This table is the durable handoff ledger for a fresh planning task. `Status` is 
 
 The count is therefore exact for this portfolio snapshot: **9 approved**, **0 decision-complete proposed**, **4 in progress**, and **1 not archived**, across **14 child domains**. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains `proposed` until External Acquisition and Imports is archived, but planning no longer blocks implementation. A change to any child status must update this table and `docs/plans/README.md` in the same commit.
 
-All final approval passes, including Platform Operations, are complete; there are no remaining proposed-plan approval passes. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche. The Document Record and File Lifecycle plan is now in progress: direct-matter and global Inbox canonical upload, placement, and recovery are complete and verified. The canonical next action is resumable legacy staged-document backfill validation, followed by retirement of staging assignment/copy and its compatibility adapter. Keep External Acquisition and Imports deliberately deferred until representative spreadsheets are available, and allow implementation work to consume only approved contracts and their dependencies. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot.
+All final approval passes, including Platform Operations, are complete; there are no remaining proposed-plan approval passes. Organisation Administration remains in progress, but its identity/RBAC foundation, canonical membership RLS cutover, hash-only invitation commands, safe acceptance flow, and associated local database acceptance gates are stable as a completed foundation tranche. The Document Record and File Lifecycle plan is now in progress: direct-matter and global Inbox canonical upload, placement, recovery, staged-source verification, and controlled transfer are complete and verified. The canonical next action is a separately reviewed retention inventory before any staging retirement or compatibility-adapter cutover. Keep External Acquisition and Imports deliberately deferred until representative spreadsheets are available, and allow implementation work to consume only approved contracts and their dependencies. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot.
 
 To resume in a new task:
 
