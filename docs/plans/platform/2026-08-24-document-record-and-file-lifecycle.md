@@ -124,6 +124,17 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - Restore is operation-scoped and preserves IDs. Permanent purge is Owner/Admin-only, impact-previewed, hold-aware, durable, and deletes an asset only when no surviving reference remains.
 - Client or matter trash never relies on physical database cascade deletion. The Trash plan owns hierarchy, dependent-domain suspension, restore conflicts, and purge order.
 
+### Legacy staging retirement
+
+- Assignment and controlled backfill transfer never delete the legacy staging PDF inline. They first preserve the only recoverable source while canonical placement, integrity evidence, and downstream state settle.
+- A separate service-only, bounded, recurring purge job owns staging cleanup. It may claim only an explicitly mapped staging source whose Intake has been assigned to a matter and whose expected canonical asset is referenced by that document's immutable version.
+- Before deletion, the job must freshly prove organisation/path lineage; source and destination reachability; exact byte-size and SHA-256 equality; readable validated PDF state; the expected asset–Intake–document/version relationship; and the absence of active upload, assignment, verification, transfer, audit, processing, export/backup, legal-hold, retention-lock, or recovery work. A verified same-organisation duplicate may substitute for the copied destination only after the same equality, reachability, assignment, and blocker checks pass.
+- Eligibility is fail-closed. An unknown, missing, stale, contradictory, cross-tenant, unreadable, or blocked fact skips that object without deleting it. Later scheduled runs may retry ordinary transient or not-yet-settled conditions; contradictions and unexpected source loss create a durable recovery case rather than being inferred away.
+- Each attempt is leased and recorded durably before the Storage effect. Completion is recorded only after Storage confirms the exact source object is absent. If deletion succeeds but its response or the final database write is lost, a later run reconciles the existing attempt and confirmed absence idempotently; an unexplained 404 without prior purge intent is not accepted as successful cleanup.
+- Confirmed cleanup leaves a minimal content-free tombstone/receipt containing organisation, opaque source and canonical references, purge attempt/operation, policy or safe reason code, verifier result, actor or maintenance job, and timestamps. It contains no PDF bytes, filename, raw storage path, signed URL, legal content, extracted facts, or credentials.
+- Quarantined late-duplicate preallocated assets are a separate cleanup target. They may be removed only after the winning canonical duplicate and the original staging source have been proved equal and reachable and no surviving reference or blocker exists.
+- The compatibility adapter and legacy assignment paths remain until aggregate retirement reports show zero unresolved sources, active work, recovery cases, unproven quarantined assets, and access/lineage diagnostics. Their later removal is a separate verified contract migration, not a side effect of object cleanup.
+
 ### Storage quotas for the current pilot
 
 - Keep the Supabase bucket ceiling at 50 MB, but set the initial application default to **25 MB per PDF**. Platform operators may raise an organisation to 50 MB for a justified pilot case.
@@ -195,9 +206,15 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - The per-organisation report is fail-closed. It covers exhaustive map/classification counts, live verification/transfer/legacy/audit leases, transfer database consistency, duplicate target health, source lineage and adapter-fence diagnostics, terminal exception categories, and an explicit unproven count for quarantined backfill-pending assets that cannot safely be paired with a historical late-duplicate race.
 - The inventory does not delete staging or canonical objects, alter legacy staged rows, change compatibility reads/assignment behavior, or authorise retention, adapter retirement, or consumer cutover. A true evidence flag is only an input to a separate human decision.
 
+### Approved: fail-closed staged-source purge and tombstone policy (2026-08-29)
+
+- Product approval now authorises a separate recurring maintenance job to delete a redundant legacy staging PDF only after fresh assignment, reference, reachability, byte/hash equality, PDF-integrity, lease/work, hold, export/backup, and recovery checks all pass.
+- Uncertain or exceptional sources are retained and skipped for a later run; contradictions enter durable recovery. Deletion uses a leased, resumable intent/confirmation protocol and produces a minimal content-free tombstone. Inline assignment deletion, time-only deletion, storage-pressure deletion, and best-effort unrecorded cleanup remain forbidden.
+- This decision is implementation-ready but is not part of the active durable-processing tranche. Its migration, worker, regression suite, retirement report review, and later adapter contract removal remain separate checkpoints.
+
 ### Canonical next action
 
-Implement and independently verify the approved durable-dispatch revision: safe outbox authority, immediate trusted wake-up, one-minute recovery dispatcher, organisation-aware bounded draining, delivery/processing separation, explicit reprocess commands, hot-path indexing, and outbox compaction. Integrate the approved Vertex failure contract from the AI plan into the same processing tranche. Keep legacy reads and assignment behind their compatibility/fence contracts; do not delete staging rows or objects, remove the adapter, or otherwise perform the separate retention/cutover decision as part of this tranche.
+Implement and independently verify the approved durable-dispatch revision: safe outbox authority, immediate trusted wake-up, one-minute recovery dispatcher, organisation-aware bounded draining, delivery/processing separation, explicit reprocess commands, hot-path indexing, and outbox compaction. Integrate the approved Vertex failure contract from the AI plan into the same processing tranche. Keep legacy reads and assignment behind their compatibility/fence contracts; do not implement the separately approved staged-source purge or adapter contract removal inside this tranche. After durable processing is checkpointed, implement the fail-closed staged-source purge as its own migration/worker/QA tranche before any adapter removal.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 

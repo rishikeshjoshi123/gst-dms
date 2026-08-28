@@ -2,7 +2,7 @@
 title: Hierarchical Resource Trash, Retention, and Purge
 status: approved
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -115,7 +115,8 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 - Purge is asynchronous, durable, idempotent, and dependency ordered: disable active projections/jobs; remove search/embeddings; remove notification deliveries and task/review projections as policy requires; purge collaboration/derived facts according to retention; remove relationships; detach document versions; delete unreferenced assets; anonymise or retain mandatory activity tombstones; then mark the root purged.
 - Once purge begins, the subtree cannot be restored. If a stage fails, the operation becomes `purge_failed`, remains inaccessible, exposes a safe admin retry, and does not pretend that storage was freed.
 - A file asset is deleted only after a transaction proves there are no surviving document-version, intake, export, or hold references. Organisation-local deduplication therefore cannot make one document purge erase another document's PDF.
-- Activity retains a minimal tombstone containing organisation, resource type, former opaque ID, purge actor/policy, timestamp, and operation ID. It does not retain names, legal content, filenames, reference numbers, or extracted facts after purge.
+- Every confirmed physical purge uses the shared minimal content-free tombstone/receipt pattern. For hierarchy purge, Activity retains organisation, resource type, former opaque ID, purge actor/policy, timestamp, and operation ID; storage-maintenance purges may additionally retain opaque source/canonical references and a safe verification code. Tombstones never retain names, legal content, filenames, raw storage paths, signed URLs, reference numbers, extracted facts, or credentials.
+- A tombstone records that a verified purge occurred; it is not a surviving copy of the deleted record and cannot be used to reconstruct purged content. Domain-specific purge workers must record durable intent before an external deletion, confirm the effect, and reconcile response loss idempotently before marking the tombstone complete.
 
 ### Legal hold and exports
 
@@ -145,6 +146,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 - `resource_trash_memberships`: operation, resource type/ID, parent membership, direct/inherited cause, prior state, restore/purge state, and timestamps; unique active membership per resource.
 - `organisation_retention_settings`: trash retention mode/days, auto-purge flag, updated actor/time, and policy version.
 - `resource_holds`: organisation, resource locator, inherited scope, reason, authority/reference, creator/time, release actor/time, and state.
+- Shared purge tombstone/receipt contract: organisation, purged resource kind, former opaque identifier, purge operation/attempt, actor or maintenance job, policy/safe reason, verification result, and timestamps; domain extensions may add only opaque non-content references required for audit and idempotent reconciliation.
 - Client, Matter, and Document add typed `record_state` plus active trash membership reference. Legacy `deleted_at` remains during migration only.
 
 ```ts
