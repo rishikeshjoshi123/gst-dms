@@ -63,20 +63,12 @@ function renderSpecimen(specimenId) {
   return specimen;
 }
 
-function renderPlainLanguagePlan(plan) {
+function renderArticleIntroduction(plan) {
   const edition = plainLanguagePlans[plan.relativePath];
   if (!edition) throw new Error(`Plan is missing its public-reader edition: ${plan.relativePath}`);
-  const supportingVisuals = (planVisualReferences[plan.relativePath] ?? []).map((reference) => renderSpecimen(reference.specimenId)).join('');
-  return `<section class="plain-language-intro" aria-labelledby="plain-language-heading"><p class="eyebrow">In plain language</p><h2 id="plain-language-heading">What this plan means</h2><p>${escapeHtml(edition.overview)}</p></section>
-<section class="reader-section" aria-labelledby="why-heading"><h2 id="why-heading">Why it matters</h2><p>${escapeHtml(edition.why)}</p></section>
-<section class="reader-section" aria-labelledby="outcomes-heading"><h2 id="outcomes-heading">What people can expect</h2><ul class="outcome-list">${edition.outcomes.map((outcome) => `<li>${escapeHtml(outcome)}</li>`).join('')}</ul></section>
-<figure class="plan-journey" aria-labelledby="journey-caption"><figcaption id="journey-caption"><span class="visual-reference-label">Plan journey</span><strong>How the work comes together</strong><span>A simple view of the three main stages in this plan.</span></figcaption><ol>${edition.steps.map((step, index) => `<li><span>${index + 1}</span><b>${escapeHtml(step)}</b></li>`).join('')}</ol></figure>${supportingVisuals}`;
+  return `<div class="article-introduction"><p class="article-deck">${escapeHtml(edition.overview)}</p><p>${escapeHtml(edition.why)}</p></div><figure class="article-flow" aria-labelledby="flow-caption"><figcaption id="flow-caption">The idea in three moves</figcaption><ol>${edition.steps.map((step, index) => `<li><span>${index + 1}</span>${escapeHtml(step)}</li>`).join('')}</ol></figure>`;
 }
 
-// Retained for the canonical-source renderer should the public portal ever need
-// an opt-in technical edition again; public pages deliberately use the friendlier
-// summaries below instead.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function renderMarkdown(markdown, visualReferences = []) {
   const lines = markdown.split('\n');
   const html = [];
@@ -176,7 +168,8 @@ await writeFile(path.join(outputRoot, 'index.html'), layout('Overview', dashboar
 
 await Promise.all(plans.map(async (plan) => {
   const sourceUrl = `${repositoryUrl}/blob/${sourceBranch}/${plan.relativePath}`;
-  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><div class="article-body">${renderPlainLanguagePlan(plan)}<aside class="source-note"><h2>Want the technical detail?</h2><p>The original plan is kept unchanged in the repository as the complete decision record.</p><a href="${sourceUrl}" target="_blank" rel="noreferrer">Read the detailed source plan on GitHub</a></aside></div></article>`;
+  const technicalArticle = plan.body.replace(/^## Summary\n\n[\s\S]*?(?=\n## )/m, '');
+  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><div class="article-body">${renderArticleIntroduction(plan)}${renderMarkdown(technicalArticle, planVisualReferences[plan.relativePath])}<aside class="source-note"><h2>Read the original source</h2><p>This article is a public reading edition. The repository keeps the complete, canonical plan and its change history.</p><a href="${sourceUrl}" target="_blank" rel="noreferrer">Open the source plan on GitHub</a></aside></div></article>`;
   await writeFile(path.join(outputRoot, 'plans', `${plan.slug}.html`), layout(plan.title, content, 'plans'));
 }));
 
