@@ -35,3 +35,11 @@ export function canonicalInboxReason(state: string, failureCode: string | null) 
         : null
   }
 }
+
+export function canonicalIntakeActions(state: string) {
+  return {
+    canPreview: state === 'ready',
+    canAssign: state === 'ready',
+    canDiscard: state === 'ready',
+  }
+}

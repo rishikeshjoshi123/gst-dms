@@ -241,6 +241,79 @@ export async function assignStagedDocument(
   return { success: true, documentId: doc.id }
 }
 
+// ── Canonical Intake placement and discard ───────────────────────
+
+export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: string, idempotencyKey: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { error: 'No active organisation.' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  // The trusted filename lives on the upload session. The browser never
+  // chooses a storage path, asset, or source file for materialisation.
+  const service = createServiceClient()
+  const { data: intake, error: intakeError } = await service
+    .from('intake_items')
+    .select('id, org_id, state, upload_session:upload_sessions(declared_filename)')
+    .eq('id', intakeId)
+    .eq('org_id', orgId)
+    .single()
+  if (intakeError || !intake || intake.state !== 'ready') return { error: 'This intake is no longer ready for placement.' }
+
+  const session = intake.upload_session as unknown as { declared_filename: string } | null
+  const displayTitle = session?.declared_filename
+    ?.replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\.pdf$/i, '')
+    .trim() || 'Uploaded document'
+  const { data, error } = await supabase.rpc('assign_intake_to_new_document', {
+    p_intake_id: intakeId,
+    p_matter_id: matterId,
+    p_display_title: displayTitle.slice(0, 255),
+    p_expected_intake_uploader: user.id,
+    p_idempotency: idempotencyKey,
+  })
+  const result = data?.[0]
+  if (error || !result || result.code !== 'ok') {
+    return { error: error?.message ?? 'This intake could not be assigned. Refresh the queue and try again.' }
+  }
+
+  revalidatePath('/inbox')
+  revalidatePath('/', 'layout')
+  revalidatePath(`/matters/${matterId}`)
+  return { success: true as const, documentId: result.document_id }
+}
+
+export async function discardCanonicalIntake(intakeId: string, idempotencyKey: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('discard_intake_item', {
+    p_intake_id: intakeId,
+    p_idempotency: idempotencyKey,
+  })
+  const result = data?.[0]
+  if (error || !result || !['ok', 'already_discarded'].includes(result.code)) {
+    return { error: error?.message ?? 'This intake could not be discarded. Refresh the queue and try again.' }
+  }
+
+  revalidatePath('/inbox')
+  revalidatePath('/', 'layout')
+  return { success: true as const }
+}
+
+export async function getCanonicalDuplicateResolution(intakeId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_intake_duplicate_resolution', { p_intake_id: intakeId })
+  const result = data?.[0]
+  if (error || !result) {
+    return { code: 'not_available' as const }
+  }
+  if (result.code === 'in_trash') return { code: 'in_trash' as const }
+  if (result.code === 'ok' && result.document_id && result.matter_id) {
+    return { code: 'ok' as const, documentId: result.document_id, matterId: result.matter_id }
+  }
+  return { code: 'not_available' as const }
+}
+
 // ── Auto-Create Client & Matter for Staged Document ──────────────────
 
 export async function autoCreateClientAndMatterForStagedDocument(stagedId: string, selectedFy?: string) {

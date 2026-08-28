@@ -2657,6 +2657,10 @@ export type Database = {
           code: string
         }[]
       }
+      discard_intake_item: {
+        Args: { p_idempotency: string; p_intake_id: string }
+        Returns: { code: string }[]
+      }
       claim_document_asset_storage_deletion_work: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -2849,6 +2853,18 @@ export type Database = {
           code: string
           object_key: string
         }[]
+      }
+      get_intake_item_read_grant: {
+        Args: { p_intake_id: string }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
+        }[]
+      }
+      get_intake_duplicate_resolution: {
+        Args: { p_intake_id: string }
+        Returns: { code: string; document_id: string; matter_id: string }[]
       }
       get_my_organisation_context: {
         Args: never

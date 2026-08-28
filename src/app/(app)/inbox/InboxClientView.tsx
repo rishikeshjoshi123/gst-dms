@@ -14,12 +14,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import {
-  assignStagedDocument, discardStagedDocument,
+  assignCanonicalIntakeToMatter, assignStagedDocument, discardCanonicalIntake, discardStagedDocument, getCanonicalDuplicateResolution,
   autoCreateClientAndMatterForStagedDocument,
   getStagedDocuments
 } from '@/lib/actions/inbox'
-import { getDocumentSignedUrl } from '@/lib/actions/document'
+import { getDocumentSignedUrl, getIntakeItemSignedUrl } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
+import { canonicalIntakeActions } from '@/lib/inbox-compat'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
 import { DocumentViewerModal } from './DocumentViewerModal'
@@ -254,6 +255,7 @@ export function InboxClientView({
   const uploadTriggerRef = useRef<HTMLButtonElement>(null)
   const viewPdfButtonRef = useRef<HTMLButtonElement>(null)
   const takeActionButtonRef = useRef<HTMLButtonElement>(null)
+  const canonicalActionKeys = useRef(new Map<string, string>())
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
 
@@ -282,6 +284,7 @@ export function InboxClientView({
   const visibleDocuments = isMatterIntake ? matterIntakeDocuments : globalDocuments
   const activeDoc = visibleDocuments.find(d => d.id === selectedDocId)
   const isCanonicalIntake = activeDoc?.source_kind === 'canonical_intake'
+  const activeCanonicalActions = canonicalIntakeActions(activeDoc?.canonical_intake_state ?? '')
 
   useEffect(() => {
     if (!visibleDocuments.some(doc => doc.id === selectedDocId)) {
@@ -414,16 +417,15 @@ export function InboxClientView({
   }
 
   function handleAssign() {
-    if (isCanonicalIntake) {
-      toast.info('Canonical intake assignment will be available in the next Inbox migration.')
-      return
-    }
     if (!selectedDocId || !selectedMatterId) return
     startTransition(async () => {
-      const res = await assignStagedDocument(selectedDocId, selectedMatterId)
+      const res = isCanonicalIntake
+        ? await assignCanonicalIntakeToMatter(selectedDocId, selectedMatterId, canonicalActionKeys.current.get(`assign:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`assign:${selectedDocId}`, key); return key })())
+        : await assignStagedDocument(selectedDocId, selectedMatterId)
       if (res.error) {
         toast.error(res.error)
       } else {
+        if (isCanonicalIntake) canonicalActionKeys.current.delete(`assign:${selectedDocId}`)
         toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
         const latestDocs = await getStagedDocuments()
@@ -451,14 +453,16 @@ export function InboxClientView({
   }
 
   function handleDiscard() {
-    if (isCanonicalIntake) return
     if (!selectedDocId) return
     discardedDocIds.current.add(selectedDocId)
     startTransition(async () => {
-      const res = await discardStagedDocument(selectedDocId)
+      const res = isCanonicalIntake
+        ? await discardCanonicalIntake(selectedDocId, canonicalActionKeys.current.get(`discard:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`discard:${selectedDocId}`, key); return key })())
+        : await discardStagedDocument(selectedDocId)
       if (res.error) {
         toast.error(res.error)
       } else {
+        if (isCanonicalIntake) canonicalActionKeys.current.delete(`discard:${selectedDocId}`)
         toast.success('Document discarded')
         setIsDiscardConfirmOpen(false)
         setIsActionModalOpen(false)
@@ -473,7 +477,9 @@ export function InboxClientView({
   async function handleViewDocument() {
     if (!activeDoc) return
     if (isCanonicalIntake) {
-      toast.info('PDF preview for canonical intake will be enabled with the assignment cutover.')
+      const res = await getIntakeItemSignedUrl(activeDoc.id)
+      if (res.error || !res.url) toast.error(res.error || 'Failed to generate signed URL')
+      else setViewDocumentUrl(res.url)
       return
     }
     const res = await getDocumentSignedUrl('staging', activeDoc.storage_path)
@@ -482,6 +488,20 @@ export function InboxClientView({
     } else {
       setViewDocumentUrl(res.url)
     }
+  }
+
+  async function handleOpenCanonicalDuplicate() {
+    if (!activeDoc) return
+    const result = await getCanonicalDuplicateResolution(activeDoc.id)
+    if (result.code === 'ok') {
+      router.push(`/matters/${result.matterId}/documents/${result.documentId}`)
+      return
+    }
+    if (result.code === 'in_trash') {
+      toast.error('The matching document is in your organisation Trash and must be restored before it can be used.')
+      return
+    }
+    toast.error('The matching document is not available. Refresh the queue or contact support.')
   }
 
   const handleReprocess = async (docId: string) => {
@@ -514,7 +534,7 @@ export function InboxClientView({
             onClick={() => setIntakeTab('matter')}
             aria-current={isMatterIntake ? 'page' : undefined}
             className={cn(
-              'flex h-9 shrink-0 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-xs font-semibold transition-colors',
+              'flex min-h-11 shrink-0 items-center gap-2 rounded-t-[var(--radius-md)] border border-b-0 px-3 text-xs font-semibold transition-colors',
               isMatterIntake
                 ? 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_-1px_5px_rgba(0,0,0,0.04)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
@@ -528,7 +548,7 @@ export function InboxClientView({
             onClick={() => setIntakeTab('global')}
             aria-current={!isMatterIntake ? 'page' : undefined}
             className={cn(
-              'flex h-9 shrink-0 items-center gap-2 rounded-t-lg border border-b-0 px-3 text-xs font-semibold transition-colors',
+              'flex min-h-11 shrink-0 items-center gap-2 rounded-t-[var(--radius-md)] border border-b-0 px-3 text-xs font-semibold transition-colors',
               !isMatterIntake
                 ? 'border-[var(--border-strong)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[0_-1px_5px_rgba(0,0,0,0.04)]'
                 : 'border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
@@ -577,7 +597,7 @@ export function InboxClientView({
               variant="outline"
               size="sm"
               onClick={async () => {
-                const toastId = toast.loading('Syncing queue...')
+                const toastId = toast.loading('Refreshing queue...')
                 try {
                   const latestDocs = await getStagedDocuments()
                   setDocuments(uniqueDocumentsById(latestDocs))
@@ -706,7 +726,24 @@ export function InboxClientView({
                 {/* Action Buttons row */}
                 <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
                   {isCanonicalIntake ? (
-                    <Badge variant="muted" fixedWidth="lg">Canonical intake</Badge>
+                    <>
+                      <Badge variant="muted" fixedWidth="lg">Canonical intake</Badge>
+                      {activeCanonicalActions.canPreview && (
+                        <Button type="button" variant="outline" size="sm" ref={viewPdfButtonRef} onClick={handleViewDocument}>
+                          <ExternalLink size={12} aria-hidden="true" /> View PDF
+                        </Button>
+                      )}
+                      {activeCanonicalActions.canAssign && (
+                        <Button type="button" size="sm" ref={takeActionButtonRef} onClick={() => setIsActionModalOpen(true)}>
+                          <Zap size={13} aria-hidden="true" /> Assign to matter
+                        </Button>
+                      )}
+                      {activeCanonicalActions.canDiscard && !activeCanonicalActions.canAssign && (
+                        <Button type="button" variant="destructive" size="sm" onClick={() => setIsDiscardConfirmOpen(true)}>
+                          <Trash2 size={13} aria-hidden="true" /> Discard intake
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <>
                   <Button
@@ -781,9 +818,29 @@ export function InboxClientView({
                     {activeDoc.status === 'failed' || isDuplicate
                       ? activeDoc.suggestion_reason
                       : activeDoc.canonical_intake_state === 'ready'
-                      ? 'This PDF passed validation and is ready for a placement decision. Assignment is the next Inbox scope.'
+                      ? 'This PDF passed validation. Preview it or assign it to an existing matter without copying the source file.'
                       : 'This PDF is being processed through the canonical private asset pipeline. Use Refresh queue to check for an updated state.'}
                   </p>
+                  {activeCanonicalActions.canAssign && (
+                    <Button type="button" className="mt-5" onClick={() => setIsActionModalOpen(true)}>
+                      <Zap size={14} aria-hidden="true" /> Assign to matter
+                    </Button>
+                  )}
+                  {activeCanonicalActions.canDiscard && (
+                    <Button type="button" variant="destructive" className="mt-5" onClick={() => setIsDiscardConfirmOpen(true)}>
+                      <Trash2 size={14} aria-hidden="true" /> Discard intake
+                    </Button>
+                  )}
+                  {isDuplicate && (
+                    <Button type="button" variant="outline" className="mt-5" onClick={handleOpenCanonicalDuplicate}>
+                      <ExternalLink size={14} aria-hidden="true" /> Find matching document
+                    </Button>
+                  )}
+                  {activeDoc.status === 'failed' && (
+                    <Button type="button" variant="outline" className="mt-5" onClick={() => { router.refresh(); toast.info('Refreshing the queue for the latest recovery state.') }}>
+                      <RefreshCw size={14} aria-hidden="true" /> Refresh queue
+                    </Button>
+                  )}
                 </div>
               ) : activeProcessingCopy ? (
                 <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center">
@@ -1084,7 +1141,7 @@ export function InboxClientView({
                 </Button>
 
                 {/* Auto-create */}
-                {activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
+                {!isCanonicalIntake && activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
                   <div className="flex flex-col gap-2 mt-1">
                     {activeDoc.raw_metadata?.financial_years && activeDoc.raw_metadata.financial_years.length > 1 && (
                       <div className="flex flex-col gap-1.5 p-3 rounded-[var(--radius-md)] border border-[var(--primary)]/20 bg-[var(--primary)]/5">
@@ -1122,17 +1179,18 @@ export function InboxClientView({
                   </div>
                 )}
 
-                {/* Discard */}
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="md"
-                  onClick={() => setIsDiscardConfirmOpen(true)}
-                  disabled={isPending}
-                  className="w-full"
-                >
-                  <Trash2 size={13} aria-hidden="true" /> Discard Document
-                </Button>
+                {(!isCanonicalIntake || activeCanonicalActions.canDiscard) && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="md"
+                    onClick={() => setIsDiscardConfirmOpen(true)}
+                    disabled={isPending}
+                    className="w-full"
+                  >
+                    <Trash2 size={13} aria-hidden="true" /> {isCanonicalIntake ? 'Discard intake' : 'Discard Document'}
+                  </Button>
+                )}
               </div>
 
               <DialogFooter className="mt-0 flex-col gap-2 border-t border-[var(--border)] p-0 pt-4 sm:flex-row sm:justify-end">
@@ -1156,9 +1214,11 @@ export function InboxClientView({
         isOpen={isDiscardConfirmOpen}
         onClose={() => setIsDiscardConfirmOpen(false)}
         onConfirm={handleDiscard}
-        title="Discard Document?"
-        description="Are you sure you want to discard this document? It will be permanently deleted from the staging queue."
-        confirmText="Discard Document"
+        title={isCanonicalIntake ? 'Discard intake?' : 'Discard Document?'}
+        description={isCanonicalIntake
+          ? 'This will remove the unassigned intake from the Inbox and schedule its private source file for secure cleanup.'
+          : 'Are you sure you want to discard this document? It will be permanently deleted from the staging queue.'}
+        confirmText={isCanonicalIntake ? 'Discard intake' : 'Discard Document'}
         variant="destructive"
         isPending={isPending}
       />

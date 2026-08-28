@@ -153,13 +153,20 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 
 ### Canonical next action
 
-Convert **canonical global Inbox Intake placement, assignment, discard, and authorised preview** into the completed upload-session/intake-item pipeline. Remove staging-bucket copy from the canonical assignment path, keep legacy staged rows behind a bounded compatibility adapter until backfill validation, and then run the same independent database, authorization, and UI QA gates before beginning backfill work.
+Validate and execute the **resumable legacy staged-document backfill** into canonical Intake/documents, including explicit terminal classification for every legacy source. Then retire legacy staging assignment and its bounded Inbox adapter only after verified count, access, duplicate, and object-reachability reports.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 
 - Global Inbox uploads now use the same reservation, private asset, server-observed completion, durable outbox, duplicate, quota, and idempotency contract as direct matter uploads. New uploads never create `staged_documents` rows or staging-bucket objects.
 - The Inbox projects canonical unassigned Intake alongside a clearly marked read-only legacy staged adapter. Its 25 MiB, retryable-versus-terminal, safe failure, and explicit refresh behavior matches the lifecycle contract.
 - Independent QA found and verified fixes for terminal-cleanup ownership, storage tombstone confirmation, retry metadata, and canonical state presentation. Focused tests, type checks, migration checks, and diff checks passed; broader legacy lint remains baseline-red.
+
+### Completed: canonical Inbox placement and recovery boundaries (2026-08-28)
+
+- Ready Intake can be assigned to an existing matter atomically without a storage copy, discarded through an idempotent ready-only command, and previewed only through an authorised Intake-ID grant.
+- Command receipts are bound to the Intake subject, assignment emits the durable `intake.assigned.v1` event, and the shared version-4 capability matrix exposes discard only to Owner/Admin/Associate.
+- Duplicate recovery covers current and superseded versions; a Trash-held-only match is non-disclosing and explicitly restore-required until the approved Trash workspace is implemented.
+- Local SQL, build, type, migration, and focused tests passed; authenticated browser interaction could not be re-exercised without a local sign-in session.
 
 ## Interfaces and Data Changes
 

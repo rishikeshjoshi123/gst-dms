@@ -676,6 +676,28 @@ export async function getDocumentVersionSignedUrl(documentVersionId: string) {
   return { url: data.signedUrl }
 }
 
+/** Create an authorised short-lived PDF URL for a ready, unassigned intake. */
+export async function getIntakeItemSignedUrl(intakeId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: grants, error: grantError } = await supabase.rpc('get_intake_item_read_grant', {
+    p_intake_id: intakeId,
+  })
+  const grant = grants?.[0]
+  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
+    return { error: 'This intake PDF is not available for preview.' }
+  }
+
+  const storage = createServiceClient()
+  const { data, error } = await storage.storage
+    .from(grant.bucket_id)
+    .createSignedUrl(grant.object_key, 60 * 15)
+  if (error || !data) return { error: error?.message ?? 'Failed to generate view link.' }
+  return { url: data.signedUrl }
+}
+
 
 export async function updateDocumentMetadata(docId: string, metadataKey: string, newValue: any) {
   const supabase = await createClient()
