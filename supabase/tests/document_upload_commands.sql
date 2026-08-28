@@ -60,14 +60,15 @@ RESET ROLE;
 
 SET LOCAL ROLE service_role;
 DO $service$
-DECLARE r record; first_session uuid; duplicate_session uuid; cross_session uuid; count_before integer; h text:=repeat('a',64);
+DECLARE r record; first_session uuid; duplicate_session uuid; cross_session uuid; count_before integer; h text:=repeat('a',64); denied boolean:=false;
 BEGIN
  -- Unique completion and stable retry; observed facts are the one allowed
  -- identity mutation and exact outbox payloads remain free of storage secrets.
  SELECT id INTO first_session FROM public.upload_sessions WHERE idempotency_key='36500000-0000-0000-0000-000000000001';
+ PERFORM set_config('test.document_upload_completed_session',first_session::text,true);
+ BEGIN PERFORM 1 FROM public.outbox_events LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; IF NOT denied THEN RAISE EXCEPTION 'service outbox select allowed'; END IF;
  SELECT * INTO r FROM public.complete_document_upload(first_session,1024,h,'application/pdf','36600000-0000-0000-0000-000000000001'); IF r.code<>'ok' THEN RAISE EXCEPTION 'unique completion'; END IF;
  SELECT * INTO r FROM public.complete_document_upload(first_session,1024,h,'application/pdf','36600000-0000-0000-0000-000000000002'); IF r.code<>'ok' THEN RAISE EXCEPTION 'completion retry'; END IF;
- IF (SELECT count(*) FROM public.outbox_events WHERE aggregate_id=first_session AND event_kind='document.upload_validation_requested.v1')<>1 OR EXISTS(SELECT 1 FROM public.outbox_events WHERE aggregate_id=first_session AND payload::text ~ '(filename|object|path|token|email)') THEN RAISE EXCEPTION 'safe complete event'; END IF;
  -- Same-org SHA is a duplicate, while a separate tenant keeps independent
  -- accounting and its own asset.
  EXECUTE 'SET LOCAL ROLE authenticated'; PERFORM set_config('request.jwt.claim.sub','36100000-0000-0000-0000-000000000001',true); SELECT * INTO r FROM public.reserve_document_upload('duplicate.pdf','application/pdf',5,NULL,'36500000-0000-0000-0000-000000000020'); EXECUTE 'SET LOCAL ROLE service_role'; duplicate_session:=r.upload_session_id;
@@ -91,4 +92,9 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.document_upload_command_diagnostics) THEN RAISE EXCEPTION 'upload diagnostics'; END IF;
 END $service$;
 RESET ROLE;
+DO $privileged_outbox_inspection$
+DECLARE first_session uuid:=current_setting('test.document_upload_completed_session')::uuid;
+BEGIN
+ IF (SELECT count(*) FROM public.outbox_events WHERE aggregate_id=first_session AND event_kind='document.upload_validation_requested.v1')<>1 OR EXISTS(SELECT 1 FROM public.outbox_events WHERE aggregate_id=first_session AND payload::text ~ '(filename|object|path|token|email)') THEN RAISE EXCEPTION 'safe complete event'; END IF;
+END $privileged_outbox_inspection$;
 ROLLBACK;

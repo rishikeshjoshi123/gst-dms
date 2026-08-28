@@ -53,20 +53,25 @@ RESET ROLE;
 -- values. They exercise success, failure/retry, and no-secret event payloads.
 SET LOCAL ROLE service_role;
 DO $service$
-DECLARE org uuid:='37000000-0000-0000-0000-000000000001'; actor uuid:='37100000-0000-0000-0000-000000000001'; a1 uuid:='37600000-0000-0000-0000-000000000001'; a2 uuid:='37600000-0000-0000-0000-000000000002'; a3 uuid:='37600000-0000-0000-0000-000000000003'; a4 uuid:='37600000-0000-0000-0000-000000000004'; s1 uuid:='37700000-0000-0000-0000-000000000001'; s2 uuid:='37700000-0000-0000-0000-000000000002'; s3 uuid:='37700000-0000-0000-0000-000000000003'; s4 uuid:='37700000-0000-0000-0000-000000000004'; i1 uuid:='37800000-0000-0000-0000-000000000001'; i2 uuid:='37800000-0000-0000-0000-000000000002'; i3 uuid:='37800000-0000-0000-0000-000000000003'; i4 uuid:='37800000-0000-0000-0000-000000000004'; r record;
+DECLARE org uuid:='37000000-0000-0000-0000-000000000001'; actor uuid:='37100000-0000-0000-0000-000000000001'; a1 uuid:='37600000-0000-0000-0000-000000000001'; a2 uuid:='37600000-0000-0000-0000-000000000002'; a3 uuid:='37600000-0000-0000-0000-000000000003'; a4 uuid:='37600000-0000-0000-0000-000000000004'; s1 uuid:='37700000-0000-0000-0000-000000000001'; s2 uuid:='37700000-0000-0000-0000-000000000002'; s3 uuid:='37700000-0000-0000-0000-000000000003'; s4 uuid:='37700000-0000-0000-0000-000000000004'; i1 uuid:='37800000-0000-0000-0000-000000000001'; i2 uuid:='37800000-0000-0000-0000-000000000002'; i3 uuid:='37800000-0000-0000-0000-000000000003'; i4 uuid:='37800000-0000-0000-0000-000000000004'; r record; denied boolean:=false;
 BEGIN
+ BEGIN PERFORM 1 FROM public.outbox_events LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; IF NOT denied THEN RAISE EXCEPTION 'service outbox select allowed'; END IF;
  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,byte_size,detected_mime_type,availability,validated_at,created_by) VALUES
  (a1,org,'documents','orgs/'||org||'/assets/'||a1||'/original.pdf',10,'application/pdf','available',now(),actor),(a2,org,'documents','orgs/'||org||'/assets/'||a2||'/original.pdf',20,'application/pdf','available',now(),actor),(a3,org,'documents','orgs/'||org||'/assets/'||a3||'/original.pdf',30,'application/pdf','available',now(),actor),(a4,org,'documents','orgs/'||org||'/assets/'||a4||'/original.pdf',40,'application/pdf','available',now(),actor);
  INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at) VALUES(s1,org,a1,'first.pdf','application/pdf',10,'finalized',actor,now(),now()),(s2,org,a2,'second.pdf','application/pdf',20,'finalized',actor,now(),now()),(s3,org,a3,'bad.pdf','application/pdf',30,'finalized',actor,now(),now()),(s4,org,a4,'assigned.pdf','application/pdf',40,'finalized',actor,now(),now());
  INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by) VALUES(i1,org,a1,s1,'uploaded',actor),(i2,org,a2,s2,'uploaded',actor),(i3,org,a3,s3,'uploaded',actor),(i4,org,a4,s4,'uploaded',actor);
  SELECT * INTO r FROM public.validate_document_intake_asset(i1,2,'ready','37900000-0000-0000-0000-000000000001'); IF r.code<>'ok' OR r.intake_item_id IS NULL OR r.asset_id IS NULL THEN RAISE EXCEPTION 'validation success'; END IF; SELECT * INTO r FROM public.validate_document_intake_asset(i1,999,'ready','37900000-0000-0000-0000-000000000001'); IF r.code<>'ok' OR r.intake_item_id IS NULL OR r.asset_id IS NULL OR (SELECT validated_page_count FROM public.file_assets WHERE id=a1)<>2 THEN RAISE EXCEPTION 'validation receipt retry'; END IF;
  SELECT * INTO r FROM public.validate_document_intake_asset(i3,NULL,'encrypted_pdf','37900000-0000-0000-0000-000000000003'); IF r.code<>'encrypted_pdf' OR (SELECT state FROM public.intake_items WHERE id=i3)<>'failed' OR (SELECT availability FROM public.file_assets WHERE id=a3)<>'quarantined' THEN RAISE EXCEPTION 'validation failure'; END IF;
- IF EXISTS(SELECT 1 FROM public.outbox_events WHERE aggregate_id IN (i1,i3) AND payload::text ~* '(path|object|content|filename|token)') THEN RAISE EXCEPTION 'validation outbox secrecy'; END IF;
  PERFORM set_config('test.intake_one',i1::text,true); PERFORM set_config('test.intake_two',i2::text,true); PERFORM set_config('test.intake_three',i4::text,true);
  SELECT * INTO r FROM public.validate_document_intake_asset(i2,3,'ready','37900000-0000-0000-0000-000000000002'); IF r.code<>'ok' THEN RAISE EXCEPTION 'second validation'; END IF;
  SELECT * INTO r FROM public.validate_document_intake_asset(i4,4,'ready','37900000-0000-0000-0000-000000000004'); IF r.code<>'ok' OR r.intake_item_id IS NULL OR r.asset_id IS NULL THEN RAISE EXCEPTION 'third validation'; END IF;
 END $service$;
 RESET ROLE;
+DO $validation_outbox_inspection$
+DECLARE i1 uuid:=current_setting('test.intake_one')::uuid; i3 uuid:=current_setting('test.intake_three')::uuid;
+BEGIN
+ IF EXISTS(SELECT 1 FROM public.outbox_events WHERE aggregate_id IN (i1,i3) AND payload::text ~* '(path|object|content|filename|token)') THEN RAISE EXCEPTION 'validation outbox secrecy'; END IF;
+END $validation_outbox_inspection$;
 
 SET LOCAL ROLE authenticated;
 DO $commands$

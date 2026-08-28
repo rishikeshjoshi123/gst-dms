@@ -1745,6 +1745,57 @@ export type Database = {
           },
         ]
       }
+      outbox_dispatch_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          event_id: string
+          id: string
+          lease_fingerprint: string
+          org_id: string
+          outcome: string
+          safe_error_code: string | null
+          trigger_run_id: string | null
+        }
+        Insert: {
+          attempt_number: number
+          created_at?: string
+          event_id: string
+          id?: string
+          lease_fingerprint: string
+          org_id: string
+          outcome: string
+          safe_error_code?: string | null
+          trigger_run_id?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          lease_fingerprint?: string
+          org_id?: string
+          outcome?: string
+          safe_error_code?: string | null
+          trigger_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbox_dispatch_attempts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "outbox_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbox_dispatch_attempts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbox_events: {
         Row: {
           aggregate_id: string
@@ -1757,10 +1808,14 @@ export type Database = {
           failed_at: string | null
           id: string
           idempotency_key: string
+          last_attempt_at: string | null
           last_error_code: string | null
           lease_expires_at: string | null
+          lease_token: string | null
+          next_attempt_at: string
           org_id: string
           payload: Json
+          trigger_run_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1774,10 +1829,14 @@ export type Database = {
           failed_at?: string | null
           id?: string
           idempotency_key: string
+          last_attempt_at?: string | null
           last_error_code?: string | null
           lease_expires_at?: string | null
+          lease_token?: string | null
+          next_attempt_at?: string
           org_id: string
           payload?: Json
+          trigger_run_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1791,10 +1850,14 @@ export type Database = {
           failed_at?: string | null
           id?: string
           idempotency_key?: string
+          last_attempt_at?: string | null
           last_error_code?: string | null
           lease_expires_at?: string | null
+          lease_token?: string | null
+          next_attempt_at?: string
           org_id?: string
           payload?: Json
+          trigger_run_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2373,6 +2436,17 @@ export type Database = {
         }
         Relationships: []
       }
+      document_outbox_dispatch_diagnostics: {
+        Row: {
+          delivery_state:
+            | Database["public"]["Enums"]["outbox_delivery_state"]
+            | null
+          event_count: number | null
+          oldest_due_at: string | null
+          oldest_lease_age: string | null
+        }
+        Relationships: []
+      }
       document_upload_command_diagnostics: {
         Row: {
           issue: string | null
@@ -2410,6 +2484,16 @@ export type Database = {
         Returns: {
           code: string
           org_id: string
+        }[]
+      }
+      ack_document_outbox_event: {
+        Args: {
+          p_event_id: string
+          p_lease_token: string
+          p_trigger_run_id: string
+        }
+        Returns: {
+          code: string
         }[]
       }
       assign_intake_to_new_document: {
@@ -2535,6 +2619,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      fail_document_outbox_event: {
+        Args: {
+          p_event_id: string
+          p_lease_token: string
+          p_safe_error_code: string
+        }
+        Returns: {
+          code: string
+          next_attempt_at: string
+        }[]
+      }
       fail_document_upload: {
         Args: { p_error_code: string; p_idempotency: string; p_session: string }
         Returns: {
@@ -2633,6 +2728,20 @@ export type Database = {
       is_email_in_any_org: { Args: { search_email: string }; Returns: boolean }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      lease_document_outbox_events: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_number: number
+          event_id: string
+          event_kind: string
+          idempotency_key: string
+          lease_token: string
+          org_id: string
+          payload: Json
+        }[]
+      }
       maintain_document_upload_sessions: {
         Args: { p_batch_size?: number }
         Returns: {

@@ -27,7 +27,7 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM pg_tables t WHERE t.schemaname='public' AND t.tablename='file_assets' AND t.rowsecurity) OR NOT (SELECT relforcerowsecurity FROM pg_class WHERE oid='public.file_assets'::regclass) THEN RAISE EXCEPTION 'RLS FORCE missing'; END IF;
   IF has_table_privilege('authenticated','public.file_assets','SELECT') OR has_table_privilege('authenticated','public.outbox_events','INSERT') OR has_function_privilege('authenticated','public.document_lifecycle_prevent_delete()','EXECUTE') THEN RAISE EXCEPTION 'lifecycle public grant surface'; END IF;
-  IF NOT has_table_privilege('service_role','public.file_assets','SELECT') OR NOT has_table_privilege('service_role','public.outbox_events','UPDATE') OR has_table_privilege('service_role','public.file_assets','DELETE') OR has_table_privilege('service_role','public.document_version_analysis_bindings','UPDATE') OR NOT has_table_privilege('service_role','public.document_version_analysis_bindings','INSERT') THEN RAISE EXCEPTION 'service role grant surface'; END IF;
+  IF NOT has_table_privilege('service_role','public.file_assets','SELECT') OR has_table_privilege('service_role','public.outbox_events','INSERT') OR has_table_privilege('service_role','public.outbox_events','UPDATE') OR has_table_privilege('service_role','public.outbox_events','DELETE') OR NOT has_function_privilege('service_role','public.lease_document_outbox_events(integer,integer)','EXECUTE') OR NOT has_function_privilege('service_role','public.ack_document_outbox_event(uuid,uuid,text)','EXECUTE') OR NOT has_function_privilege('service_role','public.fail_document_outbox_event(uuid,uuid,text)','EXECUTE') OR has_table_privilege('service_role','public.file_assets','DELETE') OR has_table_privilege('service_role','public.document_version_analysis_bindings','UPDATE') OR NOT has_table_privilege('service_role','public.document_version_analysis_bindings','INSERT') THEN RAISE EXCEPTION 'service role grant surface'; END IF;
 
   INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,availability,validated_at) VALUES(asset_a,org_a,'documents','orgs/'||org_a||'/assets/'||asset_a||'/original.pdf',repeat('a',64),100,'available',now());
   failed := false; BEGIN INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size) VALUES('35500000-0000-0000-0000-000000000010',org_a,'documents','orgs/'||org_a||'/assets/35500000-0000-0000-0000-000000000010/original.pdf',repeat('a',64),101); EXCEPTION WHEN unique_violation THEN failed := true; END; IF NOT failed THEN RAISE EXCEPTION 'same-org sha duplicate allowed'; END IF;
@@ -86,7 +86,16 @@ BEGIN
 END $test$;
 
 SET LOCAL ROLE service_role;
-UPDATE public.outbox_events SET attempt_count=2, last_error_code=NULL WHERE idempotency_key='outbox-a';
+DO $service_outbox_dml_denial$
+DECLARE denied boolean:=false;
+BEGIN
+  BEGIN
+    UPDATE public.outbox_events SET attempt_count=2, last_error_code=NULL WHERE idempotency_key='outbox-a';
+  EXCEPTION WHEN insufficient_privilege THEN
+    denied:=true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'service role direct outbox update allowed'; END IF;
+END $service_outbox_dml_denial$;
 RESET ROLE;
 
 -- Browser roles have neither a lifecycle table DML surface nor permission to
