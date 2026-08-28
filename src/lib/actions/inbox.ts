@@ -6,11 +6,34 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { tasks } from '@trigger.dev/sdk/v3'
 import type { AIDocumentResult } from '@/lib/ai/vertex'
+import { uploadToDocumentIntake } from './document'
+import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
 
 
-// ── Read Staged Documents ─────────────────────────────────────────
+// ── Transitional Inbox projection ─────────────────────────────────
 
-export async function getStagedDocuments() {
+export type InboxQueueDocument = {
+  id: string
+  source_kind: 'canonical_intake' | 'legacy_staged_document'
+  storage_path: string
+  status: string
+  created_at: string
+  intake_matter_id: string | null
+  suggested_client: unknown | null
+  suggested_matter: unknown | null
+  suggested_matter_ids: string[] | null
+  suggestion_reason: string | null
+  raw_metadata: unknown
+  canonical_intake_state?: string
+  canonical_failure_code?: string | null
+}
+
+/**
+ * Transitional Inbox projection. New rows come exclusively from canonical
+ * intake_items; staged_documents are read-only compatibility records until
+ * the following assignment/backfill tranche removes this adapter.
+ */
+export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
@@ -28,116 +51,67 @@ export async function getStagedDocuments() {
 
   if (error) {
     console.error('Failed to load staged documents:', error)
-    return []
   }
 
-  return data ?? []
-}
+  const legacyItems: InboxQueueDocument[] = (data ?? []).map((document) => ({
+    ...(document as unknown as InboxQueueDocument),
+    source_kind: 'legacy_staged_document' as const,
+  }))
 
-export async function getStagedDocumentCount() {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return 0
-
-  const { count } = await supabase
-    .from('staged_documents')
-    .select('id', { count: 'exact', head: true })
+  // Lifecycle tables intentionally have no authenticated table grant. The
+  // server has already resolved the active organisation from the user's
+  // session, so this narrowly-scoped service read is the compatibility
+  // projection rather than a new client data-access surface.
+  const service = createServiceClient()
+  const { data: intakeItems, error: intakeError } = await service
+    .from('intake_items')
+    .select('id, state, failure_code, created_at, intended_matter_id, upload_session:upload_sessions(declared_filename)')
     .eq('org_id', orgId)
-    .in('status', ['pending_assignment', 'analyzing', 'ready_to_assign', 'failed'])
+    .in('state', ['awaiting_upload', 'uploaded', 'validating', 'processing', 'ready', 'duplicate', 'failed'])
+    .order('created_at', { ascending: true })
 
-  return count ?? 0
-}
-
-// ── Upload to Staged (global upload) ─────────────────────────────
-
-export async function uploadToInbox(formData: FormData) {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
-
-  const file = formData.get('file') as File
-  if (!file) return { error: 'No file provided.' }
-
-  const matterId = formData.get('matterId') as string | null
-
-  if (matterId) {
-    const { data: matter } = await supabase
-      .from('matters')
-      .select('id')
-      .eq('id', matterId)
-      .eq('org_id', orgId)
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (!matter) return { error: 'The selected matter is not available.' }
+  if (intakeError) {
+    console.error('Failed to load canonical inbox intakes:', intakeError)
+    return legacyItems
   }
 
-  const allowedTypes = ['application/pdf']
-  if (!allowedTypes.includes(file.type)) {
-    return { error: 'Only PDF files are supported.' }
-  }
-
-  const maxSize = 50 * 1024 * 1024 // 50MB
-  if (file.size > maxSize) {
-    return { error: 'File must be under 50MB.' }
-  }
-
-  // Path must be `staged/orgId/fileName` to match storage RLS policy
-  const fileName = `staged/${orgId}/${Date.now()}_${file.name.replace(/\s/g, '_')}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('staging')
-    .upload(fileName, file, { contentType: file.type })
-
-  if (uploadError) {
-    console.error('Storage upload error:', uploadError)
-    return { error: uploadError.message }
-  }
-
-  const { data, error } = await supabase
-    .from('staged_documents')
-    .insert({
-      org_id: orgId,
-      uploaded_by: user.id,
-      storage_path: fileName,
-      status: 'pending_assignment',
-      intake_matter_id: matterId || null,
-    })
-    .select('id')
-    .single()
-
-  if (error || !data) {
-    console.error('Staged document insert error:', error)
-    return { error: error?.message ?? 'Failed to stage document.' }
-  }
-
-  // Trigger.dev accepts the work independently of the browser request. Do
-  // this after the Server Action responds so a slow task gateway can never
-  // leave the upload UI stuck on "Uploading…" after the file is stored.
-  after(async () => {
-    try {
-      await tasks.trigger('analyze-staged-document', {
-        stagedDocId: data.id,
-        orgId,
-        uploadedBy: user.id,
-        storagePath: fileName,
-      })
-    } catch (err) {
-      console.error('Failed to trigger analysis task:', err)
-      const serviceClient = createServiceClient()
-      await serviceClient
-        .from('staged_documents')
-        .update({ status: 'failed', suggestion_reason: 'Analysis could not be queued. Retry this document.' })
-        .eq('id', data.id)
-        .eq('org_id', orgId)
+  const canonicalItems: InboxQueueDocument[] = (intakeItems ?? []).map((item) => {
+    const session = item.upload_session as unknown as { declared_filename: string } | null
+    return {
+    id: item.id,
+    source_kind: 'canonical_intake' as const,
+    storage_path: session?.declared_filename ?? 'Untitled PDF',
+    status: canonicalInboxStatus(item.state),
+    created_at: item.created_at,
+    intake_matter_id: item.intended_matter_id,
+    suggested_client: null,
+    suggested_matter: null,
+    suggested_matter_ids: null,
+    suggestion_reason: canonicalInboxReason(item.state, item.failure_code),
+    raw_metadata: null,
+    canonical_intake_state: item.state,
+    canonical_failure_code: item.failure_code,
     }
   })
 
-  revalidatePath('/inbox')
-  revalidatePath('/', 'layout')
-  return { success: true, id: data.id }
+  return [...canonicalItems, ...legacyItems]
+}
+
+export async function getStagedDocumentCount() {
+  return (await getStagedDocuments()).length
+}
+
+// ── Canonical global upload ───────────────────────────────────────
+
+export async function uploadToInbox(formData: FormData) {
+  // The optional Inbox matter context is declared intake context only. It is
+  // validated by the canonical reservation command; it never creates a staged
+  // row or a staging-bucket object.
+  const matterId = formData.get('matterId')
+  const intendedMatterId = typeof matterId === 'string' && matterId.length > 0 ? matterId : null
+  const result = await uploadToDocumentIntake(formData, intendedMatterId)
+  if ('success' in result) revalidatePath('/', 'layout')
+  return result
 }
 
 // ── Assign Staged Document to a Matter ───────────────────────────

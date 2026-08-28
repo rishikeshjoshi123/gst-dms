@@ -22,13 +22,15 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
-type FileStatus = 'pending' | 'uploading' | 'done' | 'error'
+type FileStatus = 'pending' | 'uploading' | 'done' | 'error' | 'terminal'
 
 interface FileEntry {
   file: File
   id: string
+  idempotencyKey: string
   status: FileStatus
   error?: string
+  retryable?: boolean
 }
 
 export function UploadModal({ onClose, matterId, matterName, inline = false, returnFocusRef }: UploadModalProps) {
@@ -44,6 +46,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     const newEntries: FileEntry[] = pdfs.map(f => ({
       file: f,
       id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`,
+      idempotencyKey: crypto.randomUUID(),
       status: 'pending'
     }))
     setEntries(prev => {
@@ -76,7 +79,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
   }
 
   function retryFailed() {
-    setEntries(prev => prev.map(entry => entry.status === 'error'
+    setEntries(prev => prev.map(entry => entry.status === 'error' && entry.retryable
       ? { ...entry, status: 'pending', error: undefined }
       : entry,
     ))
@@ -88,25 +91,34 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     if (pending.length === 0) return
     setIsUploading(true)
 
-    let hasError = false
+    let hasRetryableError = false
+    let hasTerminalOutcome = false
     for (const entry of pending) {
       setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e))
 
       const formData = new FormData()
       formData.append('file', entry.file)
+      formData.append('upload_idempotency_key', entry.idempotencyKey)
       if (matterId) formData.append('matterId', matterId)
 
       const res = await uploadToInbox(formData)
-      if (res.error) {
-        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', error: res.error } : e))
-        hasError = true
+      if ('error' in res) {
+        const retryable = res.retryable !== false
+        setEntries(prev => prev.map(e => e.id === entry.id ? {
+          ...e,
+          status: retryable ? 'error' : 'terminal',
+          error: res.error,
+          retryable,
+        } : e))
+        if (retryable) hasRetryableError = true
+        else hasTerminalOutcome = true
       } else {
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e))
       }
     }
 
     setIsUploading(false)
-    if (!hasError) {
+    if (!hasRetryableError && !hasTerminalOutcome) {
       setAllDone(true)
       router.refresh()
       // Once staging succeeds, return the user to the live queue immediately.
@@ -118,6 +130,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
   const pendingCount = entries.filter(e => e.status === 'pending').length
   const doneCount = entries.filter(e => e.status === 'done').length
   const errorCount = entries.filter(e => e.status === 'error').length
+  const terminalCount = entries.filter(e => e.status === 'terminal').length
   const hasEntries = entries.length > 0
   const handleClose = useCallback(() => {
     if (!isUploading) onClose()
@@ -272,6 +285,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
               {entries.map((entry) => {
                 const isDone = entry.status === 'done'
                 const isError = entry.status === 'error'
+                const isTerminal = entry.status === 'terminal'
                 const isUpl = entry.status === 'uploading'
 
                 return (
@@ -283,6 +297,8 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                         ? 'border-[color-mix(in_srgb,var(--success)_20%,transparent)] bg-[var(--success-muted)]'
                         : isError
                         ? 'border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--danger-muted)]'
+                        : isTerminal
+                        ? 'border-[color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[var(--warning-muted)]'
                         : isUpl
                         ? 'border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] bg-[var(--accent-muted)] shadow-[var(--shadow-sm)]'
                         : 'border-[var(--border)] bg-[var(--surface-hover)]'
@@ -291,12 +307,14 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                     {/* Icon */}
                     <div className={cn(
                       'w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 transition-all',
-                      isDone ? 'bg-[var(--success-muted)]' : isError ? 'bg-[var(--danger-muted)]' : isUpl ? 'bg-[var(--primary)]/15' : 'bg-[var(--surface)]'
+                      isDone ? 'bg-[var(--success-muted)]' : isError ? 'bg-[var(--danger-muted)]' : isTerminal ? 'bg-[var(--warning-muted)]' : isUpl ? 'bg-[var(--primary)]/15' : 'bg-[var(--surface)]'
                     )}>
                       {isDone ? (
                         <CheckCircle2 size={16} className="text-[var(--success)]" />
                       ) : isError ? (
                         <AlertCircle size={16} className="text-[var(--danger)]" />
+                      ) : isTerminal ? (
+                        <AlertCircle size={16} className="text-[var(--warning)]" />
                       ) : isUpl ? (
                         <Loader2 size={16} className="text-[var(--primary)] animate-spin" />
                       ) : (
@@ -308,12 +326,16 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                     <div className="flex-1 min-w-0 flex flex-col">
                       <span className={cn(
                         'text-[13px] font-semibold truncate',
-                        isDone ? 'text-[var(--success)]' : isError ? 'text-[var(--danger)]' : 'text-[var(--text-primary)]'
+                        isDone ? 'text-[var(--success)]' : isError ? 'text-[var(--danger)]' : isTerminal ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'
                       )}>
                         {entry.file.name}
                       </span>
                       <span className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                        {isError ? (entry.error || 'Upload failed') : isDone ? 'Uploaded successfully' : isUpl ? 'Uploading…' : formatBytes(entry.file.size)}
+                        {isError
+                          ? (entry.error || 'Upload failed. You can retry it.')
+                          : isTerminal
+                          ? (entry.error || 'This file was not added. Choose a different file or resolve the issue shown.')
+                          : isDone ? 'Uploaded successfully' : isUpl ? 'Uploading…' : formatBytes(entry.file.size)}
                       </span>
                     </div>
 
@@ -348,6 +370,8 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                   </span>
                 ) : errorCount > 0 ? (
                   <span className="text-[var(--danger)] font-semibold">{errorCount} failed · {doneCount} done</span>
+                ) : terminalCount > 0 ? (
+                  <span className="text-[var(--warning)] font-semibold">{terminalCount} not added · {doneCount} done</span>
                 ) : (
                   <span>{pendingCount} pending · {doneCount} done</span>
                 )}

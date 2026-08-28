@@ -7,7 +7,13 @@ import { after } from 'next/server'
 import type { Database } from '@/lib/supabase/database.types'
 import { tasks } from '@trigger.dev/sdk/v3'
 import { appendActivity } from '@/lib/activity'
-import { observeStoredPdf, uploadIdempotencyKey } from '@/lib/document-upload'
+import {
+  observeStoredPdf,
+  ownsTerminalUploadCleanup,
+  storageDeletionWasRecorded,
+  uploadFailureResult,
+  uploadIdempotencyKey,
+} from '@/lib/document-upload'
 
 async function enqueueDocumentProcessing(
   document: { id: string; matterId: string; orgId: string; storagePath: string; uploadedBy: string },
@@ -154,33 +160,45 @@ export async function checkExactDuplicate(sha256: string) {
 // ── Upload Directly to a Matter ───────────────────────────────────
 
 export async function uploadToMatter(matterId: string, formData: FormData) {
+  return uploadToDocumentIntake(formData, matterId)
+}
+
+/**
+ * Stores a PDF through the one canonical reservation/finalisation pipeline.
+ * An omitted intended matter deliberately leaves the intake unassigned for
+ * global Inbox triage; the browser never writes a storage path or intake row.
+ */
+export async function uploadToDocumentIntake(formData: FormData, intendedMatterId: string | null = null) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
+  if (!orgId) return uploadFailureResult('No active organisation.', 'terminal')
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  if (!user) return uploadFailureResult('Not authenticated.', 'terminal')
 
   const file = formData.get('file') as File
-  if (!file) return { error: 'No file provided.' }
+  if (!file) return uploadFailureResult('No file provided.', 'terminal')
 
   const idempotencyKey = uploadIdempotencyKey(formData.get('upload_idempotency_key'))
-  if (!idempotencyKey) return { error: 'This upload could not be prepared. Please choose the file again.' }
+  if (!idempotencyKey) return uploadFailureResult('This upload could not be prepared. Please choose the file again.', 'terminal')
   const { data: reservations, error: reservationError } = await supabase.rpc('reserve_document_upload', {
     p_filename: file.name,
     p_mime: 'application/pdf',
     p_declared_bytes: file.size,
-    p_intended_matter: matterId,
+    p_intended_matter: intendedMatterId as string,
     p_idempotency: idempotencyKey,
   })
   const reservation = reservations?.[0]
 
   if (reservationError || !reservation) {
     console.error('Document upload reservation failed:', reservationError)
-    return { error: 'Could not reserve this upload. Please try again.' }
+    return uploadFailureResult('Could not reserve this upload. Please try again.')
   }
   if (reservation.code !== 'ok' || !reservation.upload_session_id || !reservation.intake_item_id || !reservation.bucket_id || !reservation.object_key) {
-    return { error: documentUploadError(reservation.code) }
+    return uploadFailureResult(
+      documentUploadError(reservation.code),
+      reservation.code === 'platform_capacity_unavailable' ? 'retry' : 'terminal',
+    )
   }
 
   const storage = createServiceClient()
@@ -198,15 +216,18 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
     return true
   }
   const recordStorageDeletion = async () => {
-    const { error } = await storage.rpc('record_document_asset_storage_deleted', {
+    const { data, error } = await storage.rpc('record_document_asset_storage_deleted', {
       p_asset_id: reservation.asset_id,
     })
-    if (error) {
+    const code = data?.[0]?.code
+    if (error || !storageDeletionWasRecorded(code)) {
       // The object has gone, but until the durable tombstone is recorded we
       // intentionally continue to count it against quota. The scheduled
       // terminal-asset cleaner can reconcile this safely.
-      console.error('Document asset deletion could not be recorded:', error)
+      console.error('Document asset deletion could not be recorded:', error ?? code)
+      return false
     }
+    return true
   }
   const removeTerminalAsset = async () => {
     const { error } = await storage.storage.from(reservation.bucket_id).remove([reservation.object_key])
@@ -215,20 +236,23 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
       console.error('Terminal document asset could not be deleted:', error)
       return false
     }
-    await recordStorageDeletion()
-    return true
+    return recordStorageDeletion()
   }
   const failUpload = async (errorCode: 'upload_failed' | 'invalid_pdf' | 'storage_missing' | 'upload_rejected') => {
-    const { error } = await storage.rpc('fail_document_upload', {
+    const { data, error } = await storage.rpc('fail_document_upload', {
       p_session: reservation.upload_session_id,
-      p_error_code: errorCode,
+      // `validation_failed` is the durable lifecycle code for a server-read
+      // object rejected by completion policy; `upload_rejected` is only a UI
+      // categorisation and is not accepted by the database command.
+      p_error_code: errorCode === 'upload_rejected' ? 'validation_failed' : errorCode,
       p_idempotency: idempotencyKey,
     })
-    if (error) {
+    const code = data?.[0]?.code
+    if (error || !ownsTerminalUploadCleanup(code)) {
       // Do not remove the only copy unless the lifecycle has durably recorded
-      // the terminal state. The caller retains the same key for a transient
-      // retry, so a later reservation resumes this one asset/session.
-      console.error('Document upload failure could not be recorded:', error)
+      // a terminal state. In particular, `not_available` can be a concurrent
+      // finalisation that made this asset available and referenceable.
+      console.error('Document upload failure could not be recorded:', error ?? code)
       return false
     }
     await removeTerminalAsset()
@@ -245,17 +269,21 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
     .download(reservation.object_key)
   if (downloadError || !storedObject) {
     console.error('Reserved document storage upload or observation failed:', uploadError ?? downloadError)
-    await failUpload(uploadError ? 'upload_failed' : 'storage_missing')
-    return { error: uploadError ? 'Could not upload the PDF. Retry this file.' : 'The uploaded PDF could not be verified. Retry this file.', retryable: true }
+    const terminalised = await failUpload(uploadError ? 'upload_failed' : 'storage_missing')
+    return terminalised
+      ? uploadFailureResult(uploadError ? 'The PDF upload did not complete.' : 'The uploaded PDF could not be verified.', 'terminal')
+      : uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
   }
 
   const observation = await observeStoredPdf(storedObject)
   if (!observation.ok) {
     if (!await recordObservedBytes(observation.byteSize)) {
-      return { error: 'The uploaded PDF could not be recorded safely. Retry this file.', retryable: true }
+      return uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
     }
-    await failUpload('invalid_pdf')
-    return { error: 'The uploaded file is not a valid PDF.', retryable: false }
+    const terminalised = await failUpload('invalid_pdf')
+    return terminalised
+      ? uploadFailureResult('The uploaded file is not a valid PDF.', 'terminal')
+      : uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
   }
 
   const { data: completions, error: completionError } = await storage.rpc('complete_document_upload', {
@@ -270,26 +298,31 @@ export async function uploadToMatter(matterId: string, formData: FormData) {
     console.error('Document upload completion failed:', completionError)
     // The database may have committed despite an interrupted RPC response.
     // Leave this reserved key intact so the same idempotency key can complete.
-    return { error: 'The uploaded PDF could not be finalised. Retry this file.', retryable: true }
+    return uploadFailureResult('The uploaded PDF could not be finalised. Retry this file.')
   }
   if (completion.code !== 'ok') {
     if (completion.code === 'duplicate') {
       await removeTerminalAsset()
+      return uploadFailureResult(documentUploadError(completion.code), 'duplicate')
     } else {
       // Policy/finalisation rejections are terminal. Persist their declared
       // server-observed bytes before releasing the reservation so a failed
       // physical deletion cannot evade organisation or platform accounting.
       if (!await recordObservedBytes(observation.byteSize)) {
-        return { error: 'The uploaded PDF could not be recorded safely. Retry this file.', retryable: true }
+        return uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
       }
-      await failUpload('upload_rejected')
+      const terminalised = await failUpload('upload_rejected')
+      if (!terminalised) {
+        return uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
+      }
+      return uploadFailureResult(documentUploadError(completion.code), 'terminal')
     }
-    return { error: documentUploadError(completion.code), retryable: false, resolution: completion.code === 'duplicate' ? 'duplicate' : 'terminal' }
   }
 
   // complete_document_upload writes the validation event in the same database
   // transaction. The outbox dispatcher, rather than this request, starts work.
-  revalidatePath(`/matters/${matterId}`)
+  revalidatePath('/inbox')
+  if (intendedMatterId) revalidatePath(`/matters/${intendedMatterId}`)
   return { success: true, intakeId: completion.intake_item_id }
 }
 

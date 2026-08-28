@@ -153,7 +153,13 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 
 ### Canonical next action
 
-Convert the **global Inbox upload and staged-assignment flow** to the same canonical upload-session/intake-item pipeline. Preserve legacy reads only behind a bounded compatibility adapter, eliminate staging-bucket copy on assignment, and then run the same independent database, authorization, and UI QA gates before beginning backfill work.
+Convert **canonical global Inbox Intake placement, assignment, discard, and authorised preview** into the completed upload-session/intake-item pipeline. Remove staging-bucket copy from the canonical assignment path, keep legacy staged rows behind a bounded compatibility adapter until backfill validation, and then run the same independent database, authorization, and UI QA gates before beginning backfill work.
+
+### Completed: global Inbox canonical upload (2026-08-28)
+
+- Global Inbox uploads now use the same reservation, private asset, server-observed completion, durable outbox, duplicate, quota, and idempotency contract as direct matter uploads. New uploads never create `staged_documents` rows or staging-bucket objects.
+- The Inbox projects canonical unassigned Intake alongside a clearly marked read-only legacy staged adapter. Its 25 MiB, retryable-versus-terminal, safe failure, and explicit refresh behavior matches the lifecycle contract.
+- Independent QA found and verified fixes for terminal-cleanup ownership, storage tombstone confirmation, retry metadata, and canonical state presentation. Focused tests, type checks, migration checks, and diff checks passed; broader legacy lint remains baseline-red.
 
 ## Interfaces and Data Changes
 

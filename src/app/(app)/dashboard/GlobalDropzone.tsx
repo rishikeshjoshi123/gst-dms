@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 
 export function GlobalDropzone() {
   const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
+  const [files, setFiles] = useState<Array<{ file: File; idempotencyKey: string }>>([])
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -30,13 +30,17 @@ export function GlobalDropzone() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(false)
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf')
+    const droppedFiles = Array.from(e.dataTransfer.files)
+      .filter(f => f.type === 'application/pdf')
+      .map(file => ({ file, idempotencyKey: crypto.randomUUID() }))
     setFiles(prev => [...prev, ...droppedFiles])
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files).filter(f => f.type === 'application/pdf')
+      const selectedFiles = Array.from(e.target.files)
+        .filter(f => f.type === 'application/pdf')
+        .map(file => ({ file, idempotencyKey: crypto.randomUUID() }))
       setFiles(prev => [...prev, ...selectedFiles])
     }
     if (inputRef.current) inputRef.current.value = ''
@@ -55,7 +59,7 @@ export function GlobalDropzone() {
     startTransition(async () => {
       let uploadedCount = 0
       
-      for (const file of files) {
+      for (const { file, idempotencyKey } of files) {
         // Client-side SHA-256 check
         const sha256 = await calculateFileHash(file)
         const dupCheck = await checkExactDuplicate(sha256)
@@ -63,16 +67,25 @@ export function GlobalDropzone() {
         if (dupCheck.isDuplicate && dupCheck.duplicateOf) {
           toast.error(`Upload cancelled: "${file.name}" is an exact duplicate of document ${dupCheck.duplicateOf.reference} in "${dupCheck.duplicateOf.matterTitle}".`)
           // We remove this file from the state but continue with others
-          setFiles(prev => prev.filter(f => f.name !== file.name))
+          setFiles(prev => prev.filter(entry => entry.idempotencyKey !== idempotencyKey))
           continue
         }
 
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('upload_idempotency_key', idempotencyKey)
         
         const res = await uploadToInbox(formData)
-        if (res.error) {
+        if ('error' in res) {
           console.error(res.error)
+          if (!res.retryable) {
+            // A duplicate or validation/policy rejection is already terminal
+            // in the canonical lifecycle. Remove it here so this quick tray
+            // cannot replay the same completed idempotency key.
+            toast.error(res.error)
+            setFiles(prev => prev.filter(entry => entry.idempotencyKey !== idempotencyKey))
+            continue
+          }
           setErrorMessage(res.error)
           hasError = true
           break
@@ -148,18 +161,18 @@ export function GlobalDropzone() {
       {files.length > 0 && (
         <div className="flex flex-col gap-3">
           <div className="grid gap-2">
-            {files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded border border-[--border-subtle] bg-white">
+            {files.map(({ file, idempotencyKey }, i) => (
+              <div key={idempotencyKey} className="flex items-center justify-between p-3 rounded border border-[--border-subtle] bg-white">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-secondary)] shrink-0">
                     <FileIcon size={16} />
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium text-[--text-primary] truncate max-w-[200px] sm:max-w-[300px]">
-                      {f.name}
+                      {file.name}
                     </span>
                     <span className="text-xs text-[--text-muted]">
-                      {(f.size / 1024 / 1024).toFixed(2)} MB
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
                     </span>
                   </div>
                 </div>

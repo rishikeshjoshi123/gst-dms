@@ -42,14 +42,17 @@ function uniqueDocumentsById<T extends { id: string }>(documents: T[]) {
 function StatusBadge({ doc }: { doc: any }) {
   const isAnalyzing = doc.status === 'analyzing'
   const isPending = doc.status === 'pending_assignment'
+  const isPlacementReady = doc.status === 'ready_for_placement'
+  const isDuplicate = doc.status === 'duplicate' || doc.suggestion_reason?.toLowerCase().startsWith('duplicate')
   const hasSuggestion = doc.suggested_client && doc.suggested_matter
 
-  if (isAnalyzing) return <Badge variant="default" fixedWidth="lg"><Loader2 size={11} className="animate-spin" />Processing</Badge>
-  if (isPending) return <Badge variant="muted" fixedWidth="lg">Queued</Badge>
-  if (doc.status === 'failed') return <Badge variant="danger" fixedWidth="lg"><AlertCircle size={11} />Failed</Badge>
-  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return <Badge variant="warning" fixedWidth="lg"><Copy size={11} />Duplicate</Badge>
-  if (hasSuggestion) return <Badge variant="success" fixedWidth="lg"><Check size={11} />Ready</Badge>
-  return <Badge variant="warning" fixedWidth="lg"><AlertCircle size={11} />Review</Badge>
+  if (isAnalyzing) return <Badge variant="default" fixedWidth="xl"><Loader2 size={11} className="animate-spin" />Processing</Badge>
+  if (isPending) return <Badge variant="muted" fixedWidth="xl">Queued</Badge>
+  if (isDuplicate) return <Badge variant="warning" fixedWidth="xl"><Copy size={11} />Duplicate</Badge>
+  if (doc.status === 'failed') return <Badge variant="danger" fixedWidth="xl"><AlertCircle size={11} />Failed</Badge>
+  if (isPlacementReady) return <Badge variant="success" fixedWidth="xl"><Check size={11} />Ready to place</Badge>
+  if (hasSuggestion) return <Badge variant="success" fixedWidth="xl"><Check size={11} />Ready</Badge>
+  return <Badge variant="warning" fixedWidth="xl"><AlertCircle size={11} />Review</Badge>
 }
 
 function processingCopy(status: string) {
@@ -70,8 +73,9 @@ function documentStatusLabel(doc: {
 }) {
   if (doc.status === 'analyzing') return 'Processing'
   if (doc.status === 'pending_assignment') return 'Queued'
+  if (doc.status === 'ready_for_placement') return 'Ready to place'
+  if (doc.status === 'duplicate' || doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return 'Duplicate'
   if (doc.status === 'failed') return 'Failed'
-  if (doc.suggestion_reason?.toLowerCase().startsWith('duplicate')) return 'Duplicate'
   if (doc.suggested_client && doc.suggested_matter) return 'Ready'
   return 'Review'
 }
@@ -277,6 +281,7 @@ export function InboxClientView({
   const globalDocuments = useMemo(() => documents.filter(doc => !doc.intake_matter_id), [documents])
   const visibleDocuments = isMatterIntake ? matterIntakeDocuments : globalDocuments
   const activeDoc = visibleDocuments.find(d => d.id === selectedDocId)
+  const isCanonicalIntake = activeDoc?.source_kind === 'canonical_intake'
 
   useEffect(() => {
     if (!visibleDocuments.some(doc => doc.id === selectedDocId)) {
@@ -327,6 +332,10 @@ export function InboxClientView({
   }, [matterIntakeDocuments.length, preselectedMatterId, router])
 
   useEffect(() => {
+    // `intake_items` is deliberately absent from the Realtime publication:
+    // its compatibility projection uses a privileged, org-scoped server read.
+    // Subscribe only to legacy staged rows; the visible Refresh queue control
+    // below is the explicit, safe freshness path for canonical intake updates.
     const supabase = createClient()
     let disposed = false
     const channel = supabase.channel('staged_docs_changes')
@@ -405,6 +414,10 @@ export function InboxClientView({
   }
 
   function handleAssign() {
+    if (isCanonicalIntake) {
+      toast.info('Canonical intake assignment will be available in the next Inbox migration.')
+      return
+    }
     if (!selectedDocId || !selectedMatterId) return
     startTransition(async () => {
       const res = await assignStagedDocument(selectedDocId, selectedMatterId)
@@ -421,6 +434,7 @@ export function InboxClientView({
   }
 
   function handleAutoCreate() {
+    if (isCanonicalIntake) return
     if (!selectedDocId) return
     startTransition(async () => {
       const res = await autoCreateClientAndMatterForStagedDocument(selectedDocId, selectedFyToCreate)
@@ -437,6 +451,7 @@ export function InboxClientView({
   }
 
   function handleDiscard() {
+    if (isCanonicalIntake) return
     if (!selectedDocId) return
     discardedDocIds.current.add(selectedDocId)
     startTransition(async () => {
@@ -457,6 +472,10 @@ export function InboxClientView({
 
   async function handleViewDocument() {
     if (!activeDoc) return
+    if (isCanonicalIntake) {
+      toast.info('PDF preview for canonical intake will be enabled with the assignment cutover.')
+      return
+    }
     const res = await getDocumentSignedUrl('staging', activeDoc.storage_path)
     if (res.error || !res.url) {
       toast.error(res.error || 'Failed to generate signed url')
@@ -483,7 +502,7 @@ export function InboxClientView({
     activeDoc.raw_metadata.tax_period
   )
 
-  const isDuplicate = activeDoc?.suggestion_reason?.toLowerCase().startsWith('duplicate')
+  const isDuplicate = activeDoc?.status === 'duplicate' || activeDoc?.suggestion_reason?.toLowerCase().startsWith('duplicate')
   const hasSuggestion = activeDoc?.suggested_client && activeDoc?.suggested_matter
   const activeProcessingCopy = activeDoc ? processingCopy(activeDoc.status) : null
 
@@ -563,14 +582,14 @@ export function InboxClientView({
                   const latestDocs = await getStagedDocuments()
                   setDocuments(uniqueDocumentsById(latestDocs))
                   router.refresh()
-                  toast.success('Queue synced', { id: toastId })
+                  toast.success('Queue refreshed', { id: toastId })
                 } catch (err: any) {
                   toast.error(err.message || 'Failed to refresh', { id: toastId })
                 }
               }}
             >
               <RefreshCw size={13} aria-hidden="true" />
-              Sync
+              Refresh queue
             </Button>
             <Button
               type="button"
@@ -588,9 +607,9 @@ export function InboxClientView({
           {visibleDocuments.map((doc) => {
                 const fileName = doc.storage_path.split('/').pop()
                 const isSelected = doc.id === selectedDocId
-                const isDup = doc.suggestion_reason?.toLowerCase().startsWith('duplicate')
+                const isDup = doc.status === 'duplicate' || doc.suggestion_reason?.toLowerCase().startsWith('duplicate')
                 const isFailed = doc.status === 'failed'
-                const isReady = doc.suggested_client && doc.suggested_matter
+                const isReady = doc.status === 'ready_for_placement' || (doc.suggested_client && doc.suggested_matter)
                 const queueCopy = processingCopy(doc.status)
 
                 return (
@@ -637,7 +656,9 @@ export function InboxClientView({
                     {/* bottom hint strip for ready docs */}
                     {isReady && !isDup && !isFailed && (
                       <div className="flex items-center gap-1 px-4 pb-2 pt-0.5 text-[10px] font-medium text-[var(--success)]">
-                        <Zap size={9} /> AI matched · {doc.suggested_client?.name}
+                        {doc.status === 'ready_for_placement'
+                          ? <><Check size={9} /> Ready for placement</>
+                          : <><Zap size={9} /> AI matched · {doc.suggested_client?.name}</>}
                       </div>
                     )}
                     {queueCopy && (
@@ -653,7 +674,7 @@ export function InboxClientView({
                     )}
                     {isFailed && (
                       <div className="flex items-center gap-1 px-4 pb-2 pt-0.5 text-[10px] font-medium text-[var(--danger)]">
-                        <AlertCircle size={9} /> AI extraction failed · click to reprocess
+                        <AlertCircle size={9} /> {doc.suggestion_reason || 'Processing failed'}
                       </div>
                     )}
                   </button>
@@ -684,6 +705,10 @@ export function InboxClientView({
 
                 {/* Action Buttons row */}
                 <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
+                  {isCanonicalIntake ? (
+                    <Badge variant="muted" fixedWidth="lg">Canonical intake</Badge>
+                  ) : (
+                    <>
                   <Button
                     type="button"
                     variant="outline"
@@ -712,13 +737,55 @@ export function InboxClientView({
                   >
                     <Zap size={13} aria-hidden="true" /> Take Action
                   </Button>
+                    </>
+                  )}
                 </div>
               </header>
 
               <div className="min-h-0 flex-1 overflow-visible py-3 lg:overflow-y-auto custom-scrollbar">
               <div className="flex flex-col gap-5">
               {/* ── State panels ── */}
-              {activeProcessingCopy ? (
+              {isCanonicalIntake ? (
+                <div className={cn(
+                  'flex flex-col items-center justify-center rounded-[var(--radius-md)] border px-5 py-12 text-center',
+                  activeDoc.status === 'failed'
+                    ? 'border-[color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[var(--danger-muted)]'
+                    : isDuplicate
+                    ? 'border-[color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[var(--warning-muted)]'
+                    : 'border-[var(--border)] bg-[var(--surface)]',
+                )}>
+                  <div className={cn(
+                    'flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)]',
+                    activeDoc.status === 'failed'
+                      ? 'bg-[var(--surface)] text-[var(--danger)]'
+                      : isDuplicate
+                      ? 'bg-[var(--surface)] text-[var(--warning)]'
+                      : 'bg-[var(--accent-muted)] text-[var(--primary)]',
+                  )}>
+                    {activeDoc.status === 'failed'
+                      ? <AlertTriangle size={24} />
+                      : isDuplicate
+                      ? <Copy size={24} />
+                      : <Inbox size={24} />}
+                  </div>
+                  <h3 className="mt-4 text-[15px] font-bold text-[var(--text-primary)]">
+                    {activeDoc.status === 'failed'
+                      ? 'Canonical intake failed'
+                      : isDuplicate
+                      ? 'Duplicate PDF'
+                      : activeDoc.canonical_intake_state === 'ready'
+                      ? 'Ready for placement'
+                      : 'Processing canonical intake'}
+                  </h3>
+                  <p className="mt-1.5 max-w-sm text-[13px] text-[var(--text-secondary)]">
+                    {activeDoc.status === 'failed' || isDuplicate
+                      ? activeDoc.suggestion_reason
+                      : activeDoc.canonical_intake_state === 'ready'
+                      ? 'This PDF passed validation and is ready for a placement decision. Assignment is the next Inbox scope.'
+                      : 'This PDF is being processed through the canonical private asset pipeline. Use Refresh queue to check for an updated state.'}
+                  </p>
+                </div>
+              ) : activeProcessingCopy ? (
                 <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center">
                   <div className="relative mb-5">
                     <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
