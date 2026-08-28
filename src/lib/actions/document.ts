@@ -373,20 +373,18 @@ export async function reassignDocumentMatter(
       .eq('document_id', documentId)
 
     // 4. Log reversible activity
-    await supabase
-      .from('activity_logs')
-      .insert({
-        org_id: orgId,
-        user_id: user.id,
-        action: 'document_reassigned',
-        entity_type: 'document',
-        entity_id: documentId,
-        is_reversible: true,
-        metadata: {
-          old_matter_id: oldMatterId,
-          new_matter_id: newMatterId,
-        },
-      })
+    await appendActivity({
+      org_id: orgId,
+      user_id: user.id,
+      action: 'document_reassigned',
+      entity_type: 'document',
+      entity_id: documentId,
+      is_reversible: true,
+      metadata: {
+        old_matter_id: oldMatterId,
+        new_matter_id: newMatterId,
+      },
+    })
   }
 
   if (documentToProcess) {
@@ -652,7 +650,7 @@ export async function createManualLink(
   if (error) return { error: error.message }
 
   // Fetch document details for human readable log description + matter_id for cache revalidation
-  await supabase.from('activity_logs').insert({
+  await appendActivity({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_created',
@@ -700,7 +698,7 @@ export async function deleteDocumentLink(linkId: string) {
 
   if (error) return { error: error.message }
 
-  await supabase.from('activity_logs').insert({
+  await appendActivity({
     org_id: orgId,
     user_id: user.id,
     action: 'manual_link_deleted',
@@ -766,7 +764,7 @@ export async function deleteDocument(documentId: string) {
   }
 
   // 4. Log activity
-  await db.from('activity_logs').insert({
+  await appendActivity({
     org_id: orgId,
     user_id: user.id,
     action: 'document_deleted',

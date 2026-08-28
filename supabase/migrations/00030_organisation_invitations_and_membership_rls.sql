@@ -263,7 +263,14 @@ REVOKE ALL ON FUNCTION public.create_organisation_invite(text,public.org_member_
 GRANT EXECUTE ON FUNCTION public.create_organisation_invite(text,public.org_member_role,text,uuid), public.resend_organisation_invite(uuid,bigint,text,uuid), public.transition_organisation_invite(uuid,bigint,uuid,text,text), public.accept_organisation_invite(uuid,text,text,uuid), public.get_my_pending_organisation_invites(), public.get_organisation_invites(), public.record_organisation_invite_delivery(uuid,text,text,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.begin_organisation_invitation_accept_intent(text,text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.maintain_organisation_invitations() TO service_role;
-CREATE OR REPLACE VIEW public.organisation_invitation_cutover_diagnostics AS SELECT 'legacy_raw_token_remaining'::text issue_code, id FROM public.org_invites WHERE token IS NOT NULL UNION ALL SELECT 'eligible_pending_without_hash',id FROM public.organisation_invites WHERE state='pending' AND selector_hash IS NULL;
+CREATE OR REPLACE VIEW public.organisation_invitation_cutover_diagnostics AS
+SELECT 'legacy_raw_token_remaining'::text AS issue_code, legacy.id
+FROM public.org_invites AS legacy
+WHERE legacy.token IS NOT NULL
+UNION ALL
+SELECT 'eligible_pending_without_hash'::text AS issue_code, canonical.id
+FROM public.organisation_invites AS canonical
+WHERE canonical.state = 'pending' AND canonical.selector_hash IS NULL;
 REVOKE ALL ON public.organisation_invitation_cutover_diagnostics FROM PUBLIC, anon, authenticated; GRANT SELECT ON public.organisation_invitation_cutover_diagnostics TO service_role;
 DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM public.organisation_identity_cutover_diagnostics) THEN RAISE EXCEPTION 'organisation identity cutover diagnostics are not clean'; END IF;
