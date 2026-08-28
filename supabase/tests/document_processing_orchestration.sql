@@ -10,10 +10,10 @@ BEGIN
  INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at) VALUES(session_id,org,asset_id,'safe.pdf','application/pdf',10,'finalized',actor,now(),now());
  INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by) VALUES(intake_id,org,asset_id,session_id,'uploaded',actor);
  INSERT INTO public.outbox_events(id,org_id,aggregate_type,aggregate_id,event_kind,payload,idempotency_key) VALUES(event_id,org,'document_upload',session_id,'document.upload_validation_requested.v1',jsonb_build_object('intake_id',intake_id::text,'asset_id',asset_id::text,'session_id',session_id::text),'processing-validation');
- INSERT INTO public.outbox_events(id,org_id,aggregate_type,aggregate_id,event_kind,payload,idempotency_key) VALUES
- ('39700000-0000-0000-0000-000000000002',org,'document_upload',session_id,'document.upload_validation_requested.v1','null','processing-invalid-null'),
- ('39700000-0000-0000-0000-000000000003',org,'document_upload',session_id,'document.upload_validation_requested.v1','[]','processing-invalid-array'),
- ('39700000-0000-0000-0000-000000000004',org,'document_upload',session_id,'document.upload_validation_requested.v1','{"intake_id":"not-a-uuid","asset_id":"not-a-uuid","session_id":"not-a-uuid"}','processing-invalid-uuid');
+  INSERT INTO public.outbox_events(id,org_id,aggregate_type,aggregate_id,event_kind,payload,idempotency_key) VALUES
+ ('39700000-0000-0000-0000-000000000002',org,'document_upload',session_id,'document.upload_validation_requested.v1',jsonb_build_object('intake_id','39600000-0000-0000-0000-000000000099','asset_id',asset_id::text,'session_id',session_id::text),'processing-invalid-lineage'),
+ ('39700000-0000-0000-0000-000000000003',org,'document_upload',session_id,'document.upload_validation_requested.v1',jsonb_build_object('intake_id',intake_id::text,'asset_id','39400000-0000-0000-0000-000000000099','session_id',session_id::text),'processing-invalid-asset'),
+ ('39700000-0000-0000-0000-000000000004',org,'document_upload','39500000-0000-0000-0000-000000000099','document.upload_validation_requested.v1',jsonb_build_object('intake_id',intake_id::text,'asset_id',asset_id::text,'session_id','39500000-0000-0000-0000-000000000099'),'processing-invalid-session');
  PERFORM set_config('test.processing_event',event_id::text,true);
 END $fixture$;
 
@@ -26,9 +26,9 @@ BEGIN
  IF r.code<>'claimed' OR r.source_run_id IS NULL OR r.lease_token IS NULL OR r.object_key IS NULL THEN RAISE EXCEPTION 'validation claim'; END IF;
  PERFORM set_config('test.processing_run',r.source_run_id::text,true); PERFORM set_config('test.processing_lease',r.lease_token::text,true);
  SELECT * INTO r FROM public.claim_document_validation_work(current_setting('test.processing_event')::uuid); IF r.code<>'already_claimed' THEN RAISE EXCEPTION 'claim idempotency'; END IF;
- SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000002'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'null payload safe handling'; END IF;
- SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000003'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'array payload safe handling'; END IF;
- SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000004'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'malformed UUID safe handling'; END IF;
+ SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000002'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'invalid intake lineage handling'; END IF;
+ SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000003'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'invalid asset lineage handling'; END IF;
+ SELECT * INTO r FROM public.claim_document_validation_work('39700000-0000-0000-0000-000000000004'); IF r.code<>'invalid_event' THEN RAISE EXCEPTION 'invalid session lineage handling'; END IF;
  SELECT * INTO r FROM public.finish_document_validation_work(current_setting('test.processing_run')::uuid,'39000000-0000-0000-0000-000000000099','ready',1); IF r.code<>'stale_lease' THEN RAISE EXCEPTION 'stale validation fence'; END IF;
  SELECT * INTO r FROM public.finish_document_validation_work(current_setting('test.processing_run')::uuid,current_setting('test.processing_lease')::uuid,'invalid_pdf',NULL); IF r.code<>'invalid_pdf' THEN RAISE EXCEPTION 'validation terminal result'; END IF;
 END $claims$;
@@ -43,7 +43,7 @@ BEGIN
  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,byte_size,detected_mime_type,availability,created_by)
    VALUES(asset,org,'documents','orgs/'||org||'/assets/'||asset||'/original.pdf',10,'application/pdf','uploaded',actor);
  INSERT INTO public.outbox_events(id,org_id,aggregate_type,aggregate_id,event_kind,payload,idempotency_key,delivery_state,delivered_at,trigger_run_id)
-   VALUES(event,org,'document_upload','39500000-0000-0000-0000-000000000001','document.upload_validation_requested.v1','{}','processing-reconcile','delivered',now(),'reconcile-run');
+   VALUES(event,org,'document_upload','39500000-0000-0000-0000-000000000001','document.upload_validation_requested.v1',jsonb_build_object('session_id','39500000-0000-0000-0000-000000000001','intake_id','39600000-0000-0000-0000-000000000099','asset_id',asset::text),'processing-reconcile','delivered',now(),'reconcile-run');
  INSERT INTO public.source_analysis_runs(id,org_id,asset_id,request_key,outbox_event_id,state,started_at,lease_token,lease_expires_at,heartbeat_at,attempt_count)
    VALUES(run,org,asset,'validation.reconcile',event,'running',now()-interval '10 minutes','39900000-0000-0000-0000-000000000099',now()-interval '5 minutes',now()-interval '10 minutes',1);
  SELECT * INTO r FROM public.reconcile_document_processing_work(10);

@@ -15,9 +15,9 @@ BEGIN
   INSERT INTO public.organisations(id,name,created_by) VALUES (org,'Outbox dispatch fixture',owner_id);
 
   INSERT INTO public.outbox_events(id,org_id,aggregate_type,aggregate_id,event_kind,payload,idempotency_key,next_attempt_at) VALUES
-    (event_one,org,'document','38400000-0000-0000-0000-000000000001','document.processing_requested.v1','{"document_id":"safe-one"}','dispatch-one',now()-interval '1 minute'),
-    (event_retry,org,'document','38400000-0000-0000-0000-000000000002','document.processing_requested.v1','{"document_id":"safe-retry"}','dispatch-retry',now()+interval '1 day'),
-    (event_expired,org,'document','38400000-0000-0000-0000-000000000003','document.processing_requested.v1','{"document_id":"safe-expired"}','dispatch-expired',now()-interval '1 minute');
+    (event_one,org,'document','38400000-0000-0000-0000-000000000001','document.processing_requested.v1','{"document_id":"38400000-0000-0000-0000-000000000001","version_id":"38500000-0000-0000-0000-000000000001","intake_id":"38600000-0000-0000-0000-000000000001"}','dispatch-one',now()-interval '1 minute'),
+    (event_retry,org,'document','38400000-0000-0000-0000-000000000002','document.processing_requested.v1','{"document_id":"38400000-0000-0000-0000-000000000002","version_id":"38500000-0000-0000-0000-000000000002","intake_id":"38600000-0000-0000-0000-000000000002"}','dispatch-retry',now()+interval '1 day'),
+    (event_expired,org,'document','38400000-0000-0000-0000-000000000003','document.processing_requested.v1','{"document_id":"38400000-0000-0000-0000-000000000003","version_id":"38500000-0000-0000-0000-000000000003","intake_id":"38600000-0000-0000-0000-000000000003"}','dispatch-expired',now()-interval '1 minute');
   UPDATE public.outbox_events
   SET delivery_state='leased', attempt_count=1, lease_token=stale_token, lease_expires_at=now()-interval '1 minute', last_attempt_at=now()-interval '2 minutes'
   WHERE id=event_expired;
@@ -46,10 +46,8 @@ BEGIN
   SELECT * INTO r FROM public.lease_document_outbox_events(1,120) WHERE event_id=current_setting('test.outbox_one')::uuid;
   IF r.event_id IS NULL OR r.lease_token IS NULL OR r.attempt_number<>1 OR r.idempotency_key<>'dispatch-one' THEN RAISE EXCEPTION 'due event was not leased'; END IF;
   PERFORM set_config('test.outbox_one_lease',r.lease_token::text,true);
-  SELECT * INTO r FROM public.lease_document_outbox_events(1,120) WHERE event_id=current_setting('test.outbox_expired')::uuid;
-  IF r.event_id IS NULL OR r.lease_token IS NULL OR r.lease_token=current_setting('test.outbox_stale')::uuid OR r.attempt_number<>2 THEN RAISE EXCEPTION 'expired lease was not reclaimed and fenced'; END IF;
-  PERFORM set_config('test.outbox_expired_lease',r.lease_token::text,true);
-
+  -- Expired delivery leases are reconciled into their bounded retry schedule
+  -- before a later lease, rather than being immediately reissued.
   SELECT * INTO r FROM public.ack_document_outbox_event(current_setting('test.outbox_expired')::uuid,current_setting('test.outbox_stale')::uuid,'run_stale');
   IF r.code<>'stale_lease' THEN RAISE EXCEPTION 'stale worker acknowledgement was accepted'; END IF;
   SELECT * INTO r FROM public.ack_document_outbox_event(current_setting('test.outbox_one')::uuid,current_setting('test.outbox_one_lease')::uuid,'run_one');

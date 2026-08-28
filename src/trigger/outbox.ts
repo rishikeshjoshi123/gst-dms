@@ -69,9 +69,10 @@ export const documentLifecycleEvent = task({
 export const dispatchDocumentOutbox = schedules.task({
   id: 'dispatch-document-outbox',
   cron: { pattern: '* * * * *', timezone: 'UTC' },
+  queue: { concurrencyLimit: 1 },
   run: async () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
     trigger: (envelope, options) => documentLifecycleEvent.trigger(envelope, options),
-  }),
+  }, { maxBatches: 4 }),
 })
 
 // A successful gateway delivery only proves Trigger accepted the event. This

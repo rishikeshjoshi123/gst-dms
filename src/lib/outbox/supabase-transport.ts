@@ -1,5 +1,9 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import type { LeasedOutboxEvent, OutboxTransport, SafeDispatchErrorCode } from './dispatcher'
+import {
+  isSafeLeasedOutboxEvent,
+  type LeasedOutboxEvent,
+  type OutboxTransport,
+} from './dispatcher'
 
 type RpcClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
@@ -15,17 +19,34 @@ export function createSupabaseOutboxTransport(): OutboxTransport {
         p_lease_seconds: leaseSeconds,
       })
       if (error) throw new Error('Could not lease document outbox events.')
-      return ((data ?? []) as Array<Record<string, unknown>>).map((event) => ({
-        eventId: String(event.event_id),
-        orgId: String(event.org_id),
-        eventKind: String(event.event_kind),
-        aggregateType: String(event.aggregate_type),
-        aggregateId: String(event.aggregate_id),
-        payload: (event.payload ?? {}) as Record<string, unknown>,
-        idempotencyKey: String(event.idempotency_key),
-        leaseToken: String(event.lease_token),
-        attemptNumber: Number(event.attempt_number),
-      })) satisfies LeasedOutboxEvent[]
+      const leased: LeasedOutboxEvent[] = []
+      for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+        const candidate = {
+          eventId: row.event_id,
+          orgId: row.org_id,
+          eventKind: row.event_kind,
+          aggregateType: row.aggregate_type,
+          aggregateId: row.aggregate_id,
+          payload: row.payload,
+          idempotencyKey: row.idempotency_key,
+          leaseToken: row.lease_token,
+          attemptNumber: row.attempt_number,
+        }
+        if (!isSafeLeasedOutboxEvent(candidate)) {
+          if (typeof row.event_id !== 'string' || typeof row.lease_token !== 'string') {
+            throw new Error('Outbox lease omitted its delivery fence.')
+          }
+          const failed = await client.rpc('fail_document_outbox_event', {
+            p_event_id: row.event_id,
+            p_lease_token: row.lease_token,
+            p_safe_error_code: 'dispatch_failed',
+          })
+          if (failed.error) throw new Error('Could not safely reject an invalid outbox lease.')
+          continue
+        }
+        leased.push(candidate)
+      }
+      return leased
     },
     async ack(eventId, leaseToken, triggerRunId) {
       const { data, error } = await client.rpc('ack_document_outbox_event', {
