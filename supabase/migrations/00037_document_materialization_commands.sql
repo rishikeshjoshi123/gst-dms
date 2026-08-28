@@ -64,7 +64,7 @@ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = pg_catalog, public AS $$
    CASE WHEN m.state<>'active' THEN ARRAY[]::text[]
      WHEN o.owner_membership_id=m.id THEN ARRAY['team.view','team.invite.standard','team.role.manage_standard','team.membership.suspend_standard','organisation.profile.manage','organisation.operations.manage','team.invite.admin','team.role.manage_admin','team.membership.manage_admin','team.ownership.transfer','trash.purge','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[]
      WHEN m.role='admin' THEN ARRAY['team.view','team.invite.standard','team.role.manage_standard','team.membership.suspend_standard','organisation.profile.manage','organisation.operations.manage','trash.purge','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[]
-     WHEN m.role='associate' THEN ARRAY['team.view','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[] 
+     WHEN m.role='associate' THEN ARRAY['team.view','document.view','document.intake.create','document.record.create','document.intake.assign','document.version.attach','document.version.replace']::text[]
      ELSE ARRAY['team.view','document.view']::text[] END,
    CASE WHEN (c.is_owner OR c.role='admin' OR m.user_id=auth.uid()) AND u.email_confirmed_at IS NOT NULL THEN u.email END
  FROM caller c JOIN public.organisation_memberships m ON m.org_id=c.org_id
