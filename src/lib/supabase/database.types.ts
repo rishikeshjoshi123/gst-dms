@@ -2684,6 +2684,25 @@ export type Database = {
           processing_run_id: string
         }[]
       }
+      claim_document_processing_work_for_dispatch: {
+        Args: {
+          p_event_id: string
+          p_expected_org_id: string
+          p_trigger_run_id: string
+        }
+        Returns: {
+          actor_id: string
+          bucket_id: string
+          code: string
+          document_id: string
+          document_version_id: string
+          lease_token: string
+          matter_id: string
+          object_key: string
+          org_id: string
+          processing_run_id: string
+        }[]
+      }
       claim_document_validation_work: {
         Args: { p_event_id: string }
         Returns: {
