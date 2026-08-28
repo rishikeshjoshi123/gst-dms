@@ -12,14 +12,24 @@ import {
   type StagedBackfillTransferClient,
   type StagedBackfillTransferMetrics,
 } from '@/lib/documents/staged-backfill-transfer'
+import {
+  STAGED_RETIREMENT_AUDIT_BATCH_SIZE,
+  auditStagedDocumentRetirementOrganisation,
+  type StagedRetirementAuditClient,
+  type StagedRetirementAuditMetrics,
+} from '@/lib/documents/staged-retirement-verifier'
 
 const MAX_ORGANISATIONS_PER_RUN = 10
 const MAX_TRANSFER_ORGANISATIONS_PER_RUN = 5
+const MAX_RETIREMENT_AUDIT_ORGANISATIONS_PER_RUN = 5
 
 type BackfillReportRow = {
   org_id: string
   classification_complete: boolean
   transfer_pending_count?: number
+  transfer_completed_count?: number
+  transfer_reachability_verified_count?: number
+  transfer_reachability_audit_pending_count?: number
 }
 
 function mergeMetrics(total: StagedBackfillMetrics, next: StagedBackfillMetrics) {
@@ -33,6 +43,14 @@ function mergeMetrics(total: StagedBackfillMetrics, next: StagedBackfillMetrics)
 function mergeTransferMetrics(total: StagedBackfillTransferMetrics, next: StagedBackfillTransferMetrics) {
   total.claimed += next.claimed
   total.transferred += next.transferred
+  total.retryable += next.retryable
+  total.skipped += next.skipped
+  for (const [code, count] of Object.entries(next.outcomes)) total.outcomes[code] = (total.outcomes[code] ?? 0) + count
+}
+
+function mergeRetirementAuditMetrics(total: StagedRetirementAuditMetrics, next: StagedRetirementAuditMetrics) {
+  total.claimed += next.claimed
+  total.verified += next.verified
   total.retryable += next.retryable
   total.skipped += next.skipped
   for (const [code, count] of Object.entries(next.outcomes)) total.outcomes[code] = (total.outcomes[code] ?? 0) + count
@@ -113,6 +131,53 @@ export const transferStagedDocumentBackfill = schedules.task({
 
     // Aggregate counts only: never return object keys, source IDs, hashes,
     // byte counts, content, or provider/parser errors to task logs.
+    return { organisations, ...total }
+  },
+})
+
+// This is evidence-only. It re-reads each completed source and canonical
+// target through a fresh service grant and records only a typed result. It
+// cannot remove a staging object/row, change legacy access, or retire a fence.
+export const auditStagedDocumentRetirement = schedules.task({
+  id: 'audit-staged-document-retirement',
+  cron: { pattern: '*/15 * * * *', timezone: 'UTC' },
+  queue: { concurrencyLimit: 1 },
+  retry: { maxAttempts: 3, minTimeoutInMs: 1_000, maxTimeoutInMs: 15_000, factor: 2 },
+  maxDuration: 300,
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const client = createServiceClient() as unknown as StagedRetirementAuditClient & {
+      from(table: 'staged_document_backfill_reports'): {
+        select(columns: 'org_id, transfer_reachability_audit_pending_count'): {
+          gt(column: 'transfer_reachability_audit_pending_count', value: number): { limit(limit: number): Promise<{ data: BackfillReportRow[] | null; error: { message: string } | null }> }
+        }
+      }
+    }
+    const reports = await client
+      .from('staged_document_backfill_reports')
+      .select('org_id, transfer_reachability_audit_pending_count')
+      .gt('transfer_reachability_audit_pending_count', 0)
+      .limit(MAX_RETIREMENT_AUDIT_ORGANISATIONS_PER_RUN)
+    if (reports.error) throw new Error('Staged document retirement reports unavailable')
+
+    const total: StagedRetirementAuditMetrics = { claimed: 0, verified: 0, retryable: 0, skipped: 0, outcomes: {} }
+    let organisations = 0
+    for (const report of reports.data ?? []) {
+      const pendingAuditCount = report.transfer_reachability_audit_pending_count
+      if (typeof report.org_id !== 'string'
+        || typeof pendingAuditCount !== 'number'
+        || !Number.isSafeInteger(pendingAuditCount)
+        || pendingAuditCount <= 0) continue
+      mergeRetirementAuditMetrics(total, await auditStagedDocumentRetirementOrganisation(
+        client,
+        report.org_id,
+        STAGED_RETIREMENT_AUDIT_BATCH_SIZE,
+      ))
+      organisations += 1
+    }
+
+    // Deliberately aggregate-only. Do not log source IDs, object keys,
+    // hashes, bytes, content, signed URLs, or provider errors.
     return { organisations, ...total }
   },
 })

@@ -166,10 +166,6 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - Missing is recorded only for an explicit trusted Storage 404. Transient download and worker failures record no terminal observation, so the short database lease expires and the source is safely retried. Task output contains bounded aggregate outcome counts only—never object keys, source IDs, hashes, bytes, document content, or storage/parser errors.
 - The worker creates no Intake, makes no copy or delete request, changes no legacy source or read path, and does not retire the adapter or release the staging-transfer fence. Mocked worker/storage tests cover the grant-only path, safe hash observation, non-PDF handling, explicit missing classification, and retryable storage failure.
 
-### Canonical next action
-
-Run the separately verified staging retirement tranche only after controlled-transfer counts, source/destination hash equality, access controls, duplicate handling, and object-reachability reports have been reviewed. Its inventory must include canonical preallocated assets left quarantined by a late duplicate race, alongside their terminal `duplicate_reference` maps, before any retention decision. Keep legacy reads and assignment behind their compatibility/fence contracts until that retirement proof succeeds; do not delete staging rows or objects, remove the adapter, or otherwise cut over as part of this review.
-
 ### Completed: controlled staged-document transfer (2026-08-29)
 
 - Added a service-only, fixed/bounded serial transfer worker for `transfer_pending` mappings. It obtains opaque work claims and a fresh per-item lease before receiving either source or destination key through a database grant; no task payload can provide a storage path.
@@ -177,6 +173,16 @@ Run the separately verified staging retirement tranche only after controlled-tra
 - Database finalisation rechecks the trusted observations, atomically creates ready canonical Intake, marks the canonical asset available, and clears `legacy_staged_backfill_pending`. It is idempotent, organisation-scoped, and preserves every legacy staging row/object and legacy adapter fence.
 - If a same-organisation duplicate appears after source verification, finalisation terminally records the existing asset as `duplicate_reference` instead of retrying. It preserves any already-copied preallocated canonical asset in its quarantined state for the separately verified retirement audit; that audit must account for these quarantined orphan assets before any retention or cleanup decision.
 - Safe reports now separate pending and completed transfers without exposing object paths, source IDs, byte values, hashes, contents, or provider errors. No staging deletion, adapter retirement, or consumer cutover is included in this tranche.
+
+### Completed: staged-document retirement evidence inventory (2026-08-29)
+
+- Added migration `00050` and a bounded service-only audit worker. Completed transfers are re-read only through fresh lease-bound source/destination grants; a report records aggregate-safe equal, missing, and conflict evidence without exposing paths, IDs, hashes, byte counts, content, or provider errors.
+- The per-organisation report is fail-closed. It covers exhaustive map/classification counts, live verification/transfer/legacy/audit leases, transfer database consistency, duplicate target health, source lineage and adapter-fence diagnostics, terminal exception categories, and an explicit unproven count for quarantined backfill-pending assets that cannot safely be paired with a historical late-duplicate race.
+- The inventory does not delete staging or canonical objects, alter legacy staged rows, change compatibility reads/assignment behavior, or authorise retention, adapter retirement, or consumer cutover. A true evidence flag is only an input to a separate human decision.
+
+### Canonical next action
+
+User review of evidence and separate retention/cutover decision. Keep legacy reads and assignment behind their compatibility/fence contracts; do not delete staging rows or objects, remove the adapter, or otherwise cut over as part of the review.
 
 ### Completed: global Inbox canonical upload (2026-08-28)
 

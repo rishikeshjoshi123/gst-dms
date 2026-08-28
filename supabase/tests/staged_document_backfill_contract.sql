@@ -1,4 +1,4 @@
--- Run after migration 00049 against a disposable local Supabase database.
+-- Run after migration 00050 against a disposable local Supabase database.
 -- SQL cannot inspect Storage. It claims only a path proven to use the old
 -- staging namespace, then accepts a trusted worker's safe observation result.
 BEGIN;
@@ -363,9 +363,15 @@ BEGIN
      OR report_a.already_migrated_count <> 1 OR NOT report_a.classification_complete
      OR report_a.staging_retirement_ready THEN RAISE EXCEPTION 'backfill count/report contract failed'; END IF;
   SELECT * INTO report_b FROM public.staged_document_backfill_reports WHERE org_id='48000000-0000-0000-0000-000000000002';
-  IF report_b.transfer_pending_count <> 0 OR report_b.duplicate_reference_count <> 1 OR NOT report_b.classification_complete THEN
+  IF report_b.transfer_pending_count <> 0 OR report_b.duplicate_reference_count <> 1
+    OR report_b.unproven_quarantined_backfill_asset_count <> 1
+    OR NOT report_b.classification_complete OR report_b.staging_retirement_ready THEN
     RAISE EXCEPTION 'other tenant report was not isolated'; END IF;
-  IF EXISTS (SELECT 1 FROM public.staged_document_backfill_diagnostics) THEN RAISE EXCEPTION 'backfill diagnostics are not clean'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.staged_document_backfill_diagnostics
+    WHERE org_id='48000000-0000-0000-0000-000000000002'
+      AND issue='unproven_quarantined_backfill_asset' AND affected_count=1
+  ) THEN RAISE EXCEPTION 'backfill diagnostics did not expose the unproven late duplicate asset'; END IF;
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema='public' AND table_name='staged_document_backfill_diagnostics'
@@ -435,6 +441,256 @@ BEGIN
   END;
   IF NOT denied THEN RAISE EXCEPTION 'browser could read service-only backfill report'; END IF;
 END $browser$;
+RESET ROLE;
+
+ROLLBACK;
+
+-- Retirement evidence is a distinct, non-destructive review tranche. It has
+-- no Storage access in SQL; the service worker supplies only fresh typed
+-- observations through a lease-bound grant.
+BEGIN;
+
+DO $retirement_setup$
+DECLARE
+  org_a uuid := '4a000000-0000-0000-0000-000000000001';
+  org_b uuid := '4a000000-0000-0000-0000-000000000002';
+  user_a uuid := '4a100000-0000-0000-0000-000000000001';
+  user_b uuid := '4a100000-0000-0000-0000-000000000002';
+  client_a uuid := '4a200000-0000-0000-0000-000000000001';
+  matter_a uuid := '4a300000-0000-0000-0000-000000000001';
+  source_a uuid := '4a400000-0000-0000-0000-000000000001';
+  asset_a uuid := '4a500000-0000-0000-0000-000000000001';
+  intake_a uuid := '4a600000-0000-0000-0000-000000000001';
+BEGIN
+  INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+  VALUES
+    ('00000000-0000-0000-0000-000000000000',user_a,'authenticated','authenticated','retirement-a@example.test','x',now(),'{}','{}',now(),now()),
+    ('00000000-0000-0000-0000-000000000000',user_b,'authenticated','authenticated','retirement-b@example.test','x',now(),'{}','{}',now(),now());
+  INSERT INTO public.organisations(id,name,created_by) VALUES (org_a,'Retirement A',user_a),(org_b,'Retirement B',user_b);
+  INSERT INTO public.clients(id,org_id,name) VALUES(client_a,org_a,'Retirement client');
+  INSERT INTO public.matters(id,org_id,client_id,title) VALUES(matter_a,org_a,client_a,'Retirement matter');
+  INSERT INTO public.staged_documents(id,org_id,uploaded_by,storage_path,status,intake_matter_id)
+  VALUES(source_a,org_a,user_a,'staging/'||org_a||'/4a900000-0000-0000-0000-000000000001/original.pdf','ready_to_assign',matter_a);
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
+  VALUES(asset_a,org_a,'documents','orgs/'||org_a||'/assets/'||asset_a||'/original.pdf',repeat('d',64),17,'application/pdf','available',now(),1,user_a);
+  INSERT INTO public.intake_items(id,org_id,asset_id,intended_matter_id,state,uploaded_by)
+  VALUES(intake_a,org_a,asset_a,matter_a,'ready',user_a);
+  INSERT INTO public.staged_document_backfill_items(
+    org_id,legacy_staged_document_id,safe_item_key,outcome,canonical_asset_id,canonical_intake_item_id,
+    observed_sha256,observed_byte_size,safe_reason_code,terminal_classified_at,transfer_completed_at
+  ) VALUES (
+    org_a,source_a,'legacy-staged/'||source_a::text,'transfer_pending',asset_a,intake_a,
+    repeat('d',64),17,'canonical_transfer_completed',now(),now()
+  );
+END $retirement_setup$;
+
+-- Grant regressions: every sensitive field is null unless the grant's code is
+-- exactly `ok`; `FOUND` prevents a zero-row cross-tenant call from passing.
+DO $retirement_grant_suppression$
+DECLARE
+  org_a uuid := '4a000000-0000-0000-0000-000000000001';
+  source_a uuid := '4a400000-0000-0000-0000-000000000001';
+  source_invalid uuid := '4a400000-0000-0000-0000-000000000002';
+  source_inconsistent uuid := '4a400000-0000-0000-0000-000000000003';
+  asset_invalid uuid := '4a500000-0000-0000-0000-000000000003';
+  asset_inconsistent uuid := '4a500000-0000-0000-0000-000000000004';
+  asset_intake_mismatch uuid := '4a500000-0000-0000-0000-000000000005';
+  intake_inconsistent uuid := '4a600000-0000-0000-0000-000000000002';
+  user_a uuid := '4a100000-0000-0000-0000-000000000001';
+  matter_a uuid := '4a300000-0000-0000-0000-000000000001';
+  audit_claim record; grant_row record; invalid_audit_lease uuid := gen_random_uuid();
+  inconsistent_audit_lease uuid := gen_random_uuid(); transfer_lease uuid := gen_random_uuid();
+  claim_count bigint; mismatch_report public.staged_document_backfill_reports%ROWTYPE;
+BEGIN
+  SELECT * INTO audit_claim FROM public.claim_staged_document_retirement_audit_batch(org_a, 1);
+  IF NOT FOUND OR audit_claim.code <> 'audit_required' OR audit_claim.audit_lease_token IS NULL THEN
+    RAISE EXCEPTION 'retirement audit claim was absent or incomplete';
+  END IF;
+  SELECT * INTO grant_row FROM public.get_staged_document_retirement_audit_grant(org_a, source_a, gen_random_uuid());
+  IF NOT FOUND OR grant_row.code <> 'lease_not_held'
+    OR grant_row.source_bucket_id IS NOT NULL OR grant_row.source_object_key IS NOT NULL
+    OR grant_row.destination_bucket_id IS NOT NULL OR grant_row.destination_object_key IS NOT NULL
+    OR grant_row.expected_byte_size IS NOT NULL OR grant_row.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'invalid retirement audit lease exposed grant evidence';
+  END IF;
+  UPDATE public.staged_document_retirement_audit_items
+  SET lease_expires_at = now() - interval '1 second'
+  WHERE org_id=org_a AND legacy_staged_document_id=source_a;
+  SELECT * INTO grant_row FROM public.get_staged_document_retirement_audit_grant(org_a, source_a, audit_claim.audit_lease_token);
+  IF NOT FOUND OR grant_row.code <> 'lease_not_held'
+    OR grant_row.source_bucket_id IS NOT NULL OR grant_row.source_object_key IS NOT NULL
+    OR grant_row.destination_bucket_id IS NOT NULL OR grant_row.destination_object_key IS NOT NULL
+    OR grant_row.expected_byte_size IS NOT NULL OR grant_row.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'expired retirement audit lease exposed grant evidence';
+  END IF;
+
+  INSERT INTO public.staged_documents(id,org_id,uploaded_by,storage_path,status,intake_matter_id)
+  VALUES(source_invalid,org_a,user_a,'untrusted/legacy.pdf','ready_to_assign',matter_a);
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,availability,legacy_staged_backfill_pending,created_by)
+  VALUES(asset_invalid,org_a,'documents','orgs/'||org_a||'/assets/'||asset_invalid||'/original.pdf','quarantined',true,user_a);
+  INSERT INTO public.staged_document_backfill_items(
+    org_id,legacy_staged_document_id,safe_item_key,outcome,canonical_asset_id,observed_sha256,observed_byte_size,
+    safe_reason_code,terminal_classified_at,transfer_lease_token,transfer_lease_expires_at
+  ) VALUES (
+    org_a,source_invalid,'legacy-staged/'||source_invalid::text,'transfer_pending',asset_invalid,repeat('e',64),19,
+    'legacy_staging_transfer_required',now(),transfer_lease,now()+interval '15 minutes'
+  );
+  SELECT * INTO grant_row FROM public.get_staged_document_backfill_transfer_grant(org_a, source_invalid, transfer_lease);
+  IF NOT FOUND OR grant_row.code <> 'invalid_lineage'
+    OR grant_row.source_bucket_id IS NOT NULL OR grant_row.source_object_key IS NOT NULL
+    OR grant_row.destination_bucket_id IS NOT NULL OR grant_row.destination_object_key IS NOT NULL
+    OR grant_row.expected_byte_size IS NOT NULL OR grant_row.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'invalid transfer lineage exposed grant evidence';
+  END IF;
+  UPDATE public.staged_document_backfill_items
+  SET transfer_lease_expires_at = now() - interval '1 second'
+  WHERE org_id=org_a AND legacy_staged_document_id=source_invalid;
+  SELECT * INTO grant_row FROM public.get_staged_document_backfill_transfer_grant(org_a, source_invalid, transfer_lease);
+  IF NOT FOUND OR grant_row.code <> 'lease_not_held'
+    OR grant_row.source_bucket_id IS NOT NULL OR grant_row.source_object_key IS NOT NULL
+    OR grant_row.destination_bucket_id IS NOT NULL OR grant_row.destination_object_key IS NOT NULL
+    OR grant_row.expected_byte_size IS NOT NULL OR grant_row.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'expired transfer lease exposed grant evidence';
+  END IF;
+
+  INSERT INTO public.staged_documents(id,org_id,uploaded_by,storage_path,status,intake_matter_id)
+  VALUES(source_inconsistent,org_a,user_a,'staging/'||org_a||'/4a900000-0000-0000-0000-000000000003/original.pdf','ready_to_assign',matter_a);
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,created_by)
+  VALUES(asset_inconsistent,org_a,'documents','orgs/'||org_a||'/assets/'||asset_inconsistent||'/original.pdf',repeat('f',64),23,'application/pdf','available',now(),user_a);
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,created_by)
+  VALUES(asset_intake_mismatch,org_a,'documents','orgs/'||org_a||'/assets/'||asset_intake_mismatch||'/original.pdf',repeat('0',64),29,'application/pdf','available',now(),user_a);
+  INSERT INTO public.intake_items(id,org_id,asset_id,intended_matter_id,state,uploaded_by)
+  VALUES(intake_inconsistent,org_a,asset_intake_mismatch,matter_a,'ready',user_a);
+  INSERT INTO public.staged_document_backfill_items(
+    org_id,legacy_staged_document_id,safe_item_key,outcome,canonical_asset_id,canonical_intake_item_id,
+    observed_sha256,observed_byte_size,safe_reason_code,terminal_classified_at,transfer_completed_at
+  ) VALUES (
+    org_a,source_inconsistent,'legacy-staged/'||source_inconsistent::text,'transfer_pending',asset_inconsistent,intake_inconsistent,
+    repeat('f',64),23,'canonical_transfer_completed',now(),now()
+  );
+  UPDATE public.staged_document_retirement_audit_items
+  SET lease_expires_at = now() + interval '15 minutes'
+  WHERE org_id=org_a AND legacy_staged_document_id=source_a;
+  SELECT count(*) INTO claim_count FROM public.claim_staged_document_retirement_audit_batch(org_a, 1);
+  IF claim_count <> 0 THEN RAISE EXCEPTION 'asset-mismatched Intake entered retirement audit work'; END IF;
+  UPDATE public.staged_document_retirement_audit_items
+  SET lease_expires_at = now() - interval '1 second'
+  WHERE org_id=org_a AND legacy_staged_document_id=source_a;
+  INSERT INTO public.staged_document_retirement_audit_items(org_id,legacy_staged_document_id,lease_token,lease_expires_at)
+  VALUES(org_a,source_inconsistent,inconsistent_audit_lease,now()+interval '15 minutes');
+  SELECT * INTO grant_row FROM public.get_staged_document_retirement_audit_grant(org_a, source_inconsistent, inconsistent_audit_lease);
+  IF NOT FOUND OR grant_row.code <> 'database_inconsistent'
+    OR grant_row.source_bucket_id IS NOT NULL OR grant_row.source_object_key IS NOT NULL
+    OR grant_row.destination_bucket_id IS NOT NULL OR grant_row.destination_object_key IS NOT NULL
+    OR grant_row.expected_byte_size IS NOT NULL OR grant_row.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'asset-mismatched Intake exposed retirement grant evidence';
+  END IF;
+  SELECT * INTO mismatch_report FROM public.staged_document_backfill_reports WHERE org_id=org_a;
+  IF mismatch_report.completed_transfer_inconsistent_count <> 1 OR mismatch_report.staging_retirement_ready
+    OR NOT EXISTS (SELECT 1 FROM public.staged_document_backfill_diagnostics
+      WHERE org_id=org_a AND issue='transfer_completed_database_inconsistent' AND affected_count=1) THEN
+    RAISE EXCEPTION 'asset-mismatched Intake did not fail closed in retirement evidence';
+  END IF;
+  DELETE FROM public.staged_document_retirement_audit_items
+  WHERE org_id=org_a AND legacy_staged_document_id=source_inconsistent;
+  DELETE FROM public.staged_document_backfill_items
+  WHERE org_id=org_a AND legacy_staged_document_id IN (source_invalid, source_inconsistent);
+  UPDATE public.file_assets
+  SET availability='reserved', validated_at=NULL, legacy_staged_backfill_pending=false
+  WHERE id IN (asset_invalid, asset_inconsistent, asset_intake_mismatch) AND org_id=org_a;
+  DELETE FROM public.staged_documents WHERE id IN (source_invalid, source_inconsistent) AND org_id=org_a;
+END $retirement_grant_suppression$;
+
+SET LOCAL ROLE service_role;
+DO $retirement_service$
+DECLARE
+  org_a uuid := '4a000000-0000-0000-0000-000000000001';
+  org_b uuid := '4a000000-0000-0000-0000-000000000002';
+  source_a uuid := '4a400000-0000-0000-0000-000000000001';
+  asset_orphan uuid := '4a500000-0000-0000-0000-000000000002';
+  claim record; audit_grant record; result record; report public.staged_document_backfill_reports%ROWTYPE;
+  digest_before text; digest_after text; direct_dml_denied boolean := false;
+BEGIN
+  SELECT md5(string_agg(id::text || ':' || status::text || ':' || storage_path, ',' ORDER BY id))
+    INTO digest_before FROM public.staged_documents WHERE org_id=org_a;
+  BEGIN
+    INSERT INTO public.staged_document_retirement_audit_items(org_id,legacy_staged_document_id)
+    VALUES(org_a,source_a);
+  EXCEPTION WHEN insufficient_privilege THEN direct_dml_denied := true;
+  END;
+  IF NOT direct_dml_denied THEN RAISE EXCEPTION 'service direct retirement evidence DML allowed'; END IF;
+
+  SELECT * INTO claim FROM public.claim_staged_document_retirement_audit_batch(org_a, 1);
+  IF claim.code <> 'audit_required' OR claim.legacy_staged_document_id <> source_a OR claim.audit_lease_token IS NULL THEN
+    RAISE EXCEPTION 'completed transfer was not claimed as opaque retirement evidence work';
+  END IF;
+  SELECT * INTO audit_grant FROM public.get_staged_document_retirement_audit_grant(org_a, source_a, claim.audit_lease_token);
+  IF audit_grant.code <> 'ok' OR audit_grant.source_bucket_id <> 'staging' OR audit_grant.destination_bucket_id <> 'documents'
+    OR audit_grant.expected_byte_size <> 17 OR audit_grant.expected_sha256 <> repeat('d',64) THEN
+    RAISE EXCEPTION 'retirement evidence grant did not bind trusted source/destination observations';
+  END IF;
+  SELECT * INTO audit_grant FROM public.get_staged_document_retirement_audit_grant(org_b, source_a, claim.audit_lease_token);
+  IF NOT FOUND OR audit_grant.code <> 'not_found'
+    OR audit_grant.source_bucket_id IS NOT NULL OR audit_grant.source_object_key IS NOT NULL
+    OR audit_grant.destination_bucket_id IS NOT NULL OR audit_grant.destination_object_key IS NOT NULL
+    OR audit_grant.expected_byte_size IS NOT NULL OR audit_grant.expected_sha256 IS NOT NULL THEN
+    RAISE EXCEPTION 'cross-tenant retirement evidence grant exposed a path';
+  END IF;
+  SELECT * INTO result FROM public.record_staged_document_retirement_audit(
+    org_a,source_a,claim.audit_lease_token,'verified_equal',17,repeat('d',64),17,repeat('d',64)
+  );
+  IF result.code <> 'verified_equal' THEN RAISE EXCEPTION 'matching source/destination evidence was not recorded'; END IF;
+  SELECT * INTO report FROM public.staged_document_backfill_reports WHERE org_id=org_a;
+  IF report.transfer_completed_count <> 1 OR report.transfer_reachability_verified_count <> 1
+    OR report.transfer_reachability_audit_pending_count <> 0 OR report.diagnostic_count <> 0
+    OR NOT report.staging_retirement_ready THEN
+    RAISE EXCEPTION 'complete retirement evidence did not produce an evidence-ready report';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='staged_document_backfill_reports'
+      AND column_name IN ('storage_path','object_key','legacy_staged_document_id','safe_item_key','sha256','byte_size','content','error')
+  ) THEN RAISE EXCEPTION 'retirement report exposed sensitive evidence fields'; END IF;
+
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,availability,legacy_staged_backfill_pending)
+  VALUES(asset_orphan,org_a,'documents','orgs/'||org_a||'/assets/'||asset_orphan||'/original.pdf','quarantined',true);
+  SELECT * INTO report FROM public.staged_document_backfill_reports WHERE org_id=org_a;
+  IF report.unproven_quarantined_backfill_asset_count <> 1 OR report.diagnostic_count <> 1
+    OR report.staging_retirement_ready THEN
+    RAISE EXCEPTION 'unlinked quarantined late-duplicate asset did not fail closed';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.staged_document_backfill_diagnostics
+    WHERE org_id=org_a AND issue='unproven_quarantined_backfill_asset' AND affected_count=1
+  ) THEN RAISE EXCEPTION 'unproven historic orphan was not safely diagnosed'; END IF;
+  SELECT md5(string_agg(id::text || ':' || status::text || ':' || storage_path, ',' ORDER BY id))
+    INTO digest_after FROM public.staged_documents WHERE org_id=org_a;
+  IF digest_after IS DISTINCT FROM digest_before THEN RAISE EXCEPTION 'retirement evidence changed a legacy staged source'; END IF;
+END $retirement_service$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+DO $retirement_browser$
+DECLARE denied boolean := false;
+BEGIN
+  BEGIN
+    PERFORM * FROM public.claim_staged_document_retirement_audit_batch('4a000000-0000-0000-0000-000000000001', 1);
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could claim retirement evidence work'; END IF;
+  denied := false;
+  BEGIN
+    PERFORM 1 FROM public.staged_document_retirement_audit_items;
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could read retirement evidence state'; END IF;
+  denied := false;
+  BEGIN
+    PERFORM 1 FROM public.staged_document_backfill_reports;
+  EXCEPTION WHEN insufficient_privilege THEN denied := true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'browser could read service-only retirement report'; END IF;
+END $retirement_browser$;
 RESET ROLE;
 
 ROLLBACK;

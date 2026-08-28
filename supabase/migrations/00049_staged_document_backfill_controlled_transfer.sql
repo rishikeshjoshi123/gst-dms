@@ -138,42 +138,70 @@ AS $$
          END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
+                    AND asset.id IS NOT NULL
+                    AND asset.legacy_staged_backfill_pending
+                    AND asset.availability = 'quarantined'
+                    AND asset.storage_deleted_at IS NULL
                     AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN 'staging' END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
+                    AND asset.id IS NOT NULL
+                    AND asset.legacy_staged_backfill_pending
+                    AND asset.availability = 'quarantined'
+                    AND asset.storage_deleted_at IS NULL
                     AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN s.storage_path END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
                     AND asset.legacy_staged_backfill_pending
                     AND asset.availability = 'quarantined'
                     AND asset.storage_deleted_at IS NULL
+                    AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN asset.bucket_id END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
                     AND asset.legacy_staged_backfill_pending
                     AND asset.availability = 'quarantined'
                     AND asset.storage_deleted_at IS NULL
+                    AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN asset.object_key END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
+                    AND asset.id IS NOT NULL
+                    AND asset.legacy_staged_backfill_pending
+                    AND asset.availability = 'quarantined'
+                    AND asset.storage_deleted_at IS NULL
+                    AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN m.observed_byte_size END,
          CASE WHEN m.transfer_lease_token = p_transfer_lease_token
                     AND m.transfer_lease_expires_at > now()
+                    AND m.outcome = 'transfer_pending'
                     AND m.transfer_completed_at IS NULL
+                    AND asset.id IS NOT NULL
+                    AND asset.legacy_staged_backfill_pending
+                    AND asset.availability = 'quarantined'
+                    AND asset.storage_deleted_at IS NULL
+                    AND public.staged_document_backfill_source_is_valid(s.org_id, s.storage_path, s.intake_matter_id)
               THEN m.observed_sha256 END
-  FROM public.staged_document_backfill_items AS m
+  FROM (SELECT 1) AS request
+  LEFT JOIN public.staged_document_backfill_items AS m
+    ON m.org_id = p_org_id AND m.legacy_staged_document_id = p_legacy_staged_document_id
   LEFT JOIN public.staged_documents AS s
     ON s.org_id = m.org_id AND s.id = m.legacy_staged_document_id
   LEFT JOIN public.file_assets AS asset
     ON asset.org_id = m.org_id AND asset.id = m.canonical_asset_id
-  WHERE m.org_id = p_org_id AND m.legacy_staged_document_id = p_legacy_staged_document_id;
+  ;
 $$;
 
 -- Finalisation trusts only a worker that has independently read both source
