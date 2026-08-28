@@ -118,6 +118,9 @@ h3 { margin: 0; font-size: 16px; }
 .article-introduction { margin: 0 0 42px; }
 .article-introduction p { max-width: 66ch; color: var(--text-secondary); font-size: 17px; line-height: 1.75; }
 .article-introduction .article-deck { margin: 0 0 14px; color: var(--text-primary); font-size: clamp(20px, 3vw, 25px); line-height: 1.42; letter-spacing: -.02em; }
+.story-section { margin-top: 48px; }
+.story-section > h2 { margin-top: 0; }
+.story-section > p + p { margin-top: 18px; }
 .article-flow { margin: 32px 0 46px; padding: 0; }
 .article-flow figcaption { margin-bottom: 10px; color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .article-flow ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }

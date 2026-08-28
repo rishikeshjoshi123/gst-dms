@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { planVisualReferences, portalReadingOrder } from '../project-portal/plan-visual-references.mjs';
+import { planArticles } from '../project-portal/plan-articles.mjs';
 import { plainLanguagePlans } from '../project-portal/plain-language-plans.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -63,12 +64,18 @@ function renderSpecimen(specimenId) {
   return specimen;
 }
 
-function renderArticleIntroduction(plan) {
-  const edition = plainLanguagePlans[plan.relativePath];
-  if (!edition) throw new Error(`Plan is missing its public-reader edition: ${plan.relativePath}`);
-  return `<div class="article-introduction"><p class="article-deck">${escapeHtml(edition.overview)}</p><p>${escapeHtml(edition.why)}</p></div><figure class="article-flow" aria-labelledby="flow-caption"><figcaption id="flow-caption">The idea in three moves</figcaption><ol>${edition.steps.map((step, index) => `<li><span>${index + 1}</span>${escapeHtml(step)}</li>`).join('')}</ol></figure>`;
+function renderArticle(plan) {
+  const article = planArticles[plan.relativePath];
+  if (!article) throw new Error(`Plan is missing its public article: ${plan.relativePath}`);
+  const flow = `<figure class="article-flow" aria-labelledby="flow-caption"><figcaption id="flow-caption">${escapeHtml(article.flowCaption)}</figcaption><ol>${article.flow.map((step, index) => `<li><span>${index + 1}</span>${escapeHtml(step)}</li>`).join('')}</ol></figure>`;
+  const supportingVisuals = (planVisualReferences[plan.relativePath] ?? []).map((reference) => renderSpecimen(reference.specimenId)).join('');
+  const sections = article.sections.map((section, index) => `<section class="story-section"><h2>${escapeHtml(section.heading)}</h2>${section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}${index === 0 ? flow : ''}${index === 1 ? supportingVisuals : ''}</section>`).join('');
+  return `<div class="article-introduction"><p class="article-deck">${escapeHtml(article.deck)}</p><p>${escapeHtml(article.intro)}</p></div>${sections}`;
 }
 
+// Kept for an opt-in canonical renderer if the portal later adds a technical
+// edition alongside the editorial articles.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function renderMarkdown(markdown, visualReferences = []) {
   const lines = markdown.split('\n');
   const html = [];
@@ -154,6 +161,8 @@ const unorderedPlan = plans.find((plan) => !planReadingIndexes.has(plan.relative
 if (unorderedPlan) throw new Error(`Plan is missing from the portal reading order: ${unorderedPlan.relativePath}`);
 const missingEdition = plans.find((plan) => !plainLanguagePlans[plan.relativePath]);
 if (missingEdition) throw new Error(`Plan is missing its public-reader edition: ${missingEdition.relativePath}`);
+const missingArticle = plans.find((plan) => !planArticles[plan.relativePath]);
+if (missingArticle) throw new Error(`Plan is missing its public article: ${missingArticle.relativePath}`);
 plans.sort((left, right) => planReadingIndexes.get(left.relativePath) - planReadingIndexes.get(right.relativePath));
 const count = (status) => plans.filter((plan) => plan.status === status).length;
 
@@ -168,8 +177,7 @@ await writeFile(path.join(outputRoot, 'index.html'), layout('Overview', dashboar
 
 await Promise.all(plans.map(async (plan) => {
   const sourceUrl = `${repositoryUrl}/blob/${sourceBranch}/${plan.relativePath}`;
-  const technicalArticle = plan.body.replace(/^## Summary\n\n[\s\S]*?(?=\n## )/m, '');
-  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><div class="article-body">${renderArticleIntroduction(plan)}${renderMarkdown(technicalArticle, planVisualReferences[plan.relativePath])}<aside class="source-note"><h2>Read the original source</h2><p>This article is a public reading edition. The repository keeps the complete, canonical plan and its change history.</p><a href="${sourceUrl}" target="_blank" rel="noreferrer">Open the source plan on GitHub</a></aside></div></article>`;
+  const content = `<article class="plan-article"><a class="back-link" href="../index.html#plans">← All plans</a><p class="eyebrow">${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</p><h1>${escapeHtml(plan.title)}</h1><div class="article-meta"><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><div class="article-body">${renderArticle(plan)}<aside class="source-note"><h2>Read the original source</h2><p>This article explains the plan for a general reader. The repository keeps the complete technical contract and its change history.</p><a href="${sourceUrl}" target="_blank" rel="noreferrer">Open the canonical plan on GitHub</a></aside></div></article>`;
   await writeFile(path.join(outputRoot, 'plans', `${plan.slug}.html`), layout(plan.title, content, 'plans'));
 }));
 
