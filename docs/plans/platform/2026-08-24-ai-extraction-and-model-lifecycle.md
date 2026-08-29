@@ -127,9 +127,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - The database enforces forced RLS with no direct browser or service-role table authority, immutable identities and terminal rows, tenant-scoped assets/runs/attempts, bounded/ordered retry reasons, and self/cycle/cross-asset/older supersession fences. An expired AI lease can only requeue through the controlled replay path and cannot terminal-complete stale work.
 - A rollback-only acceptance fixture, generated type parity, clean local replay, existing processing-orchestration regression, type checking, and independent QA passed.
 
+### Completed: immutable source-field candidate authority (2026-08-29)
+
+- Migration `00064` adds asset-scoped `source_field_candidates` for terminal validated AI runs. Each candidate has a stable semantic key, field path/type, bounded typed scalar normalized value, 1-based validated PDF page, short quotation, optional normalized regions, confidence, and terminal validation state with safe error codes only.
+- Candidate rows are append-only, source-run/asset/tenant constrained, idempotently materialized through a service-only command, and protected by forced RLS with no browser or direct service table authority. No document-version binding, effective metadata, raw-output retention, or consumer migration is included.
+- A rollback-only candidate fixture, generated type parity, clean local replay, the source-run foundation regression, the processing-orchestration regression, migration checks, and type checking passed.
+
 ### Canonical next action
 
-Implement the next approved provenance slice: immutable `source_field_candidates` keyed to the new AI source-analysis run, with typed safe values and asset/page/quotation evidence. Do not yet create document-version bindings, effective metadata, consumer rewrites, raw-output retention, embeddings, or UI.
+Implement the next approved provenance slice: immutable document-version analysis bindings and document-level candidate materialization from source candidates, without a duplicate model call. Do not yet create effective metadata, consumer rewrites, raw-output retention, embeddings, or UI.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.

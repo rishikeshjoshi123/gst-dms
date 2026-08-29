@@ -2429,6 +2429,85 @@ export type Database = {
           },
         ]
       }
+      source_field_candidates: {
+        Row: {
+          asset_id: string
+          confidence: number
+          created_at: string
+          evidence_page_count: number
+          evidence_regions: Json | null
+          field_path: string
+          id: string
+          normalized_value: Json
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_analysis_run_id: string
+          validation_error_codes: string[] | null
+          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Insert: {
+          asset_id: string
+          confidence: number
+          created_at?: string
+          evidence_page_count: number
+          evidence_regions?: Json | null
+          field_path: string
+          id?: string
+          normalized_value: Json
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_analysis_run_id: string
+          validation_error_codes?: string[] | null
+          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Update: {
+          asset_id?: string
+          confidence?: number
+          created_at?: string
+          evidence_page_count?: number
+          evidence_regions?: Json | null
+          field_path?: string
+          id?: string
+          normalized_value?: Json
+          org_id?: string
+          page_number?: number
+          quotation?: string
+          semantic_candidate_key?: string
+          source_analysis_run_id?: string
+          validation_error_codes?: string[] | null
+          validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_field_candidates_asset_org_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "source_field_candidates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_field_candidates_run_org_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       staged_document_backfill_items: {
         Row: {
           canonical_asset_id: string | null
@@ -4086,6 +4165,22 @@ export type Database = {
           similarity: number
         }[]
       }
+      materialize_source_field_candidate: {
+        Args: {
+          p_confidence: number
+          p_evidence_regions: Json
+          p_field_path: string
+          p_normalized_value: Json
+          p_page_number: number
+          p_quotation: string
+          p_semantic_candidate_key: string
+          p_source_analysis_run_id: string
+          p_validation_error_codes?: string[]
+          p_validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Returns: string
+      }
       my_org_ids: { Args: never; Returns: string[] }
       org_wide_fuzzy_match_reference: {
         Args: { p_org_id: string; p_reference_number: string }
@@ -4322,6 +4417,21 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      source_field_candidate_normalized_value_is_valid: {
+        Args: {
+          p_value: Json
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Returns: boolean
+      }
+      source_field_candidate_regions_are_valid: {
+        Args: { p_regions: Json }
+        Returns: boolean
+      }
+      source_field_candidate_validation_errors_are_safe: {
+        Args: { p_errors: string[] }
+        Returns: boolean
+      }
       staged_document_backfill_source_is_valid: {
         Args: {
           p_intake_matter_id: string
@@ -4541,6 +4651,18 @@ export type Database = {
         | "invalid_output_regeneration"
         | "operator_recovery"
       source_analysis_run_state: "queued" | "running" | "succeeded" | "failed"
+      source_field_candidate_validation_state:
+        | "eligible"
+        | "provisional"
+        | "conflicting"
+        | "invalid"
+      source_field_candidate_value_type:
+        | "text"
+        | "code"
+        | "date"
+        | "integer"
+        | "decimal"
+        | "boolean"
       staged_document_backfill_outcome:
         | "verification_required"
         | "transfer_pending"
@@ -4920,6 +5042,20 @@ export const Constants = {
         "operator_recovery",
       ],
       source_analysis_run_state: ["queued", "running", "succeeded", "failed"],
+      source_field_candidate_validation_state: [
+        "eligible",
+        "provisional",
+        "conflicting",
+        "invalid",
+      ],
+      source_field_candidate_value_type: [
+        "text",
+        "code",
+        "date",
+        "integer",
+        "decimal",
+        "boolean",
+      ],
       staged_document_backfill_outcome: [
         "verification_required",
         "transfer_pending",
