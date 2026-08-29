@@ -121,6 +121,16 @@ The target system must preserve source evidence and prior runs, prevent incompat
 
 ## Implementation Plan
 
+### Completed: immutable source-analysis run and attempt foundation (2026-08-29)
+
+- Migration `00063` establishes asset-scoped AI extraction run identity and append-only provider-attempt provenance while preserving the completed asset-validation worker contract. Run identity records versioned safe provider/model/prompt/schema/catalogue/normalizer metadata, idempotency, safe error category, usage/cost/latency, and same-asset supersession; it stores no raw model output or legal-content payload.
+- The database enforces forced RLS with no direct browser or service-role table authority, immutable identities and terminal rows, tenant-scoped assets/runs/attempts, bounded/ordered retry reasons, and self/cycle/cross-asset/older supersession fences. An expired AI lease can only requeue through the controlled replay path and cannot terminal-complete stale work.
+- A rollback-only acceptance fixture, generated type parity, clean local replay, existing processing-orchestration regression, type checking, and independent QA passed.
+
+### Canonical next action
+
+Implement the next approved provenance slice: immutable `source_field_candidates` keyed to the new AI source-analysis run, with typed safe values and asset/page/quotation evidence. Do not yet create document-version bindings, effective metadata, consumer rewrites, raw-output retention, embeddings, or UI.
+
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
 3. **Add provider-contract tests and controlled failure handling.** Mock Vertex structured-generation and embedding responses to cover JSON MIME/schema configuration, strict parsing, unknown keys, malformed/non-JSON/truncated output, one controlled regeneration, capped transient retries with backoff/jitter, token statistics, dimensions, task type, safe restricted evidence, and content-safe logging. Keep these tests credit-free.

@@ -2151,60 +2151,252 @@ export type Database = {
         }
         Relationships: []
       }
+      source_analysis_attempts: {
+        Row: {
+          attempt_number: number
+          billable_units: number | null
+          catalogue_version: string
+          completed_at: string | null
+          cost_amount: number | null
+          cost_currency: string | null
+          created_at: string
+          failed_at: string | null
+          id: string
+          input_tokens: number | null
+          latency_ms: number | null
+          model_config_version: string
+          model_identifier: string
+          normalizer_version: string
+          org_id: string
+          output_tokens: number | null
+          prompt_version: string
+          provider: string
+          provider_operation_id: string | null
+          provider_request_id: string | null
+          provider_status_code: number | null
+          retry_reason: Database["public"]["Enums"]["source_analysis_retry_reason"]
+          safe_error_category:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
+          safe_error_code: string | null
+          schema_version: string
+          source_analysis_run_id: string
+          started_at: string | null
+          state: Database["public"]["Enums"]["source_analysis_attempt_state"]
+          usage_recorded_at: string | null
+        }
+        Insert: {
+          attempt_number: number
+          billable_units?: number | null
+          catalogue_version: string
+          completed_at?: string | null
+          cost_amount?: number | null
+          cost_currency?: string | null
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          model_config_version: string
+          model_identifier: string
+          normalizer_version: string
+          org_id: string
+          output_tokens?: number | null
+          prompt_version: string
+          provider: string
+          provider_operation_id?: string | null
+          provider_request_id?: string | null
+          provider_status_code?: number | null
+          retry_reason?: Database["public"]["Enums"]["source_analysis_retry_reason"]
+          safe_error_category?:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
+          safe_error_code?: string | null
+          schema_version: string
+          source_analysis_run_id: string
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["source_analysis_attempt_state"]
+          usage_recorded_at?: string | null
+        }
+        Update: {
+          attempt_number?: number
+          billable_units?: number | null
+          catalogue_version?: string
+          completed_at?: string | null
+          cost_amount?: number | null
+          cost_currency?: string | null
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          model_config_version?: string
+          model_identifier?: string
+          normalizer_version?: string
+          org_id?: string
+          output_tokens?: number | null
+          prompt_version?: string
+          provider?: string
+          provider_operation_id?: string | null
+          provider_request_id?: string | null
+          provider_status_code?: number | null
+          retry_reason?: Database["public"]["Enums"]["source_analysis_retry_reason"]
+          safe_error_category?:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
+          safe_error_code?: string | null
+          schema_version?: string
+          source_analysis_run_id?: string
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["source_analysis_attempt_state"]
+          usage_recorded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_analysis_attempts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_analysis_attempts_run_org_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       source_analysis_runs: {
         Row: {
+          analysis_kind: Database["public"]["Enums"]["source_analysis_kind"]
+          analysis_state:
+            | Database["public"]["Enums"]["source_analysis_provenance_state"]
+            | null
           asset_id: string
           attempt_count: number
+          billable_units: number | null
+          catalogue_version: string | null
           completed_at: string | null
+          cost_amount: number | null
+          cost_currency: string | null
           created_at: string
           failed_at: string | null
           heartbeat_at: string | null
           id: string
+          idempotency_key: string
+          input_tokens: number | null
+          latency_ms: number | null
           lease_expires_at: string | null
           lease_token: string | null
+          model_config_version: string | null
+          model_identifier: string | null
+          normalizer_version: string | null
           org_id: string
           outbox_event_id: string | null
+          output_tokens: number | null
           page_content_version: number
+          prompt_version: string | null
+          provider: string | null
+          provider_operation_id: string | null
+          provider_request_id: string | null
           request_key: string
+          safe_error_category:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
           safe_error_code: string | null
+          schema_version: string | null
           started_at: string | null
           state: Database["public"]["Enums"]["source_analysis_run_state"]
+          superseded_by_run_id: string | null
+          usage_recorded_at: string | null
         }
         Insert: {
+          analysis_kind?: Database["public"]["Enums"]["source_analysis_kind"]
+          analysis_state?:
+            | Database["public"]["Enums"]["source_analysis_provenance_state"]
+            | null
           asset_id: string
           attempt_count?: number
+          billable_units?: number | null
+          catalogue_version?: string | null
           completed_at?: string | null
+          cost_amount?: number | null
+          cost_currency?: string | null
           created_at?: string
           failed_at?: string | null
           heartbeat_at?: string | null
           id?: string
+          idempotency_key: string
+          input_tokens?: number | null
+          latency_ms?: number | null
           lease_expires_at?: string | null
           lease_token?: string | null
+          model_config_version?: string | null
+          model_identifier?: string | null
+          normalizer_version?: string | null
           org_id: string
           outbox_event_id?: string | null
+          output_tokens?: number | null
           page_content_version?: number
+          prompt_version?: string | null
+          provider?: string | null
+          provider_operation_id?: string | null
+          provider_request_id?: string | null
           request_key: string
+          safe_error_category?:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
           safe_error_code?: string | null
+          schema_version?: string | null
           started_at?: string | null
           state?: Database["public"]["Enums"]["source_analysis_run_state"]
+          superseded_by_run_id?: string | null
+          usage_recorded_at?: string | null
         }
         Update: {
+          analysis_kind?: Database["public"]["Enums"]["source_analysis_kind"]
+          analysis_state?:
+            | Database["public"]["Enums"]["source_analysis_provenance_state"]
+            | null
           asset_id?: string
           attempt_count?: number
+          billable_units?: number | null
+          catalogue_version?: string | null
           completed_at?: string | null
+          cost_amount?: number | null
+          cost_currency?: string | null
           created_at?: string
           failed_at?: string | null
           heartbeat_at?: string | null
           id?: string
+          idempotency_key?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
           lease_expires_at?: string | null
           lease_token?: string | null
+          model_config_version?: string | null
+          model_identifier?: string | null
+          normalizer_version?: string | null
           org_id?: string
           outbox_event_id?: string | null
+          output_tokens?: number | null
           page_content_version?: number
+          prompt_version?: string | null
+          provider?: string | null
+          provider_operation_id?: string | null
+          provider_request_id?: string | null
           request_key?: string
+          safe_error_category?:
+            | Database["public"]["Enums"]["source_analysis_failure_category"]
+            | null
           safe_error_code?: string | null
+          schema_version?: string | null
           started_at?: string | null
           state?: Database["public"]["Enums"]["source_analysis_run_state"]
+          superseded_by_run_id?: string | null
+          usage_recorded_at?: string | null
         }
         Relationships: [
           {
@@ -2227,6 +2419,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "outbox_events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_analysis_runs_superseded_by_org_fkey"
+            columns: ["org_id", "superseded_by_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -3167,6 +3366,10 @@ export type Database = {
           code: string
         }[]
       }
+      assert_staged_document_adapter_retirement_ready: {
+        Args: never
+        Returns: undefined
+      }
       assign_intake_to_new_document: {
         Args: {
           p_display_title: string
@@ -3181,10 +3384,6 @@ export type Database = {
           document_version_id: string
           lifecycle_revision: number
         }[]
-      }
-      assert_staged_document_adapter_retirement_ready: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
       }
       attach_intake_to_document: {
         Args: {
@@ -4313,6 +4512,34 @@ export type Database = {
         | "delivered"
         | "failed"
         | "dead_letter"
+      source_analysis_attempt_state:
+        | "queued"
+        | "running"
+        | "succeeded"
+        | "invalid_model_output"
+        | "provider_failed"
+      source_analysis_failure_category:
+        | "invalid_model_output"
+        | "transport"
+        | "timeout"
+        | "throttled"
+        | "provider_unavailable"
+        | "provider_rejected"
+        | "configuration"
+        | "unknown"
+      source_analysis_kind: "asset_validation" | "ai_extraction"
+      source_analysis_provenance_state:
+        | "queued"
+        | "running"
+        | "validated"
+        | "invalid_model_output"
+        | "provider_failed"
+        | "review_required"
+      source_analysis_retry_reason:
+        | "initial"
+        | "transient_retry"
+        | "invalid_output_regeneration"
+        | "operator_recovery"
       source_analysis_run_state: "queued" | "running" | "succeeded" | "failed"
       staged_document_backfill_outcome:
         | "verification_required"
@@ -4659,6 +4886,38 @@ export const Constants = {
         "delivered",
         "failed",
         "dead_letter",
+      ],
+      source_analysis_attempt_state: [
+        "queued",
+        "running",
+        "succeeded",
+        "invalid_model_output",
+        "provider_failed",
+      ],
+      source_analysis_failure_category: [
+        "invalid_model_output",
+        "transport",
+        "timeout",
+        "throttled",
+        "provider_unavailable",
+        "provider_rejected",
+        "configuration",
+        "unknown",
+      ],
+      source_analysis_kind: ["asset_validation", "ai_extraction"],
+      source_analysis_provenance_state: [
+        "queued",
+        "running",
+        "validated",
+        "invalid_model_output",
+        "provider_failed",
+        "review_required",
+      ],
+      source_analysis_retry_reason: [
+        "initial",
+        "transient_retry",
+        "invalid_output_regeneration",
+        "operator_recovery",
       ],
       source_analysis_run_state: ["queued", "running", "succeeded", "failed"],
       staged_document_backfill_outcome: [
