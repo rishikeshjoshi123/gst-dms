@@ -147,6 +147,44 @@ export function provenanceMaterializationFromAnalysis(
     )
   }
 
+  for (const identifier of analysis.client_identifiers ?? []) {
+    const evidence = evidenceFor(analysis.evidence, 'client_identifier', identifier)
+    if (!evidence) {
+      reviewCodes.add('missing_evidence')
+      continue
+    }
+    addEvidenceCandidate(
+      candidates,
+      reviewCodes,
+      terminalReviewCodes,
+      evidence,
+      identifier,
+      `client_identifier:${identifier}`,
+      'document.client_identifier',
+      'code',
+      pageCount,
+    )
+  }
+
+  for (const reference of analysis.chaining_attributes.references_documents) {
+    const evidence = evidenceFor(analysis.evidence, 'document_link', reference)
+    if (!evidence) {
+      reviewCodes.add('missing_evidence')
+      continue
+    }
+    addEvidenceCandidate(
+      candidates,
+      reviewCodes,
+      terminalReviewCodes,
+      evidence,
+      reference,
+      `referenced_document:${reference}`,
+      'document.referenced_document_number',
+      'text',
+      pageCount,
+    )
+  }
+
   for (const [index, deadline] of analysis.deadlines.entries()) {
     if (deadline.source_page === null || deadline.source_quote === null) {
       reviewCodes.add('missing_evidence')

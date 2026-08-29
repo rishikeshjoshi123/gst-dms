@@ -3,47 +3,25 @@ import test from 'node:test'
 import {
   normalizeGSTIN,
   normalizePAN,
+  readCurrentDocumentAssignmentMetadata,
   resolveDocumentAssignment,
 } from './assignment'
-import type { AIDocumentResult } from '@/lib/ai/vertex'
+import type { EffectiveDocumentAssignmentMetadata } from './assignment'
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
 const CLIENT_ID = '00000000-0000-4000-8000-000000000002'
 const MATTER_ID = '00000000-0000-4000-8000-000000000003'
 
-function documentResult(overrides: Partial<AIDocumentResult> = {}): AIDocumentResult {
+function assignmentMetadata(overrides: Partial<EffectiveDocumentAssignmentMetadata> = {}): EffectiveDocumentAssignmentMetadata {
   return {
-    doc_type: 'OIO',
-    document_title: 'Order-in-Original',
-    document_class: 'proceeding',
-    document_category: null,
-    reference_number: null,
+    documentId: '00000000-0000-4000-8000-000000000004',
+    documentVersionId: '00000000-0000-4000-8000-000000000005',
     gstin: null,
-    client_identifiers: null,
-    client_name: 'Example Private Limited',
-    doc_date: null,
-    financial_years: ['2024-25'],
-    tax_period: null,
-    direction: 'incoming',
-    issued_by: null,
-    summary: '',
-    chaining_attributes: {
-      references_documents: [],
-      gstin: null,
-      financial_years: ['2024-25'],
-      matter_ref: null,
-      link_type: null,
-    },
-    deadlines: [],
-    extracted_amounts: {
-      tax: null, interest: null, penalty: null, fee: null, pre_deposit: null,
-      total_demand: null, amount_in_dispute: null, amount_relief: null,
-    },
-    parties_named: [],
-    legal_references: [],
-    evidence: [],
-    confidence: 0.9,
-    prompt_version: 'test',
+    clientIdentifiers: [],
+    clientName: 'Example Private Limited',
+    financialYears: ['2024-25'],
+    referenceNumber: null,
+    referencedDocumentNumbers: [],
     ...overrides,
   }
 }
@@ -150,11 +128,51 @@ test('normalizes GSTIN and PAN independently', () => {
   assert.equal(normalizePAN(null), null)
 })
 
+test('reads the bounded current assignment projection with the caller tenant and no raw metadata fallback', async () => {
+  let rpcName = ''
+  let rpcArgs: Record<string, unknown> | undefined
+  const metadata = await readCurrentDocumentAssignmentMetadata({
+    async rpc(name: string, args: Record<string, unknown>) {
+      rpcName = name
+      rpcArgs = args
+      return {
+        data: [{
+          document_id: '00000000-0000-4000-8000-000000000004',
+          document_version_id: '00000000-0000-4000-8000-000000000005',
+          gstin: '27ABCDE1234F1Z5',
+          client_identifiers: ['ABCDE1234F'],
+          client_name: 'Corrected Example Private Limited',
+          financial_years: ['2024-25'],
+          reference_number: null,
+          referenced_document_numbers: [],
+        }],
+        error: null,
+      }
+    },
+  } as unknown as Parameters<typeof readCurrentDocumentAssignmentMetadata>[0], ORG_ID, '00000000-0000-4000-8000-000000000004')
+
+  assert.equal(rpcName, 'read_current_document_assignment_projection')
+  assert.deepEqual(rpcArgs, {
+    p_org_id: ORG_ID,
+    p_document_ids: ['00000000-0000-4000-8000-000000000004'],
+  })
+  assert.deepEqual(metadata?.clientIdentifiers, ['ABCDE1234F'])
+  assert.equal(metadata?.clientName, 'Corrected Example Private Limited')
+})
+
+test('treats a missing projection row as terminally unavailable rather than falling back', async () => {
+  const metadata = await readCurrentDocumentAssignmentMetadata({
+    async rpc() { return { data: [], error: null } },
+  } as unknown as Parameters<typeof readCurrentDocumentAssignmentMetadata>[0], ORG_ID, '00000000-0000-4000-8000-000000000004')
+
+  assert.equal(metadata, null)
+})
+
 test('auto-assigns a GSTIN-only document when the client has no PAN', async () => {
   const result = await resolveDocumentAssignment(
     gstinAssignmentDb(),
     ORG_ID,
-    documentResult({ gstin: '27abcde1234f1z5', client_identifiers: null }),
+    assignmentMetadata({ gstin: '27abcde1234f1z5' }),
   )
 
   assert.deepEqual(result, {
@@ -173,15 +191,7 @@ test('auto-assigns an exact reference with no GSTIN or PAN as unreviewed', async
   const result = await resolveDocumentAssignment(
     referenceAssignmentDb(null),
     ORG_ID,
-    documentResult({
-      chaining_attributes: {
-        references_documents: ['OIO/2024/123'],
-        gstin: null,
-        financial_years: ['2024-25'],
-        matter_ref: null,
-        link_type: null,
-      },
-    }),
+    assignmentMetadata({ referencedDocumentNumbers: ['OIO/2024/123'] }),
   )
 
   assert.deepEqual(result, {
@@ -200,15 +210,9 @@ test('blocks an exact reference when its GSTIN conflicts with the target client'
   const result = await resolveDocumentAssignment(
     referenceAssignmentDb('27ABCDE1234F1Z5'),
     ORG_ID,
-    documentResult({
+    assignmentMetadata({
       gstin: '29ABCDE1234F1Z5',
-      chaining_attributes: {
-        references_documents: ['OIO/2024/123'],
-        gstin: '29ABCDE1234F1Z5',
-        financial_years: ['2024-25'],
-        matter_ref: null,
-        link_type: null,
-      },
+      referencedDocumentNumbers: ['OIO/2024/123'],
     }),
   )
 
@@ -231,7 +235,7 @@ test('requires manual assignment when multiple financial years are extracted', a
   const result = await resolveDocumentAssignment(
     noDatabaseAccess,
     ORG_ID,
-    documentResult({ financial_years: ['FY 2023-24', '2024-2025'] }),
+    assignmentMetadata({ financialYears: ['FY 2023-24', '2024-2025'] }),
   )
 
   assert.deepEqual(result, {
@@ -245,7 +249,7 @@ test('proposes, but never creates, a new client or matter from AI metadata', asy
   const result = await resolveDocumentAssignment(
     unmatchedClientDb(),
     ORG_ID,
-    documentResult({ gstin: '27ABCDE1234F1Z5', client_identifiers: null }),
+    assignmentMetadata({ gstin: '27ABCDE1234F1Z5' }),
   )
 
   assert.deepEqual(result, {

@@ -41,6 +41,22 @@ test('missing page or quotation never becomes a candidate and opens a safe revie
   assert.equal(result.reviewCodes.includes('missing_evidence'), true)
 })
 
+test('materializes evidence-bound client identifiers and document references for assignment', () => {
+  const result = provenanceMaterializationFromAnalysis({
+    ...analysis,
+    client_identifiers: ['ABCDE1234F'],
+    chaining_attributes: { ...analysis.chaining_attributes, references_documents: ['OIO/2024/123'] },
+    evidence: [
+      ...analysis.evidence,
+      { field: 'client_identifier', value: 'ABCDE1234F', page_number: 1, quote: 'PAN ABCDE1234F', confidence: 0.95 },
+      { field: 'document_link', value: 'OIO/2024/123', page_number: 1, quote: 'Order OIO/2024/123', confidence: 0.96 },
+    ],
+  }, 2)
+
+  assert.equal(result.candidates.some((candidate) => candidate.field_path === 'document.client_identifier'), true)
+  assert.equal(result.candidates.some((candidate) => candidate.field_path === 'document.referenced_document_number'), true)
+})
+
 test('routes page-bound evidence outside the immutable asset boundary to terminal Review', () => {
   const result = provenanceMaterializationFromAnalysis({
     ...analysis,

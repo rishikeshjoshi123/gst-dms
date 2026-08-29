@@ -27,6 +27,7 @@ EVIDENCE RULES
 - Extract only facts supported by the PDF. Do not fill gaps with general GST knowledge.
 - Distinguish an allegation, a taxpayer submission, and an authority/court finding. Never summarize an allegation as an established fact.
 - Use null or an empty array when evidence is absent or illegible. Never guess a GSTIN, reference, date, amount, party, provision, deadline, or relationship.
+- For every client identifier or referenced document used for matching, include a matching client_identifier or document_link evidence item with the exact normalized value.
 - A page number is the 1-based PDF page index, not a page number printed in the document. If uncertain, use null.
 - Evidence quotes must be short verbatim fragments used only to locate the fact. Do not reproduce long passages.
 - Confidence expresses evidence clarity, not legal correctness: 0.95+ direct and unambiguous; 0.75–0.94 strong but normalized; 0.50–0.74 partial/unclear; below 0.50 weak.

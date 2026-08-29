@@ -13,7 +13,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isDocumentActive, isMatterActive } from '@/lib/utils/resource-checks'
-import type { AIDocumentResult } from '@/lib/ai/vertex'
 
 // ── FY Normalization ──────────────────────────────────────────────────────────
 
@@ -85,6 +84,60 @@ export interface ResolvedClient {
   method: 'gstin' | 'pan' | 'name'
 }
 
+/**
+ * The deliberately small, service-owned metadata contract used by assignment.
+ * It is derived only from the active document's current, valid effective
+ * metadata projection; callers must not adapt raw model payloads or
+ * `documents.raw_metadata` into this shape.
+ */
+export interface EffectiveDocumentAssignmentMetadata {
+  documentId: string
+  documentVersionId: string
+  gstin: string | null
+  clientIdentifiers: string[]
+  clientName: string | null
+  financialYears: string[]
+  referenceNumber: string | null
+  referencedDocumentNumbers: string[]
+}
+
+type AssignmentProjectionRow = {
+  document_id: string
+  document_version_id: string
+  gstin: string | null
+  client_identifiers: string[] | null
+  client_name: string | null
+  financial_years: string[] | null
+  reference_number: string | null
+  referenced_document_numbers: string[] | null
+}
+
+/** Reads one current-version assignment projection through the service-only RPC. */
+export async function readCurrentDocumentAssignmentMetadata(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  orgId: string,
+  documentId: string,
+): Promise<EffectiveDocumentAssignmentMetadata | null> {
+  const { data, error } = await supabase.rpc('read_current_document_assignment_projection', {
+    p_org_id: orgId,
+    p_document_ids: [documentId],
+  })
+  if (error) throw new Error('Current document assignment metadata is unavailable')
+  const row = (data as AssignmentProjectionRow[] | null)?.[0]
+  if (!row || row.document_id !== documentId) return null
+  return {
+    documentId: row.document_id,
+    documentVersionId: row.document_version_id,
+    gstin: row.gstin,
+    clientIdentifiers: row.client_identifiers ?? [],
+    clientName: row.client_name,
+    financialYears: row.financial_years ?? [],
+    referenceNumber: row.reference_number,
+    referencedDocumentNumbers: row.referenced_document_numbers ?? [],
+  }
+}
+
 export interface MatterAssignment {
   matterId: string
   clientId: string
@@ -125,10 +178,10 @@ export async function resolveClientFromIdentifiers(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   orgId: string,
-  aiResult: Pick<AIDocumentResult, 'gstin' | 'client_identifiers' | 'client_name'>
+  metadata: Pick<EffectiveDocumentAssignmentMetadata, 'gstin' | 'clientIdentifiers' | 'clientName'>
 ): Promise<ResolvedClient | null> {
   // 1. GSTIN exact match
-  const normalizedGSTIN = normalizeGSTIN(aiResult.gstin)
+  const normalizedGSTIN = normalizeGSTIN(metadata.gstin)
   if (normalizedGSTIN) {
     const { data } = await supabase
       .from('clients')
@@ -141,7 +194,7 @@ export async function resolveClientFromIdentifiers(
   }
 
   // 2. PAN / GSTIN found inside client_identifiers
-  if (aiResult.client_identifiers && aiResult.client_identifiers.length > 0) {
+  if (metadata.clientIdentifiers.length > 0) {
     const { data: allClients } = await supabase
       .from('clients')
       .select('id, name, gstin, pan')
@@ -150,7 +203,7 @@ export async function resolveClientFromIdentifiers(
 
     if (allClients) {
       for (const client of allClients) {
-        for (const idStr of aiResult.client_identifiers) {
+        for (const idStr of metadata.clientIdentifiers) {
           if (client.pan && normalizePAN(idStr) === client.pan) {
             return { ...client, confidence: 0.9, method: 'pan' as const }
           }
@@ -163,12 +216,12 @@ export async function resolveClientFromIdentifiers(
   }
 
   // 3. Name ILIKE — single unambiguous result only
-  if (aiResult.client_name) {
+  if (metadata.clientName) {
     const { data: nameMatches } = await supabase
       .from('clients')
       .select('id, name, gstin, pan')
       .eq('org_id', orgId)
-      .ilike('name', `%${aiResult.client_name}%`)
+      .ilike('name', `%${metadata.clientName}%`)
       .is('deleted_at', null)
 
     if (nameMatches && nameMatches.length === 1) {
@@ -192,12 +245,12 @@ export async function resolveClientFromIdentifiers(
  */
 function crossVerifyClient(
   client: { gstin: string | null; pan: string | null },
-  aiResult: Pick<AIDocumentResult, 'gstin' | 'client_identifiers'>
+  metadata: Pick<EffectiveDocumentAssignmentMetadata, 'gstin' | 'clientIdentifiers'>
 ): boolean | null {
-  const normalizedGSTIN = normalizeGSTIN(aiResult.gstin)
+  const normalizedGSTIN = normalizeGSTIN(metadata.gstin)
   const hasVerifiableIds =
     !!normalizedGSTIN ||
-    (aiResult.client_identifiers && aiResult.client_identifiers.length > 0)
+    metadata.clientIdentifiers.length > 0
 
   if (!hasVerifiableIds) return null // Can't verify — allow with unreviewed flag
 
@@ -205,8 +258,8 @@ function crossVerifyClient(
     return normalizeGSTIN(client.gstin) === normalizedGSTIN
   }
 
-  if (aiResult.client_identifiers && client.pan) {
-    return aiResult.client_identifiers.some(id => normalizePAN(id) === client.pan)
+  if (metadata.clientIdentifiers.length > 0 && client.pan) {
+    return metadata.clientIdentifiers.some(id => normalizePAN(id) === client.pan)
   }
 
   // Has verifiable IDs but client has no GSTIN/PAN stored — can't confirm or deny
@@ -219,19 +272,19 @@ function crossVerifyClient(
  * Determines which matter(s) a document should be assigned to.
  *
  * Returns either:
- *  - auto_assign: list of MatterAssignment objects (1 per FY for multi-FY docs)
+ *  - auto_assign: list of MatterAssignment objects (only one FY is eligible)
  *  - ready_to_assign: reason + suggestions for the manual UI
  */
 export async function resolveDocumentAssignment(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any>,
   orgId: string,
-  aiResult: AIDocumentResult
+  metadata: EffectiveDocumentAssignmentMetadata
 ): Promise<AssignmentResult> {
   const suggestions: AssignmentSuggestion[] = []
 
   const fys = [...new Set(
-    (aiResult.financial_years ?? [])
+    metadata.financialYears
       .map(normalizeFY)
       .filter(fy => fy !== 'Unknown FY' && /^\d{4}-\d{2}$/.test(fy))
   )]
@@ -246,13 +299,7 @@ export async function resolveDocumentAssignment(
 
   // ── Phase A: Reference-Based Matter Discovery ──────────────────────────────
 
-  const refs: string[] = [
-    ...(aiResult.chaining_attributes?.references_documents ?? []),
-    // Legacy support: single-reference field from older prompt versions
-    ...((aiResult.chaining_attributes as any)?.references_document
-      ? [(aiResult.chaining_attributes as any).references_document]
-      : []),
-  ].filter(Boolean)
+  const refs = metadata.referencedDocumentNumbers.filter(Boolean)
 
   // Map: matterId → candidate info
   const matterCandidates = new Map<
@@ -317,14 +364,14 @@ export async function resolveDocumentAssignment(
 
   // Phase A2: Scan document_links for pending links waiting for THIS doc's reference number
   // Handles the reverse-order case: child uploaded first (creates pending link), parent uploaded later
-  if (aiResult.reference_number) {
+  if (metadata.referenceNumber) {
     const { data: pendingLinks } = await supabase
       .from('document_links')
       .select(
         'id, from_doc_id, documents!document_links_from_doc_id_fkey(id, matter_id, org_id, deleted_at, matters!inner(id, client_id, deleted_at, clients!inner(deleted_at)))'
       )
       .eq('status', 'pending')
-      .eq('pending_ref_number', aiResult.reference_number)
+      .eq('pending_ref_number', metadata.referenceNumber)
 
     if (pendingLinks && pendingLinks.length > 0) {
       const validLinks = pendingLinks.filter(link => {
@@ -370,7 +417,7 @@ export async function resolveDocumentAssignment(
 
       if (!clientRow) continue
 
-      const verifiedFlag = crossVerifyClient(clientRow, aiResult)
+      const verifiedFlag = crossVerifyClient(clientRow, metadata)
 
       if (verifiedFlag === false || candidate.confidence < 0.9) {
         // Never auto-file from a fuzzy reference or a confirmed client
@@ -424,7 +471,7 @@ export async function resolveDocumentAssignment(
 
   // ── Phase B: Client-Identifier Lookup ─────────────────────────────────────
 
-  const resolvedClient = await resolveClientFromIdentifiers(supabase, orgId, aiResult)
+  const resolvedClient = await resolveClientFromIdentifiers(supabase, orgId, metadata)
 
   if (resolvedClient) {
     if (fys.length === 0) {
@@ -489,16 +536,16 @@ export async function resolveDocumentAssignment(
   // presents its explicit Auto-Create action when this deterministic evidence
   // is available, where the user can confirm the resulting client/matter.
 
-  const normalizedGSTIN = normalizeGSTIN(aiResult.gstin)
-  const extractedPAN = aiResult.client_identifiers
+  const normalizedGSTIN = normalizeGSTIN(metadata.gstin)
+  const extractedPAN = metadata.clientIdentifiers
     ?.map(normalizePAN)
     .find((pan): pan is string => pan !== null) ?? null
   const hasDeterministicId = !!normalizedGSTIN || !!extractedPAN
 
-  if (hasDeterministicId && fys.length > 0 && aiResult.client_name) {
+  if (hasDeterministicId && fys.length > 0 && metadata.clientName) {
     return {
       type: 'ready_to_assign',
-      reason: `No existing client matched. Review and confirm creation for ${aiResult.client_name} (${fys.join(', ')}).`,
+      reason: `No existing client matched. Review and confirm creation for ${metadata.clientName} (${fys.join(', ')}).`,
       suggestions: [],
     }
   }

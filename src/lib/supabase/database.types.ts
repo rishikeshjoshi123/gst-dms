@@ -4625,6 +4625,19 @@ export type Database = {
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }[]
       }
+      read_current_document_assignment_projection: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          client_identifiers: string[]
+          client_name: string | null
+          document_id: string
+          document_version_id: string
+          financial_years: string[]
+          gstin: string | null
+          reference_number: string | null
+          referenced_document_numbers: string[]
+        }[]
+      }
       read_current_document_search_index_projection: {
         Args: { p_document_ids: string[]; p_org_id: string }
         Returns: {
