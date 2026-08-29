@@ -17,7 +17,7 @@ export const planArticles = {
       ]},
       { heading: 'What this plan achieves', paragraphs: [
         'The result is a product that can grow without fragmenting. Teams get a consistent vocabulary, engineers get clear ownership boundaries, and reviewers can trace a visible fact back through the human decision or source document that produced it.',
-        'It also gives the implementation a sensible order. Foundations such as organisation access and document lifecycle come first; evidence, collaboration and workspaces build on top; operations and rollout controls make the system safe to expand.',
+        'It also gives the implementation a sensible order. Foundations such as organisation access and document lifecycle come first; evidence, collaboration and workspaces build on top; operations and rollout controls make the system safe to expand. The current build has moved through canonical Inbox placement, durable document processing and provenance-backed metadata decisions, while the new public-brand plan explains the product outside the authenticated workspace.',
       ]},
     ],
   },
@@ -38,6 +38,26 @@ export const planArticles = {
       { heading: 'What this plan achieves', paragraphs: [
         'Shared tokens and components make every screen feel related and reduce one-off design decisions. More importantly, they turn accessibility, responsive behaviour, loading states and error states into part of the component contract rather than cleanup work at the end.',
         'The finished system should feel authoritative without feeling severe: information-rich, predictable and quiet enough that the legal work remains the centre of attention.',
+      ]},
+    ],
+  },
+  'docs/plans/design-system/2026-08-28-public-brand-and-landing-page.md': {
+    deck: 'CaseChain’s public face should feel like the product itself: calm, grounded and built around the way a legal matter becomes understandable.',
+    intro: 'This plan replaces a crowded feature showcase with an image-led landing page that follows one idea from beginning to end: “Follow the matter. Not the folders.”',
+    flowCaption: 'The public story',
+    flow: ['Begin in the working office', 'Show files becoming a matter', 'Invite the reader into the workspace'],
+    sections: [
+      { heading: 'Starting with the world the product serves', paragraphs: [
+        'The current landing page tries to explain CaseChain through animations and familiar software claims. The new direction begins somewhere more recognisable: a contemporary Indian GST-litigation office, full of active files and experienced professionals trying to hold a complicated matter together.',
+        'Original illustration provides atmosphere, but it never carries essential copy or actions. The central message, product explanation, sign-up and sign-in remain semantic HTML with accessible contrast and clear keyboard focus.',
+      ]},
+      { heading: 'Telling one continuous story', paragraphs: [
+        'The page moves from the limitations of folders to a connected matter, then through chronology, a grounded product specimen, continuity of practice knowledge and the role of human judgement. It describes specific legal work instead of leading with artificial intelligence or vague automation promises.',
+        'Civic Ink shapes the entire page: deep ink, warm paper, restrained blue-green, compact bordered surfaces and readable editorial type. Artwork may move with a small amount of desktop-only depth, but content and controls stay still. Phones and reduced-motion users receive the complete story without parallax.',
+      ]},
+      { heading: 'What this plan achieves', paragraphs: [
+        'A prospective user should leave with a clear picture of CaseChain as a connected GST-litigation record rather than another document-storage product. The landing page becomes a natural bridge into the quieter evidence workspace behind it.',
+        'This first tranche changes only the public landing page. Authentication, invitation and onboarding screens can adopt the same brand layer later, after the direction has been reviewed in a real browser.',
       ]},
     ],
   },
@@ -73,7 +93,7 @@ export const planArticles = {
       ]},
       { heading: 'A durable intake pipeline', paragraphs: [
         'Uploads from the global Inbox and from inside a matter will follow the same process. The file is validated, deduplicated within the organisation, stored privately and handed to durable background work. Assigning it to a matter changes a relationship in the database; it does not copy the file into another folder.',
-        'Processing uses recorded work items that can be retried safely. A temporary failure no longer depends on a user pressing a vague Sync button, and repeating a stage does not create duplicate documents or duplicate analysis.',
+        'Processing uses recorded work items that can be retried safely. A temporary failure no longer depends on a user pressing a vague Sync button, and repeating a stage does not create duplicate documents or duplicate analysis. This foundation is now materially in place: direct-matter and global Inbox uploads use the canonical route, legacy staging has passed a fail-closed retirement process, and scoped reprocessing and outbox delivery have durable authorities.',
       ]},
       { heading: 'What this plan achieves', paragraphs: [
         'Users gain reliable uploads, honest processing states and safe file replacement. The rest of CaseChain gains stable evidence locators that Search, Notes, Case Brief, deadlines and financials can trust.',
@@ -93,7 +113,7 @@ export const planArticles = {
       ]},
       { heading: 'Restoration, retention and permanent removal', paragraphs: [
         'Items in Trash keep their familiar routes and nested navigation in a clearly read-only state. Restoring the operation brings back only the resources that action removed; it does not accidentally revive something that had already been deleted for another reason.',
-        'Permanent purge is restricted to authorised administrators. Before it begins, CaseChain shows the impact and requires explicit confirmation. Cleanup follows dependency order, can resume after failure and respects retention settings and legal holds.',
+        'Permanent purge is restricted to authorised administrators. Before it begins, CaseChain shows the impact and requires explicit confirmation. Cleanup follows dependency order, can resume after failure and respects retention settings and legal holds. Once content is gone, only a minimal content-free receipt survives to prove the purge occurred; it cannot be used to reconstruct names, files or legal facts.',
       ]},
       { heading: 'What this plan achieves', paragraphs: [
         'Ordinary users gain a forgiving recovery path, while organisations retain a controlled way to meet storage and retention responsibilities. The hierarchy remains understandable at every stage.',
@@ -113,7 +133,7 @@ export const planArticles = {
       ]},
       { heading: 'Keeping history when the model changes', paragraphs: [
         'Every extraction run records the source file, model, prompt, schema and catalogue versions that produced it. Re-running analysis creates a new comparison set instead of overwriting the old one. A human correction stays authoritative until another human intentionally changes it.',
-        'Search embeddings follow the same discipline. Vectors from different models or dimensions are never mixed. A new index is built beside the working one, measured for coverage and relevance, and switched on organisation by organisation only after it is ready.',
+        'That provenance path is now being implemented end to end: immutable source-analysis runs produce field-level candidates, analysis is bound to the exact document version, and append-only decisions determine effective metadata. Search embeddings follow the same discipline. Vectors from different models or dimensions are never mixed, and a new index is activated only after coverage and relevance are proven.',
       ]},
       { heading: 'What this plan achieves', paragraphs: [
         'Reviewers get faster access to useful facts without losing provenance. Engineers can upgrade prompts and models against a frozen GST evaluation set, measure critical regressions and roll back safely.',

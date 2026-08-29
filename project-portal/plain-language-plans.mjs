@@ -13,6 +13,12 @@ export const plainLanguagePlans = {
     outcomes: ['A consistent look and feel across the product.', 'Accessible colours, readable type, and clear controls.', 'Layouts that adapt the task for smaller screens instead of just shrinking.'],
     steps: ['Set shared design rules', 'Update common building blocks', 'Apply and check across screens'],
   },
+  'docs/plans/design-system/2026-08-28-public-brand-and-landing-page.md': {
+    overview: 'The public landing page will introduce CaseChain through the story of a complicated legal matter becoming clear, using the same calm Civic Ink language as the product.',
+    why: 'A prospective user should understand the product’s point of view before being asked to create an account.',
+    outcomes: ['An image-led public experience grounded in Indian GST-litigation practice.', 'A continuous story built around connected matters rather than generic software claims.', 'Responsive, accessible artwork and actions that work from phones through wide desktops.'],
+    steps: ['Begin in the working office', 'Show the matter becoming clear', 'Invite the reader into CaseChain'],
+  },
   'docs/plans/platform/2026-08-26-organisation-administration.md': {
     overview: 'This plan makes team membership, roles, invitations, company settings, and personal settings straightforward and safe.',
     why: 'Everyone should know what access they have, while account history stays intact when people join, change roles, or leave.',

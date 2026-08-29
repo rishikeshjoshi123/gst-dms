@@ -23,6 +23,7 @@ export const planVisualReferences = {
 export const portalReadingOrder = [
   'docs/plans/platform/2026-08-24-product-architecture-portfolio.md',
   'docs/plans/design-system/2026-08-20-casechain-design-system-overhaul.md',
+  'docs/plans/design-system/2026-08-28-public-brand-and-landing-page.md',
   'docs/plans/platform/2026-08-26-organisation-administration.md',
   'docs/plans/platform/2026-08-24-document-record-and-file-lifecycle.md',
   'docs/plans/platform/2026-08-24-resource-trash-retention-and-purge.md',
