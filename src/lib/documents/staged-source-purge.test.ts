@@ -172,28 +172,7 @@ test('turns a database contradiction into durable recovery without receiving a s
   ])
 })
 
-test('does not access storage when the fresh grant reports incomplete guard coverage', async () => {
-  const calls: string[] = []
-  const client: StagedSourcePurgeClient = {
-    rpc: async (name) => {
-      calls.push(name)
-      if (name === 'claim_staged_document_source_purge_batch') return { data: [{ code: 'purge_required', legacy_staged_document_id: 'opaque-id', purge_lease_token: 'lease-token' }], error: null }
-      if (name === 'get_staged_document_source_purge_grant') return { data: [{ code: 'guard_coverage_incomplete' }], error: null }
-      throw new Error(`unexpected RPC ${name}`)
-    },
-    storage: {
-      from: () => {
-        throw new Error('coverage refusal must not receive a Storage client')
-      },
-    },
-  }
-
-  const metrics = await purgeStagedDocumentSourcesForOrganisation(client, 'org-id')
-  assert.deepEqual(metrics, { claimed: 1, deleted: 0, recovery: 0, retryable: 0, skipped: 1, outcomes: { guard_coverage_incomplete: 1 } })
-  assert.deepEqual(calls, ['claim_staged_document_source_purge_batch', 'get_staged_document_source_purge_grant'])
-})
-
-test('fences durable recovery when guard coverage is revoked after intent and before Storage delete', async () => {
+test('fences durable recovery when canonical eligibility changes after intent and before Storage delete', async () => {
   const bytes = await testPdf()
   const sha256 = createHash('sha256').update(bytes).digest('hex')
   const calls: string[] = []
@@ -206,7 +185,7 @@ test('fences durable recovery when guard coverage is revoked after intent and be
         grantCount += 1
         return grantCount === 1
           ? { data: [{ code: 'ok', source_bucket_id: 'staging', source_object_key: 'leased/source.pdf', destination_bucket_id: 'documents', destination_object_key: 'leased/canonical.pdf', expected_byte_size: bytes.byteLength, expected_sha256: sha256 }], error: null }
-          : { data: [{ code: 'guard_coverage_incomplete' }], error: null }
+          : { data: [{ code: 'not_eligible' }], error: null }
       }
       if (name === 'record_staged_document_source_purge_intent') return { data: [{ code: 'delete_intended' }], error: null }
       if (name === 'record_staged_document_source_purge_recovery') return { data: [{ code: 'recovery_required' }], error: null }
@@ -216,7 +195,7 @@ test('fences durable recovery when guard coverage is revoked after intent and be
       from: (bucket) => ({
         download: async () => ({ data: blob(bytes), error: null }),
         remove: async () => {
-          throw new Error(`Storage delete must not run after revoked coverage in ${bucket}`)
+          throw new Error(`Storage delete must not run after eligibility changes in ${bucket}`)
         },
       }),
     },

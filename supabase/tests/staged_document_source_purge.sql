@@ -98,32 +98,18 @@ BEGIN
     (org_a,source_cap,'verified_equal',now());
 END $setup$;
 
--- New organisations are unknown for every guard.  A service cannot turn an
--- empty blocker ledger into delete authority.
-SET LOCAL ROLE service_role;
-DO $unknown_coverage$
-DECLARE org_a uuid := '59000000-0000-0000-0000-000000000001'; report public.staged_document_source_purge_reports%ROWTYPE;
+-- Unassigned Intake remains human-controlled.  Even with a verified transfer,
+-- a staging source is not redundant until an immutable current document
+-- version proves assignment to the matter.
+DO $unassigned_never_auto_purges$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.claim_staged_document_source_purge_batch(org_a, 1)) THEN
-    RAISE EXCEPTION 'unknown guard coverage allowed a purge claim';
+  IF public.staged_document_source_purge_is_eligible(
+    '59000000-0000-0000-0000-000000000001',
+    '59400000-0000-0000-0000-000000000004'
+  ) THEN
+    RAISE EXCEPTION 'unassigned Intake became an automatic purge candidate';
   END IF;
-  SELECT * INTO report FROM public.staged_document_source_purge_reports WHERE org_id=org_a;
-  IF report.guard_coverage_unknown_count <> 5 OR report.guard_coverage_complete THEN
-    RAISE EXCEPTION 'coverage report did not fail closed without sensitive detail';
-  END IF;
-END $unknown_coverage$;
-RESET ROLE;
-
--- This models the documented PostgreSQL-owner operational attestation.  The
--- fixture performs it only to exercise the post-attestation service boundary.
-DO $owner_attestation$
-DECLARE org_a uuid := '59000000-0000-0000-0000-000000000001'; guard public.staged_document_source_purge_guard_kind; result record;
-BEGIN
-  FOR guard IN SELECT unnest(enum_range(NULL::public.staged_document_source_purge_guard_kind)) LOOP
-    SELECT * INTO result FROM public.attest_staged_document_source_purge_guard_coverage(org_a,guard,'enforced',now()+interval '1 hour');
-    IF result.code <> 'attested' THEN RAISE EXCEPTION 'owner guard attestation failed'; END IF;
-  END LOOP;
-END $owner_attestation$;
+END $unassigned_never_auto_purges$;
 
 -- An exhausted candidate is fenced without overflowing the bounded counter;
 -- later candidates remain available to the same maintenance authority.
@@ -164,14 +150,6 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN direct_dml_denied := true;
   END;
   IF NOT direct_dml_denied THEN RAISE EXCEPTION 'service direct purge-tombstone DML allowed'; END IF;
-  BEGIN
-    PERFORM * FROM public.attest_staged_document_source_purge_guard_coverage(
-      org_a,'legal_hold','enforced',now()+interval '1 hour'
-    );
-  EXCEPTION WHEN insufficient_privilege THEN direct_dml_denied := true;
-  END;
-  IF NOT direct_dml_denied THEN RAISE EXCEPTION 'service could self-attest guard coverage'; END IF;
-
   SELECT md5(string_agg(id::text || ':' || status::text || ':' || storage_path, ',' ORDER BY id))
     INTO source_digest_before FROM public.staged_documents WHERE org_id=org_a;
   SELECT * INTO claim FROM public.claim_staged_document_source_purge_batch(org_a, 1)
@@ -226,11 +204,11 @@ BEGIN
 END $service$;
 RESET ROLE;
 
--- A future backup/hold/export writer serializes with delete_intended and is
--- rejected before it can write a late blocker or start its external action.
+-- Matter-level backup/hold/export/retention policy governs the canonical
+-- document, not its verified redundant staging source.
 
 SET LOCAL ROLE service_role;
-DO $late_guard_confirmation$
+DO $canonical_policy_does_not_block_staging_cleanup$
 DECLARE
   org_a uuid := '59000000-0000-0000-0000-000000000001';
   source_recovery uuid := '59400000-0000-0000-0000-000000000003';
@@ -239,23 +217,22 @@ BEGIN
   SELECT * INTO result FROM public.create_staged_document_source_purge_blocker(
     org_a,'canonical_asset',NULL,'59500000-0000-0000-0000-000000000003','backup'
   );
-  IF result.code <> 'purge_in_progress' THEN RAISE EXCEPTION 'late backup writer was not refused at delete intent'; END IF;
+  IF result.code <> 'not_applicable' THEN
+    RAISE EXCEPTION 'canonical backup policy was incorrectly accepted as a staging blocker';
+  END IF;
   SELECT * INTO result FROM public.confirm_staged_document_source_purge(
     org_a,source_recovery,token,'storage_deleted'
   );
-  -- The writer never committed, so the already-authorised Storage completion
-  -- is safe to confirm rather than inventing a recovery conflict.
   IF result.code <> 'deleted' THEN RAISE EXCEPTION 'rejected late writer prevented safe confirmation'; END IF;
   IF EXISTS (SELECT 1 FROM public.claim_staged_document_source_purge_batch(org_a,1)) THEN
     RAISE EXCEPTION 'blocked, deleted, or recovery-fenced source was re-claimed';
   END IF;
   SELECT * INTO report FROM public.staged_document_source_purge_reports WHERE org_id=org_a;
   IF report.deleted_tombstone_count <> 2 OR report.recovery_required_count <> 1
-    OR report.active_blocker_count <> 0 OR report.active_purge_lease_count <> 0
-    OR report.guard_coverage_unknown_count <> 0 OR NOT report.guard_coverage_complete THEN
+    OR report.active_blocker_count <> 0 OR report.active_purge_lease_count <> 0 THEN
     RAISE EXCEPTION 'content-free purge report counts were inconsistent';
   END IF;
-END $late_guard_confirmation$;
+END $canonical_policy_does_not_block_staging_cleanup$;
 RESET ROLE;
 
 -- Scope FKs prevent an asset/source blocker from moving between organisations;
@@ -267,9 +244,9 @@ DECLARE result record;
 BEGIN
   SELECT * INTO result FROM public.create_staged_document_source_purge_blocker(
     '59000000-0000-0000-0000-000000000001','legacy_source',
-    '59400000-0000-0000-0000-000000000004',NULL,'legal_hold'
+    '59400000-0000-0000-0000-000000000004',NULL,'recovery'
   );
-  IF result.code <> 'created' THEN RAISE EXCEPTION 'pre-intent scoped blocker was not created'; END IF;
+  IF result.code <> 'created' THEN RAISE EXCEPTION 'staging recovery blocker was not created'; END IF;
 END $blocker_scope$;
 RESET ROLE;
 DO $blocker_org_move$

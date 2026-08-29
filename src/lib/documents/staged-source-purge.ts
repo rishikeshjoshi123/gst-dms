@@ -265,10 +265,6 @@ export async function purgeStagedDocumentSourcesForOrganisation(
     if (!deleteGrant || !hasPurgeGrant(deleteGrant)) {
       if (deleteGrant?.code === 'database_inconsistent') {
         await recordRecovery(client, orgId, claim.legacy_staged_document_id, claim.purge_lease_token, 'database_inconsistent', metrics)
-      } else if (deleteGrant?.code === 'guard_coverage_incomplete') {
-        // Intent is already durable: a revoked coverage authority cannot leave
-        // it ambiguous for a later worker to mistake as still deletable.
-        await recordRecovery(client, orgId, claim.legacy_staged_document_id, claim.purge_lease_token, 'late_guard_blocker', metrics)
       } else if (deleteGrant?.code === 'not_eligible') {
         await recordRecovery(client, orgId, claim.legacy_staged_document_id, claim.purge_lease_token, 'late_eligibility_blocker', metrics)
       } else {

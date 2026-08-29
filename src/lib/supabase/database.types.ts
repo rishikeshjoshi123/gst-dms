@@ -2481,47 +2481,6 @@ export type Database = {
           },
         ]
       }
-      staged_document_source_purge_guard_coverage: {
-        Row: {
-          attestation_code: string | null
-          attested_at: string | null
-          attested_by: unknown
-          coverage_state: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
-          guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
-          org_id: string
-          updated_at: string
-          valid_until: string | null
-        }
-        Insert: {
-          attestation_code?: string | null
-          attested_at?: string | null
-          attested_by?: unknown
-          coverage_state?: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
-          guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
-          org_id: string
-          updated_at?: string
-          valid_until?: string | null
-        }
-        Update: {
-          attestation_code?: string | null
-          attested_at?: string | null
-          attested_by?: unknown
-          coverage_state?: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
-          guard_kind?: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
-          org_id?: string
-          updated_at?: string
-          valid_until?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staged_document_source_purge_guard_coverage_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organisations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       staged_document_source_purge_tombstones: {
         Row: {
           attempt_count: number
@@ -3178,9 +3137,6 @@ export type Database = {
           active_purge_lease_count: number | null
           delete_intended_count: number | null
           deleted_tombstone_count: number | null
-          guard_coverage_complete: boolean | null
-          guard_coverage_stale_count: number | null
-          guard_coverage_unknown_count: number | null
           org_id: string | null
           recovery_required_count: number | null
           verification_candidate_count: number | null
@@ -3238,17 +3194,6 @@ export type Database = {
           code: string
           document_version_id: string
           lifecycle_revision: number
-        }[]
-      }
-      attest_staged_document_source_purge_guard_coverage: {
-        Args: {
-          p_coverage_state: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
-          p_guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
-          p_org_id: string
-          p_valid_until: string
-        }
-        Returns: {
-          code: string
         }[]
       }
       auto_assign_intended_matter_intake: {
@@ -4403,16 +4348,6 @@ export type Database = {
         | "organisation"
         | "canonical_asset"
         | "legacy_source"
-      staged_document_source_purge_guard_coverage_state:
-        | "unknown"
-        | "enforced"
-        | "disabled_verified"
-      staged_document_source_purge_guard_kind:
-        | "legal_hold"
-        | "export"
-        | "backup"
-        | "recovery"
-        | "retention_lock"
       staged_document_source_purge_state:
         | "claimed"
         | "delete_intended"
@@ -4764,18 +4699,6 @@ export const Constants = {
         "organisation",
         "canonical_asset",
         "legacy_source",
-      ],
-      staged_document_source_purge_guard_coverage_state: [
-        "unknown",
-        "enforced",
-        "disabled_verified",
-      ],
-      staged_document_source_purge_guard_kind: [
-        "legal_hold",
-        "export",
-        "backup",
-        "recovery",
-        "retention_lock",
       ],
       staged_document_source_purge_state: [
         "claimed",
