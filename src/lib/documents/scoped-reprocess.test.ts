@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
+  hasCurrentSearchIndexEmbedding,
   isScopedSearchIndexClaim,
   runScopedSearchIndexReprocessWorker,
+  serializeSearchIndexEmbedding,
   type ScopedReprocessRpcClient,
 } from './scoped-reprocess'
 
@@ -17,8 +19,18 @@ const claim = {
   lease_token: '60000000-0000-4000-8000-000000000001',
 }
 
-function workerClient(calls: Array<{ name: string; args: Record<string, unknown> }>, input = {
-  code: 'ready', doc_type: 'SCN', reference_number: 'SCN/1', summary: 'Synthetic summary.', financial_year: '2024-25', issued_by: 'Authority',
+type WorkerInput = {
+  code: string
+  doc_type: string | null
+  reference_number: string | null
+  summary: string | null
+  financial_years: string[] | null
+  issued_by: string | null
+  projection_fingerprint: string | null
+}
+
+function workerClient(calls: Array<{ name: string; args: Record<string, unknown> }>, input: WorkerInput = {
+  code: 'ready', doc_type: 'SCN', reference_number: 'SCN/1', summary: 'Synthetic summary.', financial_years: ['2024-25'], issued_by: 'Authority', projection_fingerprint: 'a'.repeat(64),
 }): ScopedReprocessRpcClient {
   return {
     rpc: async (name, args) => {
@@ -34,6 +46,36 @@ test('accepts only an identifier-only search-index lease claim', () => {
   assert.equal(isScopedSearchIndexClaim(claim), true)
   assert.equal(isScopedSearchIndexClaim({ ...claim, lease_token: 'not-a-uuid' }), false)
   assert.equal(isScopedSearchIndexClaim({ ...claim, object_key: 'secret.pdf' }), false)
+})
+
+test('uses the effective event projection, including multiple financial years and a cleared scalar', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  let embeddedText = ''
+  const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls, {
+    code: 'ready',
+    doc_type: 'OIO',
+    reference_number: 'CORRECTED/1',
+    summary: 'Synthetic summary.',
+    financial_years: ['2021-22', '2023-24'],
+    issued_by: null,
+    projection_fingerprint: 'a'.repeat(64),
+  }), claim, async (text) => {
+    embeddedText = text
+    return {
+      embedding: Array.from({ length: 768 }, () => 0.1),
+      inputTokens: 7,
+      truncated: false,
+      model: 'gemini-embedding-001',
+      version: 'gemini-embedding-001-768-v1',
+      taskType: 'RETRIEVAL_DOCUMENT',
+    }
+  })
+
+  assert.deepEqual(outcome, { outcome: 'indexed' })
+  assert.match(embeddedText, /Document type: OIO/)
+  assert.match(embeddedText, /Reference: CORRECTED\/1/)
+  assert.match(embeddedText, /FY 2021-22, 2023-24/)
+  assert.doesNotMatch(embeddedText, /Issued by:/)
 })
 
 test('loads only a leased typed summary and completes the index through the fenced RPC', async () => {
@@ -57,6 +99,7 @@ test('loads only a leased typed summary and completes the index through the fenc
     p_lease_token: claim.lease_token,
   })
   assert.equal(calls[1].args.p_outcome, 'indexed')
+  assert.equal(calls[1].args.p_projection_fingerprint, 'a'.repeat(64))
   assert.match(String(calls[1].args.p_embedding), /^\[(?:0\.1,){767}0\.1\]$/)
 })
 
@@ -74,6 +117,27 @@ test('does not retry malformed or truncated embedding output and records only a 
   assert.deepEqual(outcome, { outcome: 'failed' })
   assert.equal(calls.at(-1)?.args.p_outcome, 'failed')
   assert.equal('p_embedding' in (calls.at(-1)?.args ?? {}), false)
+})
+
+test('requires the matching current source version and rejects truncated embeddings for either Search path', () => {
+  assert.equal(hasCurrentSearchIndexEmbedding({
+    embedding_model: 'gemini-embedding-001',
+    embedding_version: 'gemini-embedding-001-768-v1',
+    embedding_document_version_id: '50000000-0000-4000-8000-000000000002',
+  }, claim.document_version_id), false)
+  assert.equal(hasCurrentSearchIndexEmbedding({
+    embedding_model: 'gemini-embedding-001',
+    embedding_version: 'gemini-embedding-001-768-v1',
+    embedding_document_version_id: claim.document_version_id,
+  }, claim.document_version_id), true)
+  assert.equal(serializeSearchIndexEmbedding({
+    embedding: Array.from({ length: 768 }, () => 0.1),
+    inputTokens: 7,
+    truncated: true,
+    model: 'gemini-embedding-001',
+    version: 'gemini-embedding-001-768-v1',
+    taskType: 'RETRIEVAL_DOCUMENT',
+  }), null)
 })
 
 test('rejects missing provider token usage and a mismatched configured model without a provider retry', async () => {

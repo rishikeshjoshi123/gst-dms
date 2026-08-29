@@ -13,10 +13,13 @@ import { analyzeDocumentWithOutcome, generateEmbedding } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
 import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
+import {
+  hasCurrentSearchIndexEmbedding,
+  serializeSearchIndexEmbedding,
+} from '@/lib/documents/scoped-reprocess'
 
 import {
   VERTEX_DOCUMENT_MODEL,
-  VERTEX_EMBEDDING_MODEL,
   VERTEX_EMBEDDING_VERSION,
 } from '@/lib/ai/vertex'
 
@@ -259,56 +262,68 @@ export const reindexMatterEmbeddings = task({
     const clientName = (matter.clients as { name: string }).name
     const { data: documents, error } = await supabase
       .from('documents')
-      .select('id, doc_type, reference_number, summary, financial_year, issued_by, raw_metadata, embedding_model, embedding_version')
+      .select('id, embedding_model, embedding_version, embedding_document_version_id')
       .eq('matter_id', matterId)
       .eq('org_id', orgId)
       .is('deleted_at', null)
 
     if (error) throw error
 
+    const documentIds = (documents ?? []).map((document) => document.id)
+    const { data: projectionRows, error: projectionError } = documentIds.length > 0
+      ? await supabase.rpc('read_current_document_search_index_projection', {
+          p_org_id: orgId,
+          p_document_ids: documentIds,
+        })
+      : { data: [], error: null }
+    if (projectionError) {
+      throw new Error('Current Search metadata projection is unavailable')
+    }
+    const projectionByDocument = new Map((projectionRows ?? []).map((projection) => [projection.document_id, projection]))
+
     let indexed = 0
     let skipped = 0
     let failed = 0
 
     for (const document of documents ?? []) {
-      if (
-        document.embedding_model === VERTEX_EMBEDDING_MODEL
-        && document.embedding_version === VERTEX_EMBEDDING_VERSION
-      ) {
+      const projection = projectionByDocument.get(document.id)
+      if (!projection) {
+        failed += 1
+        continue
+      }
+      if (hasCurrentSearchIndexEmbedding(document, projection.document_version_id)) {
         skipped += 1
         continue
       }
-
-      const rawMetadata = document.raw_metadata as {
-        financial_years?: string[]
-      } | null
       const embeddingText = buildEmbeddingText({
-        doc_type: document.doc_type,
-        reference_number: document.reference_number,
-        summary: document.summary,
-        financial_years: rawMetadata?.financial_years
-          ?? (document.financial_year ? [document.financial_year] : []),
-        issued_by: document.issued_by,
+        doc_type: projection.doc_type,
+        reference_number: projection.reference_number,
+        summary: projection.summary,
+        financial_years: projection.financial_years,
+        issued_by: projection.issued_by,
         client_name: clientName,
       })
 
       const result = await generateEmbedding(embeddingText, 'RETRIEVAL_DOCUMENT')
-      if (!result) {
+      const embedding = result && serializeSearchIndexEmbedding(result)
+      if (!embedding || !result) {
         failed += 1
         continue
       }
 
-      const { error: updateError } = await supabase
-        .from('documents')
-        .update({
-          embedding: `[${result.embedding.join(',')}]`,
-          embedding_model: result.model,
-          embedding_version: result.version,
+      const { data: writeRows, error: writeError } = await supabase
+        .rpc('write_current_document_search_index_embedding', {
+          p_org_id: orgId,
+          p_document_id: document.id,
+          p_document_version_id: projection.document_version_id,
+          p_embedding: embedding,
+          p_embedding_model: result.model,
+          p_embedding_version: result.version,
+          p_input_tokens: result.inputTokens,
+          p_projection_fingerprint: projection.projection_fingerprint,
         })
-        .eq('id', document.id)
-        .eq('org_id', orgId)
 
-      if (updateError) {
+      if (writeError || writeRows?.[0]?.code !== 'indexed') {
         failed += 1
         continue
       }

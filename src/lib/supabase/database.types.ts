@@ -1161,6 +1161,7 @@ export type Database = {
           effective_filename: string | null
           effective_size_bytes: number | null
           embedding: string | null
+          embedding_document_version_id: string | null
           embedding_model: string | null
           embedding_version: string | null
           file_hash_sha256: string | null
@@ -1209,6 +1210,7 @@ export type Database = {
           effective_filename?: string | null
           effective_size_bytes?: number | null
           embedding?: string | null
+          embedding_document_version_id?: string | null
           embedding_model?: string | null
           embedding_version?: string | null
           file_hash_sha256?: string | null
@@ -1257,6 +1259,7 @@ export type Database = {
           effective_filename?: string | null
           effective_size_bytes?: number | null
           embedding?: string | null
+          embedding_document_version_id?: string | null
           embedding_model?: string | null
           embedding_version?: string | null
           file_hash_sha256?: string | null
@@ -1297,6 +1300,13 @@ export type Database = {
           {
             foreignKeyName: "documents_current_version_org_fkey"
             columns: ["org_id", "current_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "documents_embedding_document_version_org_fkey"
+            columns: ["org_id", "embedding_document_version_id"]
             isOneToOne: false
             referencedRelation: "document_versions"
             referencedColumns: ["org_id", "id"]
@@ -4146,6 +4156,7 @@ export type Database = {
           p_lease_token: string
           p_outcome: string
           p_processing_run_id: string
+          p_projection_fingerprint?: string
         }
         Returns: {
           code: string
@@ -4170,6 +4181,34 @@ export type Database = {
           p_embedding?: string
           p_embedding_model?: string
           p_embedding_version?: string
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_document_search_index_reprocess_work_unfingerprinted: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_document_search_index_reprocess_work_vf_legacy: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
           p_lease_token: string
           p_outcome: string
           p_processing_run_id: string
@@ -4203,7 +4242,30 @@ export type Database = {
         Returns: {
           code: string
           doc_type: string
+          financial_years: string[]
+          issued_by: string
+          projection_fingerprint: string
+          reference_number: string
+          summary: string
+        }[]
+      }
+      get_document_search_index_reprocess_input_legacy_typed: {
+        Args: { p_lease_token: string; p_processing_run_id: string }
+        Returns: {
+          code: string
+          doc_type: string
           financial_year: string
+          issued_by: string
+          reference_number: string
+          summary: string
+        }[]
+      }
+      get_document_search_index_reprocess_input_unfingerprinted: {
+        Args: { p_lease_token: string; p_processing_run_id: string }
+        Returns: {
+          code: string
+          doc_type: string
+          financial_years: string[]
           issued_by: string
           reference_number: string
           summary: string
@@ -4391,6 +4453,14 @@ export type Database = {
         Args: { check_org_id: string; requested_capability: string }
         Returns: boolean
       }
+      invalidate_effective_metadata_search_embedding: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_org_id: string
+        }
+        Returns: undefined
+      }
       invitation_actor: {
         Args: { org: string }
         Returns: {
@@ -4542,6 +4612,55 @@ export type Database = {
         Returns: number
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
+      read_current_document_effective_metadata: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          computed_at: string
+          document_id: string
+          document_version_id: string
+          field_path: string
+          normalized_value: Json
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }[]
+      }
+      read_current_document_search_index_projection: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          doc_type: string
+          document_id: string
+          document_version_id: string
+          financial_years: string[]
+          issued_by: string
+          projection_fingerprint: string
+          reference_number: string
+          summary: string
+        }[]
+      }
+      read_current_document_search_index_projection_unfingerprinted: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          doc_type: string
+          document_id: string
+          document_version_id: string
+          financial_years: string[]
+          issued_by: string
+          reference_number: string
+          summary: string
+        }[]
+      }
+      read_current_document_search_index_projection_unversioned: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          doc_type: string
+          document_id: string
+          financial_years: string[]
+          issued_by: string
+          reference_number: string
+          summary: string
+        }[]
+      }
       recompute_document_effective_metadata: {
         Args: { p_document_version_id: string }
         Returns: undefined
@@ -4836,6 +4955,35 @@ export type Database = {
           asset_id: string
           code: string
           intake_item_id: string
+        }[]
+      }
+      write_current_document_search_index_embedding: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_embedding: string
+          p_embedding_model: string
+          p_embedding_version: string
+          p_input_tokens: number
+          p_org_id: string
+          p_projection_fingerprint?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      write_current_document_search_index_embedding_unfingerprinted: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_embedding: string
+          p_embedding_model: string
+          p_embedding_version: string
+          p_input_tokens: number
+          p_org_id: string
+        }
+        Returns: {
+          code: string
         }[]
       }
     }

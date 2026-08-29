@@ -139,9 +139,20 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Document candidates snapshot the source candidate's typed value and page/quotation evidence, enforce asset/page-count compatibility with the exact immutable version, and remain append-only. Binding/candidate tables use forced RLS with no browser or direct service table authority; later decisions and effective metadata remain out of scope.
 - A rollback-only compatibility, idempotency, cross-tenant, historical-version/copy, immutability, and authority-surface fixture accompanies generated type parity.
 
+### Completed: processing provenance write path (2026-08-29)
+
+- Migration `00067` makes the existing processing worker persist validated extraction runs, attempts, source candidates, document-version bindings, and Review exceptions through the immutable provenance authorities. Provider output is validated before it can materialize candidates; structurally unsafe output reaches a safe terminal/recovery path rather than partial canonical writes.
+- Completion is fenced to the owned processing lease and exact source/version identity. Typed service-only commands, generated types, and focused lifecycle/provenance fixtures cover terminal, replay, tenant, and safe-payload boundaries.
+
+### Completed: effective-metadata Search consumer slice (2026-08-29)
+
+- Migrations `00068`–`00073` introduce a service-only current-version effective-metadata reader and move the transitional Search-index worker and matter reindex path from ad hoc `raw_metadata` reads to that bounded projection. Corrected, cleared, rejected, and multi-financial-year values are represented without stale typed fallback.
+- Transitional vectors are version- and projection-fenced: only active, non-deleted documents with an exact current valid version and matching `embedding_document_version_id` can match. Direct vector/provenance column writes are denied to both browser and service roles; only the fenced service commands may write them. A metadata change clears the old vector, queues one durable successor, and a projection fingerprint prevents an in-flight same-version worker from restoring stale content. Terminal `not_indexable` clears all vector provenance.
+- Clean local migration replay through `00073`, focused SQL fixtures, TypeScript worker tests, type checking, targeted lint, generated-type parity, migration checks, and independent read-only QA passed. The active-legacy/multi-index Search rollout, coverage gates, and page-aware retrieval remain separate later plan work; this slice does not claim that cutover.
+
 ### Canonical next action
 
-Implement the next approved provenance slice: migrate the processing write path to persist validated extraction runs and materialize provenance candidates/Review exceptions through these authorities. Do not yet rewrite consumer reads, retain raw output, add embeddings, or build UI.
+Implement the next smallest approved high-use consumer slice, beginning with the document inspector/assignment consumer that still reads extracted metadata outside the effective projection. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.

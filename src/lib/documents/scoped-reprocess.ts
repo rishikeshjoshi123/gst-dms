@@ -21,8 +21,9 @@ type SearchIndexInput = {
   doc_type: string | null
   reference_number: string | null
   summary: string | null
-  financial_year: string | null
+  financial_years: string[] | null
   issued_by: string | null
+  projection_fingerprint: string | null
 }
 
 export type ScopedSearchIndexWorkerOutcome = 'indexed' | 'not_indexable' | 'failed'
@@ -32,6 +33,10 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 function isUuid(value: unknown): value is string {
   return typeof value === 'string' && uuidPattern.test(value)
+}
+
+function isProjectionFingerprint(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 }
 
 export function isScopedSearchIndexClaim(value: unknown): value is ScopedSearchIndexClaim {
@@ -61,7 +66,7 @@ async function rpc<T>(client: ScopedReprocessRpcClient, name: string, args: Reco
   return firstRpcRow<T>(result.data)
 }
 
-function serializeEmbedding(result: EmbeddingResult) {
+export function serializeSearchIndexEmbedding(result: EmbeddingResult) {
   if (result.taskType !== 'RETRIEVAL_DOCUMENT' || result.model !== VERTEX_EMBEDDING_MODEL
     || result.version !== VERTEX_EMBEDDING_VERSION || !Number.isInteger(result.inputTokens)
     || result.inputTokens < 0 || result.truncated
@@ -70,11 +75,25 @@ function serializeEmbedding(result: EmbeddingResult) {
   return `[${result.embedding.join(',')}]`
 }
 
+export function hasCurrentSearchIndexEmbedding(
+  document: {
+    embedding_model: string | null
+    embedding_version: string | null
+    embedding_document_version_id: string | null
+  },
+  documentVersionId: string,
+) {
+  return document.embedding_model === VERTEX_EMBEDDING_MODEL
+    && document.embedding_version === VERTEX_EMBEDDING_VERSION
+    && document.embedding_document_version_id === documentVersionId
+}
+
 async function finish(
   client: ScopedReprocessRpcClient,
   claim: ScopedSearchIndexClaim,
   outcome: ScopedSearchIndexWorkerOutcome,
   embedding?: EmbeddingResult,
+  projectionFingerprint?: string,
 ) {
   const args: Record<string, unknown> = {
     p_processing_run_id: claim.processing_run_id,
@@ -82,12 +101,15 @@ async function finish(
     p_outcome: outcome,
   }
   if (outcome === 'indexed' && embedding) {
-    const vector = serializeEmbedding(embedding)
+    const vector = serializeSearchIndexEmbedding(embedding)
     if (!vector) return null
     args.p_embedding = vector
     args.p_embedding_model = embedding.model
     args.p_embedding_version = embedding.version
     args.p_input_tokens = embedding.inputTokens
+  }
+  if ((outcome === 'indexed' || outcome === 'not_indexable') && projectionFingerprint) {
+    args.p_projection_fingerprint = projectionFingerprint
   }
   return rpc<{ code: string }>(client, 'finish_document_search_index_reprocess_work', args)
 }
@@ -107,7 +129,7 @@ export async function runScopedSearchIndexReprocessWorker(
       p_processing_run_id: claim.processing_run_id,
       p_lease_token: claim.lease_token,
     })
-    if (!input || input.code !== 'ready') {
+    if (!input || input.code !== 'ready' || !isProjectionFingerprint(input.projection_fingerprint)) {
       await finish(client, claim, 'failed')
       return { outcome: 'failed' }
     }
@@ -116,21 +138,24 @@ export async function runScopedSearchIndexReprocessWorker(
       doc_type: input.doc_type,
       reference_number: input.reference_number,
       summary: input.summary,
-      financial_years: input.financial_year ? [input.financial_year] : [],
+      financial_years: Array.isArray(input.financial_years)
+        && input.financial_years.every((financialYear) => typeof financialYear === 'string')
+        ? input.financial_years
+        : [],
       issued_by: input.issued_by,
       client_name: null,
     })
     if (!text) {
-      await finish(client, claim, 'not_indexable')
+      await finish(client, claim, 'not_indexable', undefined, input.projection_fingerprint)
       return { outcome: 'not_indexable' }
     }
 
     const embedding = await embed(text)
-    if (!embedding || !serializeEmbedding(embedding)) {
+    if (!embedding || !serializeSearchIndexEmbedding(embedding)) {
       await finish(client, claim, 'failed')
       return { outcome: 'failed' }
     }
-    const completion = await finish(client, claim, 'indexed', embedding)
+    const completion = await finish(client, claim, 'indexed', embedding, input.projection_fingerprint)
     return { outcome: completion?.code === 'indexed' ? 'indexed' : 'failed' }
   } catch {
     // Provider and database details can contain tenant material. The durable
