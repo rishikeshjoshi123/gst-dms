@@ -417,14 +417,18 @@ export const generateMatterWiki = task({
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
     const { generateWikiSummary } = await import('@/lib/ai/vertex')
+    const { readCurrentDocumentWikiMetadata } = await import('@/lib/documents/wiki-effective-metadata')
+    const { formatMatterWikiEffectiveContext } = await import('@/lib/documents/wiki-effective-metadata-shape')
 
-    // Fetch all processed documents for the matter
+    // Select only this active matter's live documents before the service-only
+    // effective-metadata reader is given their bounded IDs.
     const { data: docs } = await supabase
       .from('documents')
-      .select('id, doc_type, doc_date, reference_number, summary, raw_metadata')
+      .select('id, summary')
       .eq('matter_id', matterId)
       .eq('org_id', orgId)
       .is('deleted_at', null)
+      .eq('record_state', 'active')
       .order('created_at', { ascending: true })
 
     if (!docs || docs.length === 0) {
@@ -432,14 +436,8 @@ export const generateMatterWiki = task({
       return { success: false, reason: 'No documents' }
     }
 
-    // Compile context
-    const contextLines = docs.map(d => {
-      return `Document [ID: ${d.id} - ${d.doc_type || 'Unknown'} - ${d.reference_number || 'No Ref'} - Date: ${d.doc_date || 'N/A'}]:
-Summary: ${d.summary || 'N/A'}
-Details: ${JSON.stringify(d.raw_metadata)}`
-    })
-
-    const matterContext = contextLines.join('\n\n')
+    const effectiveMetadata = await readCurrentDocumentWikiMetadata(supabase, orgId, docs.map((document) => document.id))
+    const matterContext = formatMatterWikiEffectiveContext(docs, effectiveMetadata)
 
     // Generate wiki content
     const wikiResult = await generateWikiSummary(matterContext)
