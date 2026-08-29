@@ -141,7 +141,7 @@ The target system must preserve source evidence and prior runs, prevent incompat
 
 ### Canonical next action
 
-Implement the next approved provenance slice: append-only document field decisions and the secured effective-metadata projection/recompute boundary. Do not yet rewrite consumers, retain raw output, add embeddings, or build UI.
+Implement the next approved provenance slice: migrate the processing write path to persist validated extraction runs and materialize provenance candidates/Review exceptions through these authorities. Do not yet rewrite consumer reads, retain raw output, add embeddings, or build UI.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
