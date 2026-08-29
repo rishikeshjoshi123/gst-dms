@@ -2,7 +2,7 @@
 title: Organisation Administration, Team Access, and Personal Settings
 status: in-progress
 created: 2026-08-26
-updated: 2026-08-27
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -124,7 +124,7 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - `created_at` is immutable system metadata. `established_on` is optional historical information supplied by the organisation and is never presented as the account creation date.
 - The tagline is limited to restrained organisation/profile and invitation contexts; it does not consume Matter headers, Today, loading screens, or operational workspaces.
 - Do not create AI-generated motivational quotes, a rotating quote table, or background quote-refresh jobs. They add cost and distraction without helping legal work. A later content feature would require evidence of user value.
-- Operations settings own the already approved Trash retention options (`Manual purge only`, 30, 60, 90, 180, or 365 days), auto-purge off by default, organisation timezone, default deadline reminder policy, weekly digest defaults, and read-only storage entitlement/usage.
+- Operations settings own the already approved Trash retention options (`Manual purge only`, 30, 60, 90, 180, or 365 days), auto-purge off by default, organisation timezone, default deadline reminder policy, weekly digest defaults, and read-only storage entitlement/usage. They also own an Owner/Admin-only initial document-placement policy: `manual_suggestions` (default), `strong_evidence_auto_place`, or `intended_matter_only`. The setting describes how unassigned Intake may be placed; it can never silently move an already assigned document.
 - Tenant administrators can choose retention within the approved policy but cannot raise platform quota, change provider pricing, see other organisations, or bypass legal holds. Initial storage entitlement remains the separately approved 100 MB of unique assets.
 - Organisation defaults seed new personal preferences; they cannot force non-mandatory email on an existing user. Mandatory access/security delivery remains governed by the notification plan.
 - Organisation deletion/closure is not an ordinary Settings action in the initial release. It requires a separate, support-visible, retention-aware closure design and is not implemented as a cascading delete.

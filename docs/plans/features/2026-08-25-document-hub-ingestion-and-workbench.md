@@ -2,7 +2,7 @@
 title: Document Hub, Ingestion, Placement, Relationships, and Workbench
 status: approved
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-08-29
 owners:
   - product
   - engineering
@@ -171,7 +171,8 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 #### Initial policy
 
 - **User-directed placement:** a valid intended matter is assigned. Contradictory extracted identity is preserved as evidence and creates a focused Review item after assignment; the system does not reroute.
-- **Automatic placement:** allow only one eligible active candidate with no hard contradiction and either:
+- **Organisation placement policy:** Owner/Admin selects one organisation-scoped initial-placement mode in Operations settings: `manual_suggestions` (the default: AI shows evidence but never files), `strong_evidence_auto_place` (allow only the rules below), or `intended_matter_only` (honour user-directed placement and otherwise retain global Intake for a human). The policy affects only initial placement; it never authorises an automatic move after a document is assigned.
+- **Automatic placement:** only when the organisation selects `strong_evidence_auto_place`, allow one eligible active candidate with no hard contradiction and either:
   - one unique exact verified matter/external proceeding identifier; or
   - one unique exact referenced-document identity in that matter, supported by page evidence and no incompatible verified client identifier.
 - **Suggestion only:** exact GSTIN/PAN plus financial year/tax period, compatible procedure/type sequence, unique client-year candidate, issuer/party overlap, name, filename, fuzzy reference, or semantic similarity. These signals can make the suggested matter excellent without silently filing the initial pilot document.
@@ -202,7 +203,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 - Reevaluate placement only when an input changes: source extraction version, material human metadata correction, verified client/matter identifier, new candidate matter/document, intended target availability, restore, or explicit scoped retry.
 - Recompute candidates in a new immutable run. Do not mutate the prior explanation.
 - An unassigned Intake item may auto-place on a later run only if the current initial policy passes and no user decision/rejection blocks it.
-- An assigned document never moves automatically. A stronger later candidate creates a `possible_reassignment` Review item with old/new evidence and an impact preview.
+- An assigned document never moves automatically. A stronger later candidate creates a `possible_reassignment` attention/Review item with old/new evidence and an impact preview; an authorised user reviews it and explicitly moves the document or keeps the current placement. The attention surface is informational until that human decision.
 - Store human outcomes and false-positive/false-negative labels for offline evaluation. Do not perform uncontrolled online learning from a single organisation's decisions. Policy/prompt changes use a versioned, anonymised evaluation set and measured promotion.
 
 ### Reference and procedural-relationship overhaul
