@@ -168,9 +168,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Empty, cleared, rejected, ambiguous, stale, invalid, or missing cited relationship values fail closed and do not trigger progression inference. Exact/fuzzy/cross-matter/pending paths retain their existing additive/deduped behaviour for valid cited values.
 - Clean local replay through `00077`, focused SQL authority fixtures, generated type parity, targeted tests, migration checks, and fresh independent QA passed. The legacy processing-time `placeDocument` path remains a separate consumer migration.
 
+### Completed: processing-time relationship placement consumer slice (2026-08-30)
+
+- Migration `00078` replaces the dormant legacy `placeDocument` adapter with an atomic, service-only `place_document_processing_relationships` command. It consumes only the current valid effective relationship projection and preserves the approved exact, fuzzy, cross-matter, and pending-review policy through an idempotent version-scoped effect ledger.
+- The live `processDocument` worker now invokes that typed command after both newly validated and replayed already-validated provenance work. Snapshot contention returns a retryable fence result, which the worker throws into Trigger's bounded retry path without a second model invocation; browser roles retain no table or RPC access.
+- Local replay through `00078`, the relationship fixture, a two-session provenance/placement deadlock harness, generated-type parity, focused TypeScript tests, type checking, targeted lint, migration checks, and fresh independent QA passed. Automatic assignment remains a prerequisite without a connected production caller.
+
 ### Canonical next action
 
-Implement the next smallest approved high-use relationship consumer slice: migrate the processing-time `placeDocument` relationship path from its legacy AI payload adapter to typed provenance/effective relationship inputs, preserving its existing additive/pending-review policy. The automatic-assignment projection remains a prerequisite until a real assignment caller is connected. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
+Implement the next smallest approved live provenance-consumer closure: migrate the `generateMatterWiki` worker's document context from `raw_metadata` to the authorised current effective-metadata projection, preserving its existing summary workflow and source-safe context boundaries. The automatic-assignment projection remains a prerequisite until a real assignment caller is connected. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.

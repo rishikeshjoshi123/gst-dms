@@ -3,6 +3,8 @@ import 'server-only'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { shapeMatterRelationshipMetadata, type EffectiveMatterRelationshipDocument, type RelationshipProjectionRow } from './matter-relationship-metadata-shape'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/database.types'
 
 export type { EffectiveMatterRelationshipDocument } from './matter-relationship-metadata-shape'
 
@@ -51,4 +53,21 @@ export async function currentRelationshipReferenceExistsInOtherMatter(orgId: str
     p_reference_number: referenceNumber,
   })
   return !error && data === true
+}
+
+export type ProcessingRelationshipPlacementArgs = Database['public']['Functions']['place_document_processing_relationships']['Args']
+export type ProcessingRelationshipPlacementResult = Database['public']['Functions']['place_document_processing_relationships']['Returns'][number]
+
+/**
+ * The Trigger worker's only relationship-placement boundary. The database
+ * command re-reads current valid effective values and applies all mutations
+ * atomically, so this helper never accepts an AI payload or raw metadata.
+ */
+export async function placeProcessingDocumentRelationships(
+  supabase: SupabaseClient<Database>,
+  args: ProcessingRelationshipPlacementArgs,
+): Promise<ProcessingRelationshipPlacementResult | null> {
+  const { data, error } = await supabase.rpc('place_document_processing_relationships', args)
+  if (error) throw new Error('Document relationship placement RPC unavailable')
+  return data?.[0] ?? null
 }

@@ -13,6 +13,7 @@ import { analyzeDocumentWithOutcome, generateEmbedding } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
 import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
+import { placeProcessingDocumentRelationships } from '@/lib/documents/matter-relationship-effective-metadata'
 import {
   hasCurrentSearchIndexEmbedding,
   serializeSearchIndexEmbedding,
@@ -32,6 +33,27 @@ type BeginProvenanceArgs = Database['public']['Functions']['begin_document_proce
 type BeginProvenanceRow = Database['public']['Functions']['begin_document_processing_ai_extraction']['Returns'][number]
 type FinishProvenanceArgs = Database['public']['Functions']['finish_document_processing_ai_extraction']['Args']
 type FinishProvenanceRow = Database['public']['Functions']['finish_document_processing_ai_extraction']['Returns'][number]
+
+async function placeValidatedDocumentRelationships(
+  supabase: SupabaseClient<Database>,
+  payload: Required<Pick<ProcessDocumentPayload, 'docId' | 'matterId' | 'orgId' | 'uploadedBy' | 'documentVersionId'>>,
+) {
+  const placement = await placeProcessingDocumentRelationships(supabase, {
+    p_document_id: payload.docId,
+    p_document_version_id: payload.documentVersionId,
+    p_matter_id: payload.matterId,
+    p_org_id: payload.orgId,
+    p_uploaded_by: payload.uploadedBy,
+  })
+  // The database intentionally returns no effects when a current target
+  // snapshot is busy. Throwing keeps this within Trigger's bounded retry
+  // policy; a retry re-enters the already_validated branch without another
+  // model invocation, rather than terminalising the processing run in Review.
+  if (placement?.code === 'target_snapshot_busy') {
+    throw new Error('Document relationship placement target snapshot busy')
+  }
+  return placement
+}
 
 async function beginProvenanceExtraction(
   supabase: SupabaseClient<Database>,
@@ -171,7 +193,10 @@ export const processDocument = task({
     })
 
     if (started?.code === 'already_validated') {
-      return { status: 'placed', docId }
+      const placement = await placeValidatedDocumentRelationships(supabase, {
+        docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
+      })
+      return { status: placement?.code === 'placed' || placement?.code === 'no_effective_references' ? 'placed' : 'needs_review', docId }
     } else if (started?.code === 'claimed'
       && typeof started.source_analysis_run_id === 'string'
       && typeof started.source_analysis_lease_token === 'string') {
@@ -215,7 +240,10 @@ export const processDocument = task({
         throw new Error('Document provenance completion was not accepted')
       }
       if (completed.code === 'review_required') return { status: 'needs_review', docId }
-      return { status: 'placed', docId }
+      const placement = await placeValidatedDocumentRelationships(supabase, {
+        docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
+      })
+      return { status: placement?.code === 'placed' || placement?.code === 'no_effective_references' ? 'placed' : 'needs_review', docId }
     } else {
       // Any existing in-flight or terminal run is intentionally not retried
       // here: a new task must never create a second model invocation.

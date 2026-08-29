@@ -952,6 +952,55 @@ export type Database = {
           },
         ]
       }
+      document_relationship_placement_effects: {
+        Row: {
+          created_at: string
+          document_id: string
+          document_version_id: string
+          effect_key: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          effect_key: string
+          id?: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          effect_key?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_relationship_placement_effect_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_relationship_placement_effects_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_relationship_placement_effects_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_upload_command_receipts: {
         Row: {
           code: string
@@ -4631,6 +4680,20 @@ export type Database = {
       outbox_delivery_retry_delay_seconds: {
         Args: { p_attempt_number: number; p_event_id: string }
         Returns: number
+      }
+      place_document_processing_relationships: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_matter_id: string
+          p_org_id: string
+          p_uploaded_by: string
+        }
+        Returns: {
+          code: string
+          link_count: number
+          notification_count: number
+        }[]
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
       read_current_document_assignment_projection: {
