@@ -8,8 +8,16 @@ import { createManualLink } from '@/lib/actions/document'
 import { toast } from 'sonner'
 import type { Database } from '@/lib/supabase/database.types'
 import type { Connection } from '@xyflow/react'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { relationshipDocumentPresentation } from '@/lib/documents/document-inspector-identity'
 
 type LinkType = Database['public']['Enums']['link_type']
+
+type LinkDialogDocument = {
+  id: string
+  display_title?: string | null
+  storage_path?: string | null
+}
 
 // Relationship types are always described from the child's perspective towards the parent.
 // e.g. "Child responds_to Parent" means the child document is a response to the parent document.
@@ -26,13 +34,17 @@ export function LinkCreationDialog({
   sourceDoc,  // ReactFlow source = node where drag started = bottom handle = PARENT
   targetDoc,  // ReactFlow target = node where drag ended = top handle = CHILD
   connection,
+  parentEffectiveMetadata,
+  childEffectiveMetadata,
   onSuccess
 }: {
   isOpen: boolean
   onClose: () => void
-  sourceDoc: any | null  // This is the PARENT document
-  targetDoc: any | null  // This is the CHILD document
+  sourceDoc: LinkDialogDocument | null  // This is the PARENT document
+  targetDoc: LinkDialogDocument | null  // This is the CHILD document
   connection?: Connection | null
+  parentEffectiveMetadata?: DocumentInspectorMetadata
+  childEffectiveMetadata?: DocumentInspectorMetadata
   // onSuccess receives the newly created link object for optimistic edge replacement
   onSuccess: (realLink: any | null) => void
 }) {
@@ -45,6 +57,8 @@ export function LinkCreationDialog({
   //             targetDoc = drag end = top handle = CHILD
   const parentDoc = sourceDoc
   const childDoc = targetDoc
+  const parentPresentation = relationshipDocumentPresentation(parentDoc, parentEffectiveMetadata)
+  const childPresentation = relationshipDocumentPresentation(childDoc, childEffectiveMetadata)
 
   const handleCreate = async () => {
     if (!selectedType) return
@@ -101,8 +115,8 @@ export function LinkCreationDialog({
             {/* Parent */}
             <div className="flex flex-col p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)] relative">
               <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider mb-1">Parent Document</span>
-              <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{parentDoc.doc_type || 'Document'}</span>
-              <span className="text-xs text-[var(--text-muted)] truncate font-mono">{parentDoc.reference_number || parentDoc.id}</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{parentPresentation.documentType}</span>
+              <span className="text-xs text-[var(--text-muted)] truncate font-mono">{parentPresentation.reference}</span>
             </div>
 
             {/* Arrow with relationship label */}
@@ -112,7 +126,7 @@ export function LinkCreationDialog({
                 <ArrowDown size={16} className="text-[var(--primary)]" />
                 {selectedTypeInfo && (
                   <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider whitespace-nowrap">
-                    {childDoc.doc_type || 'Child'} {selectedTypeInfo.label}
+                    {childPresentation.documentType} {selectedTypeInfo.label}
                   </span>
                 )}
               </div>
@@ -122,8 +136,8 @@ export function LinkCreationDialog({
             {/* Child */}
             <div className="flex flex-col p-3 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
               <span className="text-[10px] font-bold text-[var(--success)] uppercase tracking-wider mb-1">Child Document</span>
-              <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{childDoc.doc_type || 'Document'}</span>
-              <span className="text-xs text-[var(--text-muted)] truncate font-mono">{childDoc.reference_number || childDoc.id}</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)] truncate">{childPresentation.documentType}</span>
+              <span className="text-xs text-[var(--text-muted)] truncate font-mono">{childPresentation.reference}</span>
             </div>
           </div>
 

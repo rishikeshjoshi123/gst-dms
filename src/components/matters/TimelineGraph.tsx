@@ -27,6 +27,11 @@ import { LinkCreationDialog } from './LinkCreationDialog'
 import { LinkDeletionDialog } from './LinkDeletionDialog'
 import { TimelineHelpDialog } from './TimelineHelpDialog'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import type { TimelineDocument } from './TimelineListFallback'
+
+type TimelineGraphDocument = TimelineDocument & {
+  matter_id?: string | null
+}
 
 const nodeTypes = {
   document: TimelineGraphNode,
@@ -136,7 +141,7 @@ export function TimelineGraph({
   onSelectDoc,
   inspectorMetadataByDocumentId = {},
 }: { 
-  documents: any[], 
+  documents: TimelineGraphDocument[],
   links: any[],
   selectedDocId?: string | null,
   onSelectDoc?: (id: string) => void,
@@ -148,8 +153,8 @@ export function TimelineGraph({
   // Link Creation State
   const [linkDialogState, setLinkDialogState] = useState<{
     isOpen: boolean;
-    sourceDoc: any | null;
-    targetDoc: any | null;
+    sourceDoc: TimelineGraphDocument | null;
+    targetDoc: TimelineGraphDocument | null;
     pendingEdgeId: string | null;
     connection: Connection | null;
   }>({ isOpen: false, sourceDoc: null, targetDoc: null, pendingEdgeId: null, connection: null })
@@ -159,8 +164,8 @@ export function TimelineGraph({
     isOpen: boolean;
     linkId: string | null;
     edgeId: string | null;
-    sourceDoc: any | null;
-    targetDoc: any | null;
+    sourceDoc: TimelineGraphDocument | null;
+    targetDoc: TimelineGraphDocument | null;
     linkType?: string | null;
   }>({ isOpen: false, linkId: null, edgeId: null, sourceDoc: null, targetDoc: null, linkType: null })
   
@@ -448,6 +453,8 @@ export function TimelineGraph({
         sourceDoc={linkDialogState.sourceDoc}
         targetDoc={linkDialogState.targetDoc}
         connection={linkDialogState.connection}
+        parentEffectiveMetadata={linkDialogState.sourceDoc ? inspectorMetadataByDocumentId[linkDialogState.sourceDoc.id] : undefined}
+        childEffectiveMetadata={linkDialogState.targetDoc ? inspectorMetadataByDocumentId[linkDialogState.targetDoc.id] : undefined}
         onClose={handleLinkDialogClose}
         onSuccess={handleLinkCreated}
       />
@@ -459,6 +466,8 @@ export function TimelineGraph({
         sourceDoc={deleteDialogState.sourceDoc}
         targetDoc={deleteDialogState.targetDoc}
         linkType={deleteDialogState.linkType}
+        sourceEffectiveMetadata={deleteDialogState.sourceDoc ? inspectorMetadataByDocumentId[deleteDialogState.sourceDoc.id] : undefined}
+        targetEffectiveMetadata={deleteDialogState.targetDoc ? inspectorMetadataByDocumentId[deleteDialogState.targetDoc.id] : undefined}
         onClose={handleDeleteDialogClose}
         onOptimisticDelete={handleOptimisticDelete}
       />

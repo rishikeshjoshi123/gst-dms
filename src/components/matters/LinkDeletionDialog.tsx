@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Loader2, ArrowRight, Link2Off, Trash2 } from 'lucide-react'
 import { deleteDocumentLink } from '@/lib/actions/document'
 import { toast } from 'sonner'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { relationshipDocumentPresentation } from '@/lib/documents/document-inspector-identity'
+
+type LinkDialogDocument = {
+  id: string
+  display_title?: string | null
+  storage_path?: string | null
+}
 
 export function LinkDeletionDialog({
   isOpen,
@@ -15,6 +23,8 @@ export function LinkDeletionDialog({
   sourceDoc,
   targetDoc,
   linkType,
+  sourceEffectiveMetadata,
+  targetEffectiveMetadata,
   onOptimisticDelete,
   onSuccess
 }: {
@@ -22,9 +32,11 @@ export function LinkDeletionDialog({
   onClose: () => void
   linkId: string | null
   edgeId: string | null
-  sourceDoc: any | null
-  targetDoc: any | null
+  sourceDoc: LinkDialogDocument | null
+  targetDoc: LinkDialogDocument | null
   linkType?: string | null
+  sourceEffectiveMetadata?: DocumentInspectorMetadata
+  targetEffectiveMetadata?: DocumentInspectorMetadata
   /** Called immediately when user confirms deletion — removes edge from graph before server responds */
   onOptimisticDelete?: (edgeId: string) => void
   onSuccess?: () => void
@@ -32,6 +44,9 @@ export function LinkDeletionDialog({
   const [isDeleting, setIsDeleting] = useState(false)
 
   if (!isOpen || !sourceDoc || !targetDoc) return null
+
+  const sourcePresentation = relationshipDocumentPresentation(sourceDoc, sourceEffectiveMetadata)
+  const targetPresentation = relationshipDocumentPresentation(targetDoc, targetEffectiveMetadata)
 
   const handleDelete = async () => {
     if (!linkId) {
@@ -86,10 +101,10 @@ export function LinkDeletionDialog({
                 From
               </span>
               <span className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
-                {sourceDoc.doc_type || 'Document'}
+                {sourcePresentation.documentType}
               </span>
               <span className="text-[12px] text-[var(--text-secondary)] truncate font-mono">
-                {sourceDoc.reference_number || sourceDoc.storage_path?.split('/').pop() || 'Doc A'}
+                {sourcePresentation.reference}
               </span>
             </div>
             
@@ -107,10 +122,10 @@ export function LinkDeletionDialog({
                 To
               </span>
               <span className="text-[14px] font-semibold text-[var(--text-primary)] truncate">
-                {targetDoc.doc_type || 'Document'}
+                {targetPresentation.documentType}
               </span>
               <span className="text-[12px] text-[var(--text-secondary)] truncate font-mono">
-                {targetDoc.reference_number || targetDoc.storage_path?.split('/').pop() || 'Doc B'}
+                {targetPresentation.reference}
               </span>
             </div>
           </div>
