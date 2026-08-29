@@ -1848,6 +1848,85 @@ export type Database = {
           },
         ]
       }
+      outbox_delivery_compaction_skips: {
+        Row: {
+          event_id: string
+          observed_attempt_count: number
+          org_id: string
+          reason_code: string
+          recorded_at: string
+        }
+        Insert: {
+          event_id: string
+          observed_attempt_count: number
+          org_id: string
+          reason_code: string
+          recorded_at?: string
+        }
+        Update: {
+          event_id?: string
+          observed_attempt_count?: number
+          org_id?: string
+          reason_code?: string
+          recorded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbox_delivery_compaction_skips_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbox_delivery_receipts: {
+        Row: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count: number
+          compacted_at: string
+          delivered_at: string
+          event_id: string
+          event_kind: string
+          event_version: number
+          final_trigger_run_id: string
+          org_id: string
+        }
+        Insert: {
+          aggregate_id: string
+          aggregate_type: string
+          attempt_count: number
+          compacted_at?: string
+          delivered_at: string
+          event_id: string
+          event_kind: string
+          event_version: number
+          final_trigger_run_id: string
+          org_id: string
+        }
+        Update: {
+          aggregate_id?: string
+          aggregate_type?: string
+          attempt_count?: number
+          compacted_at?: string
+          delivered_at?: string
+          event_id?: string
+          event_kind?: string
+          event_version?: number
+          final_trigger_run_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbox_delivery_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbox_dispatch_attempts: {
         Row: {
           attempt_number: number
@@ -2023,6 +2102,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      outbox_retention_maintenance_runs: {
+        Row: {
+          affected_count: number
+          created_at: string
+          cutoff_at: string
+          executed_by: unknown
+          id: string
+          operation: string
+        }
+        Insert: {
+          affected_count: number
+          created_at?: string
+          cutoff_at: string
+          executed_by?: unknown
+          id?: string
+          operation: string
+        }
+        Update: {
+          affected_count?: number
+          created_at?: string
+          cutoff_at?: string
+          executed_by?: unknown
+          id?: string
+          operation?: string
+        }
+        Relationships: []
       }
       platform_storage_policy: {
         Row: {
@@ -3091,6 +3197,18 @@ export type Database = {
           audit_lease_token: string
           code: string
           legacy_staged_document_id: string
+        }[]
+      }
+      cleanup_compacted_outbox_delivery_receipts: {
+        Args: { p_batch_size?: number; p_compacted_before?: string }
+        Returns: {
+          deleted_receipt_count: number
+        }[]
+      }
+      compact_delivered_document_outbox_events: {
+        Args: { p_batch_size?: number; p_delivered_before?: string }
+        Returns: {
+          compacted_count: number
         }[]
       }
       complete_document_upload: {
