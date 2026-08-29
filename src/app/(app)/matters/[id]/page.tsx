@@ -3,6 +3,7 @@ import { MATTER_STATUS_LABELS } from '@/lib/constants'
 import { getDocumentsByMatter } from '@/lib/actions/document'
 import { getWikiSections } from '@/lib/actions/wiki'
 import { getNotes } from '@/lib/actions/notes'
+import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { notFound } from 'next/navigation'
@@ -33,6 +34,10 @@ export default async function MatterPage(props: {
   const { proceedings, supporting, links } = await getDocumentsByMatter(params.id)
   const wikiSections = await getWikiSections(params.id)
   const notes = await getNotes({ matterId: params.id })
+  const inspectorMetadataByDocumentId = await getDocumentInspectorMetadata([
+    ...proceedings.map((document) => document.id),
+    ...supporting.map((document) => document.id),
+  ])
 
   const orgId = await getCurrentOrgId()
   const { data: memberRows } = await supabase
@@ -83,6 +88,7 @@ export default async function MatterPage(props: {
         wikiSections={wikiSections || []}
         notes={notes || []}
         users={usersList}
+        inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
       />
     </div>
   )

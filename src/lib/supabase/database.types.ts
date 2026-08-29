@@ -4612,6 +4612,19 @@ export type Database = {
         Returns: number
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
+      read_current_document_assignment_projection: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          client_identifiers: string[]
+          client_name: string
+          document_id: string
+          document_version_id: string
+          financial_years: string[]
+          gstin: string
+          reference_number: string
+          referenced_document_numbers: string[]
+        }[]
+      }
       read_current_document_effective_metadata: {
         Args: { p_document_ids: string[]; p_org_id: string }
         Returns: {
@@ -4625,17 +4638,18 @@ export type Database = {
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }[]
       }
-      read_current_document_assignment_projection: {
+      read_current_document_inspector_projection: {
         Args: { p_document_ids: string[]; p_org_id: string }
         Returns: {
-          client_identifiers: string[]
-          client_name: string | null
+          computed_at: string
+          document_field_candidate_id: string
           document_id: string
           document_version_id: string
-          financial_years: string[]
-          gstin: string | null
-          reference_number: string | null
-          referenced_document_numbers: string[]
+          field_path: string
+          normalized_value: Json
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }[]
       }
       read_current_document_search_index_projection: {
@@ -4691,6 +4705,19 @@ export type Database = {
           processing_requeued: number
           validation_requeued: number
         }[]
+      }
+      record_current_document_inspector_correction: {
+        Args: {
+          p_actor_user_id: string
+          p_document_field_candidate_id: string
+          p_document_id: string
+          p_document_version_id: string
+          p_field_path: string
+          p_idempotency_key: string
+          p_org_id: string
+          p_replacement_value: Json
+        }
+        Returns: string
       }
       record_document_asset_storage_deleted: {
         Args: { p_asset_id: string }

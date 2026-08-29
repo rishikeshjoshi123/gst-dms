@@ -9,6 +9,7 @@ import { CaseWikiTab } from './CaseWikiTab'
 import { MatterNotesTab } from './MatterNotesTab'
 import { MatterDetailsTab } from './MatterDetailsTab'
 import Link from 'next/link'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 
 export function MatterTabs({
   matter,
@@ -17,7 +18,8 @@ export function MatterTabs({
   links,
   wikiSections,
   notes,
-  users
+  users,
+  inspectorMetadataByDocumentId
 }: {
   matter: any,
   proceedings: any[],
@@ -25,7 +27,8 @@ export function MatterTabs({
   links: any[],
   wikiSections: any[],
   notes: any[],
-  users: any[]
+  users: any[],
+  inspectorMetadataByDocumentId: Record<string, DocumentInspectorMetadata>
 }) {
   const [activeTab, setActiveTab] = useState<'timeline' | 'files' | 'wiki' | 'notes' | 'details'>('timeline')
 
@@ -228,7 +231,12 @@ export function MatterTabs({
 
       <div className={`flex-1 min-h-0 ${activeTab === 'timeline' ? 'overflow-visible flex flex-col' : 'overflow-y-auto pr-1 custom-scrollbar pb-8'}`}>
         {activeTab === 'timeline' && (
-          <MatterTimelineTab documents={[...localProceedings, ...localSupporting]} links={localLinks} notes={localNotes} />
+          <MatterTimelineTab
+            documents={[...localProceedings, ...localSupporting]}
+            links={localLinks}
+            notes={localNotes}
+            inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
+          />
         )}
 
         {activeTab === 'files' && (

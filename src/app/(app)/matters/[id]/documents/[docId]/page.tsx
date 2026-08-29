@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getDocumentVersionSignedUrl, getDocumentsByMatter } from '@/lib/actions/document'
 import { getNotes } from '@/lib/actions/notes'
+import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
+import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
 import { notFound } from 'next/navigation'
 import { PdfViewer } from '@/components/ui/pdf-viewer'
 import { TimelineDocumentDetail } from '@/components/matters/TimelineDocumentDetail'
@@ -33,13 +35,17 @@ export default async function DocumentPage(props: { params: Promise<{ id: string
   const allDocsData = await getDocumentsByMatter(params.id)
   const allDocuments = [...allDocsData.proceedings, ...allDocsData.supporting]
   const links = allDocsData.links
+  const inspectorMetadata = await getDocumentInspectorMetadata(documentInspectorIds(doc.id, allDocuments))
   
   if (signedDocument && (signedDocument.error || !signedDocument.url)) {
     return <div className="p-10 text-[var(--danger)]">Failed to load document: {signedDocument.error}</div>
   }
 
   const storageFilename = doc.storage_path?.split('/').pop()
-  const documentTitle = doc.display_title || doc.reference_number || storageFilename || 'Document'
+  const effectiveDocument = inspectorMetadata[doc.id]
+  const documentTitle = effectiveDocument?.state === 'available'
+    ? effectiveDocument.referenceNumber || doc.display_title || storageFilename || 'Document (reference unavailable)'
+    : doc.display_title || storageFilename || 'Document'
 
   const breadcrumbs = [
     { label: 'Clients', href: '/clients' },
@@ -80,7 +86,14 @@ export default async function DocumentPage(props: { params: Promise<{ id: string
 
         {/* Document Details Sidebar */}
         <div className="w-full lg:w-[35%] h-full">
-          <TimelineDocumentDetail doc={doc} allDocuments={allDocuments} links={links} notes={notes} />
+          <TimelineDocumentDetail
+            doc={doc}
+            allDocuments={allDocuments}
+            links={links}
+            notes={notes}
+            effectiveMetadata={inspectorMetadata[doc.id]}
+            inspectorMetadataByDocumentId={inspectorMetadata}
+          />
         </div>
       </div>
     </div>

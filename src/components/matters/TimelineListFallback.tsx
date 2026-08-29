@@ -4,7 +4,6 @@ import React, { useMemo } from 'react'
 import { FileText, Loader2, AlertTriangle, Link as LinkIcon, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { formatDistanceToNow } from 'date-fns'
 
 const DOC_TYPE_COLORS: Record<string, string> = {
   SCN: 'bg-[var(--danger-muted)] text-[var(--danger)] border-[var(--danger)]',
@@ -39,6 +38,31 @@ export interface TimelineLink {
   to_doc_id?: string | null
 }
 
+export function timelineSortTimestamp(
+  document: Pick<TimelineDocument, 'created_at' | 'id'>,
+  metadata?: { state: 'available' | 'unavailable'; documentDate: string | null },
+) {
+  if (metadata?.state === 'available' && metadata.documentDate) {
+    return new Date(`${metadata.documentDate}T00:00:00`).getTime()
+  }
+  return new Date(document.created_at).getTime()
+}
+
+export function compareTimelineDocuments(
+  a: Pick<TimelineDocument, 'created_at' | 'id'>,
+  b: Pick<TimelineDocument, 'created_at' | 'id'>,
+  metadataByDocumentId: Record<string, { state: 'available' | 'unavailable'; documentDate: string | null }>,
+) {
+  const effectiveDateDifference = timelineSortTimestamp(a, metadataByDocumentId[a.id])
+    - timelineSortTimestamp(b, metadataByDocumentId[b.id])
+  if (effectiveDateDifference !== 0) return effectiveDateDifference
+
+  const createdAtDifference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  if (createdAtDifference !== 0) return createdAtDifference
+
+  return a.id.localeCompare(b.id)
+}
+
 function getDocTypeColor(docType?: string | null) {
   if (!docType) return DEFAULT_COLOR
   return DOC_TYPE_COLORS[docType] || DEFAULT_COLOR
@@ -48,21 +72,19 @@ export function TimelineListFallback({
   documents,
   links,
   selectedDocId,
-  onSelectDoc
+  onSelectDoc,
+  inspectorMetadataByDocumentId = {},
 }: {
   documents: TimelineDocument[]
   links: TimelineLink[]
   selectedDocId?: string | null
   onSelectDoc?: (id: string) => void
+  inspectorMetadataByDocumentId?: Record<string, { state: 'available' | 'unavailable'; docType: string | null; documentDate: string | null; referenceNumber: string | null; financialYears: string[] }>
 }) {
-  // Sort documents by date (newest first based on doc_date or created_at)
+  // Ascending chronology by current effective date; unavailable projections use neutral creation time.
   const sortedDocuments = useMemo(() => {
-    return [...documents].sort((a, b) => {
-      const dateA = a.doc_date ? new Date(a.doc_date).getTime() : new Date(a.created_at).getTime()
-      const dateB = b.doc_date ? new Date(b.doc_date).getTime() : new Date(b.created_at).getTime()
-      return dateB - dateA
-    })
-  }, [documents])
+    return [...documents].sort((a, b) => compareTimelineDocuments(a, b, inspectorMetadataByDocumentId))
+  }, [documents, inspectorMetadataByDocumentId])
 
   return (
     <div className="flex flex-col h-full bg-[var(--surface)] overflow-hidden">
@@ -75,7 +97,9 @@ export function TimelineListFallback({
       <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
         {sortedDocuments.map(doc => {
           const isSelected = selectedDocId === doc.id
-          const typeColor = getDocTypeColor(doc.doc_type)
+          const effective = inspectorMetadataByDocumentId[doc.id]
+          const available = effective?.state === 'available'
+          const typeColor = getDocTypeColor(available ? effective.docType : undefined)
           const docLinks = links.filter(l => l.from_doc_id === doc.id || l.to_doc_id === doc.id)
           const isProcessing = doc.status === 'processing' || doc.status === 'uploaded'
           const isFailed = doc.status === 'failed'
@@ -99,7 +123,7 @@ export function TimelineListFallback({
                     "w-20 text-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)]",
                     typeColor
                   )}>
-                    {doc.doc_type || 'UNKNOWN'}
+                    {available ? effective.docType || 'UNAVAILABLE' : 'UNAVAILABLE'}
                   </span>
                   {doc.document_class === 'supporting' && (
                     <Badge variant="muted" className="text-[9px] uppercase tracking-wider h-5 px-1.5 border-[var(--border)]">
@@ -111,15 +135,15 @@ export function TimelineListFallback({
                   {isProcessing && <Loader2 size={12} className="animate-spin text-[var(--primary)]" />}
                   {isFailed && <AlertTriangle size={12} className="text-[var(--danger)]" />}
                   <span className="text-[10px] text-[var(--text-muted)]">
-                    {doc.doc_date
-                      ? new Date(doc.doc_date).toLocaleDateString()
-                      : formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
+                    {available && effective.documentDate ? new Date(`${effective.documentDate}T00:00:00`).toLocaleDateString() : 'Unavailable'}
                   </span>
                 </div>
               </div>
               
               <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate mb-1">
-                {doc.reference_number || doc.display_title || doc.storage_path?.split('/').pop() || 'Untitled document'}
+                {available
+                  ? effective.referenceNumber || doc.display_title || doc.storage_path?.split('/').pop() || 'Document (reference unavailable)'
+                  : doc.display_title || doc.storage_path?.split('/').pop() || 'Document'}
               </div>
               
               {doc.summary && (
@@ -131,7 +155,7 @@ export function TimelineListFallback({
               <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono">
                   <FileText size={10} />
-                  {doc.financial_year || 'No FY'}
+                  {available && effective.financialYears.length > 0 ? effective.financialYears.join(', ') : 'FY unavailable'}
                 </div>
                 {docLinks.length > 0 && (
                   <div className="flex items-center gap-1 text-[10px] font-medium text-[var(--primary)]">

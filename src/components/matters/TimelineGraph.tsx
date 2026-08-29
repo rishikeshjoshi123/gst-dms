@@ -26,6 +26,7 @@ import { TimelineGraphNode } from './TimelineGraphNode'
 import { LinkCreationDialog } from './LinkCreationDialog'
 import { LinkDeletionDialog } from './LinkDeletionDialog'
 import { TimelineHelpDialog } from './TimelineHelpDialog'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 
 const nodeTypes = {
   document: TimelineGraphNode,
@@ -132,12 +133,14 @@ export function TimelineGraph({
   documents, 
   links,
   selectedDocId,
-  onSelectDoc 
+  onSelectDoc,
+  inspectorMetadataByDocumentId = {},
 }: { 
   documents: any[], 
   links: any[],
   selectedDocId?: string | null,
-  onSelectDoc?: (id: string) => void
+  onSelectDoc?: (id: string) => void,
+  inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
 }) {
   const [isPending, startTransition] = useTransition()
   const [showSupporting, setShowSupporting] = useState(true)
@@ -205,6 +208,7 @@ export function TimelineGraph({
       data: { 
         doc, 
         selected: selectedDocId === doc.id,
+        effectiveMetadata: inspectorMetadataByDocumentId[doc.id],
       },
       position: { x: 0, y: 0 }, // Dagre will override this
       style: { width: nodeWidth, height: nodeHeight },
@@ -215,7 +219,7 @@ export function TimelineGraph({
       .map(buildEdgeFromLink)
 
     return getLayoutedElements(nodes, edges, 'TB')
-  }, [visibleDocuments, visibleDocIds, links, selectedDocId])
+  }, [visibleDocuments, visibleDocIds, links, selectedDocId, inspectorMetadataByDocumentId])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)

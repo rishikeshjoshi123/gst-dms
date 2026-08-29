@@ -6,11 +6,13 @@ import { TimelineDocumentDetail } from './TimelineDocumentDetail'
 import { TimelineListFallback, type TimelineDocument, type TimelineLink } from './TimelineListFallback'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 
-export function MatterTimelineTab({ documents, links, notes = [] }: {
+export function MatterTimelineTab({ documents, links, notes = [], inspectorMetadataByDocumentId }: {
   documents: TimelineDocument[]
   links: TimelineLink[]
   notes?: Record<string, unknown>[]
+  inspectorMetadataByDocumentId: Record<string, DocumentInspectorMetadata>
 }) {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
 
@@ -25,6 +27,7 @@ export function MatterTimelineTab({ documents, links, notes = [] }: {
           links={links}
           selectedDocId={selectedDocId}
           onSelectDoc={setSelectedDocId}
+          inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
         />
       </div>
 
@@ -35,6 +38,7 @@ export function MatterTimelineTab({ documents, links, notes = [] }: {
           links={links} 
           selectedDocId={selectedDocId}
           onSelectDoc={setSelectedDocId}
+          inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
         />
       </div>
       
@@ -61,6 +65,8 @@ export function MatterTimelineTab({ documents, links, notes = [] }: {
               allDocuments={documents}
               links={links}
               notes={notes}
+              effectiveMetadata={inspectorMetadataByDocumentId[selectedDoc.id]}
+              inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
               onClose={() => setSelectedDocId(null)}
             />
           </div>

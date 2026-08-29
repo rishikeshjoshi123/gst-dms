@@ -1,138 +1,85 @@
 'use client'
 
-import { X, FileText, Calendar, ExternalLink, StickyNote, Plus, Trash2, Pin, Check, Edit2, Loader2, RefreshCw } from 'lucide-react'
+import { X, FileText, Calendar, ExternalLink, StickyNote, Plus, Trash2, Pin, Loader2, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useState, useTransition, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
-import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
+import { correctInspectorField, type EditableFieldPath } from '@/lib/actions/document-field-decision'
+import { formatInrDecimal } from '@/lib/documents/format-inr-decimal'
+import { linkedDocumentDate, linkedDocumentIdentity, selectedDocumentIdentity } from '@/lib/documents/document-inspector-identity'
+import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { deleteDocument } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
 
-function humanizeKey(key: string) {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
-function EditableField({ 
-  label, 
-  value, 
-  type = 'text',
-  options = [],
-  onSave, 
-  disabled 
-}: { 
-  label: string, 
-  value: any, 
-  type?: 'text' | 'number' | 'date' | 'select', 
-  options?: string[],
-  onSave: (val: any) => Promise<void>,
-  disabled?: boolean
+function EffectiveMetadataField({ label, value, type = 'text', correction }: {
+  label: string
+  value: string | null
+  type?: 'text' | 'date' | 'decimal'
+  correction?: { onSave: (value: string) => Promise<void> }
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value ?? '')
   const [isSaving, setIsSaving] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const selectRef = useRef<HTMLSelectElement>(null)
+  const displayValue = type === 'date' && value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString()
+    : type === 'decimal' && value ? formatInrDecimal(value) : value
 
-  useEffect(() => {
-    if (isEditing) {
-      if (type === 'select' && selectRef.current) selectRef.current.focus()
-      else if (inputRef.current) inputRef.current.focus()
-    }
-  }, [isEditing, type])
-
-  const handleSave = async () => {
-    if (editValue === value) {
+  const save = async () => {
+    if (!correction || editValue === (value ?? '')) {
       setIsEditing(false)
       return
     }
     setIsSaving(true)
-    await onSave(type === 'number' ? Number(editValue) : editValue)
+    await correction.onSave(editValue)
     setIsSaving(false)
     setIsEditing(false)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') {
-      setIsEditing(false)
-      setEditValue(value ?? '')
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)] hover:bg-[var(--surface-hover)] transition-colors group relative">
-      <h5 className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">
-        {label}
-      </h5>
+    <div className="flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)]">
+      <h5 className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">{label}</h5>
       {isEditing ? (
-        <div className="flex items-center gap-1.5">
-          {type === 'select' ? (
-            <select
-              ref={selectRef}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isSaving || disabled}
-              className="w-full text-sm font-medium text-[var(--text-primary)] bg-[var(--bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded px-2 py-1 shadow-sm"
-            >
-              <option value="">Select...</option>
-              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-          ) : (
-            <input
-              ref={inputRef}
-              type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isSaving || disabled}
-              className="flex-1 min-w-0 w-full text-sm font-medium text-[var(--text-primary)] bg-[var(--bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded px-2 py-1 shadow-sm"
-            />
-          )}
-          <button 
-            onClick={handleSave} 
-            disabled={isSaving || disabled}
-            className="p-1.5 text-[var(--success)] hover:bg-[var(--success-muted)] rounded-[var(--radius-sm)] transition-colors shrink-0"
-          >
-            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          </button>
-          <button 
-            onClick={() => { setIsEditing(false); setEditValue(value ?? ''); }} 
-            disabled={isSaving || disabled}
-            className="p-1.5 text-[var(--danger)] hover:bg-[var(--danger-muted)] rounded-[var(--radius-sm)] transition-colors shrink-0"
-          >
-            <X size={14} />
-          </button>
+        <div className="flex flex-col gap-1.5 sm:flex-row">
+          <Input
+            aria-label={`Correct ${label}`}
+            type={type === 'date' ? 'date' : 'text'}
+            inputMode={type === 'decimal' ? 'decimal' : undefined}
+            value={editValue}
+            onChange={(event) => setEditValue(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') void save(); if (event.key === 'Escape') { setEditValue(value ?? ''); setIsEditing(false) } }}
+            autoFocus
+            className="min-w-0 flex-1"
+          />
+          <Button type="button" size="sm" onClick={save} loading={isSaving}>Save</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => { setEditValue(value ?? ''); setIsEditing(false) }} disabled={isSaving}>Cancel</Button>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-2 min-h-[28px]">
-          <div className={`flex-1 min-w-0 break-words text-sm ${!value ? 'text-[--text-muted] italic' : 'text-[--text-primary] font-medium'}`}>
-            {type === 'number' && value !== null && value !== undefined 
-              ? `₹${Number(value).toLocaleString('en-IN')}` 
-              : type === 'date' && value ? new Date(value).toLocaleDateString()
-              : (value || 'Not Extracted')}
+        <div className="flex min-h-[28px] items-start gap-2">
+          <div className={`min-w-0 flex-1 break-words text-sm ${displayValue ? 'text-[--text-primary] font-medium' : 'text-[--text-muted] italic'}`}>
+            {displayValue || 'Unavailable'}
           </div>
-          {!disabled && (
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="shrink-0 p-1.5 text-[--primary] opacity-0 group-hover:opacity-100 hover:bg-[--primary]/10 rounded transition-all"
-              title="Edit value"
-            >
-              <Edit2 size={12} />
-            </button>
+          {correction && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setIsEditing(true)}>Edit</Button>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function DeferredMetadataField({ label, message }: { label: string; message: string }) {
+  return (
+    <div className="flex flex-col gap-1.5 p-2 rounded-[var(--radius-sm)]">
+      <h5 className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">{label}</h5>
+      <div className="min-h-[28px] break-words text-sm italic text-[--text-muted]">{message}</div>
     </div>
   )
 }
@@ -142,12 +89,16 @@ export function TimelineDocumentDetail({
   allDocuments = [],
   links = [],
   notes: propNotes = [], 
+  effectiveMetadata,
+  inspectorMetadataByDocumentId,
   onClose 
 }: { 
   doc: any
   allDocuments?: any[]
   links?: any[]
   notes?: any[]
+  effectiveMetadata?: DocumentInspectorMetadata
+  inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
   onClose?: () => void 
 }) {
   const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details')
@@ -164,6 +115,7 @@ export function TimelineDocumentDetail({
   const [isReprocessing, setIsReprocessing] = useState(false)
   const reprocessIdempotencyKey = useRef<string | null>(null)
   const [pendingNoteDeleteId, setPendingNoteDeleteId] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleDeleteDocument = async () => {
     setIsDeleting(true)
@@ -257,21 +209,52 @@ export function TimelineDocumentDetail({
     }
   }
 
-  const handleUpdateMetadata = async (key: string, value: any) => {
-    const res = await updateDocumentMetadata(doc.id, key, value)
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      toast.success('Metadata updated successfully')
-    }
-    // we don't need to manually update local state since the component will receive updated props via Server Component refresh triggered by revalidatePath in action
+  const inspectorMetadata: DocumentInspectorMetadata = effectiveMetadata ?? {
+    state: 'unavailable' as const,
+    docType: null,
+    referenceNumber: null,
+    documentDate: null,
+    clientName: null,
+    gstin: null,
+    financialYears: [],
+    tax: null,
+    interest: null,
+    penalty: null,
+    totalDemand: null,
+    issuedBy: null,
+    direction: null,
+    documentVersionId: null,
+    fieldCandidates: {},
   }
-
-  const metadata = doc.raw_metadata || {}
-  const amounts = metadata.extracted_amounts || {}
+  const correction = (fieldPath: keyof typeof inspectorMetadata.fieldCandidates) => {
+    const candidate = inspectorMetadata.fieldCandidates[fieldPath]
+    if (!candidate || !inspectorMetadata.documentVersionId) return undefined
+    return {
+      onSave: async (value: string) => {
+        const result = await correctInspectorField({
+          documentId: doc.id,
+          documentVersionId: inspectorMetadata.documentVersionId!,
+          candidateId: candidate.id,
+          fieldPath: fieldPath as EditableFieldPath,
+          value,
+          idempotencyKey: `inspector:${crypto.randomUUID()}`,
+        })
+        if (result.error) toast.error(result.error)
+        else {
+          toast.success('Correction recorded.')
+          router.refresh()
+        }
+      },
+    }
+  }
+  const financialYearCorrection = correction('document.financial_year')
+  const financialYearValue = inspectorMetadata.financialYears.join(', ') || null
+  const financialYearNeedsReview = inspectorMetadata.financialYears.length > 1
+    || (inspectorMetadata.financialYears.length === 1 && !financialYearCorrection)
   const viewUrl = `/matters/${doc.matter_id}/documents/${doc.id}`
-  const documentLabel = (record: { reference_number?: string | null, display_title?: string | null, storage_path?: string | null }) =>
-    record.reference_number || record.display_title || record.storage_path?.split('/').filter(Boolean).pop() || 'Untitled document'
+  const headerDocType = inspectorMetadata.state === 'available' ? inspectorMetadata.docType : null
+  const headerDocDate = inspectorMetadata.state === 'available' ? inspectorMetadata.documentDate : null
+  const documentLabel = selectedDocumentIdentity(doc, inspectorMetadata)
 
   // Find linked documents
   const linkedDocIds = new Set<string>()
@@ -292,14 +275,14 @@ export function TimelineDocumentDetail({
             <FileText size={16} />
           </div>
           <div className="flex flex-col min-w-0 w-full">
-            <h3 className="text-sm font-semibold text-[--text-primary] truncate mb-0.5" title={documentLabel(doc)}>
-              {documentLabel(doc)}
+            <h3 className="text-sm font-semibold text-[--text-primary] truncate mb-0.5" title={documentLabel}>
+              {documentLabel}
             </h3>
             <div className="flex items-center flex-wrap gap-1.5">
-              {doc.doc_type && <Badge variant="muted" className="text-[9px] uppercase h-4 px-1 py-0">{doc.doc_type}</Badge>}
+              {headerDocType && <Badge variant="muted" className="text-[9px] uppercase h-4 px-1 py-0">{headerDocType}</Badge>}
               <span className="text-[10px] text-[--text-muted] flex items-center gap-1 shrink-0">
                 <Calendar size={10} />
-                {doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : 'Unknown'}
+                {headerDocDate ? new Date(`${headerDocDate}T00:00:00`).toLocaleDateString() : 'Unavailable'}
               </span>
             </div>
           </div>
@@ -402,20 +385,20 @@ export function TimelineDocumentDetail({
             <h4 className="text-sm font-semibold text-[--text-primary] border-b border-[--border-subtle] pb-1.5 px-1">
               Core Details
             </h4>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <EditableField label="Client Name" value={metadata.client_name} onSave={(val) => handleUpdateMetadata('client_name', val)} />
-              <EditableField label="GSTIN" value={metadata.gstin} onSave={(val) => handleUpdateMetadata('gstin', val)} />
-              <EditableField label="Reference Number" value={doc.reference_number || metadata.reference_number} onSave={(val) => handleUpdateMetadata('reference_number', val)} />
-              <EditableField label="Document Type" value={doc.doc_type || metadata.doc_type} type="select" options={['DRC-01', 'DRC-01A', 'DRC-01C', 'DRC-07', 'DRC-03', 'SCN', 'OIO', 'OIA', 'APL-01', 'APL-02', 'APL-05', 'STAY', 'REPLY', 'HC_PETITION', 'HC_ORDER', 'SC_PETITION', 'SC_ORDER', 'OTHER']} onSave={(val) => handleUpdateMetadata('doc_type', val)} />
-              <EditableField label="Document Date" value={doc.doc_date || metadata.doc_date} type="date" onSave={(val) => handleUpdateMetadata('doc_date', val)} />
-              <EditableField 
-                label="Financial Year" 
-                value={doc.financial_year || metadata.financial_year} 
-                type="select"
-                options={['2017-18', '2018-19', '2019-20', '2020-21', '2021-22', '2022-23', '2023-24', '2024-25', '2025-26', 'Unknown FY']}
-                onSave={(val) => handleUpdateMetadata('financial_year', val)} 
-              />
-              <EditableField label="Tax Period" value={metadata.tax_period} onSave={(val) => handleUpdateMetadata('tax_period', val)} />
+            {inspectorMetadata.state === 'unavailable' && <p className="text-sm text-[var(--text-muted)]">Current extracted metadata is unavailable for this document version.</p>}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+              <EffectiveMetadataField label="Client Name" value={inspectorMetadata.clientName} correction={correction('document.client_name')} />
+              <EffectiveMetadataField label="GSTIN" value={inspectorMetadata.gstin} correction={correction('document.gstin')} />
+              <EffectiveMetadataField label="Reference Number" value={inspectorMetadata.referenceNumber} correction={correction('document.reference_number')} />
+              <EffectiveMetadataField label="Document Type" value={inspectorMetadata.docType} correction={correction('document.type')} />
+              <EffectiveMetadataField label="Document Date" value={inspectorMetadata.documentDate} type="date" correction={correction('document.date')} />
+              <div>
+                <EffectiveMetadataField label="Financial Year" value={financialYearValue} correction={financialYearCorrection} />
+                {financialYearNeedsReview && (
+                  <p className="px-2 text-xs text-[var(--text-muted)]">Review required — multiple or ambiguous current financial-year candidates cannot be corrected here.</p>
+                )}
+              </div>
+              <DeferredMetadataField label="Tax Period" message="Unavailable — tax-period candidates are not yet in the effective-metadata contract." />
             </div>
           </div>
 
@@ -424,11 +407,11 @@ export function TimelineDocumentDetail({
             <h4 className="text-sm font-semibold text-[--text-primary] border-b border-[--border-subtle] pb-1.5 px-1">
               Extracted Amounts
             </h4>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <EditableField label="Tax" value={amounts.tax} type="number" onSave={(val) => handleUpdateMetadata('extracted_amounts.tax', val)} />
-              <EditableField label="Interest" value={amounts.interest} type="number" onSave={(val) => handleUpdateMetadata('extracted_amounts.interest', val)} />
-              <EditableField label="Penalty" value={amounts.penalty} type="number" onSave={(val) => handleUpdateMetadata('extracted_amounts.penalty', val)} />
-              <EditableField label="Total Demand" value={amounts.total_demand} type="number" onSave={(val) => handleUpdateMetadata('extracted_amounts.total_demand', val)} />
+            <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+              <EffectiveMetadataField label="Tax" value={inspectorMetadata.tax} type="decimal" correction={correction('financial.tax')} />
+              <EffectiveMetadataField label="Interest" value={inspectorMetadata.interest} type="decimal" correction={correction('financial.interest')} />
+              <EffectiveMetadataField label="Penalty" value={inspectorMetadata.penalty} type="decimal" correction={correction('financial.penalty')} />
+              <EffectiveMetadataField label="Total Demand" value={inspectorMetadata.totalDemand} type="decimal" correction={correction('financial.total_demand')} />
             </div>
           </div>
 
@@ -440,6 +423,7 @@ export function TimelineDocumentDetail({
               </h4>
               <div className="grid grid-cols-1 gap-2">
                 {linkedDocs.map(ldoc => {
+                  const linkedMetadata = inspectorMetadataByDocumentId?.[ldoc.id]
                   // Determine the direction of the link from the current document's perspective
                   // DB convention: from_doc_id = CHILD, to_doc_id = PARENT
                   const link = links.find(l =>
@@ -461,7 +445,7 @@ export function TimelineDocumentDetail({
                   return (
                     <div key={ldoc.id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] transition-colors">
                       <div className="flex flex-col gap-1 min-w-0">
-                        <span className="text-sm font-medium text-[--text-primary] truncate">{documentLabel(ldoc)}</span>
+                        <span className="text-sm font-medium text-[--text-primary] truncate">{linkedDocumentIdentity(ldoc, linkedMetadata)}</span>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="muted" className={`text-[9px] uppercase tracking-wider py-0 px-1 font-semibold ${isCurrentDocChild ? 'text-[var(--primary)] border-[var(--primary)]/30' : 'text-[var(--success)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]'}`}>
                             {relationLabel}
@@ -472,7 +456,7 @@ export function TimelineDocumentDetail({
                           {ldoc.document_class === 'supporting' && (
                             <Badge variant="outline" className="text-[9px] uppercase tracking-wider py-0 px-1 bg-[var(--surface-hover)] text-[var(--text-secondary)] border-transparent">Supporting</Badge>
                           )}
-                          <span className="text-xs text-[--text-muted]">{ldoc.doc_date ? new Date(ldoc.doc_date).toISOString().split('T')[0] : ''}</span>
+                          <span className="text-xs text-[--text-muted]">{linkedDocumentDate(ldoc, linkedMetadata)}</span>
                         </div>
                       </div>
                       <a 

@@ -46,13 +46,17 @@ function getDocTypeColors(docType?: string) {
 }
 
 export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
-  const { doc, selected } = data
+  const { doc, selected, effectiveMetadata } = data
+  const projected = effectiveMetadata?.state === 'available' ? effectiveMetadata : null
+  const displayDocType = projected?.docType ?? null
+  const displayReferenceNumber = projected?.referenceNumber ?? null
+  const displayDocumentDate = projected?.documentDate ?? null
   const isSupporting = doc.document_class === 'supporting'
   const isNeedsReview = doc.status === 'needs_review'
   const isProcessing = doc.status === 'processing' || doc.status === 'uploaded'
   const isFailed = doc.status === 'failed'
   const isPendingPlacement = doc.status === 'pending_placement'
-  const colors = getDocTypeColors(doc.doc_type)
+  const colors = getDocTypeColors(displayDocType ?? undefined)
 
   return (
     <HoverCard openDelay={200} closeDelay={100}>
@@ -130,7 +134,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                     color: isFailed ? 'var(--danger)' : colors.accent, lineHeight: 1.1,
                     wordBreak: 'break-all',
                   }}>
-                    {isFailed ? 'FAILED' : doc.doc_type?.replace(/_/g, '-') || 'UNKNOWN'}
+                    {isFailed ? 'FAILED' : displayDocType?.replace(/_/g, '-') || 'UNAVAILABLE'}
                   </span>
                   {isNeedsReview && <AlertTriangle size={10} color="var(--warning)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
                   {isFailed && <XCircle size={10} color="var(--danger)" style={{ flexShrink: 0, marginLeft: 4, marginTop: 1 }} />}
@@ -147,14 +151,14 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                   whiteSpace: 'nowrap', lineHeight: 1.4,
                   marginBottom: 6,
                 }}>
-                  {doc.reference_number || doc.storage_path?.split('/').pop() || '—'}
+                  {displayReferenceNumber || doc.storage_path?.split('/').pop() || 'Unavailable'}
                 </p>
 
                 {/* Date + supporting badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Calendar size={9} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                    {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown'}
+                    {displayDocumentDate || 'Unavailable'}
                   </span>
                   {isSupporting && (
                     <span style={{
@@ -198,9 +202,9 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
               style={{ backgroundColor: colors.accent }}
             />
             <h4 className="text-sm font-semibold text-[var(--text-primary)] break-words pr-2">
-              <span className={`font-black uppercase ${colors.textClass}`}>{doc.doc_type?.toUpperCase() || 'DOCUMENT'}</span>
+              <span className={`font-black uppercase ${colors.textClass}`}>{displayDocType?.toUpperCase() || 'UNAVAILABLE'}</span>
               <span className="block text-xs font-normal text-[var(--text-secondary)] font-mono mt-0.5">
-                {doc.reference_number || doc.storage_path?.split('/').pop()}
+                {displayReferenceNumber || doc.storage_path?.split('/').pop() || 'Unavailable'}
               </span>
             </h4>
           </div>
@@ -213,18 +217,12 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
           </a>
         </div>
         
-        {doc.raw_metadata && (
+        {effectiveMetadata?.financialYears?.length > 0 && (
           <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
-            {doc.raw_metadata.financial_year && (
+            {effectiveMetadata.financialYears.length > 0 && (
               <div className="flex flex-col bg-[var(--bg)] p-1.5 rounded border border-[var(--border)]">
                 <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Financial Year</span>
-                <span className="font-medium text-[var(--text-primary)]">{doc.raw_metadata.financial_year}</span>
-              </div>
-            )}
-            {doc.raw_metadata.extracted_amounts?.total_demand && (
-              <div className="flex flex-col bg-[var(--bg)] p-1.5 rounded border border-[var(--border)]">
-                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Demand</span>
-                <span className="font-medium text-[var(--danger)]">₹{Number(doc.raw_metadata.extracted_amounts.total_demand).toLocaleString('en-IN')}</span>
+                <span className="font-medium text-[var(--text-primary)]">{effectiveMetadata.financialYears.join(', ')}</span>
               </div>
             )}
           </div>
@@ -246,7 +244,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
         <div className="flex items-center justify-between text-xs text-[--text-muted] border-t border-[--border-subtle] pt-3">
           <span className="flex items-center gap-1">
             <Calendar size={12} />
-            {doc.doc_date ? new Date(doc.doc_date).toISOString().split('T')[0] : 'Unknown date'}
+            {displayDocumentDate || 'Unavailable'}
           </span>
           <Badge variant={
             doc.status === 'processing' || doc.status === 'uploaded' ? 'muted' :

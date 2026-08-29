@@ -2,7 +2,7 @@
 title: AI Extraction, Provenance, and Model Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-29
+updated: 2026-08-30
 owners:
   - product
   - engineering
@@ -150,9 +150,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Transitional vectors are version- and projection-fenced: only active, non-deleted documents with an exact current valid version and matching `embedding_document_version_id` can match. Direct vector/provenance column writes are denied to both browser and service roles; only the fenced service commands may write them. A metadata change clears the old vector, queues one durable successor, and a projection fingerprint prevents an in-flight same-version worker from restoring stale content. Terminal `not_indexable` clears all vector provenance.
 - Clean local migration replay through `00073`, focused SQL fixtures, TypeScript worker tests, type checking, targeted lint, generated-type parity, migration checks, and independent read-only QA passed. The active-legacy/multi-index Search rollout, coverage gates, and page-aware retrieval remain separate later plan work; this slice does not claim that cutover.
 
+### Completed: effective-metadata inspector consumer slice (2026-08-30)
+
+- Migrations `00075`–`00076` provide a service-only current inspector projection and an atomic current-winner correction command. The command locks the active exact current valid document version, verifies the winning candidate at commit time, and delegates to the append-only idempotent decision authority; browser and direct-table access remain denied.
+- The production document-detail and Matter Timeline inspector callers, including desktop graph, mobile chronological list, and linked-document rows, now consume the current effective projection. Corrected values render; cleared, rejected, missing, stale, and cross-tenant values never revive legacy metadata. Tier-A and uniquely resolved financial-year values remain correctable; ambiguous financial years explicitly require Review. `tax_period`, relationship dialogs, and realtime refresh remain separate consumer work.
+- Clean local migration replay through `00076`, focused SQL authority fixtures, generated type parity, targeted TypeScript tests, type checking, migration checks, and fresh independent QA passed. The slice does not claim live automatic assignment migration: `00074` remains a tested prerequisite until a production assignment caller adopts it.
+
 ### Canonical next action
 
-Implement the next smallest approved high-use consumer slice, beginning with the document inspector/assignment consumer that still reads extracted metadata outside the effective projection. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
+Implement the next smallest approved high-use relationship consumer slice: migrate the graph link creation and deletion dialogs from legacy document metadata reads to the same current effective-metadata projection, with neutral identity fallback only. The automatic-assignment projection remains a prerequisite until a real assignment caller is connected. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
