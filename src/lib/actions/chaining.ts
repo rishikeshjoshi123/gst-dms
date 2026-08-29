@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 import { AIDocumentResult } from '@/lib/ai/vertex'
 import { appendActivity } from '@/lib/activity'
+import {
+  currentRelationshipReferenceExistsInOtherMatter,
+  fuzzyCurrentMatterRelationshipReference,
+  getCurrentMatterRelationshipMetadata,
+} from '@/lib/documents/matter-relationship-effective-metadata'
 
 type LinkType = Database['public']['Enums']['link_type']
 
@@ -264,14 +269,14 @@ async function queueNotification(
 
 
 export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, matterId: string, orgId: string, userId: string) {
-  // 1. Get all documents in matter
-  const { data: documents } = await supabase
-    .from('documents')
-    .select('id, doc_type, raw_metadata')
-    .eq('matter_id', matterId)
-    .is('deleted_at', null)
-
-  if (!documents || documents.length === 0) return { success: true, count: 0 }
+  // The relationship reader authorises the current browser caller for this
+  // exact matter before it uses its service-only current-effective projection.
+  // The compatibility payload and legacy identity columns are never read here:
+  // cleared, rejected, ambiguous, stale, or invalid values must stay gone.
+  const relationship = await getCurrentMatterRelationshipMetadata(matterId)
+  if (relationship.orgId !== orgId || relationship.documents.length === 0) {
+    return { success: true, count: 0, mode: 'additive' as const }
+  }
 
   // Re-evaluation must be additive. The former implementation deleted every
   // automatic link before proving it could recreate it, which made a harmless
@@ -279,17 +284,56 @@ export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, 
   // `createLink` already deduplicates by endpoints/reference, so this safely
   // discovers missing links while preserving prior evidence for human review.
 
+  const documentsByReference = new Map<string, typeof relationship.documents>()
+  for (const document of relationship.documents) {
+    if (!document.referenceNumber) continue
+    const matches = documentsByReference.get(document.referenceNumber) ?? []
+    matches.push(document)
+    documentsByReference.set(document.referenceNumber, matches)
+  }
+
   let count = 0
-  for (const doc of documents) {
-    if (doc.raw_metadata) {
-      const aiResult = doc.raw_metadata as unknown as AIDocumentResult
-      if (!aiResult.chaining_attributes) aiResult.chaining_attributes = {} as any
-      try {
-        await placeDocument(supabase, doc.id, matterId, orgId, userId, aiResult)
-        count++
-      } catch (e) {
-        console.error('Failed to link document in re-evaluation:', e)
+  for (const document of relationship.documents) {
+    try {
+      const references = document.referencedDocumentNumbers
+      if (references.length === 0) {
+        // The projection cannot distinguish absent extraction from a source
+        // rejected before candidate materialisation. Both must fail closed.
+        continue
       }
+
+      for (const reference of references) {
+        const exactMatches = documentsByReference.get(reference) ?? []
+        if (exactMatches.length === 1) {
+          const target = exactMatches[0]
+          await createLink(supabase, document.documentId, target.documentId, document.docType, target.docType, 0.95, 'exact_reference', 'confirmed', null)
+          count++
+          continue
+        }
+
+        const fuzzyMatch = await fuzzyCurrentMatterRelationshipReference(orgId, matterId, reference)
+        if (fuzzyMatch) {
+          await createLink(supabase, document.documentId, fuzzyMatch.document_id, document.docType, fuzzyMatch.doc_type, 0.70, 'fuzzy_reference', 'pending', null)
+          await queueNotification(supabase, orgId, userId, document.documentId, fuzzyMatch.document_id, 'fuzzy')
+          count++
+          continue
+        }
+
+        if (await currentRelationshipReferenceExistsInOtherMatter(orgId, matterId, reference)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('documents').update({
+            status: 'needs_review',
+            review_reason: 'Referenced document found in a different matter — manual review required before linking.',
+          }).eq('id', document.documentId)
+          await queueNotification(supabase, orgId, userId, document.documentId, null, 'cross_matter', reference)
+          continue
+        }
+
+        await createLink(supabase, document.documentId, null, document.docType, null, null, 'pending', 'pending', reference)
+        count++
+      }
+    } catch (e) {
+      console.error('Failed to link document in re-evaluation:', e)
     }
   }
 

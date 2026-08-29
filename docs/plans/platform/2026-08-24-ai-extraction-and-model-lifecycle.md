@@ -162,9 +162,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - The slice preserves the existing relationship mutation and authorisation commands. It does not claim realtime freshness or relationship inference migration.
 - Focused dialog/caller tests, TypeScript checking, diff validation, and fresh independent QA passed. Existing shared dialog/select accessibility debt and authenticated-browser-fixture limits are recorded baseline/environmental limits rather than hidden by this slice.
 
+### Completed: effective-metadata relationship re-evaluation consumer slice (2026-08-30)
+
+- Migration `00077` introduces bounded service-only, current-valid matter relationship projections and effective-reference fuzzy/cross-matter helpers. The live additive `reevaluateMatterLinks` caller now authorises the active matter before consuming corrected type/reference values; it no longer parses `raw_metadata`.
+- Empty, cleared, rejected, ambiguous, stale, invalid, or missing cited relationship values fail closed and do not trigger progression inference. Exact/fuzzy/cross-matter/pending paths retain their existing additive/deduped behaviour for valid cited values.
+- Clean local replay through `00077`, focused SQL authority fixtures, generated type parity, targeted tests, migration checks, and fresh independent QA passed. The legacy processing-time `placeDocument` path remains a separate consumer migration.
+
 ### Canonical next action
 
-Implement the next smallest approved high-use relationship consumer slice: migrate the live relationship re-evaluation path from legacy `raw_metadata` parsing to typed current effective relationship/reference values, while preserving its additive and non-destructive link behaviour. The automatic-assignment projection remains a prerequisite until a real assignment caller is connected. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
+Implement the next smallest approved high-use relationship consumer slice: migrate the processing-time `placeDocument` relationship path from its legacy AI payload adapter to typed provenance/effective relationship inputs, preserving its existing additive/pending-review policy. The automatic-assignment projection remains a prerequisite until a real assignment caller is connected. Preserve the completed transitional Search fence; do not implement index-version rollout, legacy-index cutover, page-aware retrieval, raw-output retention, or UI redesign in this tranche.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.

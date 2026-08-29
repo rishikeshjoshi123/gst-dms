@@ -4023,6 +4023,14 @@ export type Database = {
           code: string
         }[]
       }
+      current_relationship_reference_exists_in_other_matter: {
+        Args: {
+          p_matter_id: string
+          p_org_id: string
+          p_reference_number: string
+        }
+        Returns: boolean
+      }
       discard_intake_item: {
         Args: { p_idempotency: string; p_intake_id: string }
         Returns: {
@@ -4226,6 +4234,19 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      fuzzy_match_current_matter_relationship_reference: {
+        Args: {
+          p_matter_id: string
+          p_org_id: string
+          p_reference_number: string
+        }
+        Returns: {
+          doc_type: string
+          document_id: string
+          reference_number: string
+          sim_score: number
         }[]
       }
       fuzzy_match_reference: {
@@ -4686,6 +4707,16 @@ export type Database = {
           issued_by: string
           reference_number: string
           summary: string
+        }[]
+      }
+      read_current_matter_relationship_projection: {
+        Args: { p_matter_id: string; p_org_id: string }
+        Returns: {
+          doc_type: string
+          document_id: string
+          document_version_id: string
+          reference_number: string
+          referenced_document_numbers: string[]
         }[]
       }
       recompute_document_effective_metadata: {
