@@ -133,9 +133,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Candidate rows are append-only, source-run/asset/tenant constrained, idempotently materialized through a service-only command, and protected by forced RLS with no browser or direct service table authority. No document-version binding, effective metadata, raw-output retention, or consumer migration is included.
 - A rollback-only candidate fixture, generated type parity, clean local replay, the source-run foundation regression, the processing-orchestration regression, migration checks, and type checking passed.
 
+### Completed: immutable document-version analysis bindings (2026-08-29)
+
+- Migration `00065` upgrades the earlier lifecycle binding table with logical-document identity and a service-only command that binds one validated extraction to an exact valid current or superseded document version, then materializes its existing source candidates without accepting model output or invoking a duplicate model call. Same-organisation logical copies may intentionally reuse immutable asset analysis while retaining independent bindings and candidate rows.
+- Document candidates snapshot the source candidate's typed value and page/quotation evidence, enforce asset/page-count compatibility with the exact immutable version, and remain append-only. Binding/candidate tables use forced RLS with no browser or direct service table authority; later decisions and effective metadata remain out of scope.
+- A rollback-only compatibility, idempotency, cross-tenant, historical-version/copy, immutability, and authority-surface fixture accompanies generated type parity.
+
 ### Canonical next action
 
-Implement the next approved provenance slice: immutable document-version analysis bindings and document-level candidate materialization from source candidates, without a duplicate model call. Do not yet create effective metadata, consumer rewrites, raw-output retention, embeddings, or UI.
+Implement the next approved provenance slice: append-only document field decisions and the secured effective-metadata projection/recompute boundary. Do not yet rewrite consumers, retain raw output, add embeddings, or build UI.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
