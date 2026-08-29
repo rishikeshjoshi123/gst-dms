@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { isReprocessScope, reprocessScopes } from './reprocess'
+import { isReprocessIdempotencyKey, isReprocessScope, reprocessScopes } from './reprocess'
 
 test('accepts exactly the approved explicit reprocess scopes', () => {
   assert.deepEqual(reprocessScopes, ['extract', 'ocr', 'relationships', 'search_index', 'full'])
@@ -9,15 +9,22 @@ test('accepts exactly the approved explicit reprocess scopes', () => {
   for (const scope of ['validate', 'all', '', null, { scope: 'full' }]) assert.equal(isReprocessScope(scope), false)
 })
 
-test('does not expose queued reprocessing before a scoped worker is deployed', () => {
+test('exposes only the proven search-index reprocess command through the durable wake', () => {
   const source = readFileSync(new URL('./reprocess.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /Scoped reprocessing is unavailable until its dedicated worker is deployed\./)
-  assert.doesNotMatch(source, /request_document_reprocess/)
-  assert.doesNotMatch(source, /scheduleDocumentOutboxWake/)
+  assert.match(source, /Other scopes are unavailable until their dedicated workers are deployed/)
+  assert.match(source, /request_document_reprocess/)
+  assert.match(source, /scheduleDocumentOutboxWake/)
+  assert.match(source, /scope !== 'search_index'/)
   assert.doesNotMatch(source, /\sas any\b/)
   assert.doesNotMatch(source, /@trigger\.dev\/sdk|\.trigger\(/)
   assert.doesNotMatch(source, /(storagePath|object_key|signed_url|raw_metadata)/)
+})
+
+test('requires a caller-owned UUID idempotency key for a retriable command', () => {
+  assert.equal(isReprocessIdempotencyKey('54800000-0000-0000-0000-000000000006'), true)
+  assert.equal(isReprocessIdempotencyKey('retry-me'), false)
+  assert.equal(isReprocessIdempotencyKey(undefined), false)
 })
 
 test('keeps legacy Inbox rows away from the canonical reprocess command', () => {
@@ -27,18 +34,21 @@ test('keeps legacy Inbox rows away from the canonical reprocess command', () => 
   assert.doesNotMatch(inboxSource, /handleReprocess/)
 })
 
-test('uses visible, touch-target shared actions in the Timeline document header', () => {
+test('uses visible, touch-target shared actions and truthful scoped-reprocess status in the Timeline document header', () => {
   const timelineSource = readFileSync(new URL('../../components/matters/TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
 
-  assert.match(timelineSource, /<Button[\s\S]*?disabled[\s\S]*?>[\s\S]*?Reprocess unavailable/)
+  assert.match(timelineSource, /reprocessDocument\(doc.id, 'search_index', reprocessIdempotencyKey.current\)/)
+  assert.match(timelineSource, /crypto.randomUUID\(\)/)
+  assert.match(timelineSource, /Reprocess search index/)
+  assert.match(timelineSource, /Search-index reprocessing is available\. Extraction, OCR, relationship, and full reprocessing remain unavailable/)
   assert.match(timelineSource, /<Button[\s\S]*?onClick=\{\(\) => setIsDocConfirmOpen\(true\)\}[\s\S]*?>[\s\S]*?Delete document/)
   assert.doesNotMatch(timelineSource, /size="icon"[\s\S]{0,200}Delete Document/)
 })
 
-test('keeps failed timeline status copy aligned with unavailable scoped reprocessing', () => {
+test('keeps failed timeline status copy aligned with the available index-only scope', () => {
   const graphSource = readFileSync(new URL('../../components/matters/TimelineGraphNode.tsx', import.meta.url), 'utf8')
 
-  assert.match(graphSource, /manual recovery is required while scoped reprocessing is unavailable/)
+  assert.match(graphSource, /Search-index reprocessing may be available; other scopes require manual recovery/)
   assert.doesNotMatch(graphSource, /use Reprocess to retry/)
 })
 

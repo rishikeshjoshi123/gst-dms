@@ -75,12 +75,17 @@ function usageFromResponse(usage: {
 }
 
 function extractJsonObject(rawText: string): unknown {
-  const firstBrace = rawText.indexOf('{')
-  const lastBrace = rawText.lastIndexOf('}')
-  const jsonText = firstBrace !== -1 && lastBrace > firstBrace
-    ? rawText.slice(firstBrace, lastBrace + 1)
-    : rawText
-  return JSON.parse(jsonText)
+  // Structured generation is a contract, not a best-effort text format.
+  // Do not recover a JSON-looking substring from prose, markdown, or a
+  // truncated provider response: that would silently accept an unbounded
+  // response outside the requested schema.
+  return JSON.parse(rawText)
+}
+
+function logVertexDiagnostic(code: 'document_response_invalid' | 'document_response_unreadable' | 'document_request_failed' | 'wiki_response_invalid' | 'wiki_request_failed') {
+  // Provider exceptions, model output, and validation details can carry
+  // tenant data. Keep this boundary deliberately fixed and content-free.
+  console.warn(`[Vertex AI] ${code}`)
 }
 
 // ── Document analysis ───────────────────────────────────────────────────────
@@ -132,21 +137,12 @@ export async function analyzeDocument(
       return null
     }
 
-    let rawText = ''
-    try {
-      rawText = candidate.content.parts[0].text.trim()
-    } catch (e) {
-      console.error('[Vertex AI] Failed to extract text from parts:', e)
-      return null
-    }
+    const rawText = candidate.content.parts[0].text.trim()
 
     try {
       const validation = aiDocumentPayloadSchema.safeParse(extractJsonObject(rawText))
       if (!validation.success) {
-        console.error(
-          '[Vertex AI] Document response failed validation:',
-          validation.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
-        )
+        logVertexDiagnostic('document_response_invalid')
         return null
       }
 
@@ -155,12 +151,12 @@ export async function analyzeDocument(
         prompt_version: PROMPT_VERSION,
         usage: usageFromResponse(response.response.usageMetadata),
       }
-    } catch (err) {
-      console.error('[Vertex AI] analyzeDocument failed parsing JSON:', err)
+    } catch {
+      logVertexDiagnostic('document_response_unreadable')
       return null
     }
-  } catch (err) {
-    console.error('[Vertex AI] analyzeDocument failed:', err)
+  } catch {
+    logVertexDiagnostic('document_request_failed')
     return null
   }
 }
@@ -188,12 +184,16 @@ export async function generateWikiSummary(
     }
 
     const rawText = candidate.content.parts[0].text.trim()
-    const validation = aiWikiPayloadSchema.safeParse(extractJsonObject(rawText))
+    let parsed: unknown
+    try {
+      parsed = extractJsonObject(rawText)
+    } catch {
+      logVertexDiagnostic('wiki_response_invalid')
+      return null
+    }
+    const validation = aiWikiPayloadSchema.safeParse(parsed)
     if (!validation.success) {
-      console.error(
-        '[Vertex AI] Case Brief response failed validation:',
-        validation.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
-      )
+      logVertexDiagnostic('wiki_response_invalid')
       return null
     }
 
@@ -201,8 +201,8 @@ export async function generateWikiSummary(
       ...validation.data,
       usage: usageFromResponse(response.response.usageMetadata),
     }
-  } catch (err) {
-    console.error('[Vertex AI] generateWikiSummary failed:', err)
+  } catch {
+    logVertexDiagnostic('wiki_request_failed')
     return null
   }
 }
@@ -268,11 +268,7 @@ export async function generateEmbedding(
       }),
     })
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[Vertex AI] Embedding request failed:', err)
-      return null
-    }
+    if (!res.ok) return null
 
     const data = await res.json() as {
       predictions: Array<{
@@ -288,21 +284,21 @@ export async function generateEmbedding(
 
     const prediction = data.predictions[0]?.embeddings
     const embedding = prediction?.values ?? null
-    if (!embedding || embedding.length !== VERTEX_EMBEDDING_DIMENSIONS) {
-      console.error('[Vertex AI] Embedding response had an unexpected dimension count')
-      return null
-    }
+    const inputTokens = prediction?.statistics?.token_count
+    const truncated = prediction?.statistics?.truncated
+    if (!embedding || embedding.length !== VERTEX_EMBEDDING_DIMENSIONS
+      || typeof inputTokens !== 'number' || !Number.isInteger(inputTokens) || inputTokens < 0
+      || typeof truncated !== 'boolean') return null
 
     return {
       embedding,
-      inputTokens: prediction.statistics?.token_count ?? 0,
-      truncated: prediction.statistics?.truncated ?? false,
+      inputTokens,
+      truncated,
       model: VERTEX_EMBEDDING_MODEL,
       version: VERTEX_EMBEDDING_VERSION,
       taskType,
     }
-  } catch (err) {
-    console.error('[Vertex AI] generateEmbedding failed:', err)
+  } catch {
     return null
   }
 }

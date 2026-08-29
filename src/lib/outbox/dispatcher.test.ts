@@ -66,8 +66,10 @@ test('acks accepted gateway deliveries with the leased token and idempotency key
   const acknowledgements: string[] = []
   const transport: OutboxTransport = { lease: async () => [event('one')], ack: async (_, token, run) => { acknowledgements.push(`${token}:${run}`); return { code: 'ok' } }, fail: async () => ({ code: 'retry_scheduled' }) }
   let idempotencyKey = ''
-  const result = await dispatchLeasedEvents(transport, { trigger: async (_, options) => { idempotencyKey = options.idempotencyKey; return { id: 'run-1' } } })
+  let deliveryLease = ''
+  const result = await dispatchLeasedEvents(transport, { trigger: async (envelope, options) => { idempotencyKey = options.idempotencyKey; deliveryLease = envelope.leaseToken; return { id: 'run-1' } } })
   assert.deepEqual(result, [{ eventId: ids.one, code: 'ok' }]); assert.deepEqual(acknowledgements, ['60000000-0000-4000-8000-000000000001:run-1']); assert.equal(idempotencyKey, `outbox:20000000-0000-4000-8000-000000000001:${ids.one}`)
+  assert.equal(deliveryLease, '60000000-0000-4000-8000-000000000001')
 })
 
 test('records a safe failure code without forwarding a raw gateway error', async () => {

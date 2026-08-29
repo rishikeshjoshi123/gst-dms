@@ -42,7 +42,7 @@ export type SafeDispatchErrorCode =
   | 'dispatch_failed'
 
 export type TriggerGateway = {
-  trigger(envelope: Omit<DocumentLifecycleEnvelope, 'leaseToken'>, options: { idempotencyKey: string }): Promise<{ id: string }>
+  trigger(envelope: DocumentLifecycleEnvelope, options: { idempotencyKey: string }): Promise<{ id: string }>
 }
 
 // PostgreSQL accepts deterministic UUID fixtures as well as RFC 4122 UUIDs;
@@ -143,15 +143,7 @@ export async function dispatchLeasedEvents(
         continue
       }
       const { leaseToken } = event
-      const envelope: Omit<DocumentLifecycleEnvelope, 'leaseToken'> = {
-        eventId: event.eventId,
-        orgId: event.orgId,
-        eventKind: event.eventKind,
-        aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId,
-        payload: event.payload,
-        idempotencyKey: event.idempotencyKey,
-      }
+      const envelope: DocumentLifecycleEnvelope = event
       try {
         const run = await gateway.trigger(envelope, { idempotencyKey: gatewayIdempotencyKey(event) })
         const acknowledgement = await transport.ack(event.eventId, leaseToken, run.id)

@@ -257,7 +257,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             doc.status === 'processing' ? 'AI analysis and link resolution in progress' :
             doc.status === 'uploaded' ? 'Queued for processing' :
             doc.status === 'pending_placement' ? 'Waiting for referenced documents to be uploaded before links can be resolved' :
-            doc.status === 'failed' ? 'Processing failed — manual recovery is required while scoped reprocessing is unavailable' :
+            doc.status === 'failed' ? 'Processing failed — Search-index reprocessing may be available; other scopes require manual recovery' :
             doc.status === 'needs_review' ? 'Requires manual review before placement' :
             doc.status === 'placed' ? 'Fully processed and linked' :
             doc.status === 'analyzed' ? 'Metadata extracted, awaiting link resolution' :

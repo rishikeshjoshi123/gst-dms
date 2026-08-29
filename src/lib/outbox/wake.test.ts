@@ -84,3 +84,16 @@ test('document processing derives child tenant identity from the database claim'
   assert.match(worker, /concurrencyKey:\s*claimOrgId/)
   assert.doesNotMatch(worker, /concurrencyKey:\s*payload\.orgId/)
 })
+
+test('scoped reprocess passes the exact delivery lease token into its fenced claim', () => {
+  const worker = readFileSync(new URL('../../trigger/outbox.ts', import.meta.url), 'utf8')
+
+  assert.match(worker, /claim_document_search_index_reprocess_work[\s\S]*?p_event_id:\s*payload\.eventId,[\s\S]*?p_trigger_run_id:\s*ctx\.run\.id,[\s\S]*?p_expected_org_id:\s*payload\.orgId,[\s\S]*?p_delivery_lease_token:\s*payload\.leaseToken/)
+})
+
+test('a legacy unavailable scoped event is terminalized through its delivery fence', () => {
+  const worker = readFileSync(new URL('../../trigger/outbox.ts', import.meta.url), 'utf8')
+
+  assert.match(worker, /payload\.payload\.scope !== 'search_index'[\s\S]*?recover_unavailable_document_reprocess_event[\s\S]*?p_event_id:\s*payload\.eventId,[\s\S]*?p_expected_org_id:\s*payload\.orgId,[\s\S]*?p_delivery_lease_token:\s*payload\.leaseToken/)
+  assert.doesNotMatch(worker, /queued_unavailable_scope/)
+})

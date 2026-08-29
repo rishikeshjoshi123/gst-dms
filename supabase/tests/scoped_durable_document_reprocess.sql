@@ -1,4 +1,4 @@
--- Run after migration 00054 against a disposable local Supabase database.
+-- Run after migration 00057 against a disposable local Supabase database.
 BEGIN;
 
 DO $setup$
@@ -44,24 +44,24 @@ BEGIN
      OR (SELECT capability_version FROM public.get_my_organisation_context() LIMIT 1)<>5 THEN
     RAISE EXCEPTION 'reprocess capability projection';
   END IF;
-  SELECT pg_get_functiondef('public.request_document_reprocess(uuid,public.document_processing_scope,uuid,integer)'::regprocedure)
+  SELECT pg_get_functiondef('public.request_document_reprocess_unavailable_scope_fence(uuid,public.document_processing_scope,uuid,integer)'::regprocedure)
   INTO procedure_definition;
   IF position('pg_advisory_xact_lock' IN procedure_definition)=0
      OR position('pg_advisory_xact_lock' IN procedure_definition)>position('SELECT * INTO prior' IN procedure_definition) THEN
     RAISE EXCEPTION 'reprocess advisory idempotency lock must precede receipt lookup';
   END IF;
   SELECT * INTO first_result FROM public.request_document_reprocess(
-    '54500000-0000-0000-0000-000000000001','extract',
+    '54500000-0000-0000-0000-000000000001','search_index',
     '54800000-0000-0000-0000-000000000001',5
   );
   IF first_result.code<>'queued' OR first_result.document_version_id<>'54600000-0000-0000-0000-000000000001'::uuid
-     OR first_result.processing_run_id IS NULL OR first_result.outbox_event_id IS NULL OR first_result.scope<>'extract' THEN
+     OR first_result.processing_run_id IS NULL OR first_result.outbox_event_id IS NULL OR first_result.scope<>'search_index' THEN
     RAISE EXCEPTION 'scoped reprocess command did not create durable identity';
   END IF;
   PERFORM set_config('test.reprocess_run',first_result.processing_run_id::text,true);
   PERFORM set_config('test.reprocess_event',first_result.outbox_event_id::text,true);
   SELECT * INTO replay FROM public.request_document_reprocess(
-    '54500000-0000-0000-0000-000000000001','extract',
+    '54500000-0000-0000-0000-000000000001','search_index',
     '54800000-0000-0000-0000-000000000001',5
   );
   IF replay.code<>'already_requested' OR replay.processing_run_id IS DISTINCT FROM first_result.processing_run_id
@@ -72,16 +72,15 @@ BEGIN
     '54500000-0000-0000-0000-000000000001','ocr',
     '54800000-0000-0000-0000-000000000001',5
   );
-  IF conflicting_replay.code<>'idempotency_conflict'
-     OR conflicting_replay.processing_run_id IS DISTINCT FROM first_result.processing_run_id
-     OR conflicting_replay.outbox_event_id IS DISTINCT FROM first_result.outbox_event_id THEN
-    RAISE EXCEPTION 'reprocess idempotency conflict did not preserve durable identity';
+  IF conflicting_replay.code<>'scope_unavailable'
+     OR conflicting_replay.processing_run_id IS NOT NULL OR conflicting_replay.outbox_event_id IS NOT NULL THEN
+    RAISE EXCEPTION 'unimplemented scope created durable work';
   END IF;
   SELECT * INTO invalid_scope FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','validate',
     '54800000-0000-0000-0000-000000000002',5
   );
-  IF invalid_scope.code<>'invalid_request' THEN RAISE EXCEPTION 'validation is not an allowed reprocess scope'; END IF;
+  IF invalid_scope.code<>'scope_unavailable' THEN RAISE EXCEPTION 'unimplemented scope must not queue work'; END IF;
   SELECT * INTO stale_capability FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','search_index',
     '54800000-0000-0000-0000-000000000003',4
@@ -94,9 +93,9 @@ DO $owner_inspection$
 DECLARE event_id uuid:=current_setting('test.reprocess_event')::uuid; run_id uuid:=current_setting('test.reprocess_run')::uuid;
 BEGIN
   IF (SELECT payload FROM public.outbox_events WHERE id=event_id)
-       IS DISTINCT FROM jsonb_build_object('document_id','54500000-0000-0000-0000-000000000001','version_id','54600000-0000-0000-0000-000000000001','scope','extract')
+       IS DISTINCT FROM jsonb_build_object('document_id','54500000-0000-0000-0000-000000000001','version_id','54600000-0000-0000-0000-000000000001','scope','search_index')
      OR (SELECT event_kind FROM public.outbox_events WHERE id=event_id)<>'document.reprocess_requested.v1'
-     OR (SELECT scope FROM public.document_processing_runs WHERE id=run_id)<>'extract'
+     OR (SELECT scope FROM public.document_processing_runs WHERE id=run_id)<>'search_index'
      OR (SELECT state FROM public.document_processing_runs WHERE id=run_id)<>'queued'
      OR EXISTS (SELECT 1 FROM public.outbox_events WHERE id=event_id AND payload::text ~* '(path|object|content|token|credential|raw)') THEN
     RAISE EXCEPTION 'scoped reprocess envelope or run is unsafe';
@@ -112,7 +111,7 @@ BEGIN
     '54500000-0000-0000-0000-000000000001','full',
     '54800000-0000-0000-0000-000000000004',5
   );
-  IF denied.code<>'not_allowed' THEN RAISE EXCEPTION 'viewer reprocess was not denied'; END IF;
+  IF denied.code<>'scope_unavailable' THEN RAISE EXCEPTION 'unimplemented scope was not safely rejected'; END IF;
 END $viewer_denial$;
 RESET ROLE;
 
@@ -125,7 +124,7 @@ BEGIN
     '54500000-0000-0000-0000-000000000002','full',
     '54800000-0000-0000-0000-000000000005',5
   );
-  IF denied.code<>'not_allowed' OR denied.document_id IS NOT NULL THEN
+  IF denied.code<>'scope_unavailable' OR denied.document_id IS NOT NULL THEN
     RAISE EXCEPTION 'cross-tenant reprocess disclosed a target';
   END IF;
 END $tenant_denial$;
@@ -137,20 +136,21 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','54100000-0000-0000-0000-000000000001',true);
 DO $replay_requests$
-DECLARE search_result record; full_result record;
+DECLARE search_result record; unavailable_result record;
 BEGIN
   SELECT * INTO search_result FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','search_index',
     '54800000-0000-0000-0000-000000000006',5
   );
-  SELECT * INTO full_result FROM public.request_document_reprocess(
+  SELECT * INTO unavailable_result FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','full',
     '54800000-0000-0000-0000-000000000007',5
   );
   PERFORM set_config('test.reprocess_search_run',search_result.processing_run_id::text,true);
   PERFORM set_config('test.reprocess_search_event',search_result.outbox_event_id::text,true);
-  PERFORM set_config('test.reprocess_full_run',full_result.processing_run_id::text,true);
-  PERFORM set_config('test.reprocess_full_event',full_result.outbox_event_id::text,true);
+  IF unavailable_result.code<>'scope_unavailable' OR unavailable_result.processing_run_id IS NOT NULL OR unavailable_result.outbox_event_id IS NOT NULL THEN
+    RAISE EXCEPTION 'full scope must remain unavailable without durable queued work';
+  END IF;
 END $replay_requests$;
 RESET ROLE;
 
@@ -159,9 +159,9 @@ BEGIN
   UPDATE public.document_processing_runs
   SET state='running',started_at=now()-interval '15 minutes',lease_token=gen_random_uuid(),
       lease_expires_at=now()-interval '1 minute',heartbeat_at=now()-interval '15 minutes',attempt_count=1
-  WHERE id IN (current_setting('test.reprocess_search_run')::uuid,current_setting('test.reprocess_full_run')::uuid);
+  WHERE id=current_setting('test.reprocess_search_run')::uuid;
   UPDATE public.outbox_events SET delivery_state='delivered',delivered_at=now(),lease_token=NULL,lease_expires_at=NULL
-  WHERE id IN (current_setting('test.reprocess_search_event')::uuid,current_setting('test.reprocess_full_event')::uuid);
+  WHERE id=current_setting('test.reprocess_search_event')::uuid;
 END $replay_expiry$;
 
 SET LOCAL ROLE service_role;
@@ -177,11 +177,7 @@ DO $replay_inspection$
 BEGIN
   IF current_setting('test.reprocess_requeued')::integer<>1
      OR (SELECT state FROM public.document_processing_runs WHERE id=current_setting('test.reprocess_search_run')::uuid)<>'queued'
-     OR (SELECT delivery_state FROM public.outbox_events WHERE id=current_setting('test.reprocess_search_event')::uuid)<>'pending'
-     OR (SELECT state FROM public.document_processing_runs WHERE id=current_setting('test.reprocess_full_run')::uuid)<>'failed'
-     OR (SELECT stage FROM public.document_processing_runs WHERE id=current_setting('test.reprocess_full_run')::uuid)<>'review'
-     OR (SELECT safe_error_code FROM public.document_processing_runs WHERE id=current_setting('test.reprocess_full_run')::uuid)<>'scoped_reprocess_replay_unsafe'
-     OR NOT EXISTS (SELECT 1 FROM public.document_processing_recovery_cases WHERE processing_run_id=current_setting('test.reprocess_full_run')::uuid AND recovery_reason='scoped_reprocess_replay_unsafe' AND state='open') THEN
+     OR (SELECT delivery_state FROM public.outbox_events WHERE id=current_setting('test.reprocess_search_event')::uuid)<>'pending' THEN
     RAISE EXCEPTION 'scoped reprocess replay fence';
   END IF;
 END $replay_inspection$;

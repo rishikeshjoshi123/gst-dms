@@ -579,10 +579,15 @@ export type Database = {
           idempotency_key: string
           lease_expires_at: string | null
           lease_token: string | null
+          next_retry_at: string | null
           org_id: string
           outbox_event_id: string | null
           safe_error_code: string | null
           scope: Database["public"]["Enums"]["document_processing_scope"]
+          search_embedding_input_tokens: number | null
+          search_embedding_model: string | null
+          search_embedding_task_type: string | null
+          search_embedding_version: string | null
           source_analysis_run_id: string | null
           stage: Database["public"]["Enums"]["document_processing_stage"]
           started_at: string | null
@@ -601,10 +606,15 @@ export type Database = {
           idempotency_key: string
           lease_expires_at?: string | null
           lease_token?: string | null
+          next_retry_at?: string | null
           org_id: string
           outbox_event_id?: string | null
           safe_error_code?: string | null
           scope: Database["public"]["Enums"]["document_processing_scope"]
+          search_embedding_input_tokens?: number | null
+          search_embedding_model?: string | null
+          search_embedding_task_type?: string | null
+          search_embedding_version?: string | null
           source_analysis_run_id?: string | null
           stage?: Database["public"]["Enums"]["document_processing_stage"]
           started_at?: string | null
@@ -623,10 +633,15 @@ export type Database = {
           idempotency_key?: string
           lease_expires_at?: string | null
           lease_token?: string | null
+          next_retry_at?: string | null
           org_id?: string
           outbox_event_id?: string | null
           safe_error_code?: string | null
           scope?: Database["public"]["Enums"]["document_processing_scope"]
+          search_embedding_input_tokens?: number | null
+          search_embedding_model?: string | null
+          search_embedding_task_type?: string | null
+          search_embedding_version?: string | null
           source_analysis_run_id?: string | null
           stage?: Database["public"]["Enums"]["document_processing_stage"]
           started_at?: string | null
@@ -1038,6 +1053,7 @@ export type Database = {
           failed_at: string | null
           failure_code: string | null
           id: string
+          legacy_staged_backfill_pending: boolean
           object_key: string
           org_id: string
           sha256: string | null
@@ -1060,6 +1076,7 @@ export type Database = {
           failed_at?: string | null
           failure_code?: string | null
           id?: string
+          legacy_staged_backfill_pending?: boolean
           object_key: string
           org_id: string
           sha256?: string | null
@@ -1082,6 +1099,7 @@ export type Database = {
           failed_at?: string | null
           failure_code?: string | null
           id?: string
+          legacy_staged_backfill_pending?: boolean
           object_key?: string
           org_id?: string
           sha256?: string | null
@@ -1881,6 +1899,57 @@ export type Database = {
           },
         ]
       }
+      outbox_event_envelope_quarantines: {
+        Row: {
+          event_id: string
+          org_id: string
+          prior_attempt_count: number
+          prior_delivered_at: string | null
+          prior_delivery_state: Database["public"]["Enums"]["outbox_delivery_state"]
+          prior_failed_at: string | null
+          prior_trigger_run_id: string | null
+          quarantined_at: string
+          reason_code: string
+        }
+        Insert: {
+          event_id: string
+          org_id: string
+          prior_attempt_count: number
+          prior_delivered_at?: string | null
+          prior_delivery_state: Database["public"]["Enums"]["outbox_delivery_state"]
+          prior_failed_at?: string | null
+          prior_trigger_run_id?: string | null
+          quarantined_at?: string
+          reason_code?: string
+        }
+        Update: {
+          event_id?: string
+          org_id?: string
+          prior_attempt_count?: number
+          prior_delivered_at?: string | null
+          prior_delivery_state?: Database["public"]["Enums"]["outbox_delivery_state"]
+          prior_failed_at?: string | null
+          prior_trigger_run_id?: string | null
+          quarantined_at?: string
+          reason_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbox_event_envelope_quarantines_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "outbox_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbox_event_envelope_quarantines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbox_events: {
         Row: {
           aggregate_id: string
@@ -2052,6 +2121,202 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "outbox_events"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      staged_document_backfill_items: {
+        Row: {
+          canonical_asset_id: string | null
+          canonical_intake_item_id: string | null
+          created_at: string
+          duplicate_asset_id: string | null
+          externally_verified_at: string | null
+          first_claimed_at: string | null
+          id: string
+          legacy_staged_document_id: string
+          observed_byte_size: number | null
+          observed_sha256: string | null
+          org_id: string
+          outcome: Database["public"]["Enums"]["staged_document_backfill_outcome"]
+          safe_item_key: string
+          safe_reason_code: string | null
+          terminal_classified_at: string | null
+          transfer_attempt_count: number
+          transfer_completed_at: string | null
+          transfer_lease_expires_at: string | null
+          transfer_lease_token: string | null
+          updated_at: string
+          verification_attempt_count: number
+          verification_lease_expires_at: string | null
+          verification_lease_token: string | null
+        }
+        Insert: {
+          canonical_asset_id?: string | null
+          canonical_intake_item_id?: string | null
+          created_at?: string
+          duplicate_asset_id?: string | null
+          externally_verified_at?: string | null
+          first_claimed_at?: string | null
+          id?: string
+          legacy_staged_document_id: string
+          observed_byte_size?: number | null
+          observed_sha256?: string | null
+          org_id: string
+          outcome?: Database["public"]["Enums"]["staged_document_backfill_outcome"]
+          safe_item_key: string
+          safe_reason_code?: string | null
+          terminal_classified_at?: string | null
+          transfer_attempt_count?: number
+          transfer_completed_at?: string | null
+          transfer_lease_expires_at?: string | null
+          transfer_lease_token?: string | null
+          updated_at?: string
+          verification_attempt_count?: number
+          verification_lease_expires_at?: string | null
+          verification_lease_token?: string | null
+        }
+        Update: {
+          canonical_asset_id?: string | null
+          canonical_intake_item_id?: string | null
+          created_at?: string
+          duplicate_asset_id?: string | null
+          externally_verified_at?: string | null
+          first_claimed_at?: string | null
+          id?: string
+          legacy_staged_document_id?: string
+          observed_byte_size?: number | null
+          observed_sha256?: string | null
+          org_id?: string
+          outcome?: Database["public"]["Enums"]["staged_document_backfill_outcome"]
+          safe_item_key?: string
+          safe_reason_code?: string | null
+          terminal_classified_at?: string | null
+          transfer_attempt_count?: number
+          transfer_completed_at?: string | null
+          transfer_lease_expires_at?: string | null
+          transfer_lease_token?: string | null
+          updated_at?: string
+          verification_attempt_count?: number
+          verification_lease_expires_at?: string | null
+          verification_lease_token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_backfill_items_asset_fkey"
+            columns: ["org_id", "canonical_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "staged_document_backfill_items_duplicate_asset_fkey"
+            columns: ["org_id", "duplicate_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "staged_document_backfill_items_intake_fkey"
+            columns: ["org_id", "canonical_intake_item_id"]
+            isOneToOne: false
+            referencedRelation: "intake_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "staged_document_backfill_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staged_document_backfill_items_source_fkey"
+            columns: ["org_id", "legacy_staged_document_id"]
+            isOneToOne: true
+            referencedRelation: "staged_documents"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      staged_document_legacy_action_leases: {
+        Row: {
+          action_kind: Database["public"]["Enums"]["staged_document_legacy_action_kind"]
+          created_at: string
+          expires_at: string
+          lease_token: string
+          legacy_staged_document_id: string
+          org_id: string
+        }
+        Insert: {
+          action_kind: Database["public"]["Enums"]["staged_document_legacy_action_kind"]
+          created_at?: string
+          expires_at: string
+          lease_token: string
+          legacy_staged_document_id: string
+          org_id: string
+        }
+        Update: {
+          action_kind?: Database["public"]["Enums"]["staged_document_legacy_action_kind"]
+          created_at?: string
+          expires_at?: string
+          lease_token?: string
+          legacy_staged_document_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_legacy_action_org_id_legacy_staged_documen_fkey"
+            columns: ["org_id", "legacy_staged_document_id"]
+            isOneToOne: true
+            referencedRelation: "staged_documents"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      staged_document_retirement_audit_items: {
+        Row: {
+          audited_at: string | null
+          created_at: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          legacy_staged_document_id: string
+          org_id: string
+          outcome:
+            | Database["public"]["Enums"]["staged_document_retirement_audit_outcome"]
+            | null
+          updated_at: string
+        }
+        Insert: {
+          audited_at?: string | null
+          created_at?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          legacy_staged_document_id: string
+          org_id: string
+          outcome?:
+            | Database["public"]["Enums"]["staged_document_retirement_audit_outcome"]
+            | null
+          updated_at?: string
+        }
+        Update: {
+          audited_at?: string | null
+          created_at?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          legacy_staged_document_id?: string
+          org_id?: string
+          outcome?:
+            | Database["public"]["Enums"]["staged_document_retirement_audit_outcome"]
+            | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_retirement_audit_items_map_fkey"
+            columns: ["org_id", "legacy_staged_document_id"]
+            isOneToOne: true
+            referencedRelation: "staged_document_backfill_items"
+            referencedColumns: ["org_id", "legacy_staged_document_id"]
           },
         ]
       }
@@ -2543,6 +2808,18 @@ export type Database = {
         }
         Relationships: []
       }
+      document_outbox_delivery_diagnostics: {
+        Row: {
+          delivery_state:
+            | Database["public"]["Enums"]["outbox_delivery_state"]
+            | null
+          event_count: number | null
+          highest_attempt_count: number | null
+          oldest_due_at: string | null
+          oldest_lease_age: string | null
+        }
+        Relationships: []
+      }
       document_outbox_dispatch_diagnostics: {
         Row: {
           delivery_state:
@@ -2586,6 +2863,54 @@ export type Database = {
         Row: {
           id: string | null
           issue_code: string | null
+        }
+        Relationships: []
+      }
+      staged_document_backfill_diagnostics: {
+        Row: {
+          affected_count: number | null
+          issue: string | null
+          org_id: string | null
+        }
+        Relationships: []
+      }
+      staged_document_backfill_reports: {
+        Row: {
+          active_legacy_action_lease_count: number | null
+          active_retirement_audit_lease_count: number | null
+          active_source_count: number | null
+          active_transfer_lease_count: number | null
+          active_verification_lease_count: number | null
+          adapter_fence_mismatch_count: number | null
+          already_migrated_count: number | null
+          audit_destination_conflict_count: number | null
+          audit_destination_missing_count: number | null
+          audit_source_conflict_count: number | null
+          audit_source_missing_count: number | null
+          classification_complete: boolean | null
+          completed_transfer_inconsistent_count: number | null
+          diagnostic_count: number | null
+          duplicate_reference_count: number | null
+          duplicate_target_invalid_count: number | null
+          encrypted_pdf_count: number | null
+          invalid_lineage_count: number | null
+          legacy_source_count: number | null
+          malformed_pdf_count: number | null
+          mapped_lineage_invalid_count: number | null
+          missing_object_count: number | null
+          non_pdf_count: number | null
+          org_id: string | null
+          oversize_count: number | null
+          staging_retirement_ready: boolean | null
+          terminal_exception_count: number | null
+          transfer_completed_count: number | null
+          transfer_pending_count: number | null
+          transfer_reachability_audit_pending_count: number | null
+          transfer_reachability_verified_count: number | null
+          unmapped_source_count: number | null
+          unproven_quarantined_backfill_asset_count: number | null
+          unreadable_source_count: number | null
+          verification_required_count: number | null
         }
         Relationships: []
       }
@@ -2657,10 +2982,6 @@ export type Database = {
           code: string
         }[]
       }
-      discard_intake_item: {
-        Args: { p_idempotency: string; p_intake_id: string }
-        Returns: { code: string }[]
-      }
       claim_document_asset_storage_deletion_work: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -2703,6 +3024,37 @@ export type Database = {
           processing_run_id: string
         }[]
       }
+      claim_document_search_index_reprocess_work: {
+        Args: {
+          p_delivery_lease_token: string
+          p_event_id: string
+          p_expected_org_id: string
+          p_trigger_run_id: string
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lease_token: string
+          org_id: string
+          processing_run_id: string
+        }[]
+      }
+      claim_document_search_index_reprocess_work_unfenced: {
+        Args: {
+          p_event_id: string
+          p_expected_org_id: string
+          p_trigger_run_id: string
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lease_token: string
+          org_id: string
+          processing_run_id: string
+        }[]
+      }
       claim_document_validation_work: {
         Args: { p_event_id: string }
         Returns: {
@@ -2714,6 +3066,31 @@ export type Database = {
           lease_token: string
           object_key: string
           source_run_id: string
+        }[]
+      }
+      claim_staged_document_backfill_batch: {
+        Args: { p_batch_size?: number; p_org_id: string }
+        Returns: {
+          code: string
+          legacy_staged_document_id: string
+          safe_item_key: string
+          verification_lease_token: string
+        }[]
+      }
+      claim_staged_document_backfill_transfer_batch: {
+        Args: { p_batch_size?: number; p_org_id: string }
+        Returns: {
+          code: string
+          legacy_staged_document_id: string
+          transfer_lease_token: string
+        }[]
+      }
+      claim_staged_document_retirement_audit_batch: {
+        Args: { p_batch_size?: number; p_org_id: string }
+        Returns: {
+          audit_lease_token: string
+          code: string
+          legacy_staged_document_id: string
         }[]
       }
       complete_document_upload: {
@@ -2730,6 +3107,23 @@ export type Database = {
           duplicate_asset_id: string
           intake_item_id: string
           upload_session_id: string
+        }[]
+      }
+      complete_staged_document_backfill_transfer: {
+        Args: {
+          p_destination_observed_bytes: number
+          p_destination_sha256: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_source_observed_bytes: number
+          p_source_page_count: number
+          p_source_sha256: string
+          p_transfer_lease_token: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          intake_item_id: string
         }[]
       }
       create_metadata_only_document: {
@@ -2762,6 +3156,21 @@ export type Database = {
           retry_after: string
           token_version: number
         }[]
+      }
+      discard_intake_item: {
+        Args: { p_idempotency: string; p_intake_id: string }
+        Returns: {
+          code: string
+        }[]
+      }
+      document_lifecycle_outbox_envelope_is_safe: {
+        Args: {
+          p_aggregate_id: string
+          p_aggregate_type: string
+          p_event_kind: string
+          p_payload: Json
+        }
+        Returns: boolean
       }
       document_lifecycle_payload_is_safe: {
         Args: { payload: Json }
@@ -2845,6 +3254,47 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_search_index_reprocess_work: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_document_search_index_reprocess_work_retry_fence: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_document_search_index_reprocess_work_unfenced: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       finish_document_validation_work: {
         Args: {
           p_lease_token: string
@@ -2865,12 +3315,31 @@ export type Database = {
           sim_score: number
         }[]
       }
+      get_document_search_index_reprocess_input: {
+        Args: { p_lease_token: string; p_processing_run_id: string }
+        Returns: {
+          code: string
+          doc_type: string
+          financial_year: string
+          issued_by: string
+          reference_number: string
+          summary: string
+        }[]
+      }
       get_document_version_read_grant: {
         Args: { p_document_version_id: string }
         Returns: {
           bucket_id: string
           code: string
           object_key: string
+        }[]
+      }
+      get_intake_duplicate_resolution: {
+        Args: { p_intake_id: string }
+        Returns: {
+          code: string
+          document_id: string
+          matter_id: string
         }[]
       }
       get_intake_item_read_grant: {
@@ -2881,9 +3350,34 @@ export type Database = {
           object_key: string
         }[]
       }
-      get_intake_duplicate_resolution: {
-        Args: { p_intake_id: string }
-        Returns: { code: string; document_id: string; matter_id: string }[]
+      get_legacy_staged_document_action_source_grant: {
+        Args: {
+          p_action_kind: Database["public"]["Enums"]["staged_document_legacy_action_kind"]
+          p_lease_token: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+        }
+        Returns: {
+          bucket_id: string
+          code: string
+          intake_matter_id: string
+          object_key: string
+          uploaded_by: string
+        }[]
+      }
+      get_legacy_staged_document_eligible_ids: {
+        Args: { p_org_id: string }
+        Returns: {
+          legacy_staged_document_id: string
+        }[]
+      }
+      get_legacy_staged_document_read_grant: {
+        Args: { p_legacy_staged_document_id: string; p_org_id: string }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
+        }[]
       }
       get_my_organisation_context: {
         Args: never
@@ -2932,6 +3426,62 @@ export type Database = {
           revision: number
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_invite_state"]
+        }[]
+      }
+      get_staged_document_backfill_action_guard: {
+        Args: { p_legacy_staged_document_id: string; p_org_id: string }
+        Returns: {
+          code: string
+        }[]
+      }
+      get_staged_document_backfill_adapter_fences: {
+        Args: { p_org_id: string }
+        Returns: {
+          legacy_staged_document_id: string
+        }[]
+      }
+      get_staged_document_backfill_source_grant: {
+        Args: {
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_verification_lease_token: string
+        }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
+        }[]
+      }
+      get_staged_document_backfill_transfer_grant: {
+        Args: {
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_transfer_lease_token: string
+        }
+        Returns: {
+          code: string
+          destination_bucket_id: string
+          destination_object_key: string
+          expected_byte_size: number
+          expected_sha256: string
+          source_bucket_id: string
+          source_object_key: string
+        }[]
+      }
+      get_staged_document_retirement_audit_grant: {
+        Args: {
+          p_audit_lease_token: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+        }
+        Returns: {
+          code: string
+          destination_bucket_id: string
+          destination_object_key: string
+          expected_byte_size: number
+          expected_sha256: string
+          source_bucket_id: string
+          source_object_key: string
         }[]
       }
       has_organisation_capability: {
@@ -3055,27 +3605,31 @@ export type Database = {
           sim_score: number
         }[]
       }
+      organisation_member_capabilities: {
+        Args: {
+          p_is_owner: boolean
+          p_role: Database["public"]["Enums"]["org_member_role"]
+          p_state: Database["public"]["Enums"]["organisation_membership_state"]
+        }
+        Returns: string[]
+      }
+      outbox_delivery_retry_delay_seconds: {
+        Args: { p_attempt_number: number; p_event_id: string }
+        Returns: number
+      }
+      quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
+      reconcile_document_outbox_delivery: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          dead_letter_count: number
+          retried_count: number
+        }[]
+      }
       reconcile_document_processing_work: {
         Args: { p_batch_size?: number }
         Returns: {
           processing_requeued: number
           validation_requeued: number
-        }[]
-      }
-      request_document_reprocess: {
-        Args: {
-          p_capability_version: number
-          p_document_id: string
-          p_idempotency: string
-          p_scope: Database["public"]["Enums"]["document_processing_scope"]
-        }
-        Returns: {
-          code: string
-          document_id: string
-          document_version_id: string
-          outbox_event_id: string
-          processing_run_id: string
-          scope: Database["public"]["Enums"]["document_processing_scope"]
         }[]
       }
       record_document_asset_storage_deleted: {
@@ -3101,6 +3655,56 @@ export type Database = {
           code: string
         }[]
       }
+      record_staged_document_backfill_verification: {
+        Args: {
+          p_legacy_staged_document_id: string
+          p_observed_bytes?: number
+          p_org_id: string
+          p_sha256?: string
+          p_source_result: Database["public"]["Enums"]["staged_document_backfill_source_result"]
+          p_verification_lease_token: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          intake_item_id: string
+        }[]
+      }
+      record_staged_document_retirement_audit: {
+        Args: {
+          p_audit_lease_token: string
+          p_destination_observed_bytes?: number
+          p_destination_sha256?: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_outcome: Database["public"]["Enums"]["staged_document_retirement_audit_outcome"]
+          p_source_observed_bytes?: number
+          p_source_sha256?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      recover_unavailable_document_reprocess_event: {
+        Args: {
+          p_delivery_lease_token: string
+          p_event_id: string
+          p_expected_org_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      release_legacy_staged_document_action: {
+        Args: {
+          p_lease_token: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       replace_document_version: {
         Args: {
           p_document_id: string
@@ -3114,6 +3718,38 @@ export type Database = {
           code: string
           document_version_id: string
           lifecycle_revision: number
+        }[]
+      }
+      request_document_reprocess: {
+        Args: {
+          p_capability_version: number
+          p_document_id: string
+          p_idempotency: string
+          p_scope: Database["public"]["Enums"]["document_processing_scope"]
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          outbox_event_id: string
+          processing_run_id: string
+          scope: Database["public"]["Enums"]["document_processing_scope"]
+        }[]
+      }
+      request_document_reprocess_unavailable_scope_fence: {
+        Args: {
+          p_capability_version: number
+          p_document_id: string
+          p_idempotency: string
+          p_scope: Database["public"]["Enums"]["document_processing_scope"]
+        }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          outbox_event_id: string
+          processing_run_id: string
+          scope: Database["public"]["Enums"]["document_processing_scope"]
         }[]
       }
       resend_organisation_invite: {
@@ -3151,8 +3787,35 @@ export type Database = {
           upload_session_id: string
         }[]
       }
+      reserve_legacy_staged_document_action: {
+        Args: {
+          p_action_kind: Database["public"]["Enums"]["staged_document_legacy_action_kind"]
+          p_legacy_staged_document_id: string
+          p_org_id: string
+        }
+        Returns: {
+          code: string
+          lease_token: string
+        }[]
+      }
+      search_index_reprocess_retry_delay_seconds: {
+        Args: { p_attempt_number: number; p_processing_run_id: string }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      staged_document_backfill_source_is_valid: {
+        Args: {
+          p_intake_matter_id: string
+          p_org_id: string
+          p_storage_path: string
+        }
+        Returns: boolean
+      }
+      staged_document_backfill_storage_path_is_valid: {
+        Args: { p_org_id: string; p_storage_path: string }
+        Returns: boolean
+      }
       transition_organisation_invite: {
         Args: {
           p_action: string
@@ -3224,6 +3887,7 @@ export type Database = {
         | "ready"
         | "review"
         | "failed"
+        | "indexing"
       document_processing_state:
         | "queued"
         | "running"
@@ -3315,6 +3979,33 @@ export type Database = {
         | "failed"
         | "dead_letter"
       source_analysis_run_state: "queued" | "running" | "succeeded" | "failed"
+      staged_document_backfill_outcome:
+        | "verification_required"
+        | "transfer_pending"
+        | "missing_object"
+        | "unreadable_source"
+        | "malformed_pdf"
+        | "encrypted_pdf"
+        | "non_pdf"
+        | "oversize"
+        | "invalid_lineage"
+        | "duplicate_reference"
+        | "already_migrated"
+      staged_document_backfill_source_result:
+        | "valid_pdf"
+        | "missing"
+        | "unreadable"
+        | "malformed_pdf"
+        | "encrypted_pdf"
+        | "non_pdf"
+        | "oversize"
+      staged_document_legacy_action_kind: "assign" | "discard" | "analyze"
+      staged_document_retirement_audit_outcome:
+        | "verified_equal"
+        | "source_missing"
+        | "destination_missing"
+        | "source_observation_conflict"
+        | "destination_observation_conflict"
       staged_status:
         | "pending_assignment"
         | "analyzing"
@@ -3516,6 +4207,7 @@ export const Constants = {
         "ready",
         "review",
         "failed",
+        "indexing",
       ],
       document_processing_state: [
         "queued",
@@ -3618,6 +4310,36 @@ export const Constants = {
         "dead_letter",
       ],
       source_analysis_run_state: ["queued", "running", "succeeded", "failed"],
+      staged_document_backfill_outcome: [
+        "verification_required",
+        "transfer_pending",
+        "missing_object",
+        "unreadable_source",
+        "malformed_pdf",
+        "encrypted_pdf",
+        "non_pdf",
+        "oversize",
+        "invalid_lineage",
+        "duplicate_reference",
+        "already_migrated",
+      ],
+      staged_document_backfill_source_result: [
+        "valid_pdf",
+        "missing",
+        "unreadable",
+        "malformed_pdf",
+        "encrypted_pdf",
+        "non_pdf",
+        "oversize",
+      ],
+      staged_document_legacy_action_kind: ["assign", "discard", "analyze"],
+      staged_document_retirement_audit_outcome: [
+        "verified_equal",
+        "source_missing",
+        "destination_missing",
+        "source_observation_conflict",
+        "destination_observation_conflict",
+      ],
       staged_status: [
         "pending_assignment",
         "analyzing",

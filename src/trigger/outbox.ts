@@ -3,6 +3,7 @@ import { createSupabaseOutboxTransport } from '@/lib/outbox/supabase-transport'
 import { dispatchLeasedEvents, type DocumentLifecycleEnvelope } from '@/lib/outbox/dispatcher'
 import type { DocumentOutboxWakePayload } from '@/lib/outbox/wake'
 import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orchestration'
+import { isScopedSearchIndexClaim, runScopedSearchIndexReprocessWorker } from '@/lib/documents/scoped-reprocess'
 import { validatePdfBytes } from '@/lib/documents/validation'
 
 type RpcClient = {
@@ -30,7 +31,7 @@ export const documentLifecycleEvent = task({
   id: 'document-lifecycle-event',
   retry: { maxAttempts: 5 },
   queue: { concurrencyLimit: 4 },
-  run: async (payload: Omit<DocumentLifecycleEnvelope, 'leaseToken'>, { ctx }) => {
+  run: async (payload: DocumentLifecycleEnvelope, { ctx }) => {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const client = createServiceClient() as unknown as RpcClient
     if (payload.eventKind === 'document.upload_validation_requested.v1') {
@@ -65,6 +66,7 @@ export const documentLifecycleEvent = task({
         p_event_id: payload.eventId,
         p_trigger_run_id: ctx.run.id,
         p_expected_org_id: payload.orgId,
+        p_delivery_lease_token: payload.leaseToken,
       })
       if (!claim || claim.code !== 'claimed') return { accepted: true, routed: 'processing', outcome: String(claim?.code ?? 'no_work') }
       let outcome: ReturnType<typeof safeProcessingOutcome> = 'failed'
@@ -80,9 +82,29 @@ export const documentLifecycleEvent = task({
       return { accepted: true, routed: 'processing', outcome }
     }
     if (payload.eventKind === 'document.reprocess_requested.v1') {
-      // Durable scoped intent must never fall through to the legacy generic
-      // pipeline. A later scoped worker claims the persisted run fence.
-      return { accepted: true, routed: 'scoped-reprocess', outcome: 'queued_for_scoped_worker' }
+      // Only the metadata-summary index has a bounded, idempotent completion
+      // path today. A legacy non-search event can still arrive during an
+      // upgrade, so terminalize its run and open an auditable recovery case
+      // under the delivery lease rather than merely acknowledging it.
+      if (payload.payload.scope !== 'search_index') {
+        const recovery = await rpc(client, 'recover_unavailable_document_reprocess_event', {
+          p_event_id: payload.eventId,
+          p_expected_org_id: payload.orgId,
+          p_delivery_lease_token: payload.leaseToken,
+        })
+        return { accepted: true, routed: 'scoped-reprocess', outcome: String(recovery?.code ?? 'no_work') }
+      }
+      const claim = await rpc(client, 'claim_document_search_index_reprocess_work', {
+        p_event_id: payload.eventId,
+        p_trigger_run_id: ctx.run.id,
+        p_expected_org_id: payload.orgId,
+        p_delivery_lease_token: payload.leaseToken,
+      })
+      if (!isScopedSearchIndexClaim(claim)) {
+        return { accepted: true, routed: 'search-index-reprocess', outcome: String(claim?.code ?? 'no_work') }
+      }
+      const result = await runScopedSearchIndexReprocessWorker(client, claim)
+      return { accepted: true, routed: 'search-index-reprocess', outcome: result.outcome }
     }
     return { accepted: true, routed: 'observed', eventId: payload.eventId, eventKind: payload.eventKind }
   },
@@ -119,7 +141,10 @@ export const recoverDocumentOutbox = schedules.task({
 // effects predate run-level idempotency.
 export const reconcileDocumentLifecycleWork = schedules.task({
   id: 'reconcile-document-lifecycle-work',
-  cron: { pattern: '*/5 * * * *', timezone: 'UTC' },
+  // The bounded search-index retry schedule is 30–44s then 60–74s. A
+  // minute-level sweep preserves that backoff without turning reconciliation
+  // into an unbounded worker loop.
+  cron: { pattern: '* * * * *', timezone: 'UTC' },
   run: async () => {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const client = createServiceClient() as unknown as RpcClient

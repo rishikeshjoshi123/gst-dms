@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { updateDocumentMetadata, deleteDocument } from '@/lib/actions/document'
+import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
@@ -160,6 +161,8 @@ export function TimelineDocumentDetail({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
   const [isReassignOpen, setIsReassignOpen] = useState(false)
+  const [isReprocessing, setIsReprocessing] = useState(false)
+  const reprocessIdempotencyKey = useRef<string | null>(null)
   const [pendingNoteDeleteId, setPendingNoteDeleteId] = useState<string | null>(null)
 
   const handleDeleteDocument = async () => {
@@ -174,6 +177,19 @@ export function TimelineDocumentDetail({
       onClose?.()
     }
   }
+
+  const handleSearchIndexReprocess = async () => {
+    if (!reprocessIdempotencyKey.current) reprocessIdempotencyKey.current = crypto.randomUUID()
+    setIsReprocessing(true)
+    const result = await reprocessDocument(doc.id, 'search_index', reprocessIdempotencyKey.current)
+    setIsReprocessing(false)
+    if (result.error) toast.error(result.error)
+    else toast.success(result.status === 'queued' ? 'Search-index reprocessing queued.' : 'Search-index reprocessing is already queued.')
+  }
+
+  useEffect(() => {
+    reprocessIdempotencyKey.current = null
+  }, [doc.id])
 
   useEffect(() => {
     const handleQuote = (e: CustomEvent) => {
@@ -254,6 +270,8 @@ export function TimelineDocumentDetail({
   const metadata = doc.raw_metadata || {}
   const amounts = metadata.extracted_amounts || {}
   const viewUrl = `/matters/${doc.matter_id}/documents/${doc.id}`
+  const documentLabel = (record: { reference_number?: string | null, display_title?: string | null, storage_path?: string | null }) =>
+    record.reference_number || record.display_title || record.storage_path?.split('/').filter(Boolean).pop() || 'Untitled document'
 
   // Find linked documents
   const linkedDocIds = new Set<string>()
@@ -274,8 +292,8 @@ export function TimelineDocumentDetail({
             <FileText size={16} />
           </div>
           <div className="flex flex-col min-w-0 w-full">
-            <h3 className="text-sm font-semibold text-[--text-primary] truncate mb-0.5" title={doc.reference_number || doc.storage_path.split('/').pop()}>
-              {doc.reference_number || doc.storage_path.split('/').pop()}
+            <h3 className="text-sm font-semibold text-[--text-primary] truncate mb-0.5" title={documentLabel(doc)}>
+              {documentLabel(doc)}
             </h3>
             <div className="flex items-center flex-wrap gap-1.5">
               {doc.doc_type && <Badge variant="muted" className="text-[9px] uppercase h-4 px-1 py-0">{doc.doc_type}</Badge>}
@@ -295,11 +313,13 @@ export function TimelineDocumentDetail({
             type="button"
             variant="outline"
             size="sm"
-            disabled
-            aria-describedby="scoped-reprocess-unavailable"
+            onClick={handleSearchIndexReprocess}
+            disabled={isReprocessing}
+            loading={isReprocessing}
+            aria-describedby="scoped-reprocess-status"
           >
             <RefreshCw size={14} aria-hidden="true" />
-            Reprocess unavailable
+            Reprocess search index
           </Button>
           <Button
             type="button"
@@ -323,8 +343,8 @@ export function TimelineDocumentDetail({
           )}
         </div>
       </div>
-      <p id="scoped-reprocess-unavailable" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
-        Scoped reprocessing will be available when its dedicated worker is deployed.
+      <p id="scoped-reprocess-status" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+        Search-index reprocessing is available. Extraction, OCR, relationship, and full reprocessing remain unavailable until their dedicated workers are deployed.
       </p>
 
       {/* Tabs Selector */}
@@ -441,7 +461,7 @@ export function TimelineDocumentDetail({
                   return (
                     <div key={ldoc.id} className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] transition-colors">
                       <div className="flex flex-col gap-1 min-w-0">
-                        <span className="text-sm font-medium text-[--text-primary] truncate">{ldoc.reference_number || ldoc.storage_path.split('/').pop()}</span>
+                        <span className="text-sm font-medium text-[--text-primary] truncate">{documentLabel(ldoc)}</span>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="muted" className={`text-[9px] uppercase tracking-wider py-0 px-1 font-semibold ${isCurrentDocChild ? 'text-[var(--primary)] border-[var(--primary)]/30' : 'text-[var(--success)] border-[color-mix(in_srgb,var(--success)_30%,transparent)]'}`}>
                             {relationLabel}
