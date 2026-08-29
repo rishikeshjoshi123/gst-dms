@@ -26,14 +26,12 @@ export interface TimelineDocument {
   doc_type?: string | null
   document_class?: string | null
   storage_path?: string | null
+  display_title?: string | null
   created_at: string
+  doc_date?: string | null
+  reference_number?: string | null
+  summary?: string | null
   financial_year?: string | null
-  raw_metadata?: {
-    date?: string | null
-    reference_number?: string | null
-    summary?: string | null
-    financial_year?: string | null
-  } | null
 }
 
 export interface TimelineLink {
@@ -57,11 +55,11 @@ export function TimelineListFallback({
   selectedDocId?: string | null
   onSelectDoc?: (id: string) => void
 }) {
-  // Sort documents by date (newest first based on raw_metadata.date or created_at)
+  // Sort documents by date (newest first based on doc_date or created_at)
   const sortedDocuments = useMemo(() => {
     return [...documents].sort((a, b) => {
-      const dateA = a.raw_metadata?.date ? new Date(a.raw_metadata.date).getTime() : new Date(a.created_at).getTime()
-      const dateB = b.raw_metadata?.date ? new Date(b.raw_metadata.date).getTime() : new Date(b.created_at).getTime()
+      const dateA = a.doc_date ? new Date(a.doc_date).getTime() : new Date(a.created_at).getTime()
+      const dateB = b.doc_date ? new Date(b.doc_date).getTime() : new Date(b.created_at).getTime()
       return dateB - dateA
     })
   }, [documents])
@@ -113,27 +111,27 @@ export function TimelineListFallback({
                   {isProcessing && <Loader2 size={12} className="animate-spin text-[var(--primary)]" />}
                   {isFailed && <AlertTriangle size={12} className="text-[var(--danger)]" />}
                   <span className="text-[10px] text-[var(--text-muted)]">
-                    {doc.raw_metadata?.date 
-                      ? new Date(doc.raw_metadata.date).toLocaleDateString() 
+                    {doc.doc_date
+                      ? new Date(doc.doc_date).toLocaleDateString()
                       : formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
                   </span>
                 </div>
               </div>
               
               <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate mb-1">
-                {doc.raw_metadata?.reference_number || doc.storage_path?.split('/').pop() || 'Untitled document'}
+                {doc.reference_number || doc.display_title || doc.storage_path?.split('/').pop() || 'Untitled document'}
               </div>
               
-              {doc.raw_metadata?.summary && (
+              {doc.summary && (
                 <p className="text-xs text-[var(--text-secondary)] line-clamp-2 mb-2">
-                  {doc.raw_metadata.summary}
+                  {doc.summary}
                 </p>
               )}
               
               <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] font-mono">
                   <FileText size={10} />
-                  {doc.financial_year || doc.raw_metadata?.financial_year || 'No FY'}
+                  {doc.financial_year || 'No FY'}
                 </div>
                 {docLinks.length > 0 && (
                   <div className="flex items-center gap-1 text-[10px] font-medium text-[var(--primary)]">
