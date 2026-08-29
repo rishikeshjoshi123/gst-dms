@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { planVisualReferences, portalReadingOrder } from '../project-portal/plan-visual-references.mjs';
 import { planArticles } from '../project-portal/plan-articles.mjs';
-import { planArticleImages } from '../project-portal/plan-article-images.mjs';
 import { plainLanguagePlans } from '../project-portal/plain-language-plans.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -68,16 +67,13 @@ function renderSpecimen(specimenId) {
 function renderArticle(plan) {
   const article = planArticles[plan.relativePath];
   if (!article) throw new Error(`Plan is missing its public article: ${plan.relativePath}`);
-  const image = planArticleImages[plan.relativePath];
-  if (!image) throw new Error(`Plan is missing its editorial image: ${plan.relativePath}`);
   const flow = `<figure class="article-flow" aria-labelledby="flow-caption"><figcaption id="flow-caption">${escapeHtml(article.flowCaption)}</figcaption><ol>${article.flow.map((step, index) => `<li><span>${index + 1}</span>${escapeHtml(step)}</li>`).join('')}</ol></figure>`;
   const supportingVisuals = (planVisualReferences[plan.relativePath] ?? []).map((reference) => renderSpecimen(reference.specimenId)).join('');
   const sections = article.sections.map((section, index) => `<section class="story-section" id="${slugify(section.heading)}"><h2>${escapeHtml(section.heading)}</h2>${section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}${index === 0 ? flow : ''}${index === 1 ? supportingVisuals : ''}</section>`).join('');
-  const illustration = `<figure class="article-illustration"><img src="../assets/articles/${escapeHtml(image.file)}" alt="${escapeHtml(image.alt)}" width="1600" height="900" decoding="async"><figcaption>${escapeHtml(image.caption)}</figcaption></figure>`;
   const wordCount = [article.deck, article.intro, ...article.sections.flatMap((section) => [section.heading, ...section.paragraphs])].join(' ').trim().split(/\s+/).length;
   const toc = `<nav class="article-toc" aria-label="In this article"><span>In this article</span><ol>${article.sections.map((section) => `<li><a href="#${slugify(section.heading)}">${escapeHtml(section.heading)}</a></li>`).join('')}</ol></nav>`;
   return {
-    html: `<div class="article-introduction"><p class="article-deck">${escapeHtml(article.deck)}</p><p>${escapeHtml(article.intro)}</p></div>${illustration}${sections}`,
+    html: `<div class="article-introduction"><p class="article-deck">${escapeHtml(article.deck)}</p><p>${escapeHtml(article.intro)}</p></div>${sections}`,
     readingMinutes: Math.max(1, Math.ceil(wordCount / 220)),
     toc,
     wordCount,
@@ -162,8 +158,6 @@ await mkdir(path.join(outputRoot, 'plans'), { recursive: true });
 await mkdir(path.join(outputRoot, 'assets'), { recursive: true });
 await cp(path.join(root, 'project-portal/site.css'), path.join(outputRoot, 'assets/site.css'));
 await cp(path.join(root, 'project-portal/site.js'), path.join(outputRoot, 'assets/site.js'));
-await cp(path.join(root, 'project-portal/assets/planning-journey.png'), path.join(outputRoot, 'assets/planning-journey.png'));
-await cp(path.join(root, 'project-portal/assets/articles'), path.join(outputRoot, 'assets/articles'), { recursive: true });
 
 const planFiles = (await walk(plansRoot)).filter((file) => file.endsWith('.md') && !file.endsWith('_template.md'));
 const plans = (await Promise.all(planFiles.map(async (file) => parsePlan(await readFile(file, 'utf8'), file)))).filter(Boolean);
@@ -175,8 +169,6 @@ const missingEdition = plans.find((plan) => !plainLanguagePlans[plan.relativePat
 if (missingEdition) throw new Error(`Plan is missing its public-reader edition: ${missingEdition.relativePath}`);
 const missingArticle = plans.find((plan) => !planArticles[plan.relativePath]);
 if (missingArticle) throw new Error(`Plan is missing its public article: ${missingArticle.relativePath}`);
-const missingArticleImage = plans.find((plan) => !planArticleImages[plan.relativePath]);
-if (missingArticleImage) throw new Error(`Plan is missing its editorial image: ${missingArticleImage.relativePath}`);
 const invalidArticleLength = plans.find((plan) => {
   const article = planArticles[plan.relativePath];
   const words = [article.deck, article.intro, ...article.sections.flatMap((section) => [section.heading, ...section.paragraphs])].join(' ').trim().split(/\s+/).length;
@@ -188,12 +180,9 @@ const count = (status) => plans.filter((plan) => plan.status === status).length;
 
 const metrics = statusOrder.filter((status) => count(status)).map((status) => `<div class="metric"><span class="metric-value">${count(status)}</span><span class="metric-label">${escapeHtml(statusLabel(status))}</span></div>`).join('');
 const filterButtons = ['all', ...statusOrder.filter((status) => count(status))].map((status, index) => `<button class="filter-button" type="button" data-plan-filter="${status}" aria-pressed="${index === 0}">${status === 'all' ? 'All plans' : statusLabel(status)}${status === 'all' ? ` (${plans.length})` : ` (${count(status)})`}</button>`).join('');
-const cards = plans.map((plan) => {
-  const image = planArticleImages[plan.relativePath];
-  return `<article class="plan-card" data-plan-status="${escapeHtml(plan.status)}"><a class="plan-card-link" href="plans/${plan.slug}.html"><img class="plan-card-image" src="assets/articles/${escapeHtml(image.file)}" alt="" width="800" height="450" loading="lazy" decoding="async"><div class="plan-card-content"><div><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span></div><h3>${escapeHtml(plan.title)}</h3><p>${escapeHtml(plainLanguagePlans[plan.relativePath].overview)}</p><div class="plan-meta"><span>${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><span class="read-link">Read article →</span></div></a></article>`;
-}).join('');
+const cards = plans.map((plan) => `<article class="plan-card" data-plan-status="${escapeHtml(plan.status)}"><a class="plan-card-link" href="plans/${plan.slug}.html"><div class="plan-card-content"><div><span class="badge status-${escapeHtml(plan.status)}">${escapeHtml(statusLabel(plan.status))}</span></div><h3>${escapeHtml(plan.title)}</h3><p>${escapeHtml(plainLanguagePlans[plan.relativePath].overview)}</p><div class="plan-meta"><span>${escapeHtml(domainNames[plan.domain] ?? plan.domain)}</span><span>Updated ${escapeHtml(plan.updated)}</span></div><span class="read-link">Read article →</span></div></a></article>`).join('');
 
-const dashboard = `<section class="portal-hero"><div><p class="eyebrow">Public review space</p><h1>CaseChain, clearly mapped.</h1><p class="lede">A friendly guide to what we are building, why it matters, and how the pieces fit together. Plan status shows how settled the thinking is—it does not mean every feature has shipped.</p></div><img src="assets/planning-journey.png" alt="Illustration of documents, people, and a connected project journey." width="1536" height="1024"></section>
+const dashboard = `<section class="portal-hero"><p class="eyebrow">Public review space</p><h1>CaseChain, clearly mapped.</h1><p class="lede">A friendly guide to what we are building, why it matters, and how the pieces fit together. Plan status shows how settled the thinking is—it does not mean every feature has shipped.</p></section>
 <section class="section"><div class="section-heading"><div><h2>Plan overview</h2><p>${plans.length} archived plans · source status from plan frontmatter</p></div></div><div class="metric-grid">${metrics}</div></section>
 <section class="section" id="plans"><div class="section-heading"><div><h2>Plans</h2><p>Read in the recommended order. Each page is written for people first, with the detailed source plan always one click away.</p></div></div><div class="filter-bar" aria-label="Filter plans by status">${filterButtons}</div><div class="plan-list">${cards}</div><p class="empty-filter" data-empty-filter>No plans match this filter.</p></section>`;
 await writeFile(path.join(outputRoot, 'index.html'), layout('Overview', dashboard));
