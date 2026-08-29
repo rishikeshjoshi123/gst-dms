@@ -3182,6 +3182,10 @@ export type Database = {
           lifecycle_revision: number
         }[]
       }
+      assert_staged_document_adapter_retirement_ready: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       attach_intake_to_document: {
         Args: {
           p_document_id: string

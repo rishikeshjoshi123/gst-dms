@@ -121,8 +121,9 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     if (!hasRetryableError && !hasTerminalOutcome) {
       setAllDone(true)
       router.refresh()
-      // Once staging succeeds, return the user to the live queue immediately.
-      // Processing continues in the background and is shown there via realtime.
+      // Once the canonical Intake upload succeeds, return to the queue.
+      // Processing continues in the background and the refreshed Intake state
+      // remains the source of truth.
       onClose()
     }
   }

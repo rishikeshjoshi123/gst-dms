@@ -10,6 +10,10 @@ import {
   AlertTriangle, Sparkles, X, User, Zap, FolderOpen, BellOff
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  isRetiredStagedNotification,
+  RETIRED_STAGED_NOTIFICATION_COPY,
+} from '@/lib/notifications/staged-retirement'
 import Link from 'next/link'
 
 const TYPE_CONFIG: Record<string, {
@@ -55,7 +59,7 @@ const TYPE_CONFIG: Record<string, {
     iconColor: 'text-[var(--accent)]',
   },
   staged_doc_ready: {
-    label: 'Staged Document',
+    label: 'Retired staging history',
     icon: FolderOpen,
     pillBg: 'bg-[var(--accent-muted)] text-[var(--primary)]',
     iconColor: 'text-[var(--primary)]',
@@ -104,11 +108,11 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
   }
 
   const getEntityHref = (n: any): string | null => {
+    if (isRetiredStagedNotification(n)) return null
     if (!n.entity_id) return null
     if (n.entity_type === 'document') return `/matters` // ideally /matters/:id
     if (n.entity_type === 'matter') return `/matters/${n.entity_id}`
     if (n.entity_type === 'case_note') return `/notes`
-    if (n.entity_type === 'staged_document') return `/inbox`
     return null
   }
 
@@ -151,7 +155,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                'flex min-h-11 min-w-11 items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
                 activeTab === tab.key
                   ? 'bg-[var(--surface-hover)] shadow-sm'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
@@ -188,6 +192,9 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
             const cfg = TYPE_CONFIG[n.type as keyof typeof TYPE_CONFIG] ?? DEFAULT_CONFIG
             const Icon = cfg.icon
             const href = getEntityHref(n)
+            const isRetiredStaged = isRetiredStagedNotification(n)
+            const title = isRetiredStaged ? RETIRED_STAGED_NOTIFICATION_COPY.title : n.title
+            const body = isRetiredStaged ? RETIRED_STAGED_NOTIFICATION_COPY.body : n.body
 
             return (
               <div
@@ -233,10 +240,10 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
                         'text-sm font-semibold leading-snug',
                         n.is_read ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]'
                       )}>
-                        {n.title}
+                        {title}
                       </p>
-                      {n.body && (
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{n.body}</p>
+                      {body && (
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{body}</p>
                       )}
                     </div>
 

@@ -5,35 +5,23 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   FileText, AlertCircle, Check, Loader2, Plus, ExternalLink,
-  ChevronDown, ChevronUp, Sparkles, Search,
-  FolderOpen, Zap, ArrowRight, Trash2, RefreshCw, Bot,
-  FolderPlus, Copy, AlertTriangle, Inbox
+  ChevronDown, Search, FolderOpen, Zap, ArrowRight, Trash2, RefreshCw,
+  Copy, AlertTriangle, Inbox,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/client'
 import {
-  assignCanonicalIntakeToMatter, assignStagedDocument, discardCanonicalIntake, discardStagedDocument, getCanonicalDuplicateResolution,
-  autoCreateClientAndMatterForStagedDocument,
+  assignCanonicalIntakeToMatter, discardCanonicalIntake, getCanonicalDuplicateResolution,
   getStagedDocuments
 } from '@/lib/actions/inbox'
-import { getDocumentSignedUrl, getIntakeItemSignedUrl } from '@/lib/actions/document'
+import { getIntakeItemSignedUrl } from '@/lib/actions/document'
 import { canonicalIntakeActions } from '@/lib/inbox-compat'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import { UploadModal } from './UploadModal'
 import { DocumentViewerModal } from './DocumentViewerModal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-
-function humanizeKey(key: string) {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
 
 function uniqueDocumentsById<T extends { id: string }>(documents: T[]) {
   return Array.from(new Map(documents.map(document => [document.id, document])).values())
@@ -242,12 +230,10 @@ export function InboxClientView({
     initialDocuments.length > 0 ? initialDocuments[0].id : null
   )
   const [selectedMatterId, setSelectedMatterId] = useState<string>(preselectedMatterId || '')
-  const [selectedFyToCreate, setSelectedFyToCreate] = useState<string>('')
   const [isPending, startTransition] = useTransition()
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false)
-  const [isSynopsisExpanded, setIsSynopsisExpanded] = useState(false)
   const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null)
   const [intakeTab, setIntakeTab] = useState<'global' | 'matter'>(preselectedMatterId ? 'matter' : 'global')
   const uploadTriggerRef = useRef<HTMLButtonElement>(null)
@@ -281,7 +267,6 @@ export function InboxClientView({
   const globalDocuments = useMemo(() => documents.filter(doc => !doc.intake_matter_id), [documents])
   const visibleDocuments = isMatterIntake ? matterIntakeDocuments : globalDocuments
   const activeDoc = visibleDocuments.find(d => d.id === selectedDocId)
-  const isCanonicalIntake = activeDoc?.source_kind === 'canonical_intake'
   const activeCanonicalActions = canonicalIntakeActions(activeDoc?.canonical_intake_state ?? '')
 
   useEffect(() => {
@@ -299,23 +284,12 @@ export function InboxClientView({
     }
   }, [activeDoc, preselectedMatterId])
 
-  const discardedDocIds = useRef<Set<string>>(new Set())
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // A matter tab is an active intake session, not a permanent alternate view.
   // Keep an empty tab open initially so a user can add files, then return to
   // the global hub after a queue that contained files has fully cleared.
   const hadMatterQueueRef = useRef(Boolean(
     preselectedMatterId && initialDocuments.some(doc => doc.intake_matter_id === preselectedMatterId),
   ))
-
-  // Use refs to access latest state inside the websocket callback without causing reconnects
-  const docsRef = useRef(documents)
-  const selectedIdRef = useRef(selectedDocId)
-
-  useEffect(() => {
-    docsRef.current = documents
-    selectedIdRef.current = selectedDocId
-  }, [documents, selectedDocId])
 
   useEffect(() => {
     if (matterIntakeDocuments.length > 0) hadMatterQueueRef.current = true
@@ -332,81 +306,6 @@ export function InboxClientView({
     }
   }, [matterIntakeDocuments.length, preselectedMatterId, router])
 
-  useEffect(() => {
-    // `intake_items` is deliberately absent from the Realtime publication:
-    // its compatibility projection uses a privileged, org-scoped server read.
-    // Subscribe only to legacy staged rows; the visible Refresh queue control
-    // below is the explicit, safe freshness path for canonical intake updates.
-    const supabase = createClient()
-    let disposed = false
-    const channel = supabase.channel('staged_docs_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'staged_documents' }, (payload) => {
-        if (payload.eventType === 'UPDATE') {
-          const updatedId = payload.new.id
-          const newStatus = payload.new.status
-
-          setDocuments(currentDocs => {
-            // If it became auto_assigned, remove it from the list and show a toast
-            if (newStatus === 'auto_assigned') {
-              if (!discardedDocIds.current.has(updatedId)) {
-                const oldDoc = currentDocs.find(d => d.id === updatedId)
-                if (oldDoc) {
-                  toast.success(`Automated Processing Complete`, {
-                    description: `${oldDoc.storage_path.split('/').pop()} was successfully assigned.`,
-                  })
-                }
-              }
-              return currentDocs.filter(d => d.id !== updatedId)
-            }
-
-            // Otherwise, update the document in the list with the new data
-            return currentDocs.map(d => d.id === updatedId ? { ...d, ...payload.new } : d)
-          })
-
-          // Handle selected document changing or disappearing
-          if (selectedIdRef.current === updatedId && newStatus === 'auto_assigned') {
-            setSelectedDocId(null) // It's gone, so deselect it
-          }
-        } else if (payload.eventType === 'INSERT') {
-          // If a new document is staged, add it to the list
-          setDocuments(currentDocs => {
-            const existingIndex = currentDocs.findIndex(document => document.id === payload.new.id)
-            if (existingIndex === -1) return [...currentDocs, payload.new]
-            return currentDocs.map((document, index) => index === existingIndex ? { ...document, ...payload.new } : document)
-          })
-        } else if (payload.eventType === 'DELETE') {
-          // If a document is deleted, remove it from the list
-          setDocuments(currentDocs => currentDocs.filter(d => d.id !== payload.old.id))
-          if (selectedIdRef.current === payload.old.id) {
-            setSelectedDocId(null)
-          }
-        }
-
-        // Realtime payloads contain only staged_documents columns. Refresh the
-        // authoritative query so new/updated cards also get client and matter
-        // joins, rather than briefly rendering as an incomplete "unknown" item.
-        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = setTimeout(() => {
-          void getStagedDocuments().then(latestDocuments => setDocuments(uniqueDocumentsById(latestDocuments)))
-          router.refresh()
-        }, 250)
-      })
-    // Realtime RLS needs the browser session token. Hydration can run before
-    // the client has loaded its auth cookie, so set it before subscribing.
-    void (async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) await supabase.realtime.setAuth(session.access_token)
-      if (disposed) return
-      channel.subscribe()
-    })()
-
-    return () => {
-      disposed = true
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      supabase.removeChannel(channel)
-    }
-  }, [router])
-
   const handleSelectDoc = (doc: any) => {
     setSelectedDocId(doc.id)
     if (preselectedMatterId) setSelectedMatterId(preselectedMatterId)
@@ -417,31 +316,12 @@ export function InboxClientView({
   function handleAssign() {
     if (!selectedDocId || !selectedMatterId) return
     startTransition(async () => {
-      const res = isCanonicalIntake
-        ? await assignCanonicalIntakeToMatter(selectedDocId, selectedMatterId, canonicalActionKeys.current.get(`assign:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`assign:${selectedDocId}`, key); return key })())
-        : await assignStagedDocument(selectedDocId, selectedMatterId)
+      const res = await assignCanonicalIntakeToMatter(selectedDocId, selectedMatterId, canonicalActionKeys.current.get(`assign:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`assign:${selectedDocId}`, key); return key })())
       if (res.error) {
         toast.error(res.error)
       } else {
-        if (isCanonicalIntake) canonicalActionKeys.current.delete(`assign:${selectedDocId}`)
+        canonicalActionKeys.current.delete(`assign:${selectedDocId}`)
         toast.success('Document assigned successfully')
-        setIsActionModalOpen(false)
-        const latestDocs = await getStagedDocuments()
-        setDocuments(uniqueDocumentsById(latestDocs))
-        router.refresh()
-      }
-    })
-  }
-
-  function handleAutoCreate() {
-    if (isCanonicalIntake) return
-    if (!selectedDocId) return
-    startTransition(async () => {
-      const res = await autoCreateClientAndMatterForStagedDocument(selectedDocId, selectedFyToCreate)
-      if (res.error) {
-        toast.error(res.error)
-      } else {
-        toast.success('Matter and client automatically created')
         setIsActionModalOpen(false)
         const latestDocs = await getStagedDocuments()
         setDocuments(uniqueDocumentsById(latestDocs))
@@ -452,15 +332,12 @@ export function InboxClientView({
 
   function handleDiscard() {
     if (!selectedDocId) return
-    discardedDocIds.current.add(selectedDocId)
     startTransition(async () => {
-      const res = isCanonicalIntake
-        ? await discardCanonicalIntake(selectedDocId, canonicalActionKeys.current.get(`discard:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`discard:${selectedDocId}`, key); return key })())
-        : await discardStagedDocument(selectedDocId)
+      const res = await discardCanonicalIntake(selectedDocId, canonicalActionKeys.current.get(`discard:${selectedDocId}`) ?? (() => { const key = crypto.randomUUID(); canonicalActionKeys.current.set(`discard:${selectedDocId}`, key); return key })())
       if (res.error) {
         toast.error(res.error)
       } else {
-        if (isCanonicalIntake) canonicalActionKeys.current.delete(`discard:${selectedDocId}`)
+        canonicalActionKeys.current.delete(`discard:${selectedDocId}`)
         toast.success('Document discarded')
         setIsDiscardConfirmOpen(false)
         setIsActionModalOpen(false)
@@ -474,18 +351,9 @@ export function InboxClientView({
 
   async function handleViewDocument() {
     if (!activeDoc) return
-    if (isCanonicalIntake) {
-      const res = await getIntakeItemSignedUrl(activeDoc.id)
-      if (res.error || !res.url) toast.error(res.error || 'Failed to generate signed URL')
-      else setViewDocumentUrl(res.url)
-      return
-    }
-    const res = await getDocumentSignedUrl('staging', activeDoc.storage_path)
-    if (res.error || !res.url) {
-      toast.error(res.error || 'Failed to generate signed url')
-    } else {
-      setViewDocumentUrl(res.url)
-    }
+    const res = await getIntakeItemSignedUrl(activeDoc.id)
+    if (res.error || !res.url) toast.error(res.error || 'Failed to generate signed URL')
+    else setViewDocumentUrl(res.url)
   }
 
   async function handleOpenCanonicalDuplicate() {
@@ -501,15 +369,6 @@ export function InboxClientView({
     }
     toast.error('The matching document is not available. Refresh the queue or contact support.')
   }
-
-  const hasExtractedMetadata = activeDoc && activeDoc.raw_metadata && Object.keys(activeDoc.raw_metadata).length > 0 && (
-    activeDoc.raw_metadata.client_name ||
-    activeDoc.raw_metadata.gstin ||
-    activeDoc.raw_metadata.reference_number ||
-    activeDoc.raw_metadata.doc_type ||
-    activeDoc.raw_metadata.financial_year ||
-    activeDoc.raw_metadata.tax_period
-  )
 
   const isDuplicate = activeDoc?.status === 'duplicate' || activeDoc?.suggestion_reason?.toLowerCase().startsWith('duplicate')
   const hasSuggestion = activeDoc?.suggested_client && activeDoc?.suggested_matter
@@ -714,46 +573,21 @@ export function InboxClientView({
 
                 {/* Action Buttons row */}
                 <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
-                  {isCanonicalIntake ? (
-                    <>
-                      <Badge variant="muted" fixedWidth="lg">Canonical intake</Badge>
-                      {activeCanonicalActions.canPreview && (
-                        <Button type="button" variant="outline" size="sm" ref={viewPdfButtonRef} onClick={handleViewDocument}>
-                          <ExternalLink size={12} aria-hidden="true" /> View PDF
-                        </Button>
-                      )}
-                      {activeCanonicalActions.canAssign && (
-                        <Button type="button" size="sm" ref={takeActionButtonRef} onClick={() => setIsActionModalOpen(true)}>
-                          <Zap size={13} aria-hidden="true" /> Assign to matter
-                        </Button>
-                      )}
-                      {activeCanonicalActions.canDiscard && !activeCanonicalActions.canAssign && (
-                        <Button type="button" variant="destructive" size="sm" onClick={() => setIsDiscardConfirmOpen(true)}>
-                          <Trash2 size={13} aria-hidden="true" /> Discard intake
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    ref={viewPdfButtonRef}
-                    onClick={handleViewDocument}
-                  >
-                    <ExternalLink size={12} aria-hidden="true" /> View PDF
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    ref={takeActionButtonRef}
-                    onClick={() => setIsActionModalOpen(true)}
-                    disabled={Boolean(activeProcessingCopy)}
-                  >
-                    <Zap size={13} aria-hidden="true" /> Take Action
-                  </Button>
-                    </>
+                  <Badge variant="muted" fixedWidth="lg">Canonical intake</Badge>
+                  {activeCanonicalActions.canPreview && (
+                    <Button type="button" variant="outline" size="sm" ref={viewPdfButtonRef} onClick={handleViewDocument}>
+                      <ExternalLink size={12} aria-hidden="true" /> View PDF
+                    </Button>
+                  )}
+                  {activeCanonicalActions.canAssign && (
+                    <Button type="button" size="sm" ref={takeActionButtonRef} onClick={() => setIsActionModalOpen(true)}>
+                      <Zap size={13} aria-hidden="true" /> Assign to matter
+                    </Button>
+                  )}
+                  {activeCanonicalActions.canDiscard && !activeCanonicalActions.canAssign && (
+                    <Button type="button" variant="destructive" size="sm" onClick={() => setIsDiscardConfirmOpen(true)}>
+                      <Trash2 size={13} aria-hidden="true" /> Discard intake
+                    </Button>
                   )}
                 </div>
               </header>
@@ -761,8 +595,7 @@ export function InboxClientView({
               <div className="min-h-0 flex-1 overflow-visible py-3 lg:overflow-y-auto custom-scrollbar">
               <div className="flex flex-col gap-5">
               {/* ── State panels ── */}
-              {isCanonicalIntake ? (
-                <div className={cn(
+              <div className={cn(
                   'flex flex-col items-center justify-center rounded-[var(--radius-md)] border px-5 py-12 text-center',
                   activeDoc.status === 'failed'
                     ? 'border-[color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[var(--danger-muted)]'
@@ -821,190 +654,6 @@ export function InboxClientView({
                     </Button>
                   )}
                 </div>
-              ) : activeProcessingCopy ? (
-                <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-5 py-12 text-center">
-                  <div className="relative mb-5">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)]">
-                      <Bot size={24} className="text-[var(--primary)]" />
-                    </div>
-                    <Loader2 size={14} className="animate-spin text-[var(--primary)] absolute -bottom-1 -right-1" />
-                  </div>
-                  <h3 className="text-[15px] font-bold text-[var(--text-primary)]">{activeProcessingCopy.title}</h3>
-                  <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 max-w-xs">
-                    {activeProcessingCopy.detail}
-                  </p>
-                  <ProcessingProgress status={activeDoc.status} />
-                </div>
-              ) : activeDoc.status === 'failed' ? (
-                <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--danger)_28%,transparent)] bg-[var(--danger-muted)]">
-                  <div className="flex items-center gap-3 border-b border-[color-mix(in_srgb,var(--danger)_22%,transparent)] p-4">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
-                      <AlertTriangle size={16} className="text-[var(--danger)]" />
-                    </div>
-                    <div>
-                      <div className="text-[14px] font-semibold text-[var(--danger)]">AI extraction failed</div>
-                      <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">Retrying this legacy staging item is unavailable. Assign it manually or use the canonical intake workflow.</div>
-                    </div>
-                  </div>
-                  <div className="p-4 flex flex-col gap-3">
-                    <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-                      {activeDoc.suggestion_reason || 'An unknown error occurred during extraction.'}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        onClick={() => setIsActionModalOpen(true)}
-                      >
-                        <FolderPlus size={12} aria-hidden="true" />
-                        Assign Manually
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : !hasExtractedMetadata ? (
-                <div className="flex flex-col items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] py-14 text-center">
-                  <AlertCircle size={28} className="text-[var(--text-muted)] mb-3" />
-                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">No data could be extracted</h3>
-                  <p className="text-[13px] text-[var(--text-muted)] mt-1 max-w-xs">AI could not identify key fields from this document. Assign it manually.</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsActionModalOpen(true)}
-                    className="mt-4"
-                  >
-                    Assign Manually
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-
-                  {/* Duplicate warning banner */}
-                  {isDuplicate && (
-                    <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[var(--warning-muted)] p-4">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
-                        <Copy size={14} className="text-[var(--warning)]" />
-                      </div>
-                      <div>
-                        <div className="mb-1 text-[13px] font-semibold text-[var(--warning)]">Duplicate document detected</div>
-                        <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
-                          {activeDoc.suggestion_reason?.replace('DUPLICATE: ', '')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* AI Match suggestion */}
-                  {hasSuggestion && !isDuplicate && (
-                    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--success)_24%,transparent)] bg-[var(--success-muted)] p-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface)]">
-                          <Zap size={12} className="text-[var(--success)]" />
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--success)]">AI recommended match</div>
-                          <div className="text-[13px] font-medium text-[var(--text-primary)] mt-0.5">
-                            {activeDoc.suggested_client?.name} · {activeDoc.suggested_matter?.title}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setIsActionModalOpen(true)}
-                        className="h-7 shrink-0 rounded-[var(--radius-sm)] bg-[var(--success)] px-3 text-[11px] font-medium text-[var(--on-success)] transition-colors hover:opacity-90"
-                      >
-                        Confirm
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Metadata Card */}
-                  <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-                    <div className="h-0.5 bg-[var(--primary)]" />
-
-                    <div className="p-5 flex flex-col gap-5">
-                      <div className="flex items-center gap-2">
-                        <Bot size={15} className="text-[var(--primary)]" />
-                        <span className="text-[13px] font-bold text-[var(--text-primary)]">AI-Extracted Metadata</span>
-                        {activeDoc.raw_metadata?.confidence && (
-                          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]">
-                            {Math.round(activeDoc.raw_metadata.confidence * 100)}% confidence
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Fields grid */}
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { label: 'Client Name', value: activeDoc.raw_metadata?.client_name },
-                          { label: 'GSTIN / PAN', value: [activeDoc.raw_metadata?.gstin, activeDoc.raw_metadata?.pan].filter(Boolean).join(' / ') || null, mono: true },
-                          { label: 'Document Type', value: activeDoc.raw_metadata?.doc_type },
-                          { label: 'Ref / Case No.', value: activeDoc.raw_metadata?.reference_number, mono: true },
-                          { label: 'Financial Year', value: activeDoc.raw_metadata?.financial_years?.join(', ') || activeDoc.raw_metadata?.financial_year },
-                          { label: 'Tax Period', value: activeDoc.raw_metadata?.tax_period },
-                        ].map(({ label, value, mono }) => (
-                          <div key={label} className="flex flex-col gap-1 p-2.5 rounded-[var(--radius-md)] bg-[var(--surface-hover)]">
-                            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</span>
-                            <span className={`text-[13px] font-semibold text-[var(--text-primary)] ${mono ? 'font-mono' : ''}`}>
-                              {value || <span className="text-[var(--text-muted)] font-normal">—</span>}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Synopsis */}
-                      {activeDoc.raw_metadata?.summary && (
-                        <div className="border-t border-[var(--border)] pt-4">
-                          <button
-                            type="button"
-                            onClick={() => setIsSynopsisExpanded(!isSynopsisExpanded)}
-                            className="w-full flex items-center justify-between gap-2 text-left group"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Sparkles size={13} className="text-[var(--accent)] shrink-0" />
-                              <span className="text-[12px] font-bold text-[var(--text-primary)]">AI Synopsis</span>
-                              {!isSynopsisExpanded && (
-                                <span className="text-[12px] text-[var(--text-muted)] truncate max-w-[220px]">
-                                  — {activeDoc.raw_metadata.summary.slice(0, 80)}…
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] font-bold text-[var(--primary)] shrink-0 flex items-center gap-0.5">
-                              {isSynopsisExpanded ? (<>Hide <ChevronUp size={12} /></>) : (<>Expand <ChevronDown size={12} /></>)}
-                            </span>
-                          </button>
-                          {isSynopsisExpanded && (
-                            <div className="mt-3 text-[13px] text-[var(--text-secondary)] leading-relaxed bg-[var(--surface-hover)] p-4 rounded-[var(--radius-md)] border border-[var(--border)] animate-in fade-in duration-150">
-                              {activeDoc.raw_metadata.summary}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Financials */}
-                      {activeDoc.raw_metadata?.extracted_amounts && Object.values(activeDoc.raw_metadata.extracted_amounts).some(v => v !== null) && (
-                        <div className="border-t border-[var(--border)] pt-4">
-                          <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-3">Financials</div>
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {Object.entries(activeDoc.raw_metadata.extracted_amounts).map(([key, val]) => {
-                              if (val === null || val === undefined) return null
-                              return (
-                                <div key={key} className="flex flex-col p-3 rounded-[var(--radius-md)] bg-[var(--surface-hover)] border border-[var(--border)]">
-                                  <span className="text-[11px] text-[var(--text-muted)] mb-1">{humanizeKey(key)}</span>
-                                  <span className="text-[15px] font-bold font-mono text-[var(--text-primary)]">
-                                    ₹{Number(val).toLocaleString('en-IN')}
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
             </div>
             </>
@@ -1109,46 +758,7 @@ export function InboxClientView({
                   Confirm Assignment
                 </Button>
 
-                {/* Auto-create */}
-                {!isCanonicalIntake && activeDoc.status !== 'failed' && (!activeDoc.suggested_matter || matters.length === 0) && !preselectedMatterId && (
-                  <div className="flex flex-col gap-2 mt-1">
-                    {activeDoc.raw_metadata?.financial_years && activeDoc.raw_metadata.financial_years.length > 1 && (
-                      <div className="flex flex-col gap-1.5 p-3 rounded-[var(--radius-md)] border border-[var(--primary)]/20 bg-[var(--primary)]/5">
-                        <label className="text-[11px] font-bold text-[var(--primary)] uppercase tracking-widest flex items-center gap-1.5">
-                          <AlertCircle size={12} />
-                          Multiple FYs Detected
-                        </label>
-                        <p className="text-[12px] text-[var(--text-secondary)] mb-1">
-                          This document spans multiple years. Choose which financial year to create the matter under:
-                        </p>
-                        <select
-                          value={selectedFyToCreate}
-                          onChange={(e) => setSelectedFyToCreate(e.target.value)}
-                          className="w-full text-[13px] bg-[var(--surface)] border border-[var(--border-strong)] rounded-lg px-3 py-2 outline-none focus:border-[var(--primary)] text-[var(--text-primary)]"
-                        >
-                          <option value="">Select Financial Year...</option>
-                          {activeDoc.raw_metadata.financial_years.map((fy: string) => (
-                            <option key={fy} value={fy}>{fy}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      onClick={handleAutoCreate}
-                      disabled={isPending || (activeDoc.raw_metadata?.financial_years?.length > 1 && !selectedFyToCreate)}
-                      loading={isPending}
-                      className="w-full"
-                    >
-                      {!isPending && <FolderPlus size={14} aria-hidden="true" />}
-                      Auto-Create Client & Matter
-                    </Button>
-                  </div>
-                )}
-
-                {(!isCanonicalIntake || activeCanonicalActions.canDiscard) && (
+                {activeCanonicalActions.canDiscard && (
                   <Button
                     type="button"
                     variant="destructive"
@@ -1157,7 +767,7 @@ export function InboxClientView({
                     disabled={isPending}
                     className="w-full"
                   >
-                    <Trash2 size={13} aria-hidden="true" /> {isCanonicalIntake ? 'Discard intake' : 'Discard Document'}
+                    <Trash2 size={13} aria-hidden="true" /> Discard intake
                   </Button>
                 )}
               </div>
@@ -1183,11 +793,9 @@ export function InboxClientView({
         isOpen={isDiscardConfirmOpen}
         onClose={() => setIsDiscardConfirmOpen(false)}
         onConfirm={handleDiscard}
-        title={isCanonicalIntake ? 'Discard intake?' : 'Discard Document?'}
-        description={isCanonicalIntake
-          ? 'This will remove the unassigned intake from the Inbox and schedule its private source file for secure cleanup.'
-          : 'Are you sure you want to discard this document? It will be permanently deleted from the staging queue.'}
-        confirmText={isCanonicalIntake ? 'Discard intake' : 'Discard Document'}
+        title="Discard intake?"
+        description="This will remove the unassigned intake from the Inbox and schedule its private source file for secure cleanup."
+        confirmText="Discard intake"
         variant="destructive"
         isPending={isPending}
       />

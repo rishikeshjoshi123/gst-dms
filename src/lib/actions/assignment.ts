@@ -8,10 +8,7 @@
  * Phase B:  Fall back to client-identifier matching (GSTIN → PAN → name)
  * Phase C:  Propose client + matter creation when deterministic IDs (GSTIN/PAN) + FY are available
  *
- * Shared between:
- *  - analyzeStagedDocument (Trigger.dev job — automated pipeline)
- *  - autoCreateClientAndMatterForStagedDocument (Server Action — manual UI button)
- *  - reevaluateStagedDocuments (re-evaluation loop)
+ * Retained for canonical document-assignment consumers.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'

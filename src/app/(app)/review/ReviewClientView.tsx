@@ -4,15 +4,14 @@ import { useState, useTransition } from 'react'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { toast } from 'sonner'
 import { dismissReviewFlag } from '@/lib/actions/document'
-import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, Link2, CheckSquare, Inbox,
+  AlertTriangle, Link2, CheckSquare,
   FileText, FolderOpen, ExternalLink, Check, X,
   ChevronRight, ChevronLeft
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-type Section = 'docs' | 'links' | 'tasks' | 'staged'
+type Section = 'docs' | 'links' | 'tasks'
 
 const ITEMS_PER_PAGE = 10
 
@@ -32,25 +31,17 @@ const SECTION_META = {
     label: 'Open Action Items',
     emptyText: 'No open action items',
   },
-  staged: {
-    icon: Inbox,
-    label: 'Staged Documents',
-    emptyText: 'No staged documents waiting',
-  },
 } as const
 
 export function ReviewClientView({
   needsReviewDocs,
   pendingLinks,
   openTasks,
-  stagedDocs,
 }: {
   needsReviewDocs: any[]
   pendingLinks: any[]
   openTasks: any[]
-  stagedDocs: any[]
 }) {
-  const router = useRouter()
   const [activeSection, setActiveSection] = useState<Section>('docs')
   const [dismissedDocs, setDismissedDocs] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
@@ -58,7 +49,6 @@ export function ReviewClientView({
     docs: 1,
     links: 1,
     tasks: 1,
-    staged: 1,
   })
 
   // Filter low-confidence links to strictly require BOTH from_doc AND to_doc to exist
@@ -72,7 +62,6 @@ export function ReviewClientView({
     { key: 'docs', count: visibleDocs.length },
     { key: 'links', count: validPendingLinks.length },
     { key: 'tasks', count: openTasks.length },
-    { key: 'staged', count: stagedDocs.length },
   ]
 
   function handleDismissDoc(id: string) {
@@ -90,7 +79,6 @@ export function ReviewClientView({
       case 'docs': return visibleDocs
       case 'links': return validPendingLinks
       case 'tasks': return openTasks
-      case 'staged': return stagedDocs
     }
   }
 
@@ -117,7 +105,7 @@ export function ReviewClientView({
             <button
               key={key}
               onClick={() => setActiveSection(key)}
-              className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors shrink-0 text-sm ${
+              className={`flex min-h-11 min-w-11 items-center gap-2 pb-3 px-1 border-b-2 transition-colors shrink-0 text-sm ${
                 isActive
                   ? 'border-[var(--primary)] text-[var(--text-primary)] font-semibold'
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -258,32 +246,6 @@ export function ReviewClientView({
                         View Matter <ChevronRight size={12} />
                       </a>
                     )}
-                  </div>
-                )
-              }
-
-              if (activeSection === 'staged') {
-                const staged = item
-                return (
-                  <div key={staged.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Inbox size={16} className="text-[var(--success)] shrink-0" />
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs text-[var(--text-primary)] font-medium truncate">
-                          {staged.storage_path?.split('/').pop() || 'Staged File'}
-                        </span>
-                        <span className="text-[11px] text-[var(--text-muted)]">
-                          Uploaded {new Date(staged.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <a
-                      href="/inbox"
-                      className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
-                    >
-                      Assign <ChevronRight size={12} />
-                    </a>
                   </div>
                 )
               }

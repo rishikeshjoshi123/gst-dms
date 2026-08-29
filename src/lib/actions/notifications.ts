@@ -274,16 +274,9 @@ export async function getUpcomingDeadlines(limit = 5) {
 export async function getPendingReviewItems() {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
-  if (!orgId) return { needsReviewDocs: [], pendingLinks: [], openTasks: [], stagedDocs: [] }
+  if (!orgId) return { needsReviewDocs: [], pendingLinks: [], openTasks: [] }
 
-  // Fence legacy sources before the Review projection reads them. If the
-  // service-only projection is unavailable, the legacy slice stays hidden.
-  const service = createServiceClient()
-  const { data: eligibleRows, error: eligibleError } = await (service as any)
-    .rpc('get_legacy_staged_document_eligible_ids', { p_org_id: orgId })
-  const eligibleIds = (eligibleRows ?? []).map((row: { legacy_staged_document_id: string }) => row.legacy_staged_document_id)
-
-  const [docsRes, linksRes, tasksRes, stagedRes] = await Promise.all([
+  const [docsRes, linksRes, tasksRes] = await Promise.all([
     supabase
       .from('documents')
       .select(`
@@ -318,23 +311,11 @@ export async function getPendingReviewItems() {
       .is('deleted_at', null)
       .order('action_item_due_date', { ascending: true })
       .limit(20),
-
-    eligibleError || eligibleIds.length === 0
-      ? Promise.resolve({ data: [] as any[] })
-      : supabase
-        .from('staged_documents')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('status', 'ready_to_assign')
-        .in('id', eligibleIds)
-        .order('created_at', { ascending: false })
-        .limit(10),
   ])
 
   return {
     needsReviewDocs: docsRes.data ?? [],
     pendingLinks: linksRes.data ?? [],
     openTasks: tasksRes.data ?? [],
-    stagedDocs: stagedRes.data ?? [],
   }
 }
