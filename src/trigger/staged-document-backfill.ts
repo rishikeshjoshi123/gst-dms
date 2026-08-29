@@ -18,10 +18,17 @@ import {
   type StagedRetirementAuditClient,
   type StagedRetirementAuditMetrics,
 } from '@/lib/documents/staged-retirement-verifier'
+import {
+  STAGED_SOURCE_PURGE_BATCH_SIZE,
+  purgeStagedDocumentSourcesForOrganisation,
+  type StagedSourcePurgeClient,
+  type StagedSourcePurgeMetrics,
+} from '@/lib/documents/staged-source-purge'
 
 const MAX_ORGANISATIONS_PER_RUN = 10
 const MAX_TRANSFER_ORGANISATIONS_PER_RUN = 5
 const MAX_RETIREMENT_AUDIT_ORGANISATIONS_PER_RUN = 5
+const MAX_STAGED_SOURCE_PURGE_ORGANISATIONS_PER_RUN = 5
 
 type BackfillReportRow = {
   org_id: string
@@ -30,6 +37,7 @@ type BackfillReportRow = {
   transfer_completed_count?: number
   transfer_reachability_verified_count?: number
   transfer_reachability_audit_pending_count?: number
+  verification_candidate_count?: number
 }
 
 function mergeMetrics(total: StagedBackfillMetrics, next: StagedBackfillMetrics) {
@@ -51,6 +59,15 @@ function mergeTransferMetrics(total: StagedBackfillTransferMetrics, next: Staged
 function mergeRetirementAuditMetrics(total: StagedRetirementAuditMetrics, next: StagedRetirementAuditMetrics) {
   total.claimed += next.claimed
   total.verified += next.verified
+  total.retryable += next.retryable
+  total.skipped += next.skipped
+  for (const [code, count] of Object.entries(next.outcomes)) total.outcomes[code] = (total.outcomes[code] ?? 0) + count
+}
+
+function mergeStagedSourcePurgeMetrics(total: StagedSourcePurgeMetrics, next: StagedSourcePurgeMetrics) {
+  total.claimed += next.claimed
+  total.deleted += next.deleted
+  total.recovery += next.recovery
   total.retryable += next.retryable
   total.skipped += next.skipped
   for (const [code, count] of Object.entries(next.outcomes)) total.outcomes[code] = (total.outcomes[code] ?? 0) + count
@@ -178,6 +195,54 @@ export const auditStagedDocumentRetirement = schedules.task({
 
     // Deliberately aggregate-only. Do not log source IDs, object keys,
     // hashes, bytes, content, signed URLs, or provider errors.
+    return { organisations, ...total }
+  },
+})
+
+// This recurring maintenance job is the only staging-object deletion path.
+// It accepts no task payload.  Each object key is issued only through a fresh
+// service-only grant, after which the module records durable intent, deletes,
+// and confirms a content-free tombstone or retains a recovery fence.
+export const purgeRedundantStagedDocumentSources = schedules.task({
+  id: 'purge-redundant-staged-document-sources',
+  cron: { pattern: '*/20 * * * *', timezone: 'UTC' },
+  queue: { concurrencyLimit: 1 },
+  retry: { maxAttempts: 3, minTimeoutInMs: 1_000, maxTimeoutInMs: 15_000, factor: 2 },
+  maxDuration: 300,
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const client = createServiceClient() as unknown as StagedSourcePurgeClient & {
+      from(table: 'staged_document_source_purge_reports'): {
+        select(columns: 'org_id, verification_candidate_count'): {
+          gt(column: 'verification_candidate_count', value: number): { limit(limit: number): Promise<{ data: BackfillReportRow[] | null; error: { message: string } | null }> }
+        }
+      }
+    }
+    const reports = await client
+      .from('staged_document_source_purge_reports')
+      .select('org_id, verification_candidate_count')
+      .gt('verification_candidate_count', 0)
+      .limit(MAX_STAGED_SOURCE_PURGE_ORGANISATIONS_PER_RUN)
+    if (reports.error) throw new Error('Staged source purge reports unavailable')
+
+    const total: StagedSourcePurgeMetrics = { claimed: 0, deleted: 0, recovery: 0, retryable: 0, skipped: 0, outcomes: {} }
+    let organisations = 0
+    for (const report of reports.data ?? []) {
+      const candidateCount = report.verification_candidate_count
+      if (typeof report.org_id !== 'string'
+        || typeof candidateCount !== 'number'
+        || !Number.isSafeInteger(candidateCount)
+        || candidateCount <= 0) continue
+      mergeStagedSourcePurgeMetrics(total, await purgeStagedDocumentSourcesForOrganisation(
+        client,
+        report.org_id,
+        STAGED_SOURCE_PURGE_BATCH_SIZE,
+      ))
+      organisations += 1
+    }
+
+    // Only bounded aggregate counts leave the task.  Do not return source IDs,
+    // object keys, hashes, bytes, legal content, signed URLs, or Storage errors.
     return { organisations, ...total }
   },
 })

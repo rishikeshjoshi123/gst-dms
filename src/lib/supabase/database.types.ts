@@ -2426,6 +2426,158 @@ export type Database = {
           },
         ]
       }
+      staged_document_source_purge_blockers: {
+        Row: {
+          blocker_kind: Database["public"]["Enums"]["staged_document_source_purge_blocker_kind"]
+          canonical_asset_id: string | null
+          created_at: string
+          id: string
+          legacy_staged_document_id: string | null
+          org_id: string
+          released_at: string | null
+          scope: Database["public"]["Enums"]["staged_document_source_purge_blocker_scope"]
+        }
+        Insert: {
+          blocker_kind: Database["public"]["Enums"]["staged_document_source_purge_blocker_kind"]
+          canonical_asset_id?: string | null
+          created_at?: string
+          id?: string
+          legacy_staged_document_id?: string | null
+          org_id: string
+          released_at?: string | null
+          scope?: Database["public"]["Enums"]["staged_document_source_purge_blocker_scope"]
+        }
+        Update: {
+          blocker_kind?: Database["public"]["Enums"]["staged_document_source_purge_blocker_kind"]
+          canonical_asset_id?: string | null
+          created_at?: string
+          id?: string
+          legacy_staged_document_id?: string | null
+          org_id?: string
+          released_at?: string | null
+          scope?: Database["public"]["Enums"]["staged_document_source_purge_blocker_scope"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_source_purge_blockers_asset_fkey"
+            columns: ["org_id", "canonical_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "staged_document_source_purge_blockers_org_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staged_document_source_purge_blockers_source_fkey"
+            columns: ["org_id", "legacy_staged_document_id"]
+            isOneToOne: false
+            referencedRelation: "staged_document_backfill_items"
+            referencedColumns: ["org_id", "legacy_staged_document_id"]
+          },
+        ]
+      }
+      staged_document_source_purge_guard_coverage: {
+        Row: {
+          attestation_code: string | null
+          attested_at: string | null
+          attested_by: unknown
+          coverage_state: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
+          guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
+          org_id: string
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          attestation_code?: string | null
+          attested_at?: string | null
+          attested_by?: unknown
+          coverage_state?: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
+          guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
+          org_id: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          attestation_code?: string | null
+          attested_at?: string | null
+          attested_by?: unknown
+          coverage_state?: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
+          guard_kind?: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
+          org_id?: string
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_source_purge_guard_coverage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staged_document_source_purge_tombstones: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          intent_created_at: string | null
+          lease_expires_at: string | null
+          lease_token: string | null
+          legacy_staged_document_id: string
+          org_id: string
+          recovery_code: string | null
+          state: Database["public"]["Enums"]["staged_document_source_purge_state"]
+          storage_delete_attempted_at: string | null
+          storage_deleted_at: string | null
+          updated_at: string
+          verification_code: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          intent_created_at?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          legacy_staged_document_id: string
+          org_id: string
+          recovery_code?: string | null
+          state?: Database["public"]["Enums"]["staged_document_source_purge_state"]
+          storage_delete_attempted_at?: string | null
+          storage_deleted_at?: string | null
+          updated_at?: string
+          verification_code?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          intent_created_at?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          legacy_staged_document_id?: string
+          org_id?: string
+          recovery_code?: string | null
+          state?: Database["public"]["Enums"]["staged_document_source_purge_state"]
+          storage_delete_attempted_at?: string | null
+          storage_deleted_at?: string | null
+          updated_at?: string
+          verification_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staged_document_source_purge_tombstones_map_fkey"
+            columns: ["org_id", "legacy_staged_document_id"]
+            isOneToOne: true
+            referencedRelation: "staged_document_backfill_items"
+            referencedColumns: ["org_id", "legacy_staged_document_id"]
+          },
+        ]
+      }
       staged_documents: {
         Row: {
           confidence_scores: Json | null
@@ -3020,6 +3172,21 @@ export type Database = {
         }
         Relationships: []
       }
+      staged_document_source_purge_reports: {
+        Row: {
+          active_blocker_count: number | null
+          active_purge_lease_count: number | null
+          delete_intended_count: number | null
+          deleted_tombstone_count: number | null
+          guard_coverage_complete: boolean | null
+          guard_coverage_stale_count: number | null
+          guard_coverage_unknown_count: number | null
+          org_id: string | null
+          recovery_required_count: number | null
+          verification_candidate_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_organisation_invite: {
@@ -3071,6 +3238,17 @@ export type Database = {
           code: string
           document_version_id: string
           lifecycle_revision: number
+        }[]
+      }
+      attest_staged_document_source_purge_guard_coverage: {
+        Args: {
+          p_coverage_state: Database["public"]["Enums"]["staged_document_source_purge_guard_coverage_state"]
+          p_guard_kind: Database["public"]["Enums"]["staged_document_source_purge_guard_kind"]
+          p_org_id: string
+          p_valid_until: string
+        }
+        Returns: {
+          code: string
         }[]
       }
       auto_assign_intended_matter_intake: {
@@ -3199,6 +3377,14 @@ export type Database = {
           legacy_staged_document_id: string
         }[]
       }
+      claim_staged_document_source_purge_batch: {
+        Args: { p_batch_size?: number; p_org_id: string }
+        Returns: {
+          code: string
+          legacy_staged_document_id: string
+          purge_lease_token: string
+        }[]
+      }
       cleanup_compacted_outbox_delivery_receipts: {
         Args: { p_batch_size?: number; p_compacted_before?: string }
         Returns: {
@@ -3244,6 +3430,17 @@ export type Database = {
           intake_item_id: string
         }[]
       }
+      confirm_staged_document_source_purge: {
+        Args: {
+          p_confirmation: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_purge_lease_token: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       create_metadata_only_document: {
         Args: {
           p_display_title: string
@@ -3273,6 +3470,18 @@ export type Database = {
           org_name: string
           retry_after: string
           token_version: number
+        }[]
+      }
+      create_staged_document_source_purge_blocker: {
+        Args: {
+          p_blocker_kind?: Database["public"]["Enums"]["staged_document_source_purge_blocker_kind"]
+          p_canonical_asset_id?: string
+          p_legacy_staged_document_id?: string
+          p_org_id: string
+          p_scope: Database["public"]["Enums"]["staged_document_source_purge_blocker_scope"]
+        }
+        Returns: {
+          code: string
         }[]
       }
       discard_intake_item: {
@@ -3602,6 +3811,22 @@ export type Database = {
           source_object_key: string
         }[]
       }
+      get_staged_document_source_purge_grant: {
+        Args: {
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_purge_lease_token: string
+        }
+        Returns: {
+          code: string
+          destination_bucket_id: string
+          destination_object_key: string
+          expected_byte_size: number
+          expected_sha256: string
+          source_bucket_id: string
+          source_object_key: string
+        }[]
+      }
       has_organisation_capability: {
         Args: { check_org_id: string; requested_capability: string }
         Returns: boolean
@@ -3803,6 +4028,33 @@ export type Database = {
           code: string
         }[]
       }
+      record_staged_document_source_purge_intent: {
+        Args: {
+          p_destination_observed_bytes: number
+          p_destination_page_count: number
+          p_destination_sha256: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_purge_lease_token: string
+          p_source_observed_bytes: number
+          p_source_page_count: number
+          p_source_sha256: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      record_staged_document_source_purge_recovery: {
+        Args: {
+          p_legacy_staged_document_id: string
+          p_org_id: string
+          p_purge_lease_token: string
+          p_recovery_code: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       recover_unavailable_document_reprocess_event: {
         Args: {
           p_delivery_lease_token: string
@@ -3932,6 +4184,22 @@ export type Database = {
       }
       staged_document_backfill_storage_path_is_valid: {
         Args: { p_org_id: string; p_storage_path: string }
+        Returns: boolean
+      }
+      staged_document_source_purge_blocker_affects: {
+        Args: {
+          p_canonical_asset_id: string
+          p_legacy_staged_document_id: string
+          p_org_id: string
+        }
+        Returns: boolean
+      }
+      staged_document_source_purge_guard_coverage_is_current: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
+      staged_document_source_purge_is_eligible: {
+        Args: { p_legacy_staged_document_id: string; p_org_id: string }
         Returns: boolean
       }
       transition_organisation_invite: {
@@ -4124,6 +4392,32 @@ export type Database = {
         | "destination_missing"
         | "source_observation_conflict"
         | "destination_observation_conflict"
+      staged_document_source_purge_blocker_kind:
+        | "legal_hold"
+        | "export_backup"
+        | "recovery"
+        | "export"
+        | "backup"
+        | "retention_lock"
+      staged_document_source_purge_blocker_scope:
+        | "organisation"
+        | "canonical_asset"
+        | "legacy_source"
+      staged_document_source_purge_guard_coverage_state:
+        | "unknown"
+        | "enforced"
+        | "disabled_verified"
+      staged_document_source_purge_guard_kind:
+        | "legal_hold"
+        | "export"
+        | "backup"
+        | "recovery"
+        | "retention_lock"
+      staged_document_source_purge_state:
+        | "claimed"
+        | "delete_intended"
+        | "deleted"
+        | "recovery_required"
       staged_status:
         | "pending_assignment"
         | "analyzing"
@@ -4457,6 +4751,37 @@ export const Constants = {
         "destination_missing",
         "source_observation_conflict",
         "destination_observation_conflict",
+      ],
+      staged_document_source_purge_blocker_kind: [
+        "legal_hold",
+        "export_backup",
+        "recovery",
+        "export",
+        "backup",
+        "retention_lock",
+      ],
+      staged_document_source_purge_blocker_scope: [
+        "organisation",
+        "canonical_asset",
+        "legacy_source",
+      ],
+      staged_document_source_purge_guard_coverage_state: [
+        "unknown",
+        "enforced",
+        "disabled_verified",
+      ],
+      staged_document_source_purge_guard_kind: [
+        "legal_hold",
+        "export",
+        "backup",
+        "recovery",
+        "retention_lock",
+      ],
+      staged_document_source_purge_state: [
+        "claimed",
+        "delete_intended",
+        "deleted",
+        "recovery_required",
       ],
       staged_status: [
         "pending_assignment",
