@@ -76,13 +76,15 @@ test('rejects unsupported fields and invalid financial years', () => {
   assert.equal(result.success, false)
 })
 
-test('normalizes an invalid GSTIN to null without losing the extraction', () => {
-  const result = aiDocumentPayloadSchema.parse({
+test('rejects malformed scalar values instead of silently normalizing model output', () => {
+  const result = aiDocumentPayloadSchema.safeParse({
     ...validDocumentPayload,
     gstin: 'unclear-scan',
+    doc_date: '01/04/2024',
+    doc_type: 'UNSUPPORTED',
   })
 
-  assert.equal(result.gstin, null)
+  assert.equal(result.success, false)
 })
 
 test('validates the current Case Brief storage contract', () => {

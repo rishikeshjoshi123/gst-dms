@@ -41,7 +41,7 @@ DO $owner_command$
 DECLARE first_result record; replay record; conflicting_replay record; invalid_scope record; stale_capability record; procedure_definition text;
 BEGIN
   IF NOT public.has_organisation_capability('54000000-0000-0000-0000-000000000001','document.reprocess')
-     OR (SELECT capability_version FROM public.get_my_organisation_context() LIMIT 1)<>5 THEN
+     OR (SELECT capability_version FROM public.get_my_organisation_context() LIMIT 1)<>6 THEN
     RAISE EXCEPTION 'reprocess capability projection';
   END IF;
   SELECT pg_get_functiondef('public.request_document_reprocess_unavailable_scope_fence(uuid,public.document_processing_scope,uuid,integer)'::regprocedure)
@@ -52,7 +52,7 @@ BEGIN
   END IF;
   SELECT * INTO first_result FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','search_index',
-    '54800000-0000-0000-0000-000000000001',5
+    '54800000-0000-0000-0000-000000000001',6
   );
   IF first_result.code<>'queued' OR first_result.document_version_id<>'54600000-0000-0000-0000-000000000001'::uuid
      OR first_result.processing_run_id IS NULL OR first_result.outbox_event_id IS NULL OR first_result.scope<>'search_index' THEN
@@ -62,7 +62,7 @@ BEGIN
   PERFORM set_config('test.reprocess_event',first_result.outbox_event_id::text,true);
   SELECT * INTO replay FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','search_index',
-    '54800000-0000-0000-0000-000000000001',5
+    '54800000-0000-0000-0000-000000000001',6
   );
   IF replay.code<>'already_requested' OR replay.processing_run_id IS DISTINCT FROM first_result.processing_run_id
      OR replay.outbox_event_id IS DISTINCT FROM first_result.outbox_event_id THEN
@@ -70,7 +70,7 @@ BEGIN
   END IF;
   SELECT * INTO conflicting_replay FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','ocr',
-    '54800000-0000-0000-0000-000000000001',5
+    '54800000-0000-0000-0000-000000000001',6
   );
   IF conflicting_replay.code<>'scope_unavailable'
      OR conflicting_replay.processing_run_id IS NOT NULL OR conflicting_replay.outbox_event_id IS NOT NULL THEN
@@ -78,7 +78,7 @@ BEGIN
   END IF;
   SELECT * INTO invalid_scope FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','validate',
-    '54800000-0000-0000-0000-000000000002',5
+    '54800000-0000-0000-0000-000000000002',6
   );
   IF invalid_scope.code<>'scope_unavailable' THEN RAISE EXCEPTION 'unimplemented scope must not queue work'; END IF;
   SELECT * INTO stale_capability FROM public.request_document_reprocess(
@@ -109,7 +109,7 @@ DECLARE denied record;
 BEGIN
   SELECT * INTO denied FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','full',
-    '54800000-0000-0000-0000-000000000004',5
+    '54800000-0000-0000-0000-000000000004',6
   );
   IF denied.code<>'scope_unavailable' THEN RAISE EXCEPTION 'unimplemented scope was not safely rejected'; END IF;
 END $viewer_denial$;
@@ -122,7 +122,7 @@ DECLARE denied record;
 BEGIN
   SELECT * INTO denied FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000002','full',
-    '54800000-0000-0000-0000-000000000005',5
+    '54800000-0000-0000-0000-000000000005',6
   );
   IF denied.code<>'scope_unavailable' OR denied.document_id IS NOT NULL THEN
     RAISE EXCEPTION 'cross-tenant reprocess disclosed a target';
@@ -140,11 +140,11 @@ DECLARE search_result record; unavailable_result record;
 BEGIN
   SELECT * INTO search_result FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','search_index',
-    '54800000-0000-0000-0000-000000000006',5
+    '54800000-0000-0000-0000-000000000006',6
   );
   SELECT * INTO unavailable_result FROM public.request_document_reprocess(
     '54500000-0000-0000-0000-000000000001','full',
-    '54800000-0000-0000-0000-000000000007',5
+    '54800000-0000-0000-0000-000000000007',6
   );
   PERFORM set_config('test.reprocess_search_run',search_result.processing_run_id::text,true);
   PERFORM set_config('test.reprocess_search_event',search_result.outbox_event_id::text,true);

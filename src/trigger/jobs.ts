@@ -1,29 +1,18 @@
 /**
  * Document Processing Pipeline
  *
- * 13-step Trigger.dev task that processes an uploaded PDF document:
- * 1.  download-from-storage
- * 2.  duplicate-check-exact      (SHA-256 block)
- * 3.  analyze-with-ai            (Vertex AI multimodal)
- * 4.  parse-and-validate         (structured JSON → DB columns)
- * 5.  generate-embedding         (versioned Vertex retrieval model)
- * 6.  duplicate-check-semantic   (cosine similarity > 0.97 = flag)
- * 7.  content-hash-check         (normalized text hash)
- * 8.  run-chain-placement        (reference matching algorithm)
- * 9.  resolve-pending-links      (scan existing pending links)
- * 10. update-deadlines           (extract + store deadline dates)
- * 11. trigger-wiki-update        (enqueue affected wiki sections)
- * 12. write-logs                 (activity_logs)
- * 13. notify-users               (in-app + email notifications)
+ * The durable child worker performs only the fenced provenance extraction
+ * write. Later consumer, indexing, notification, and workflow work remain
+ * independently owned; they must not inherit an unfenced model payload.
  */
 
 import { task } from '@trigger.dev/sdk/v3'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
-import { analyzeDocument, generateEmbedding } from '@/lib/ai/vertex'
-import { placeDocument, resolvePendingLinks } from '@/lib/actions/chaining'
+import { analyzeDocumentWithOutcome, generateEmbedding } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
-import { buildEmbeddingText } from '@/lib/ai/prompts'
+import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
+import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
 
 import {
   VERTEX_DOCUMENT_MODEL,
@@ -31,14 +20,43 @@ import {
   VERTEX_EMBEDDING_VERSION,
 } from '@/lib/ai/vertex'
 
+const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
+const EXTRACTION_SCHEMA_VERSION = 'document-extraction-v2'
+const EXTRACTION_CATALOGUE_VERSION = 'gst-document-types-v1'
+const EXTRACTION_NORMALIZER_VERSION = 'candidate-normalizer-v1'
+
+type BeginProvenanceArgs = Database['public']['Functions']['begin_document_processing_ai_extraction']['Args']
+type BeginProvenanceRow = Database['public']['Functions']['begin_document_processing_ai_extraction']['Returns'][number]
+type FinishProvenanceArgs = Database['public']['Functions']['finish_document_processing_ai_extraction']['Args']
+type FinishProvenanceRow = Database['public']['Functions']['finish_document_processing_ai_extraction']['Returns'][number]
+
+async function beginProvenanceExtraction(
+  supabase: SupabaseClient<Database>,
+  args: BeginProvenanceArgs,
+): Promise<BeginProvenanceRow | null> {
+  const { data, error } = await supabase.rpc('begin_document_processing_ai_extraction', args)
+  if (error) throw new Error('Document provenance RPC unavailable')
+  return data?.[0] ?? null
+}
+
+async function finishProvenanceExtraction(
+  supabase: SupabaseClient<Database>,
+  args: FinishProvenanceArgs,
+): Promise<FinishProvenanceRow | null> {
+  const { data, error } = await supabase.rpc('finish_document_processing_ai_extraction', args)
+  if (error) throw new Error('Document provenance RPC unavailable')
+  return data?.[0] ?? null
+}
+
 export interface ProcessDocumentPayload {
   docId: string
   matterId: string
   orgId: string
   storagePath: string
   uploadedBy: string
-  /** 'metadata_only' skips chain placement; preserves all links */
-  reprocessMode?: 'metadata_only' | 'full'
+  processingRunId?: string
+  processingLeaseToken?: string
+  documentVersionId?: string
   skipDuplicateCheck?: boolean
 }
 
@@ -52,14 +70,13 @@ export const processDocument = task({
     factor: 2,
     randomize: true,
   },
-  run: async (payload: ProcessDocumentPayload, { ctx }) => {
+  run: async (payload: ProcessDocumentPayload) => {
     const {
       docId,
       matterId,
       orgId,
       storagePath,
       uploadedBy,
-      reprocessMode = 'full',
       skipDuplicateCheck = false,
     } = payload
 
@@ -75,53 +92,39 @@ export const processDocument = task({
       .eq('id', matterId)
       .single()
 
-    if (matterCheck?.deleted_at || (matterCheck?.clients as any)?.deleted_at) {
-      await updateDocStatus(supabase, docId, 'failed', 'Target matter or client was deleted')
+    const linkedClients = matterCheck?.clients
+    const linkedClientDeleted = Array.isArray(linkedClients)
+      ? linkedClients.some((client) => client.deleted_at !== null)
+      : linkedClients ? linkedClients.deleted_at !== null : false
+    if (matterCheck?.deleted_at || linkedClientDeleted) {
       return { status: 'aborted', reason: 'matter_or_client_deleted' }
     }
 
-    // ── Pre-check: reuse existing canonical analysis metadata when present. ──
-    const { data: existingDoc } = await supabase
+    if (!payload.processingRunId || !payload.processingLeaseToken || !payload.documentVersionId) {
+      // The outbox claim is the only canonical authority for processing. A
+      // direct task invocation must not bypass its lease or manufacture a
+      // second model call.
+      return { status: 'failed', reason: 'processing_lease_required' }
+    }
+
+    // ── Step 1: Download from storage ─────────────────────────────
+    console.log(`[Step 1] Downloading ${storagePath}`)
+
+    const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
-      .select('raw_metadata, doc_type, file_hash_sha256')
-      .eq('id', docId)
-      .single()
+      .download(storagePath)
 
-    const isPreAnalyzed = !!(existingDoc?.raw_metadata && existingDoc?.doc_type)
+    if (downloadError || !fileData) {
+      throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
+    }
 
-    let aiResult: any
-    let sha256: string | undefined
+    const fileBuffer = Buffer.from(await fileData.arrayBuffer())
 
-    if (isPreAnalyzed) {
-      // ── Fast path: canonical analysis metadata already exists ──
-      console.log('[Fast Path] Document already analyzed — skipping Steps 1-4 (download, SHA, AI, parse)')
-      aiResult = existingDoc.raw_metadata
-      sha256 = existingDoc.file_hash_sha256 ?? undefined
+    // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
+    const { createHash } = await import('crypto')
+    const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
 
-      // Mark as analyzed (it was still 'processing' from insertion)
-      await (supabase as any).from('documents').update({ status: 'analyzed' }).eq('id', docId)
-    } else {
-      // ── Full path: fresh upload or reprocess — run full pipeline ──
-
-      // ── Step 1: Download from storage ─────────────────────────────
-      console.log(`[Step 1] Downloading ${storagePath}`)
-
-      const { data: fileData, error: downloadError } = await supabase.storage
-        .from('documents')
-        .download(storagePath)
-
-      if (downloadError || !fileData) {
-        await updateDocStatus(supabase, docId, 'failed', `Download failed: ${downloadError?.message || 'Empty file'}`)
-        throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
-      }
-
-      const fileBuffer = Buffer.from(await fileData.arrayBuffer())
-
-      // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
-      const { createHash } = await import('crypto')
-      sha256 = createHash('sha256').update(fileBuffer).digest('hex')
-
-      if (!skipDuplicateCheck) {
+    if (!skipDuplicateCheck) {
         console.log('[Step 2] SHA-256 duplicate check')
 
         const { data: exactDupRaw } = await supabase
@@ -136,227 +139,85 @@ export const processDocument = task({
         const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
 
         if (exactDup) {
-          await updateDocStatus(supabase, docId, 'needs_review')
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from('documents').update({
-            status: 'needs_review',
-            review_reason: `Duplicate detected: This file is identical to existing document (${exactDup.reference_number ?? exactDup.id}).`
-          }).eq('id', docId)
-
-          await createNotification(supabase, {
-            orgId,
-            userId: uploadedBy,
-            type: 'processing_failed',
-            title: 'Duplicate document detected',
-            body: `This file is identical to an existing document (${exactDup.reference_number ?? exactDup.id}).`,
-            entityType: 'document',
-            entityId: exactDup.id,
-          })
-
           console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
           return { status: 'needs_review', reason: 'exact_duplicate' }
         }
-      } else {
-        console.log('[Step 2] Skipped exact duplicate check')
-      }
+    } else {
+      console.log('[Step 2] Skipped exact duplicate check')
+    }
 
-      // Store SHA-256
-      await (supabase as SupabaseClient)
-        .from('documents')
-        .update({ file_hash_sha256: sha256, status: 'processing' })
-        .eq('id', docId)
+    // ── Steps 3–4: provenance run, strict validation, candidates ─────
+    console.log('[Step 3] Claiming provenance-bound Vertex analysis')
+    const started = await beginProvenanceExtraction(supabase, {
+      p_processing_run_id: payload.processingRunId,
+      p_processing_lease_token: payload.processingLeaseToken,
+      p_provider: 'vertex-ai',
+      p_model_identifier: VERTEX_DOCUMENT_MODEL,
+      p_model_config_version: EXTRACTION_MODEL_CONFIG_VERSION,
+      p_prompt_version: PROMPT_VERSION,
+      p_schema_version: EXTRACTION_SCHEMA_VERSION,
+      p_catalogue_version: EXTRACTION_CATALOGUE_VERSION,
+      p_normalizer_version: EXTRACTION_NORMALIZER_VERSION,
+      p_declared_document_id: docId,
+      p_declared_document_version_id: payload.documentVersionId,
+      p_declared_matter_id: matterId,
+      p_declared_org_id: orgId,
+      p_declared_bucket_id: 'documents',
+      p_declared_object_key: storagePath,
+      p_declared_uploaded_by: uploadedBy,
+    })
 
-      // ── Step 3: AI analysis ────────────────────────────────────────
-      console.log('[Step 3] Vertex AI analysis')
+    if (started?.code === 'already_validated') {
+      return { status: 'placed', docId }
+    } else if (started?.code === 'claimed'
+      && typeof started.source_analysis_run_id === 'string'
+      && typeof started.source_analysis_lease_token === 'string') {
+      const startedAt = Date.now()
+      const modelOutcome = await analyzeDocumentWithOutcome(fileBuffer)
+      const latencyMs = Date.now() - startedAt
+      const usage = modelOutcome.kind === 'validated' ? modelOutcome.result.usage : undefined
 
-      aiResult = await analyzeDocument(fileBuffer)
-
-      if (aiResult?.usage) {
-        await logUsage(supabase, {
-          orgId,
-          userId: uploadedBy,
-          docId,
-          operationType: 'document_analysis',
-          modelName: VERTEX_DOCUMENT_MODEL,
-          inputTokens: aiResult.usage.promptTokens,
-          outputTokens: aiResult.usage.candidateTokens
+      if (modelOutcome.kind !== 'validated') {
+        await finishProvenanceExtraction(supabase, {
+          p_processing_run_id: payload.processingRunId,
+          p_processing_lease_token: payload.processingLeaseToken,
+          p_source_analysis_run_id: started.source_analysis_run_id,
+          p_source_analysis_lease_token: started.source_analysis_lease_token,
+          p_outcome: modelOutcome.kind,
+          p_input_tokens: 0,
+          p_output_tokens: 0,
+          p_latency_ms: latencyMs,
+          p_candidates: [],
+          p_review_required: true,
+          p_legacy_metadata: null,
         })
-      }
-
-      if (!aiResult) {
-        await updateDocStatus(supabase, docId, 'needs_review')
-        console.warn('[Step 3] AI analysis returned null — marking needs_review')
         return { status: 'needs_review', docId }
       }
 
-      // ── Step 4: Parse and validate ─────────────────────────────────
-      console.log('[Step 4] Parsing AI output')
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('documents').update({
-        doc_type: aiResult.doc_type,
-        reference_number: aiResult.reference_number,
-        doc_date: aiResult.doc_date,
-        direction: aiResult.direction,
-        issued_by: aiResult.issued_by,
-        financial_year: aiResult.financial_years && aiResult.financial_years.length > 0 ? aiResult.financial_years[0] : null,
-        summary: aiResult.summary,
-        raw_metadata: aiResult as any,
-        ai_prompt_version: aiResult.prompt_version,
-        status: 'analyzed'
-      }).eq('id', docId)
-    }
-
-    // ── Step 5: Generate embedding ─────────────────────────────────
-    console.log('[Step 5] Generating embedding')
-
-    const embeddingText = buildEmbeddingText({
-      doc_type: aiResult.doc_type ?? null,
-      reference_number: aiResult.reference_number ?? null,
-      summary: aiResult.summary ?? null,
-      financial_years: aiResult.financial_years ?? [],
-      issued_by: aiResult.issued_by ?? null,
-      client_name: aiResult.client_name ?? null,
-    })
-
-    let embeddingStr: string | null = null
-    if (embeddingText) {
-      const res = await generateEmbedding(embeddingText)
-      if (res && res.embedding) {
-        embeddingStr = `[${res.embedding.join(',')}]`
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from('documents').update({
-          embedding: embeddingStr,
-          embedding_model: res.model,
-          embedding_version: res.version,
-        }).eq('id', docId)
-
-        await logUsage(supabase, {
-          orgId,
-          userId: uploadedBy,
-          docId,
-          operationType: 'embedding_generation',
-          modelName: VERTEX_EMBEDDING_MODEL,
-          inputTokens: res.inputTokens,
-          outputTokens: 0
-        })
+      const materialization = provenanceMaterializationFromAnalysis(modelOutcome.result, Number(started.page_count))
+      const completed = await finishProvenanceExtraction(supabase, {
+        p_processing_run_id: payload.processingRunId,
+        p_processing_lease_token: payload.processingLeaseToken,
+        p_source_analysis_run_id: started.source_analysis_run_id,
+        p_source_analysis_lease_token: started.source_analysis_lease_token,
+        p_outcome: materialization.terminalReviewRequired ? 'review_required' : 'validated',
+        p_input_tokens: usage?.promptTokens ?? 0,
+        p_output_tokens: usage?.candidateTokens ?? 0,
+        p_latency_ms: latencyMs,
+        p_candidates: materialization.terminalReviewRequired ? [] : materialization.candidates,
+        p_review_required: materialization.reviewRequired,
+        p_legacy_metadata: materialization.terminalReviewRequired ? null : modelOutcome.result,
+      })
+      if (completed?.code !== 'validated' && completed?.code !== 'review_required') {
+        throw new Error('Document provenance completion was not accepted')
       }
-    }
-
-    // ── Step 6: Semantic duplicate check ──────────────────────────
-    if (!skipDuplicateCheck) {
-      console.log('[Step 6] Semantic duplicate check (cosine similarity)')
-
-      if (embeddingStr) {
-        const { data: similarDocs, error: simError } = await supabase.rpc('match_documents_v2', {
-          query_embedding: embeddingStr,
-          match_threshold: 0.97,
-          match_count: 5,
-          p_matter_id: matterId,
-          p_embedding_model: VERTEX_EMBEDDING_MODEL,
-          p_embedding_version: VERTEX_EMBEDDING_VERSION,
-        })
-
-        if (!simError && similarDocs) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const matchedDoc = similarDocs.find((d: any) => d.id !== docId)
-          if (matchedDoc) {
-            console.warn('[Step 6] Semantic duplicate detected', matchedDoc.id)
-            await updateDocStatus(supabase, docId, 'needs_review')
-          }
-        }
-      } else {
-        console.warn('[Step 6] No embedding generated, skipping semantic check')
-      }
+      if (completed.code === 'review_required') return { status: 'needs_review', docId }
+      return { status: 'placed', docId }
     } else {
-      console.log('[Step 6] Skipped semantic duplicate check')
+      // Any existing in-flight or terminal run is intentionally not retried
+      // here: a new task must never create a second model invocation.
+      return { status: 'needs_review', docId }
     }
-
-    // ── Step 7: Content hash check ────────────────────────────────
-    console.log('[Step 7] Content hash check')
-
-    // TODO (Phase 7): Normalize text, compute hash, compare
-
-    // ── Step 8: Chain placement ────────────────────────────────────
-    if (reprocessMode === 'full') {
-      console.log('[Step 8] Chain placement')
-      await placeDocument(supabase, docId, matterId, orgId, uploadedBy, aiResult)
-    } else {
-      console.log('[Step 8] Skipped (metadata_only reprocess mode)')
-    }
-
-    // ── Step 9: Resolve pending links ─────────────────────────────
-    console.log('[Step 9] Resolving pending links')
-
-    if (aiResult.reference_number) {
-      const resolvedCount = await resolvePendingLinks(
-        supabase, 
-        docId, 
-        aiResult.reference_number, 
-        matterId, 
-        aiResult.doc_type || 'OTHER', 
-        orgId, 
-        uploadedBy
-      )
-      console.log(`[Step 9] Resolved ${resolvedCount} pending link(s)`)
-    }
-
-    // ── Step 10: Update deadlines ─────────────────────────────────
-    console.log('[Step 10] Updating deadlines')
-
-    if (aiResult.deadlines && aiResult.deadlines.length > 0) {
-      const validTypes = ['appeal_window', 'pre_deposit', 'hearing_date', 'reply_deadline', 'stay_application', 'other']
-      const deadlineRows = aiResult.deadlines.map((dl: any) => ({
-        matter_id: matterId,
-        document_id: docId,
-        type: validTypes.includes(dl.type) ? (dl.type as any) : 'other',
-        due_date: dl.due_date,
-        description: dl.description || dl.type
-      }))
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: dlError } = await (supabase as any).from('deadlines').insert(deadlineRows)
-      if (dlError) {
-        console.error('[Step 10] Error inserting deadlines', dlError)
-      }
-    }
-
-    // ── Step 11: Trigger wiki update ──────────────────────────────
-    console.log('[Step 11] Triggering wiki update')
-
-    // TODO (Phase 13): Enqueue regenerateWiki task for affected sections
-
-    // ── Step 12: Write activity log ───────────────────────────────
-    console.log('[Step 12] Writing activity log')
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('activity_logs').insert({
-      org_id: orgId,
-      user_id: uploadedBy,
-      action: 'document_processed',
-      entity_type: 'document',
-      entity_id: docId,
-      description: `Document processed successfully by pipeline`,
-      metadata: { pipeline_run_id: ctx.run.id, reprocess_mode: reprocessMode },
-      is_reversible: false,
-    })
-
-    // ── Step 13: Notify users ─────────────────────────────────────
-    console.log('[Step 13] Notifying users')
-
-    await createNotification(supabase, {
-      orgId,
-      userId: uploadedBy,
-      type: 'document_ready',
-      title: 'Document analyzed',
-      body: 'Your document has been processed and is ready to review.',
-      entityType: 'document',
-      entityId: docId,
-    })
-
-    await updateDocStatus(supabase, docId, 'placed')
-
-    return { status: 'placed', docId }
   },
 })
 
@@ -482,9 +343,6 @@ export const reindexMatterEmbeddings = task({
 export const deadlineReminderCron = task({
   id: 'deadline-reminders',
   run: async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient() as SupabaseClient<Database>
-
     const today = new Date()
     const in7Days = new Date(today)
     in7Days.setDate(in7Days.getDate() + 7)
@@ -497,40 +355,6 @@ export const deadlineReminderCron = task({
     return { checked: true }
   },
 })
-
-// ================================================================
-// Helpers
-// ================================================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateDocStatus(supabase: any, docId: string, status: string, reviewReason?: string) {
-  const payload: any = { status }
-  if (reviewReason) {
-    payload.review_reason = reviewReason
-  }
-  await supabase.from('documents').update(payload).eq('id', docId)
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function createNotification(supabase: any, opts: {
-  orgId: string
-  userId: string
-  type: string
-  title: string
-  body: string
-  entityType: string
-  entityId: string
-}) {
-  await supabase.from('notifications').insert({
-    org_id: opts.orgId,
-    user_id: opts.userId,
-    type: opts.type,
-    title: opts.title,
-    body: opts.body,
-    entity_type: opts.entityType,
-    entity_id: opts.entityId,
-  })
-}
 
 // ================================================================
 // Wiki Generation
@@ -610,7 +434,7 @@ Details: ${JSON.stringify(d.raw_metadata)}`
 
       if (existing) {
         // Only update content if not user edited, always update last_ai_content
-        const updateData: any = {
+        const updateData: Database['public']['Tables']['wiki_sections']['Update'] = {
           last_ai_content: JSON.stringify({ text: sec.content }),
           updated_at: new Date().toISOString()
         }

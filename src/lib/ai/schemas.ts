@@ -23,7 +23,7 @@ export const DOCUMENT_TYPES = [
 ] as const
 
 const nullableText = z.string().trim().min(1).nullable()
-const nullableDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().catch(null)
+const nullableDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()
 const financialYear = z.string().regex(/^\d{4}-\d{2}$/)
 const nullableGstin = z
   .string()
@@ -31,7 +31,6 @@ const nullableGstin = z
   .toUpperCase()
   .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/)
   .nullable()
-  .catch(null)
 
 const evidenceSchema = z.object({
   field: z.enum([
@@ -80,7 +79,7 @@ const deadlineSchema = z.object({
 }).strict()
 
 export const aiDocumentPayloadSchema = z.object({
-  doc_type: z.enum(DOCUMENT_TYPES).nullable().catch('OTHER'),
+  doc_type: z.enum(DOCUMENT_TYPES).nullable(),
   document_title: nullableText,
   document_class: z.enum(['proceeding', 'supporting']),
   document_category: z.enum(['invoice', 'client_document', 'explanation', 'evidence', 'other']).nullable(),
@@ -111,7 +110,7 @@ export const aiDocumentPayloadSchema = z.object({
     total_demand: z.number().finite().nonnegative().nullable(),
     amount_in_dispute: z.number().finite().nonnegative().nullable(),
     amount_relief: z.number().finite().nonnegative().nullable(),
-  }).partial(),
+  }).strict(),
   parties_named: z.array(z.string().trim().min(1)).max(100),
   legal_references: z.array(legalReferenceSchema).max(100),
   evidence: z.array(evidenceSchema).max(200),

@@ -73,7 +73,12 @@ export const documentLifecycleEvent = task({
       try {
         const { processDocument } = await import('./jobs')
         const claimOrgId = String(claim.org_id)
-        const child = await processDocument.triggerAndWait({ docId: String(claim.document_id), matterId: String(claim.matter_id), orgId: claimOrgId, storagePath: String(claim.object_key), uploadedBy: String(claim.actor_id) }, { idempotencyKey: `document-processing:${payload.eventId}:${claim.document_version_id}`, concurrencyKey: claimOrgId })
+        const child = await processDocument.triggerAndWait({
+          docId: String(claim.document_id), matterId: String(claim.matter_id),
+          orgId: claimOrgId, storagePath: String(claim.object_key),
+          uploadedBy: String(claim.actor_id), processingRunId: String(claim.processing_run_id),
+          processingLeaseToken: String(claim.lease_token), documentVersionId: String(claim.document_version_id),
+        }, { idempotencyKey: `document-processing:${payload.eventId}:${claim.document_version_id}`, concurrencyKey: claimOrgId })
         outcome = child.ok ? safeProcessingOutcome(child.output?.status) : 'failed'
       } catch {
         outcome = 'failed'

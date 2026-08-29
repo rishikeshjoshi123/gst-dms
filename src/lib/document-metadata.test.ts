@@ -26,7 +26,10 @@ const analysis: AIDocumentResult = {
     link_type: null,
   },
   deadlines: [],
-  extracted_amounts: {},
+  extracted_amounts: {
+    tax: null, interest: null, penalty: null, fee: null, pre_deposit: null,
+    total_demand: null, amount_in_dispute: null, amount_relief: null,
+  },
   parties_named: [],
   legal_references: [],
   evidence: [],

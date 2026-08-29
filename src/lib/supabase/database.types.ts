@@ -467,6 +467,272 @@ export type Database = {
           },
         ]
       }
+      document_effective_metadata: {
+        Row: {
+          computed_at: string
+          document_id: string
+          document_version_id: string
+          field_path: string
+          id: string
+          normalized_value: Json | null
+          org_id: string
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          winning_document_field_candidate_id: string
+          winning_document_field_decision_id: string | null
+        }
+        Insert: {
+          computed_at?: string
+          document_id: string
+          document_version_id: string
+          field_path: string
+          id?: string
+          normalized_value?: Json | null
+          org_id: string
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          winning_document_field_candidate_id: string
+          winning_document_field_decision_id?: string | null
+        }
+        Update: {
+          computed_at?: string
+          document_id?: string
+          document_version_id?: string
+          field_path?: string
+          id?: string
+          normalized_value?: Json | null
+          org_id?: string
+          resolution?: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key?: string
+          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          winning_document_field_candidate_id?: string
+          winning_document_field_decision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_effective_metadata_candidate_org_fkey"
+            columns: ["org_id", "winning_document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_effective_metadata_decision_org_fkey"
+            columns: ["org_id", "winning_document_field_decision_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_decisions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_effective_metadata_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_effective_metadata_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_effective_metadata_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_field_candidates: {
+        Row: {
+          confidence: number
+          created_at: string
+          document_id: string
+          document_version_analysis_binding_id: string
+          document_version_id: string
+          evidence_page_count: number
+          evidence_regions: Json | null
+          field_path: string
+          id: string
+          materialization_sequence: number
+          normalized_value: Json
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_field_candidate_id: string
+          validation_error_codes: string[] | null
+          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          document_id: string
+          document_version_analysis_binding_id: string
+          document_version_id: string
+          evidence_page_count: number
+          evidence_regions?: Json | null
+          field_path: string
+          id?: string
+          materialization_sequence?: never
+          normalized_value: Json
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_field_candidate_id: string
+          validation_error_codes?: string[] | null
+          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          document_id?: string
+          document_version_analysis_binding_id?: string
+          document_version_id?: string
+          evidence_page_count?: number
+          evidence_regions?: Json | null
+          field_path?: string
+          id?: string
+          materialization_sequence?: never
+          normalized_value?: Json
+          org_id?: string
+          page_number?: number
+          quotation?: string
+          semantic_candidate_key?: string
+          source_field_candidate_id?: string
+          validation_error_codes?: string[] | null
+          validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_field_candidates_binding_org_fkey"
+            columns: ["org_id", "document_version_analysis_binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_source_org_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "source_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_field_decisions: {
+        Row: {
+          action: Database["public"]["Enums"]["document_field_decision_action"]
+          actor_user_id: string
+          created_at: string
+          decision_sequence: number
+          document_field_candidate_id: string
+          document_id: string
+          document_version_id: string
+          field_path: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          reason: string | null
+          replacement_value: Json | null
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["document_field_decision_action"]
+          actor_user_id: string
+          created_at?: string
+          decision_sequence?: never
+          document_field_candidate_id: string
+          document_id: string
+          document_version_id: string
+          field_path: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          reason?: string | null
+          replacement_value?: Json | null
+          semantic_candidate_key: string
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["document_field_decision_action"]
+          actor_user_id?: string
+          created_at?: string
+          decision_sequence?: never
+          document_field_candidate_id?: string
+          document_id?: string
+          document_version_id?: string
+          field_path?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          reason?: string | null
+          replacement_value?: Json | null
+          semantic_candidate_key?: string
+          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_field_decisions_candidate_org_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_decisions_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_decisions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_field_decisions_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_links: {
         Row: {
           confidence: number | null
@@ -789,272 +1055,6 @@ export type Database = {
           },
           {
             foreignKeyName: "document_version_analysis_bindings_version_org_fkey"
-            columns: ["org_id", "document_version_id"]
-            isOneToOne: false
-            referencedRelation: "document_versions"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
-      document_field_candidates: {
-        Row: {
-          confidence: number
-          created_at: string
-          document_id: string
-          document_version_analysis_binding_id: string
-          document_version_id: string
-          evidence_page_count: number
-          evidence_regions: Json | null
-          field_path: string
-          id: string
-          materialization_sequence: number
-          normalized_value: Json
-          org_id: string
-          page_number: number
-          quotation: string
-          semantic_candidate_key: string
-          source_field_candidate_id: string
-          validation_error_codes: string[] | null
-          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Insert: {
-          confidence: number
-          created_at?: string
-          document_id: string
-          document_version_analysis_binding_id: string
-          document_version_id: string
-          evidence_page_count: number
-          evidence_regions?: Json | null
-          field_path: string
-          id?: string
-          materialization_sequence?: never
-          normalized_value: Json
-          org_id: string
-          page_number: number
-          quotation: string
-          semantic_candidate_key: string
-          source_field_candidate_id: string
-          validation_error_codes?: string[] | null
-          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Update: {
-          confidence?: number
-          created_at?: string
-          document_id?: string
-          document_version_analysis_binding_id?: string
-          document_version_id?: string
-          evidence_page_count?: number
-          evidence_regions?: Json | null
-          field_path?: string
-          id?: string
-          materialization_sequence?: never
-          normalized_value?: Json
-          org_id?: string
-          page_number?: number
-          quotation?: string
-          semantic_candidate_key?: string
-          source_field_candidate_id?: string
-          validation_error_codes?: string[] | null
-          validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
-          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_field_candidates_binding_org_fkey"
-            columns: ["org_id", "document_version_analysis_binding_id"]
-            isOneToOne: false
-            referencedRelation: "document_version_analysis_bindings"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_field_candidates_document_org_fkey"
-            columns: ["org_id", "document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_field_candidates_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organisations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_field_candidates_source_org_fkey"
-            columns: ["org_id", "source_field_candidate_id"]
-            isOneToOne: false
-            referencedRelation: "source_field_candidates"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_field_candidates_version_org_fkey"
-            columns: ["org_id", "document_version_id"]
-            isOneToOne: false
-            referencedRelation: "document_versions"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
-      document_field_decisions: {
-        Row: {
-          action: Database["public"]["Enums"]["document_field_decision_action"]
-          actor_user_id: string
-          created_at: string
-          decision_sequence: number
-          document_field_candidate_id: string
-          document_id: string
-          document_version_id: string
-          field_path: string
-          id: string
-          idempotency_key: string
-          org_id: string
-          reason: string | null
-          replacement_value: Json | null
-          semantic_candidate_key: string
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Insert: {
-          action: Database["public"]["Enums"]["document_field_decision_action"]
-          actor_user_id: string
-          created_at?: string
-          decision_sequence?: never
-          document_field_candidate_id: string
-          document_id: string
-          document_version_id: string
-          field_path: string
-          id?: string
-          idempotency_key: string
-          org_id: string
-          reason?: string | null
-          replacement_value?: Json | null
-          semantic_candidate_key: string
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Update: {
-          action?: Database["public"]["Enums"]["document_field_decision_action"]
-          actor_user_id?: string
-          created_at?: string
-          decision_sequence?: never
-          document_field_candidate_id?: string
-          document_id?: string
-          document_version_id?: string
-          field_path?: string
-          id?: string
-          idempotency_key?: string
-          org_id?: string
-          reason?: string | null
-          replacement_value?: Json | null
-          semantic_candidate_key?: string
-          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_field_decisions_candidate_org_fkey"
-            columns: ["org_id", "document_field_candidate_id"]
-            isOneToOne: false
-            referencedRelation: "document_field_candidates"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_field_decisions_document_org_fkey"
-            columns: ["org_id", "document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_field_decisions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organisations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_field_decisions_version_org_fkey"
-            columns: ["org_id", "document_version_id"]
-            isOneToOne: false
-            referencedRelation: "document_versions"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
-      document_effective_metadata: {
-        Row: {
-          computed_at: string
-          document_id: string
-          document_version_id: string
-          field_path: string
-          id: string
-          normalized_value: Json | null
-          org_id: string
-          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
-          semantic_candidate_key: string
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-          winning_document_field_candidate_id: string
-          winning_document_field_decision_id: string | null
-        }
-        Insert: {
-          computed_at?: string
-          document_id: string
-          document_version_id: string
-          field_path: string
-          id?: string
-          normalized_value?: Json | null
-          org_id: string
-          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
-          semantic_candidate_key: string
-          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-          winning_document_field_candidate_id: string
-          winning_document_field_decision_id?: string | null
-        }
-        Update: {
-          computed_at?: string
-          document_id?: string
-          document_version_id?: string
-          field_path?: string
-          id?: string
-          normalized_value?: Json | null
-          org_id?: string
-          resolution?: Database["public"]["Enums"]["document_effective_metadata_resolution"]
-          semantic_candidate_key?: string
-          value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
-          winning_document_field_candidate_id?: string
-          winning_document_field_decision_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_effective_metadata_candidate_org_fkey"
-            columns: ["org_id", "winning_document_field_candidate_id"]
-            isOneToOne: false
-            referencedRelation: "document_field_candidates"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_effective_metadata_decision_org_fkey"
-            columns: ["org_id", "winning_document_field_decision_id"]
-            isOneToOne: false
-            referencedRelation: "document_field_decisions"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_effective_metadata_document_org_fkey"
-            columns: ["org_id", "document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "document_effective_metadata_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organisations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_effective_metadata_version_org_fkey"
             columns: ["org_id", "document_version_id"]
             isOneToOne: false
             referencedRelation: "document_versions"
@@ -3763,6 +3763,32 @@ export type Database = {
           lifecycle_revision: number
         }[]
       }
+      begin_document_processing_ai_extraction: {
+        Args: {
+          p_catalogue_version: string
+          p_declared_bucket_id: string
+          p_declared_document_id: string
+          p_declared_document_version_id: string
+          p_declared_matter_id: string
+          p_declared_object_key: string
+          p_declared_org_id: string
+          p_declared_uploaded_by: string
+          p_model_config_version: string
+          p_model_identifier: string
+          p_normalizer_version: string
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_prompt_version: string
+          p_provider: string
+          p_schema_version: string
+        }
+        Returns: {
+          code: string
+          page_count: number
+          source_analysis_lease_token: string
+          source_analysis_run_id: string
+        }[]
+      }
       begin_organisation_invitation_accept_intent: {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
@@ -3993,6 +4019,14 @@ export type Database = {
           code: string
         }[]
       }
+      document_field_decision_actor_is_authorised: {
+        Args: { p_actor_user_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      document_field_decision_reason_is_safe: {
+        Args: { p_reason: string }
+        Returns: boolean
+      }
       document_lifecycle_outbox_envelope_is_safe: {
         Args: {
           p_aggregate_id: string
@@ -4071,6 +4105,25 @@ export type Database = {
       finish_document_asset_storage_deletion_work: {
         Args: { p_asset_id: string; p_lease_token: string; p_outcome: string }
         Returns: {
+          code: string
+        }[]
+      }
+      finish_document_processing_ai_extraction: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
           code: string
         }[]
       }
@@ -4441,6 +4494,15 @@ export type Database = {
           similarity: number
         }[]
       }
+      materialize_document_version_analysis: {
+        Args: {
+          p_binding_reason: string
+          p_created_by?: string
+          p_document_version_id: string
+          p_source_analysis_run_id: string
+        }
+        Returns: string
+      }
       materialize_source_field_candidate: {
         Args: {
           p_confidence: number
@@ -4454,15 +4516,6 @@ export type Database = {
           p_validation_error_codes?: string[]
           p_validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
-        }
-        Returns: string
-      }
-      materialize_document_version_analysis: {
-        Args: {
-          p_binding_reason: string
-          p_created_by?: string
-          p_document_version_id: string
-          p_source_analysis_run_id: string
         }
         Returns: string
       }
@@ -4489,6 +4542,10 @@ export type Database = {
         Returns: number
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
+      recompute_document_effective_metadata: {
+        Args: { p_document_version_id: string }
+        Returns: undefined
+      }
       reconcile_document_outbox_delivery: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -4502,10 +4559,6 @@ export type Database = {
           processing_requeued: number
           validation_requeued: number
         }[]
-      }
-      recompute_document_effective_metadata: {
-        Args: { p_document_version_id: string }
-        Returns: undefined
       }
       record_document_asset_storage_deleted: {
         Args: { p_asset_id: string }
@@ -4815,7 +4868,11 @@ export type Database = {
         | "corrected"
         | "rejected"
         | "cleared"
-      document_field_decision_action: "accepted" | "corrected" | "rejected" | "cleared"
+      document_field_decision_action:
+        | "accepted"
+        | "corrected"
+        | "rejected"
+        | "cleared"
       document_origin_kind:
         | "upload"
         | "spreadsheet_import"
@@ -5197,7 +5254,12 @@ export const Constants = {
         "rejected",
         "cleared",
       ],
-      document_field_decision_action: ["accepted", "corrected", "rejected", "cleared"],
+      document_field_decision_action: [
+        "accepted",
+        "corrected",
+        "rejected",
+        "cleared",
+      ],
       document_origin_kind: [
         "upload",
         "spreadsheet_import",

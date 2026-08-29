@@ -28,6 +28,11 @@ import {
 
 export type { AIDocumentResult, AIWikiResult } from './schemas'
 
+export type DocumentAnalysisOutcome =
+  | { kind: 'validated'; result: AIDocumentResult }
+  | { kind: 'invalid_model_output' }
+  | { kind: 'provider_failed' }
+
 // ── Lazy-initialized clients ────────────────────────────────────────────────
 
 let _vertexAI: VertexAI | null = null
@@ -94,9 +99,9 @@ function logVertexDiagnostic(code: 'document_response_invalid' | 'document_respo
  * Send a PDF buffer to Gemini Flash for structured metadata extraction.
  * Returns null on failure (graceful degradation).
  */
-export async function analyzeDocument(
+export async function analyzeDocumentWithOutcome(
   pdfBuffer: Buffer
-): Promise<AIDocumentResult | null> {
+): Promise<DocumentAnalysisOutcome> {
   try {
     const vertex = getVertexAI()
     const model = vertex.preview.getGenerativeModel({
@@ -133,8 +138,8 @@ export async function analyzeDocument(
     const response = await model.generateContent(request)
     const candidate = response.response.candidates?.[0]
     if (!candidate?.content?.parts?.[0]?.text) {
-      console.warn('[Vertex AI] Empty response from model')
-      return null
+      logVertexDiagnostic('document_response_invalid')
+      return { kind: 'invalid_model_output' }
     }
 
     const rawText = candidate.content.parts[0].text.trim()
@@ -143,22 +148,35 @@ export async function analyzeDocument(
       const validation = aiDocumentPayloadSchema.safeParse(extractJsonObject(rawText))
       if (!validation.success) {
         logVertexDiagnostic('document_response_invalid')
-        return null
+        return { kind: 'invalid_model_output' }
       }
 
       return {
-        ...validation.data,
-        prompt_version: PROMPT_VERSION,
-        usage: usageFromResponse(response.response.usageMetadata),
+        kind: 'validated',
+        result: {
+          ...validation.data,
+          prompt_version: PROMPT_VERSION,
+          usage: usageFromResponse(response.response.usageMetadata),
+        },
       }
     } catch {
       logVertexDiagnostic('document_response_unreadable')
-      return null
+      return { kind: 'invalid_model_output' }
     }
   } catch {
     logVertexDiagnostic('document_request_failed')
-    return null
+    return { kind: 'provider_failed' }
   }
+}
+
+/**
+ * Transitional compatibility wrapper. New durable processing callers use the
+ * discriminated outcome so invalid model output cannot be confused with a
+ * transient provider failure.
+ */
+export async function analyzeDocument(pdfBuffer: Buffer): Promise<AIDocumentResult | null> {
+  const outcome = await analyzeDocumentWithOutcome(pdfBuffer)
+  return outcome.kind === 'validated' ? outcome.result : null
 }
 
 export async function generateWikiSummary(
