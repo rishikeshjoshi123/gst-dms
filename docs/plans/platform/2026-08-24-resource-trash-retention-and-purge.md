@@ -134,7 +134,14 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Implement the next approved coherent live slice: add trash-aware exact-resource loaders and a read-only capability context for Client, Matter, and Document. Keep ordinary collection queries and Search strictly active-only. Do not build the Trash route, restore/purge authority, or a material new UI direction in that loader/context tranche.
+Build the approved `/trash` workspace using the shared server-driven table/list, root-operation hierarchy, filters, retention/hold status, responsive drill-down, and stable scroll ownership. It must consume the verified exact-resource context where it links to canonical routes; do not add restore/purge authority or the persistent contextual strip/action-suppression in this tranche.
+
+### Completed: trash-aware exact-resource readers and active-only boundary (2026-08-30)
+
+- Migration `00084` adds the authenticated, read-only `get_exact_resource_trash_context` RPC. It discloses an exact resource only to an active organisation member, verifies its matching active membership, parent lineage, document/matter route binding, and readable operation state (`trashed`, `restore_blocked`, or `purge_scheduled`), and returns only typed read-only context including root, actor/date, retention and purge status, and a display-only restore hint. Purging, purged, malformed, cross-tenant, and wrong-matter requests return no context; public, anonymous, and service-role execution remain revoked.
+- The exact Client, Matter, and Document server routes now share typed server-only readers for normal active records. They deliberately keep a Trash result at `notFound()` until the approved strip/action-suppression tranche can make every existing mutation safely read-only; this tranche does not claim the Trash route experience is complete.
+- Normal client/matter/document collections, dashboard counts, ordinary Search, and semantic-search hydration now require both typed `record_state = active` and legacy-compatible `deleted_at IS NULL`, keeping malformed or compatibility rows out of ordinary results.
+- Fresh local migration replay through `00084`, the tenant/lineage/lifecycle/capability SQL fixture, focused source tests, TypeScript, migration checks, diff checks, and fresh independent QA passed. A targeted lint check is clean; broader legacy route lint findings remain documented pre-existing baseline debt.
 
 ### Completed: exact-PDF duplicate resolution and version-writer fence (2026-08-30)
 

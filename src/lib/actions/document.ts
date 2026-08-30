@@ -26,6 +26,7 @@ export async function getDocumentsByMatter(matterId: string) {
     .select('*')
     .eq('matter_id', matterId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
@@ -55,6 +56,7 @@ export async function getDocumentsByMatter(matterId: string) {
       .select('*')
       .in('id', Array.from(linkedDocIds))
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
       .is('deleted_at', null)
       
     if (crossMatterDocs) {
@@ -85,6 +87,7 @@ export async function getNeedsReviewDocuments() {
     `)
     .eq('org_id', orgId)
     .eq('status', 'needs_review')
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(50)

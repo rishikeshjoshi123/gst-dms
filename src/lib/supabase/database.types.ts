@@ -4801,6 +4801,34 @@ export type Database = {
           state: Database["public"]["Enums"]["organisation_membership_state"]
         }[]
       }
+      get_exact_resource_trash_context: {
+        Args: {
+          p_expected_matter_id?: string | null
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string | null
+          auto_purge_at: string | null
+          auto_purge_enabled: boolean
+          blocker_count: number
+          purge_eligible_at: string | null
+          purge_scheduled_at: string | null
+          retention_days: number | null
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string | null
+        }[]
+      }
       get_my_pending_organisation_invites: {
         Args: never
         Returns: {

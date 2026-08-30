@@ -79,6 +79,9 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
             .from('documents')
             .select('id, display_title, storage_path, reference_number, matter_id, matters(title, client_id)')
             .in('id', docIds)
+            .eq('org_id', orgId)
+            .eq('record_state', 'active')
+            .is('deleted_at', null)
             
           if (vDocs) {
             vectorMatches = vDocs
@@ -95,6 +98,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
       .from('clients')
       .select('id, name, gstin')
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
       .is('deleted_at', null)
       .or(`name.ilike.${formattedQuery},gstin.ilike.${formattedQuery}`)
       .limit(10),
@@ -102,6 +106,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
       .from('matters')
       .select('id, title, matter_code, client_id, clients(name)')
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
       .is('deleted_at', null)
       .or(`title.ilike.${formattedQuery},matter_code.ilike.${formattedQuery}`)
       .limit(10),
@@ -109,6 +114,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
       .from('documents')
       .select('id, display_title, storage_path, reference_number, matter_id, matters(title, client_id)')
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
       .is('deleted_at', null)
       .or(`display_title.ilike.${formattedQuery},storage_path.ilike.${formattedQuery},reference_number.ilike.${formattedQuery}`)
       .limit(10)

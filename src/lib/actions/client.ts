@@ -16,7 +16,9 @@ export async function getClients() {
     .from('clients')
     .select('*, matters(id, status)')
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
+    .eq('matters.record_state', 'active')
     .is('matters.deleted_at', null)
     .order('name')
 

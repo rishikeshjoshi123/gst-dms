@@ -1,7 +1,6 @@
 import { getMattersByClient } from '@/lib/actions/matter'
 import { MATTER_STATUS_LABELS } from '@/lib/constants'
-import { createClient } from '@/lib/supabase/server'
-import { getCurrentOrgId } from '@/lib/actions/org'
+import { getExactClient } from '@/lib/trash/exact-resource'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Building2, FolderOpen, ChevronRight } from 'lucide-react'
@@ -15,21 +14,13 @@ export const metadata = { title: 'Client Details — GST Litigation DMS' }
 
 export default async function ClientDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-
-  if (!orgId) return null
-
-  const { data: client } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', params.id)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!client) {
+  const exactClient = await getExactClient(params.id)
+  // Trash rendering/action suppression is a later tranche. Keep this route
+  // closed until that work can safely make its existing mutations read-only.
+  if (!exactClient || exactClient.state !== 'active') {
     notFound()
   }
+  const client = exactClient.record
 
   const matters = await getMattersByClient(params.id)
 

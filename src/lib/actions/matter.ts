@@ -24,6 +24,7 @@ export async function getMatters() {
       clients(id, name, gstin)
     `)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
@@ -40,6 +41,7 @@ export async function getMattersByClient(clientId: string) {
     .select('*')
     .eq('org_id', orgId)
     .eq('client_id', clientId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 

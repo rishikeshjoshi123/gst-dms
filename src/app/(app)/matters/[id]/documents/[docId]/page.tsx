@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { getDocumentVersionSignedUrl, getDocumentsByMatter } from '@/lib/actions/document'
 import { getNotes } from '@/lib/actions/notes'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
@@ -9,24 +8,17 @@ import { TimelineDocumentDetail } from '@/components/matters/TimelineDocumentDet
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import Link from 'next/link'
 import { ArrowLeft, FileText } from 'lucide-react'
+import { getExactDocument } from '@/lib/trash/exact-resource'
 
 export default async function DocumentPage(props: { params: Promise<{ id: string; docId: string }> }) {
   const params = await props.params;
-  const supabase = await createClient()
-
-  const { data: doc } = await supabase
-    .from('documents')
-    .select(`
-      *,
-      matters(id, title)
-    `)
-    .eq('id', params.docId)
-    .eq('matter_id', params.id)
-    .single()
-
-  if (!doc) {
+  const exactDocument = await getExactDocument(params.id, params.docId)
+  // Trash rendering/action suppression is a later tranche. Keep this route
+  // closed until that work can safely make its existing mutations read-only.
+  if (!exactDocument || exactDocument.state !== 'active') {
     notFound()
   }
+  const doc = exactDocument.record
 
   const signedDocument = doc.current_version_id
     ? await getDocumentVersionSignedUrl(doc.current_version_id)

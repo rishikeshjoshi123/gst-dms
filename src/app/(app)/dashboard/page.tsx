@@ -11,9 +11,9 @@ export const metadata: Metadata = { title: 'Dashboard' }
 async function getDashboardStats(orgId: string) {
   const supabase = await createClient()
   const [clients, matters, documents] = await Promise.all([
-    supabase.from('clients').select('id', { count: 'exact', head: true }).eq('org_id', orgId).is('deleted_at', null),
-    supabase.from('matters').select('id', { count: 'exact', head: true }).eq('org_id', orgId).is('deleted_at', null),
-    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('org_id', orgId).is('deleted_at', null),
+    supabase.from('clients').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('record_state', 'active').is('deleted_at', null),
+    supabase.from('matters').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('record_state', 'active').is('deleted_at', null),
+    supabase.from('documents').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('record_state', 'active').is('deleted_at', null),
   ])
   return {
     clients: clients.count ?? 0,

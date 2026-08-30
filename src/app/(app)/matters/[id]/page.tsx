@@ -1,4 +1,3 @@
-import { getMatterById } from '@/lib/actions/matter'
 import { MATTER_STATUS_LABELS } from '@/lib/constants'
 import { getDocumentsByMatter } from '@/lib/actions/document'
 import { getWikiSections } from '@/lib/actions/wiki'
@@ -6,6 +5,7 @@ import { getNotes } from '@/lib/actions/notes'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from '@/lib/actions/org'
+import { getExactMatter } from '@/lib/trash/exact-resource'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle, Plus } from 'lucide-react'
@@ -23,11 +23,14 @@ export default async function MatterPage(props: {
   const params = await props.params;
   const searchParams = await props.searchParams;
   const fromReview = searchParams?.from === 'review'
-  const matter = await getMatterById(params.id)
+  const exactMatter = await getExactMatter(params.id)
 
-  if (!matter) {
+  // Trash rendering/action suppression is a later tranche. Keep this route
+  // closed until that work can safely make its existing mutations read-only.
+  if (!exactMatter || exactMatter.state !== 'active') {
     notFound()
   }
+  const matter = exactMatter.record
 
   const supabase = await createClient()
 
