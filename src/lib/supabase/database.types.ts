@@ -3839,6 +3839,51 @@ export type Database = {
           },
         ]
       }
+      trash_operation_created_effect_receipts: {
+        Row: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Insert: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at?: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Update: {
+          affected_count?: number
+          event_id?: string
+          event_kind?: string
+          handled_at?: string
+          operation_id?: string
+          org_id?: string
+          outcome_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_operation_created_effect_receipts_event_org_fkey"
+            columns: ["org_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "outbox_events"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_operation_created_effect_receipts_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       trash_restore_receipts: {
         Row: {
           actor_user_id: string
@@ -5129,6 +5174,19 @@ export type Database = {
         }[]
       }
       handle_trash_restore_effect: {
+        Args: {
+          p_delivery_lease_token: string
+          p_event_id: string
+          p_expected_event_kind: string
+          p_expected_org_id: string
+        }
+        Returns: {
+          affected_count: number
+          code: string
+          outcome_code: string
+        }[]
+      }
+      handle_trash_operation_created_effect: {
         Args: {
           p_delivery_lease_token: string
           p_event_id: string

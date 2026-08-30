@@ -2,6 +2,7 @@ import { schedules, task } from '@trigger.dev/sdk'
 import { createSupabaseOutboxTransport } from '@/lib/outbox/supabase-transport'
 import {
   dispatchLeasedEvents,
+  isTrashOperationEffectEventKind,
   isTrashRestoreEventKind,
   type DocumentLifecycleEnvelope,
 } from '@/lib/outbox/dispatcher'
@@ -9,7 +10,7 @@ import type { DocumentOutboxWakePayload } from '@/lib/outbox/wake'
 import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orchestration'
 import { isScopedSearchIndexClaim, runScopedSearchIndexReprocessWorker } from '@/lib/documents/scoped-reprocess'
 import { validatePdfBytes } from '@/lib/documents/validation'
-import { runTrashRestoreEffect } from '@/lib/trash/restore-effects'
+import { runTrashOperationCreatedEffect, runTrashRestoreEffect } from '@/lib/trash/restore-effects'
 
 type RpcClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
@@ -39,6 +40,9 @@ export const documentLifecycleEvent = task({
   run: async (payload: DocumentLifecycleEnvelope, { ctx }) => {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const client = createServiceClient() as unknown as RpcClient
+    if (payload.eventKind === 'trash.operation_created.v1') {
+      return runTrashOperationCreatedEffect(client, payload)
+    }
     if (isTrashRestoreEventKind(payload.eventKind)) {
       return runTrashRestoreEffect(client, payload)
     }
@@ -139,7 +143,7 @@ export const documentLifecycleEvent = task({
 
 const drainDocumentOutbox = () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
   trigger: async (envelope, options) => {
-    if (!isTrashRestoreEventKind(envelope.eventKind)) {
+    if (!isTrashOperationEffectEventKind(envelope.eventKind)) {
       return documentLifecycleEvent.trigger(envelope, options)
     }
     // Restore effects change dependent domain state. Wait for the fenced
@@ -147,8 +151,8 @@ const drainDocumentOutbox = () => dispatchLeasedEvents(createSupabaseOutboxTrans
     // after revalidation and idempotent handling, never merely on queueing.
     const run = await documentLifecycleEvent.triggerAndWait(envelope, options)
     if (!run.ok || !run.output || run.output.accepted !== true
-      || !String(run.output.routed).startsWith('trash-restore-')) {
-      throw new Error('Restore effect task did not complete safely')
+      || !String(run.output.routed).startsWith('trash-')) {
+      throw new Error('Trash effect task did not complete safely')
     }
     return { id: run.id }
   },

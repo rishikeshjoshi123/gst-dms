@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { DocumentLifecycleEnvelope, TrashRestoreEventKind } from '@/lib/outbox/dispatcher'
-import { runTrashRestoreEffect } from './restore-effects'
+import { runTrashOperationCreatedEffect, runTrashRestoreEffect } from './restore-effects'
 
 const kinds: TrashRestoreEventKind[] = [
   'trash.operation_restored.v1',
@@ -57,4 +57,23 @@ test('rejects unhandled, stale, or unavailable Restore effects', async () => {
   await assert.rejects(runTrashRestoreEffect({
     rpc: async () => ({ data: null, error: { message: 'private detail' } }),
   }, envelope('trash.schedule_reevaluation_requested.v1')))
+})
+
+test('routes a creation event through its distinct fenced effect RPC', async () => {
+  const created = { ...envelope('trash.operation_restored.v1'), eventKind: 'trash.operation_created.v1' as const }
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const result = await runTrashOperationCreatedEffect({
+    rpc: async (name, args) => {
+      calls.push({ name, args })
+      return { data: [{ code: 'handled', outcome_code: 'operation_semantic_index_invalidated', affected_count: 1 }], error: null }
+    },
+  }, created)
+  assert.equal(result.routed, 'trash-operation-created')
+  assert.deepEqual(calls[0], {
+    name: 'handle_trash_operation_created_effect',
+    args: {
+      p_event_id: created.eventId, p_expected_org_id: created.orgId,
+      p_delivery_lease_token: created.leaseToken, p_expected_event_kind: created.eventKind,
+    },
+  })
 })

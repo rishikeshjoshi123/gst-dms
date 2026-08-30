@@ -5,6 +5,7 @@ import {
   isDocumentLifecycleEventKind,
   isSafeLeasedOutboxEvent,
   isSafeOutboxPayload,
+  isTrashOperationEffectEventKind,
   isTrashRestoreEventKind,
   type LeasedOutboxEvent,
   type OutboxTransport,
@@ -86,6 +87,21 @@ test('accepts every identifier-only Restore effect envelope and rejects malforme
       payload: { ...restoreEvent.payload, storage_path: 'private/path.pdf' },
     }), false)
   }
+})
+
+test('accepts the identifier-only Trash creation envelope and no extra payload fields', () => {
+  const created: LeasedOutboxEvent = {
+    ...event('created'), eventKind: 'trash.operation_created.v1', aggregateType: 'trash_operation',
+    aggregateId: '70000000-0000-0000-0000-000000000001',
+    payload: {
+      operation_id: '70000000-0000-0000-0000-000000000001',
+      root_resource_id: '80000000-0000-0000-0000-000000000001',
+      root_resource_type: 'client',
+    },
+  }
+  assert.equal(isTrashOperationEffectEventKind(created.eventKind), true)
+  assert.equal(isSafeLeasedOutboxEvent(created), true)
+  assert.equal(isSafeLeasedOutboxEvent({ ...created, payload: { ...created.payload, embedding: 'forbidden' } }), false)
 })
 
 test('dispatches an empty lease without gateway calls', async () => {

@@ -2,7 +2,7 @@
 title: Hierarchical Resource Trash, Retention, and Purge
 status: approved
 created: 2026-08-24
-updated: 2026-08-29
+updated: 2026-08-30
 owners:
   - product
   - engineering
@@ -134,7 +134,13 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Repair the pre-existing `trash.operation_created.v1` durable-outbox dispatch gap so the hierarchy Trash command's accepted event has a typed, fenced consumer and cannot dead-letter as an unknown event. Then resume the approved retention-settings and prospective-policy-snapshot tranche. Keep Permanent Delete authority deferred.
+Implement the approved retention-settings and prospective-policy-snapshot tranche as one coherent Owner/Admin settings contract. Keep Permanent Delete authority deferred.
+
+### Completed: Trash creation durable effect (2026-08-30)
+
+- Migration `00089` closes the pre-existing `trash.operation_created.v1` dispatch gap. The hierarchy Trash command's exact identifier-only event is now a typed dispatcher/Trigger contract and is synchronously acknowledged only after its private, service-only receipt is recorded.
+- Its fenced consumer verifies the lease, tenant, event/aggregate/payload/root identity, and complete membership lifecycle before clearing only derived semantic-index fields for documents that remain owned by the still-trashed operation. It covers `trashed`, `restore_blocked`, and `purge_scheduled` without touching independent operations. A delayed event for a fully restored operation records a safe no-longer-trashed outcome, so a later independent re-trash cannot erase a newer embedding.
+- Local migration replay and rollback fixtures cover cross-tenant and direct-privilege denial, malformed/expired leases, pre-receipt acknowledgement, replay, independent descendants, Restore ordering, restore-blocked, and purge-scheduled delivery. Focused source tests, TypeScript, targeted lint, migration checks, driver inspection, and fresh independent QA recheck passed. This tranche implements creation-time semantic search invalidation only; there is no live deadline sender to suspend yet.
 
 ### Completed: root-scoped Restore (2026-08-30)
 

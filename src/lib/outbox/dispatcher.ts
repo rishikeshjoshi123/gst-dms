@@ -11,6 +11,7 @@ export const documentLifecycleEventKinds = [
   'document.reprocess_requested.v1',
   'intake.assigned.v1',
   'intake.discarded.v1',
+  'trash.operation_created.v1',
   'trash.operation_restored.v1',
   'trash.search_reindex_requested.v1',
   'trash.schedule_reevaluation_requested.v1',
@@ -38,6 +39,12 @@ export const trashRestoreEventKinds = [
   'trash.schedule_reevaluation_requested.v1',
 ] as const satisfies readonly DocumentLifecycleEventKind[]
 export type TrashRestoreEventKind = typeof trashRestoreEventKinds[number]
+
+export const trashOperationEffectEventKinds = [
+  'trash.operation_created.v1',
+  ...trashRestoreEventKinds,
+] as const satisfies readonly DocumentLifecycleEventKind[]
+export type TrashOperationEffectEventKind = typeof trashOperationEffectEventKinds[number]
 
 export type OutboxTransport = {
   lease(limit: number, leaseSeconds: number): Promise<LeasedOutboxEvent[]>
@@ -80,6 +87,7 @@ const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType:
   'document.reprocess_requested.v1': { aggregateType: 'document', aggregateKey: 'document_id', keys: ['document_id', 'version_id', 'scope'] },
   'intake.assigned.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'document_id', 'document_version_id'] },
   'intake.discarded.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'result_code'] },
+  'trash.operation_created.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
   'trash.operation_restored.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
   'trash.search_reindex_requested.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
   'trash.schedule_reevaluation_requested.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
@@ -103,6 +111,10 @@ export function isDocumentLifecycleEventKind(value: unknown): value is DocumentL
 
 export function isTrashRestoreEventKind(value: unknown): value is TrashRestoreEventKind {
   return typeof value === 'string' && (trashRestoreEventKinds as readonly string[]).includes(value)
+}
+
+export function isTrashOperationEffectEventKind(value: unknown): value is TrashOperationEffectEventKind {
+  return typeof value === 'string' && (trashOperationEffectEventKinds as readonly string[]).includes(value)
 }
 
 export function isSafeLeasedOutboxEvent(value: unknown): value is LeasedOutboxEvent {
