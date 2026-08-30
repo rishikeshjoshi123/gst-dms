@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 
 import type { ExactResourceTrashContext } from '@/lib/trash/exact-resource'
+import { RestoreTrashOperationControl } from './RestoreTrashOperationControl'
 
 const resourceLabel = { client: 'Client', matter: 'Matter', document: 'Document' } as const
 
@@ -41,7 +42,7 @@ export function TrashReadOnlyStrip({ context }: { context: ExactResourceTrashCon
   const rootType = resourceLabel[context.rootResourceType]
   const lineage = inherited
     ? `This item was moved with ${rootType.toLowerCase()} “${context.rootResourceName}”. The ancestor Trash group must be restored; this item has no independent restore action.`
-    : `This ${resourceLabel[context.rootResourceType].toLowerCase()} is the root of the Trash group “${context.rootResourceName}”. Restore and permanent deletion are not available in this release.`
+    : `This ${resourceLabel[context.rootResourceType].toLowerCase()} is the root of the Trash group “${context.rootResourceName}”. Restoring returns the whole group; permanent deletion is not available.`
 
   return (
     <section
@@ -64,13 +65,29 @@ export function TrashReadOnlyStrip({ context }: { context: ExactResourceTrashCon
             </p>
           </div>
         </div>
-        <Link
-          href={`/trash?selected=${encodeURIComponent(context.operationId)}`}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to Trash
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+          <Link
+            href={`/trash?selected=${encodeURIComponent(context.operationId)}`}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to Trash
+          </Link>
+          {!inherited && context.restorePreflight && (
+            <RestoreTrashOperationControl
+              operationId={context.operationId}
+              operationName={context.rootResourceName}
+              impact="The selected root and every item moved with this operation"
+              preflight={context.restorePreflight}
+              successPath={context.rootResourceType === 'client'
+                ? `/clients/${context.rootResourceId}`
+                : context.rootResourceType === 'matter'
+                  ? `/matters/${context.rootResourceId}`
+                  : ''}
+              compact
+            />
+          )}
+        </div>
       </div>
     </section>
   )

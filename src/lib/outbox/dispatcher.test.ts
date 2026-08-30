@@ -5,6 +5,7 @@ import {
   isDocumentLifecycleEventKind,
   isSafeLeasedOutboxEvent,
   isSafeOutboxPayload,
+  isTrashRestoreEventKind,
   type LeasedOutboxEvent,
   type OutboxTransport,
 } from './dispatcher'
@@ -54,6 +55,37 @@ test('accepts only known versioned event kinds and content-free scalar payloads'
       intake_id: '50000000-0000-0000-0000-000000000001',
     },
   }), true)
+})
+
+test('accepts every identifier-only Restore effect envelope and rejects malformed variants', () => {
+  const restoreKinds = [
+    'trash.operation_restored.v1',
+    'trash.search_reindex_requested.v1',
+    'trash.schedule_reevaluation_requested.v1',
+  ] as const
+  for (const eventKind of restoreKinds) {
+    const restoreEvent: LeasedOutboxEvent = {
+      ...event(eventKind),
+      eventKind,
+      aggregateType: 'trash_operation',
+      aggregateId: '70000000-0000-0000-0000-000000000001',
+      payload: {
+        operation_id: '70000000-0000-0000-0000-000000000001',
+        root_resource_id: '80000000-0000-0000-0000-000000000001',
+        root_resource_type: 'document',
+      },
+    }
+    assert.equal(isTrashRestoreEventKind(eventKind), true)
+    assert.equal(isSafeLeasedOutboxEvent(restoreEvent), true)
+    assert.equal(isSafeLeasedOutboxEvent({
+      ...restoreEvent,
+      payload: { ...restoreEvent.payload, root_resource_type: 'deadline' },
+    }), false)
+    assert.equal(isSafeLeasedOutboxEvent({
+      ...restoreEvent,
+      payload: { ...restoreEvent.payload, storage_path: 'private/path.pdf' },
+    }), false)
+  }
 })
 
 test('dispatches an empty lease without gateway calls', async () => {

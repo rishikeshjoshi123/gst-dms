@@ -11,6 +11,9 @@ export const documentLifecycleEventKinds = [
   'document.reprocess_requested.v1',
   'intake.assigned.v1',
   'intake.discarded.v1',
+  'trash.operation_restored.v1',
+  'trash.search_reindex_requested.v1',
+  'trash.schedule_reevaluation_requested.v1',
 ] as const
 
 export type DocumentLifecycleEventKind = typeof documentLifecycleEventKinds[number]
@@ -28,6 +31,13 @@ export type DocumentLifecycleEnvelope = {
 }
 
 export type LeasedOutboxEvent = DocumentLifecycleEnvelope & { attemptNumber: number }
+
+export const trashRestoreEventKinds = [
+  'trash.operation_restored.v1',
+  'trash.search_reindex_requested.v1',
+  'trash.schedule_reevaluation_requested.v1',
+] as const satisfies readonly DocumentLifecycleEventKind[]
+export type TrashRestoreEventKind = typeof trashRestoreEventKinds[number]
 
 export type OutboxTransport = {
   lease(limit: number, leaseSeconds: number): Promise<LeasedOutboxEvent[]>
@@ -57,7 +67,7 @@ const safeCodeByKey: Record<string, readonly string[]> = {
 }
 const safeScopeValues = ['extract', 'ocr', 'relationships', 'search_index', 'full'] as const
 
-const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType: 'document' | 'document_upload'; aggregateKey: string; keys: readonly string[] }> = {
+const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType: 'document' | 'document_upload' | 'trash_operation'; aggregateKey: string; keys: readonly string[] }> = {
   'document.upload_reserved.v1': { aggregateType: 'document_upload', aggregateKey: 'session_id', keys: ['session_id', 'intake_id', 'asset_id'] },
   'document.upload_validation_requested.v1': { aggregateType: 'document_upload', aggregateKey: 'session_id', keys: ['session_id', 'intake_id', 'asset_id'] },
   'document.upload_duplicate.v1': { aggregateType: 'document_upload', aggregateKey: 'session_id', keys: ['session_id', 'intake_id'] },
@@ -70,6 +80,9 @@ const eventPayloadContracts: Record<DocumentLifecycleEventKind, { aggregateType:
   'document.reprocess_requested.v1': { aggregateType: 'document', aggregateKey: 'document_id', keys: ['document_id', 'version_id', 'scope'] },
   'intake.assigned.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'document_id', 'document_version_id'] },
   'intake.discarded.v1': { aggregateType: 'document', aggregateKey: 'intake_id', keys: ['intake_id', 'result_code'] },
+  'trash.operation_restored.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
+  'trash.search_reindex_requested.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
+  'trash.schedule_reevaluation_requested.v1': { aggregateType: 'trash_operation', aggregateKey: 'operation_id', keys: ['operation_id', 'root_resource_id', 'root_resource_type'] },
 }
 
 function isUuid(value: unknown) {
@@ -86,6 +99,10 @@ export function isSafeOutboxPayload(value: unknown): value is SafeOutboxPayload 
 
 export function isDocumentLifecycleEventKind(value: unknown): value is DocumentLifecycleEventKind {
   return typeof value === 'string' && (documentLifecycleEventKinds as readonly string[]).includes(value)
+}
+
+export function isTrashRestoreEventKind(value: unknown): value is TrashRestoreEventKind {
+  return typeof value === 'string' && (trashRestoreEventKinds as readonly string[]).includes(value)
 }
 
 export function isSafeLeasedOutboxEvent(value: unknown): value is LeasedOutboxEvent {
@@ -106,6 +123,7 @@ export function isSafeLeasedOutboxEvent(value: unknown): value is LeasedOutboxEv
     const payloadValue = payload[key]
     if (key in safeCodeByKey) return safeCodeByKey[key].includes(payloadValue)
     if (key === 'scope') return safeScopeValues.includes(payloadValue as typeof safeScopeValues[number])
+    if (key === 'root_resource_type') return ['client', 'matter', 'document'].includes(payloadValue)
     return isUuid(payloadValue)
   })
 }

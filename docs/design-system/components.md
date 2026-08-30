@@ -115,7 +115,7 @@ Use `TrashReadOnlyStrip` immediately below stable route context whenever an exac
 - The strip is structural, full width, and outside the page or pane body scroller so the legal-record state remains available while content moves.
 - It uses the semantic danger-muted surface, border, Trash icon, and explicit `In Trash — read only` text; colour is never the only signal.
 - It identifies the deletion actor/date and root operation, explains direct versus inherited grouping, provides retention guidance, and links back to the selected Trash group.
-- Restore and permanent-delete controls appear only after their complete authority workflows ship. An inherited child never presents an independent restore action.
+- A server-authorised direct root may show the shared `Restore group` control and impact dialog. Parent and uniqueness blockers replace the control with plain, actionable status. An inherited child never presents an independent restore action, and permanent-delete remains absent until its separate authority workflow ships.
 - Mobile keeps the explanation and metadata readable through wrapping and preserves a 44px `Back to Trash` target without introducing horizontal page overflow.
 
 ### Matter section workbars

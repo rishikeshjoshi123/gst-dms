@@ -39,6 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
+import { RestoreTrashOperationControl } from '@/components/trash/RestoreTrashOperationControl'
 import { cn } from '@/lib/utils'
 import {
   describeIncludedItems,
@@ -305,6 +306,18 @@ function DetailPanel({ operation, timeZone, mobile, onClose }: {
           <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Included items belong to this root Trash group and have no independent actions.</p>
         </div>
       </div>
+      {operation.restorePreflight && (operation.restorePreflight.canRestore || operation.restorePreflight.status === 'restore_blocked') && (
+        <div className="flex min-h-14 shrink-0 items-center justify-end border-t border-[var(--border-subtle)] p-3">
+          <RestoreTrashOperationControl
+            operationId={operation.id}
+            operationName={operation.name}
+            impact={`${describeIncludedItems(operation)}${describeIncludedItems(operation) === 'No included items' ? '' : ' plus the selected root'}`}
+            preflight={operation.restorePreflight}
+            successPath={operation.canonicalPath || '/trash'}
+            compact
+          />
+        </div>
+      )}
     </aside>
   )
 }

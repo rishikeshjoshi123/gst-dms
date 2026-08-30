@@ -3,6 +3,7 @@ import 'server-only'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
+import type { TrashRestorePreflight } from './restore-model'
 
 type TrashProjectionRow = Database['public']['Functions']['get_exact_trashed_resource_projection']['Returns'][number]
 type ClientRow = Database['public']['Tables']['clients']['Row']
@@ -57,6 +58,7 @@ export type ExactResourceTrashContext = {
   }
   // Display guidance for a later restore UI; never mutation authority.
   canRestore: boolean
+  restorePreflight: TrashRestorePreflight | null
 }
 
 export type ExactResourceTrashData<Record> = {
@@ -98,6 +100,7 @@ function toTrashContext(row: TrashProjectionRow): ExactResourceTrashContext {
       blockerCount: row.blocker_count,
     },
     canRestore: row.can_restore,
+    restorePreflight: null,
   }
 }
 
@@ -116,8 +119,25 @@ async function getTrashProjection<Record>(
   const projection = data?.[0]
   if (error || !projection || !projection.resource_record || Array.isArray(projection.resource_record)) return null
 
+  const context = toTrashContext(projection)
+  if (context.cause === 'direct' && context.canRestore) {
+    const { data: preflightRows } = await supabase.rpc('get_trash_restore_preflight', {
+      p_operation_id: context.operationId,
+    })
+    const preflight = preflightRows?.[0]
+    if (preflight) {
+      context.restorePreflight = {
+        status: preflight.code as TrashRestorePreflight['status'],
+        canRestore: preflight.can_restore,
+        blockerCode: preflight.blocker_code,
+        blockingOperationId: preflight.blocking_operation_id,
+      }
+      context.canRestore = preflight.can_restore
+    }
+  }
+
   return {
-    context: toTrashContext(projection),
+    context,
     data: {
       record: projection.resource_record as Record,
       matters: Array.isArray(projection.related_matters) ? projection.related_matters as TrashMatterRecord[] : [],

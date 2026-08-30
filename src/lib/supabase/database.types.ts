@@ -3794,6 +3794,102 @@ export type Database = {
           },
         ]
       }
+      trash_restore_effect_receipts: {
+        Row: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Insert: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at?: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Update: {
+          affected_count?: number
+          event_id?: string
+          event_kind?: string
+          handled_at?: string
+          operation_id?: string
+          org_id?: string
+          outcome_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_restore_effect_receipts_event_org_fkey"
+            columns: ["org_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "outbox_events"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_restore_effect_receipts_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      trash_restore_receipts: {
+        Row: {
+          actor_user_id: string
+          blocker_code: string | null
+          blocking_operation_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          operation_id: string
+          org_id: string
+          result_code: string
+        }
+        Insert: {
+          actor_user_id: string
+          blocker_code?: string | null
+          blocking_operation_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          operation_id: string
+          org_id: string
+          result_code: string
+        }
+        Update: {
+          actor_user_id?: string
+          blocker_code?: string | null
+          blocking_operation_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          operation_id?: string
+          org_id?: string
+          result_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_restore_receipts_blocking_operation_org_fkey"
+            columns: ["org_id", "blocking_operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_restore_receipts_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       upload_sessions: {
         Row: {
           asset_id: string
@@ -4915,6 +5011,15 @@ export type Database = {
           total_storage_bytes: number
         }[]
       }
+      get_trash_restore_preflight: {
+        Args: { p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          can_restore: boolean
+          code: string
+        }[]
+      }
       get_my_pending_organisation_invites: {
         Args: never
         Returns: {
@@ -5021,6 +5126,19 @@ export type Database = {
           expected_sha256: string
           source_bucket_id: string
           source_object_key: string
+        }[]
+      }
+      handle_trash_restore_effect: {
+        Args: {
+          p_delivery_lease_token: string
+          p_event_id: string
+          p_expected_event_kind: string
+          p_expected_org_id: string
+        }
+        Returns: {
+          affected_count: number
+          code: string
+          outcome_code: string
         }[]
       }
       has_organisation_capability: {
@@ -5492,6 +5610,27 @@ export type Database = {
           included_matter_count: number
           operation_id: string
           preexisting_trashed_descendant_count: number
+        }[]
+      }
+      restore_trash_operation: {
+        Args: { p_idempotency_key: string; p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          code: string
+          operation_id: string
+          root_client_id: string
+          root_document_id: string
+          root_matter_id: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }[]
+      }
+      trash_restore_blocker: {
+        Args: { p_operation_id: string; p_org_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
         }[]
       }
       resend_organisation_invite: {

@@ -9,6 +9,7 @@ import {
   type TrashWorkspaceData,
   type TrashWorkspaceProjectionRow,
 } from './workspace-model'
+import type { TrashRestorePreflight } from './restore-model'
 
 type TrashWorkspaceRow = Database['public']['Functions']['get_trash_workspace']['Returns'][number]
 
@@ -53,8 +54,24 @@ export async function getTrashWorkspace(query: TrashWorkspaceQuery): Promise<Tra
     if (profile?.timezone) timeZone = profile.timezone
   }
 
+  const shaped = shapeTrashWorkspaceRows(data as (TrashWorkspaceRow & TrashWorkspaceProjectionRow)[], query.selectedOperationId)
+  if (shaped.selectedOperation) {
+    const { data: preflightRows } = await supabase.rpc('get_trash_restore_preflight', {
+      p_operation_id: shaped.selectedOperation.id,
+    })
+    const preflight = preflightRows?.[0]
+    if (preflight) {
+      shaped.selectedOperation.restorePreflight = {
+        status: preflight.code as TrashRestorePreflight['status'],
+        canRestore: preflight.can_restore,
+        blockerCode: preflight.blocker_code,
+        blockingOperationId: preflight.blocking_operation_id,
+      }
+    }
+  }
+
   return {
-    ...shapeTrashWorkspaceRows(data as (TrashWorkspaceRow & TrashWorkspaceProjectionRow)[], query.selectedOperationId),
+    ...shaped,
     timeZone,
   }
 }

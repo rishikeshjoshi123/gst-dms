@@ -69,7 +69,7 @@ test('canonical paths use the existing Client, Matter, and Document route shapes
   assert.equal(canonicalTrashResourcePath('document', 'document-id', null), '')
 })
 
-test('server and live UI sources preserve the read-only boundary', () => {
+test('server and live UI sources preserve the root-only Restore boundary', () => {
   const reader = readFileSync(new URL('./workspace.ts', import.meta.url), 'utf8')
   const ui = readFileSync(new URL('../../app/(app)/trash/TrashWorkspace.tsx', import.meta.url), 'utf8')
   const migration = readFileSync(new URL('../../../supabase/migrations/00085_trash_workspace_reader.sql', import.meta.url), 'utf8')
@@ -83,7 +83,7 @@ test('server and live UI sources preserve the read-only boundary', () => {
   assert.match(ui, /hidden min-w-\[720px\] lg:block/)
   assert.match(ui, /space-y-3 p-3 lg:hidden/)
   assert.match(ui, /<Button type="submit"[\s\S]*?>Search<\/Button>/)
-  assert.doesNotMatch(ui, />Restore group</)
+  assert.match(ui, /RestoreTrashOperationControl/)
   assert.doesNotMatch(ui, />Delete permanently</)
   assert.doesNotMatch(ui, /retention|legal hold|purge eligibility/i)
   assert.match(migration, /REVOKE ALL ON FUNCTION[\s\S]*PUBLIC, anon, service_role/)

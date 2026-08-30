@@ -134,7 +134,14 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Implement root-scoped restore with parent/uniqueness validation, conflict resolution, dependent-domain reactivation/re-evaluation, and atomic indexing/schedule events. Keep Permanent Delete authority deferred.
+Repair the pre-existing `trash.operation_created.v1` durable-outbox dispatch gap so the hierarchy Trash command's accepted event has a typed, fenced consumer and cannot dead-letter as an unknown event. Then resume the approved retention-settings and prospective-policy-snapshot tranche. Keep Permanent Delete authority deferred.
+
+### Completed: root-scoped Restore (2026-08-30)
+
+- Migration `00088` adds authenticated `restore_trash_operation`, the sole root-operation Restore authority. It verifies current tenant/capability policy, direct-root membership, parent lineage, active uniqueness/content conflicts, lifecycle state, actor-scoped idempotency, and stable resource/SHA locks before atomically restoring only the operation's own resources and memberships. Independently trashed descendants remain in their original groups; inherited children never receive Restore authority; scheduled permanent deletion is never silently cancelled.
+- The approved shared Restore control now appears only for an authorised direct root in `/trash` and the persistent read-only route strip. It provides a focus-managed, responsive impact confirmation and safe blocked guidance; Restore/Permanent Delete are not confused or co-present in unsupported contexts.
+- Restore writes one content-free activity record and three durable, identifier-only effects. Their typed outbox contracts, service-only effect fence/receipt, and worker handlers reconcile the operation, queue existing idempotent search-index reprocessing for eligible restored document versions, and recalculate deadline eligibility without sending missed reminders or touching independently trashed descendants. The dispatcher acknowledges those events only after their fenced effect completes.
+- Clean local migration replay, rollback tenant/authority/conflict/effect fixtures, same-key and Restore-versus-writer SHA concurrency harnesses, focused unit/integration tests, TypeScript, targeted lint, migration checks, diff checks, browser checks, and fresh independent QA/rechecks passed. A shared default-build lock made a final Turbopack build inconclusive; a webpack build passed before the worker-path remediation, while the remediation itself passes all targeted checks. The pre-existing `trash.operation_created.v1` dispatcher gap was deliberately not folded into this Restore tranche and is the recorded immediate follow-up.
 
 ### Completed: canonical Trash read-only routes (2026-08-30)
 

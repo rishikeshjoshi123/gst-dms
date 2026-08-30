@@ -1,3 +1,5 @@
+import type { TrashRestorePreflight } from './restore-model'
+
 export type TrashResourceType = 'client' | 'matter' | 'document'
 export type TrashResourceFilter = 'all' | TrashResourceType
 
@@ -61,6 +63,7 @@ export type TrashOperation = {
   includedDocumentCount: number
   storageBytes: number
   includedItems: TrashIncludedItem[]
+  restorePreflight: TrashRestorePreflight | null
 }
 
 export type TrashWorkspaceData = {
@@ -120,6 +123,7 @@ export function shapeTrashWorkspaceRows(
         includedDocumentCount: row.included_document_count ?? 0,
         storageBytes: row.operation_storage_bytes ?? 0,
         includedItems: [],
+        restorePreflight: null,
       }
       byId.set(row.operation_id, operation)
     }

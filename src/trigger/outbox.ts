@@ -1,10 +1,15 @@
 import { schedules, task } from '@trigger.dev/sdk'
 import { createSupabaseOutboxTransport } from '@/lib/outbox/supabase-transport'
-import { dispatchLeasedEvents, type DocumentLifecycleEnvelope } from '@/lib/outbox/dispatcher'
+import {
+  dispatchLeasedEvents,
+  isTrashRestoreEventKind,
+  type DocumentLifecycleEnvelope,
+} from '@/lib/outbox/dispatcher'
 import type { DocumentOutboxWakePayload } from '@/lib/outbox/wake'
 import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orchestration'
 import { isScopedSearchIndexClaim, runScopedSearchIndexReprocessWorker } from '@/lib/documents/scoped-reprocess'
 import { validatePdfBytes } from '@/lib/documents/validation'
+import { runTrashRestoreEffect } from '@/lib/trash/restore-effects'
 
 type RpcClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
@@ -34,6 +39,9 @@ export const documentLifecycleEvent = task({
   run: async (payload: DocumentLifecycleEnvelope, { ctx }) => {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const client = createServiceClient() as unknown as RpcClient
+    if (isTrashRestoreEventKind(payload.eventKind)) {
+      return runTrashRestoreEffect(client, payload)
+    }
     if (payload.eventKind === 'document.upload_validation_requested.v1') {
       const claim = await rpc(client, 'claim_document_validation_work', { p_event_id: payload.eventId })
       if (!claim || claim.code !== 'claimed') return { accepted: true, routed: 'validation', outcome: String(claim?.code ?? 'no_work') }
@@ -111,12 +119,39 @@ export const documentLifecycleEvent = task({
       const result = await runScopedSearchIndexReprocessWorker(client, claim)
       return { accepted: true, routed: 'search-index-reprocess', outcome: result.outcome }
     }
-    return { accepted: true, routed: 'observed', eventId: payload.eventId, eventKind: payload.eventKind }
+    switch (payload.eventKind) {
+      case 'document.upload_reserved.v1':
+      case 'document.upload_duplicate.v1':
+      case 'document.upload_failed.v1':
+      case 'document.upload_expired.v1':
+      case 'document.intake_validation_failed.v1':
+      case 'document.metadata_created.v1':
+      case 'intake.assigned.v1':
+      case 'intake.discarded.v1':
+        return { accepted: true, routed: 'lifecycle-notification', eventId: payload.eventId, eventKind: payload.eventKind }
+      default: {
+        const unsupported: never = payload.eventKind
+        throw new Error(`Unsupported outbox event: ${unsupported}`)
+      }
+    }
   },
 })
 
 const drainDocumentOutbox = () => dispatchLeasedEvents(createSupabaseOutboxTransport(), {
-  trigger: (envelope, options) => documentLifecycleEvent.trigger(envelope, options),
+  trigger: async (envelope, options) => {
+    if (!isTrashRestoreEventKind(envelope.eventKind)) {
+      return documentLifecycleEvent.trigger(envelope, options)
+    }
+    // Restore effects change dependent domain state. Wait for the fenced
+    // consumer to finish so the durable outbox event is acknowledged only
+    // after revalidation and idempotent handling, never merely on queueing.
+    const run = await documentLifecycleEvent.triggerAndWait(envelope, options)
+    if (!run.ok || !run.output || run.output.accepted !== true
+      || !String(run.output.routed).startsWith('trash-restore-')) {
+      throw new Error('Restore effect task did not complete safely')
+    }
+    return { id: run.id }
+  },
 }, { maxBatches: 4 })
 
 // All immediate and scheduled wakes enter this one bounded dispatcher. The
