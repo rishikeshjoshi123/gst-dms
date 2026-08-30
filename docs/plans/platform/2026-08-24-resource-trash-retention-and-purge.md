@@ -126,6 +126,16 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ## Implementation Plan
 
+### Completed: Trash foundation prerequisite contract (2026-08-30)
+
+- Migration `00079` adds the private, tenant-scoped `trash_operations`, `resource_trash_memberships`, retention-settings, and hold contracts, with typed lifecycle states and composite resource lineage. Client, Matter, and Document retain legacy `deleted_at` compatibility while carrying typed record states and active-membership references for later command work.
+- The foundation enforces type-specific roots and membership locators, one active membership per resource, direct/inherited hierarchy and lifecycle consistency, transition/timestamp guards, manual-only retention defaults, and forced RLS with no direct browser or service-role access. Deferred validators reread final rows so an atomic terminal transition is valid without stale-event acceptance.
+- A local SQL fixture covers tenant/type forgery, duplicate membership, parent/lifecycle drift, direct authenticated and direct service-role forged writes, legacy soft deletes, retention defaults, terminal purge representation, and grants. Local migration replay, generated-type parity, type checking, migration checks, and fresh independent QA passed. This is a prerequisite contract only: no live trash/delete/restore/purge caller exists yet.
+
+### Canonical next action
+
+Implement the next approved coherent live slice: transactional hierarchy-aware trash commands for document, matter, and client, with capability/tenant checks, idempotency, active-descendant membership creation, state changes, and safe activity/outbox intent. Do not add restore, purge, UI, duplicate-flow, or dependent-domain suspension in that command tranche.
+
 1. Add `trash_operations`, `resource_trash_memberships`, organisation trash settings, resource record-state fields, legal-hold/blocker interface, RLS, unique active-membership constraints, and typed operation states.
 2. Replace current service-role multi-update deletion functions with transactional security-definer domain functions or equivalent server transactions that verify caller capability and tenant lineage.
 3. Add hierarchy-aware trash commands for document, matter, and client, including idempotency, pre-existing descendant handling, impact counts, activity/outbox events, and dependent-domain suspension.

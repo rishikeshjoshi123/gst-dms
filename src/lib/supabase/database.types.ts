@@ -298,6 +298,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          active_trash_membership_id: string | null
           company_name: string | null
           contact_info: Json | null
           created_at: string
@@ -307,9 +308,11 @@ export type Database = {
           name: string
           org_id: string
           pan: string | null
+          record_state: Database["public"]["Enums"]["resource_record_state"]
           updated_at: string
         }
         Insert: {
+          active_trash_membership_id?: string | null
           company_name?: string | null
           contact_info?: Json | null
           created_at?: string
@@ -319,9 +322,11 @@ export type Database = {
           name: string
           org_id: string
           pan?: string | null
+          record_state?: Database["public"]["Enums"]["resource_record_state"]
           updated_at?: string
         }
         Update: {
+          active_trash_membership_id?: string | null
           company_name?: string | null
           contact_info?: Json | null
           created_at?: string
@@ -331,9 +336,17 @@ export type Database = {
           name?: string
           org_id?: string
           pan?: string | null
+          record_state?: Database["public"]["Enums"]["resource_record_state"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "clients_active_trash_membership_org_fkey"
+            columns: ["org_id", "active_trash_membership_id"]
+            isOneToOne: false
+            referencedRelation: "resource_trash_memberships"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "clients_org_id_fkey"
             columns: ["org_id"]
@@ -1192,6 +1205,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          active_trash_membership_id: string | null
           ai_prompt_version: string | null
           confidence_scores: Json | null
           content_availability: Database["public"]["Enums"]["document_content_availability"]
@@ -1241,6 +1255,7 @@ export type Database = {
           trashed_reason: string | null
         }
         Insert: {
+          active_trash_membership_id?: string | null
           ai_prompt_version?: string | null
           confidence_scores?: Json | null
           content_availability?: Database["public"]["Enums"]["document_content_availability"]
@@ -1290,6 +1305,7 @@ export type Database = {
           trashed_reason?: string | null
         }
         Update: {
+          active_trash_membership_id?: string | null
           ai_prompt_version?: string | null
           confidence_scores?: Json | null
           content_availability?: Database["public"]["Enums"]["document_content_availability"]
@@ -1339,6 +1355,13 @@ export type Database = {
           trashed_reason?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_active_trash_membership_org_fkey"
+            columns: ["org_id", "active_trash_membership_id"]
+            isOneToOne: false
+            referencedRelation: "resource_trash_memberships"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "documents_copied_from_org_fkey"
             columns: ["org_id", "copied_from_document_id"]
@@ -1597,6 +1620,7 @@ export type Database = {
       }
       matters: {
         Row: {
+          active_trash_membership_id: string | null
           client_id: string
           created_at: string
           deleted_at: string | null
@@ -1605,10 +1629,12 @@ export type Database = {
           id: string
           matter_code: string | null
           org_id: string
+          record_state: Database["public"]["Enums"]["resource_record_state"]
           status: Database["public"]["Enums"]["matter_status"]
           title: string
         }
         Insert: {
+          active_trash_membership_id?: string | null
           client_id: string
           created_at?: string
           deleted_at?: string | null
@@ -1617,10 +1643,12 @@ export type Database = {
           id?: string
           matter_code?: string | null
           org_id: string
+          record_state?: Database["public"]["Enums"]["resource_record_state"]
           status?: Database["public"]["Enums"]["matter_status"]
           title: string
         }
         Update: {
+          active_trash_membership_id?: string | null
           client_id?: string
           created_at?: string
           deleted_at?: string | null
@@ -1629,10 +1657,18 @@ export type Database = {
           id?: string
           matter_code?: string | null
           org_id?: string
+          record_state?: Database["public"]["Enums"]["resource_record_state"]
           status?: Database["public"]["Enums"]["matter_status"]
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "matters_active_trash_membership_org_fkey"
+            columns: ["org_id", "active_trash_membership_id"]
+            isOneToOne: false
+            referencedRelation: "resource_trash_memberships"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "matters_client_id_fkey"
             columns: ["client_id"]
@@ -2113,6 +2149,47 @@ export type Database = {
           },
         ]
       }
+      organisation_retention_settings: {
+        Row: {
+          auto_purge_enabled: boolean
+          created_at: string
+          org_id: string
+          policy_version: number
+          trash_retention_days: number | null
+          trash_retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_purge_enabled?: boolean
+          created_at?: string
+          org_id: string
+          policy_version?: number
+          trash_retention_days?: number | null
+          trash_retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_purge_enabled?: boolean
+          created_at?: string
+          org_id?: string
+          policy_version?: number
+          trash_retention_days?: number | null
+          trash_retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_retention_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisation_storage_policies: {
         Row: {
           created_at: string
@@ -2485,6 +2562,182 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      resource_holds: {
+        Row: {
+          authority_reference: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          id: string
+          matter_id: string | null
+          org_id: string
+          reason: string
+          released_at: string | null
+          released_by: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          scope: Database["public"]["Enums"]["resource_hold_scope"]
+          state: Database["public"]["Enums"]["resource_hold_state"]
+        }
+        Insert: {
+          authority_reference?: string | null
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          id?: string
+          matter_id?: string | null
+          org_id: string
+          reason: string
+          released_at?: string | null
+          released_by?: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          scope?: Database["public"]["Enums"]["resource_hold_scope"]
+          state?: Database["public"]["Enums"]["resource_hold_state"]
+        }
+        Update: {
+          authority_reference?: string | null
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          id?: string
+          matter_id?: string | null
+          org_id?: string
+          reason?: string
+          released_at?: string | null
+          released_by?: string | null
+          resource_id?: string
+          resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          scope?: Database["public"]["Enums"]["resource_hold_scope"]
+          state?: Database["public"]["Enums"]["resource_hold_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_holds_client_org_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_holds_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_holds_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_holds_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_trash_memberships: {
+        Row: {
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          client_id: string | null
+          created_at: string
+          document_id: string | null
+          id: string
+          matter_id: string | null
+          operation_id: string
+          org_id: string
+          parent_membership_id: string | null
+          prior_record_state: Database["public"]["Enums"]["resource_record_state"]
+          purged_at: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          restored_at: string | null
+          state: Database["public"]["Enums"]["resource_trash_membership_state"]
+          updated_at: string
+        }
+        Insert: {
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          client_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          matter_id?: string | null
+          operation_id: string
+          org_id: string
+          parent_membership_id?: string | null
+          prior_record_state?: Database["public"]["Enums"]["resource_record_state"]
+          purged_at?: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          restored_at?: string | null
+          state?: Database["public"]["Enums"]["resource_trash_membership_state"]
+          updated_at?: string
+        }
+        Update: {
+          cause?: Database["public"]["Enums"]["resource_trash_cause"]
+          client_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          matter_id?: string | null
+          operation_id?: string
+          org_id?: string
+          parent_membership_id?: string | null
+          prior_record_state?: Database["public"]["Enums"]["resource_record_state"]
+          purged_at?: string | null
+          resource_id?: string
+          resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          restored_at?: string | null
+          state?: Database["public"]["Enums"]["resource_trash_membership_state"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_trash_memberships_client_org_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_trash_memberships_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_trash_memberships_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_trash_memberships_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "resource_trash_memberships_parent_org_fkey"
+            columns: ["org_id", "parent_membership_id"]
+            isOneToOne: false
+            referencedRelation: "resource_trash_memberships"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
       }
       source_analysis_attempts: {
         Row: {
@@ -3398,6 +3651,146 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      trash_operations: {
+        Row: {
+          actor_user_id: string | null
+          auto_purge_at: string | null
+          auto_purge_enabled_snapshot: boolean
+          blocker_count: number
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          last_error_code: string | null
+          org_id: string
+          preexisting_trashed_descendant_count: number
+          purge_eligible_at: string | null
+          purge_failed_at: string | null
+          purge_scheduled_at: string | null
+          purge_started_at: string | null
+          purged_at: string | null
+          reason: string | null
+          restore_blocked_at: string | null
+          restore_started_at: string | null
+          restored_at: string | null
+          retention_days: number | null
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          retention_policy_version: number
+          root_client_id: string | null
+          root_document_id: string | null
+          root_matter_id: string | null
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          shared_storage_bytes_retained: number
+          state: Database["public"]["Enums"]["trash_operation_state"]
+          unique_storage_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          auto_purge_at?: string | null
+          auto_purge_enabled_snapshot?: boolean
+          blocker_count?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          included_client_count?: number
+          included_document_count?: number
+          included_matter_count?: number
+          last_error_code?: string | null
+          org_id: string
+          preexisting_trashed_descendant_count?: number
+          purge_eligible_at?: string | null
+          purge_failed_at?: string | null
+          purge_scheduled_at?: string | null
+          purge_started_at?: string | null
+          purged_at?: string | null
+          reason?: string | null
+          restore_blocked_at?: string | null
+          restore_started_at?: string | null
+          restored_at?: string | null
+          retention_days?: number | null
+          retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
+          retention_policy_version?: number
+          root_client_id?: string | null
+          root_document_id?: string | null
+          root_matter_id?: string | null
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          shared_storage_bytes_retained?: number
+          state?: Database["public"]["Enums"]["trash_operation_state"]
+          unique_storage_bytes?: number
+          updated_at?: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          auto_purge_at?: string | null
+          auto_purge_enabled_snapshot?: boolean
+          blocker_count?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          included_client_count?: number
+          included_document_count?: number
+          included_matter_count?: number
+          last_error_code?: string | null
+          org_id?: string
+          preexisting_trashed_descendant_count?: number
+          purge_eligible_at?: string | null
+          purge_failed_at?: string | null
+          purge_scheduled_at?: string | null
+          purge_started_at?: string | null
+          purged_at?: string | null
+          reason?: string | null
+          restore_blocked_at?: string | null
+          restore_started_at?: string | null
+          restored_at?: string | null
+          retention_days?: number | null
+          retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
+          retention_policy_version?: number
+          root_client_id?: string | null
+          root_document_id?: string | null
+          root_matter_id?: string | null
+          root_resource_id?: string
+          root_resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          shared_storage_bytes_retained?: number
+          state?: Database["public"]["Enums"]["trash_operation_state"]
+          unique_storage_bytes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_operations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trash_operations_root_client_org_fkey"
+            columns: ["org_id", "root_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_operations_root_document_org_fkey"
+            columns: ["org_id", "root_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_operations_root_matter_org_fkey"
+            columns: ["org_id", "root_matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -5184,7 +5577,7 @@ export type Database = {
         | "completed"
         | "failed"
         | "cancelled"
-      document_record_state: "active" | "trashed"
+      document_record_state: "active" | "trashed" | "purging" | "purged"
       document_version_state: "pending" | "current" | "superseded" | "failed"
       document_version_validation_state: "pending" | "valid" | "invalid"
       entity_type:
@@ -5268,6 +5661,16 @@ export type Database = {
         | "delivered"
         | "failed"
         | "dead_letter"
+      resource_hold_scope: "resource" | "subtree"
+      resource_hold_state: "active" | "released"
+      resource_record_state: "active" | "trashed" | "purging" | "purged"
+      resource_trash_cause: "direct" | "inherited"
+      resource_trash_membership_state:
+        | "active"
+        | "restoring"
+        | "purging"
+        | "restored"
+        | "purged"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -5366,6 +5769,17 @@ export type Database = {
         | "contracts"
         | "correspondence"
         | "others"
+      trash_operation_state:
+        | "trashed"
+        | "restore_blocked"
+        | "restoring"
+        | "purge_scheduled"
+        | "purging"
+        | "purge_failed"
+        | "restored"
+        | "purged"
+      trash_resource_type: "client" | "matter" | "document"
+      trash_retention_mode: "manual_only" | "retention_period"
       upload_session_state:
         | "reserved"
         | "uploading"
@@ -5575,7 +5989,7 @@ export const Constants = {
         "failed",
         "cancelled",
       ],
-      document_record_state: ["active", "trashed"],
+      document_record_state: ["active", "trashed", "purging", "purged"],
       document_version_state: ["pending", "current", "superseded", "failed"],
       document_version_validation_state: ["pending", "valid", "invalid"],
       entity_type: [
@@ -5667,6 +6081,17 @@ export const Constants = {
         "delivered",
         "failed",
         "dead_letter",
+      ],
+      resource_hold_scope: ["resource", "subtree"],
+      resource_hold_state: ["active", "released"],
+      resource_record_state: ["active", "trashed", "purging", "purged"],
+      resource_trash_cause: ["direct", "inherited"],
+      resource_trash_membership_state: [
+        "active",
+        "restoring",
+        "purging",
+        "restored",
+        "purged",
       ],
       source_analysis_attempt_state: [
         "queued",
@@ -5780,6 +6205,18 @@ export const Constants = {
         "correspondence",
         "others",
       ],
+      trash_operation_state: [
+        "trashed",
+        "restore_blocked",
+        "restoring",
+        "purge_scheduled",
+        "purging",
+        "purge_failed",
+        "restored",
+        "purged",
+      ],
+      trash_resource_type: ["client", "matter", "document"],
+      trash_retention_mode: ["manual_only", "retention_period"],
       upload_session_state: [
         "reserved",
         "uploading",
