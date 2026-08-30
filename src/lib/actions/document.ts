@@ -299,7 +299,9 @@ export async function reassignDocumentMatter(
     .select('*')
     .eq('id', documentId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (!doc) return { error: 'Document not found.' }
   if (doc.matter_id === newMatterId) return { error: 'Document is already in this matter.' }
@@ -312,7 +314,9 @@ export async function reassignDocumentMatter(
     .select('id')
     .eq('id', newMatterId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
@@ -397,6 +401,9 @@ export async function reassignDocumentMatter(
       .from('documents')
       .update(moveUpdate)
       .eq('id', documentId)
+      .eq('org_id', orgId)
+      .eq('record_state', 'active')
+      .is('deleted_at', null)
 
     if (updateError) {
       console.error('Reassign document error:', updateError)
@@ -436,7 +443,7 @@ export async function dismissReviewFlag(documentId: string) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
 
-  const { error } = await supabase
+  const { data: updatedDocument, error } = await supabase
     .from('documents')
     .update({
       status: 'analyzed',
@@ -444,11 +451,16 @@ export async function dismissReviewFlag(documentId: string) {
     })
     .eq('id', documentId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('Dismiss review flag error:', error)
     return { error: error.message }
   }
+  if (!updatedDocument) return { error: 'Document not found or is read-only in Trash.' }
 
   revalidatePath('/inbox')
   return { success: true }
@@ -470,7 +482,9 @@ export async function setDocumentClass(
     .select('id, document_class, matter_id, storage_path, created_by, status')
     .eq('id', documentId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (!doc) return { error: 'Document not found.' }
 
@@ -489,6 +503,8 @@ export async function setDocumentClass(
     })
     .eq('id', documentId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
 
   if (error) {
     console.error('Set document class error:', error)
@@ -530,6 +546,39 @@ export async function getDocumentVersionSignedUrl(documentVersionId: string) {
   return { url: data.signedUrl }
 }
 
+/**
+ * Generate a short-lived PDF URL for one exact canonical Trash route. The
+ * authenticated grant binds document, matter route, immutable version, active
+ * Trash membership, and readable operation before the service client sees the
+ * private Storage locator.
+ */
+export async function getTrashedDocumentVersionSignedUrl(
+  matterId: string,
+  documentId: string,
+  documentVersionId: string,
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { data: grants, error: grantError } = await supabase.rpc('get_trashed_document_version_read_grant', {
+    p_document_id: documentId,
+    p_expected_matter_id: matterId,
+    p_document_version_id: documentVersionId,
+  })
+  const grant = grants?.[0]
+  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
+    return { error: 'This document version is not available.' }
+  }
+
+  const storage = createServiceClient()
+  const { data, error } = await storage.storage
+    .from(grant.bucket_id)
+    .createSignedUrl(grant.object_key, 60 * 15)
+  if (error || !data) return { error: error?.message ?? 'Failed to generate view link.' }
+  return { url: data.signedUrl }
+}
+
 /** Create an authorised short-lived PDF URL for a ready, unassigned intake. */
 export async function getIntakeItemSignedUrl(intakeId: string) {
   const supabase = await createClient()
@@ -564,7 +613,9 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
     .select('raw_metadata, matter_id')
     .eq('id', docId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (!doc) return { error: 'Document not found' }
 
@@ -598,6 +649,9 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
     .from('documents')
     .update(updatePayload)
     .eq('id', docId)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
 
   if (error) return { error: error.message }
 
@@ -630,6 +684,7 @@ export async function createManualLink(
     .select('id, matter_id')
     .in('id', [fromDocId, toDocId])
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
 
   if (!endpoints || endpoints.length !== 2) {
@@ -700,6 +755,16 @@ export async function deleteDocumentLink(linkId: string) {
     .single()
 
   if (!link) return { error: 'Link not found' }
+  if (!link.to_doc_id) return { error: 'Pending links cannot be changed from this view.' }
+
+  const { data: activeEndpoints } = await supabase
+    .from('documents')
+    .select('id')
+    .in('id', [link.from_doc_id, link.to_doc_id])
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+  if ((activeEndpoints ?? []).length !== 2) return { error: 'Links are read-only while a document is in Trash.' }
 
   const { error } = await supabase
     .from('document_links')

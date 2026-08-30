@@ -92,7 +92,9 @@ export async function createMatter(formData: FormData) {
     .select('id, name')
     .eq('id', clientId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (!client) return { error: 'Client not found.' }
 
@@ -155,7 +157,10 @@ export async function updateMatterDetails(
     .select('client_id')
     .eq('id', matterId)
     .eq('org_id', orgId)
-    .single()
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!existingMatter) return { error: 'Matter not found or is read-only in Trash.' }
 
   const updateFields: any = {}
   if (payload.title !== undefined) updateFields.title = payload.title.trim()
@@ -163,16 +168,21 @@ export async function updateMatterDetails(
   if (payload.description !== undefined) updateFields.description = payload.description?.trim() || null
   if (payload.status !== undefined) updateFields.status = payload.status
 
-  const { error } = await supabase
+  const { data: updatedMatter, error } = await supabase
     .from('matters')
     .update(updateFields)
     .eq('id', matterId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('Update matter error:', error)
     return { error: error.message }
   }
+  if (!updatedMatter) return { error: 'Matter not found or is read-only in Trash.' }
 
   // If financial year was updated, synchronize documents with 'Unknown FY' or missing FY
   if (payload.financialYear && payload.financialYear !== 'Unknown FY') {
@@ -181,6 +191,8 @@ export async function updateMatterDetails(
       .update({ financial_year: payload.financialYear })
       .eq('matter_id', matterId)
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
+      .is('deleted_at', null)
       .or(`financial_year.eq.Unknown FY,financial_year.is.null`)
   }
 
@@ -211,16 +223,21 @@ export async function setMatterStatus(id: string, status: MatterStatus) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
 
-  const { error } = await supabase
+  const { data: updatedMatter, error } = await supabase
     .from('matters')
     .update({ status })
     .eq('id', id)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('Set matter status error:', error)
     return { error: error.message }
   }
+  if (!updatedMatter) return { error: 'Matter not found or is read-only in Trash.' }
 
   revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/matters/${id}`)

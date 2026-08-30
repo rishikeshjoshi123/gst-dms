@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   ArrowLeft,
   ChevronDown,
@@ -112,9 +113,11 @@ function IncludedTree({ operation }: { operation: TrashOperation }) {
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="muted" fixedWidth="lg">Included</Badge>
-                      <span className="inline-flex min-h-8 items-center text-xs text-[var(--text-muted)]">
-                        Read-only item page is not available yet
-                      </span>
+                      {item.canonicalPath && (
+                        <Link href={item.canonicalPath} className="inline-flex min-h-11 items-center text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
+                          Open read-only page
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -277,8 +280,13 @@ function DetailPanel({ operation, timeZone, mobile, onClose }: {
         </div>
         <div className="mt-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3 text-xs leading-5 text-[var(--text-secondary)]">
           <Info className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-          <span>Trash is read-only here. Opening trashed Client, Matter, and Document pages will be enabled with the later read-only route update.</span>
+          <span>Trash item pages use their original canonical routes and remain read-only until their root Trash group is restored.</span>
         </div>
+        {operation.canonicalPath && (
+          <Link href={operation.canonicalPath} className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
+            Open read-only {typeLabel[operation.resourceType].toLowerCase()}
+          </Link>
+        )}
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-y border-[var(--border-subtle)] py-4 text-xs">
           <div><dt className="text-[var(--text-muted)]">Deleted by</dt><dd className="mt-1 font-medium text-[var(--text-primary)]">{operation.deletedBy}</dd></div>
           <div><dt className="text-[var(--text-muted)]">Deleted on</dt><dd className="mt-1 font-mono text-[var(--text-primary)]">{formatDeletedAt(operation.deletedAt, timeZone)}</dd></div>

@@ -91,7 +91,8 @@ export function TimelineDocumentDetail({
   notes: propNotes = [], 
   effectiveMetadata,
   inspectorMetadataByDocumentId,
-  onClose 
+  onClose,
+  readOnly = false,
 }: { 
   doc: any
   allDocuments?: any[]
@@ -99,7 +100,8 @@ export function TimelineDocumentDetail({
   notes?: any[]
   effectiveMetadata?: DocumentInspectorMetadata
   inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
-  onClose?: () => void 
+  onClose?: () => void
+  readOnly?: boolean
 }) {
   const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details')
   const [isSynopsisOpen, setIsSynopsisOpen] = useState(false)
@@ -119,6 +121,7 @@ export function TimelineDocumentDetail({
   const router = useRouter()
 
   const handleDeleteDocument = async () => {
+    if (readOnly) return
     if (!documentTrashIdempotencyKey.current) {
       documentTrashIdempotencyKey.current = `trash.document.${crypto.randomUUID()}`
     }
@@ -136,6 +139,7 @@ export function TimelineDocumentDetail({
   }
 
   const handleSearchIndexReprocess = async () => {
+    if (readOnly) return
     if (!reprocessIdempotencyKey.current) reprocessIdempotencyKey.current = crypto.randomUUID()
     setIsReprocessing(true)
     const result = await reprocessDocument(doc.id, 'search_index', reprocessIdempotencyKey.current)
@@ -150,6 +154,7 @@ export function TimelineDocumentDetail({
   }, [doc.id])
 
   useEffect(() => {
+    if (readOnly) return
     const handleQuote = (e: CustomEvent) => {
       if (e.detail && e.detail.quote) {
         setActiveQuote({
@@ -161,11 +166,12 @@ export function TimelineDocumentDetail({
     };
     window.addEventListener('SET_PDF_QUOTE', handleQuote as EventListener);
     return () => window.removeEventListener('SET_PDF_QUOTE', handleQuote as EventListener);
-  }, []);
+  }, [readOnly]);
 
   const docNotes = notes.filter(n => n.document_id === doc.id)
 
   const handleAddNote = () => {
+    if (readOnly) return
     if (!newNoteContent.trim()) return
     startTransition(async () => {
       const res = await createNote({
@@ -189,6 +195,7 @@ export function TimelineDocumentDetail({
   }
 
   const handleDeleteNote = async () => {
+    if (readOnly) return
     if (!pendingNoteDeleteId) return
     const noteId = pendingNoteDeleteId
     const res = await deleteNote(noteId)
@@ -202,6 +209,7 @@ export function TimelineDocumentDetail({
   }
 
   const handleTogglePin = async (note: any) => {
+    if (readOnly) return
     const newPinned = !note.is_pinned
     const res = await updateNote(note.id, { is_pinned: newPinned })
     if (res.error) {
@@ -233,6 +241,7 @@ export function TimelineDocumentDetail({
     fieldCandidates: {},
   }
   const correction = (fieldPath: keyof typeof inspectorMetadata.fieldCandidates) => {
+    if (readOnly) return undefined
     const candidate = inspectorMetadata.fieldCandidates[fieldPath]
     if (!candidate || !inspectorMetadata.documentVersionId) return undefined
     return {
@@ -294,11 +303,11 @@ export function TimelineDocumentDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
-          <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
+          {!readOnly && <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
             <MoveRight size={14} aria-hidden="true" />
             Reassign
-          </Button>
-          <Button
+          </Button>}
+          {!readOnly && <Button
             type="button"
             variant="outline"
             size="sm"
@@ -309,8 +318,8 @@ export function TimelineDocumentDetail({
           >
             <RefreshCw size={14} aria-hidden="true" />
             Reprocess search index
-          </Button>
-          <Button
+          </Button>}
+          {!readOnly && <Button
             type="button"
             variant="destructive"
             size="sm"
@@ -320,8 +329,8 @@ export function TimelineDocumentDetail({
           >
             <Trash2 size={14} aria-hidden="true" />
             Delete document
-          </Button>
-          <a href={viewUrl} className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[11px] font-medium h-7 px-2.5 gap-1 bg-[var(--primary)] text-white hover:opacity-90 shadow-sm transition-opacity">
+          </Button>}
+          <a href={viewUrl} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-[var(--radius-sm)] bg-[var(--primary)] px-3 text-[11px] font-medium text-[var(--on-accent)] shadow-sm transition-colors hover:bg-[var(--primary-hover)]">
             <ExternalLink size={12} />
             View
           </a>
@@ -332,9 +341,9 @@ export function TimelineDocumentDetail({
           )}
         </div>
       </div>
-      <p id="scoped-reprocess-status" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+      {!readOnly && <p id="scoped-reprocess-status" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
         Search-index reprocessing is available. Extraction, OCR, relationship, and full reprocessing remain unavailable until their dedicated workers are deployed.
-      </p>
+      </p>}
 
       {/* Tabs Selector */}
       <div className="flex border-b border-[var(--border)] bg-[var(--surface-hover)] px-3 shrink-0">
@@ -502,8 +511,8 @@ export function TimelineDocumentDetail({
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">Storage Path</span>
-                <span className="text-xs font-mono text-[var(--text-secondary)] break-all bg-[var(--bg)] p-1.5 rounded border border-[var(--border)]">{doc.storage_path}</span>
+                <span className="text-[10px] font-semibold text-[--text-muted] uppercase tracking-wider">File label</span>
+                <span className="break-words rounded border border-[var(--border)] bg-[var(--bg)] p-1.5 text-xs text-[var(--text-secondary)]">{doc.display_title || doc.effective_filename || 'Untitled document'}</span>
               </div>
             </div>
           </div>
@@ -512,7 +521,7 @@ export function TimelineDocumentDetail({
         ) : (
           <div className="flex flex-col gap-5 h-full">
             {/* Quick Add Note Form */}
-            <div className="flex flex-col gap-2 p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-sm">
+            {!readOnly && <div className="flex flex-col gap-2 p-3 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Quick Note</span>
                 <select
@@ -558,7 +567,7 @@ export function TimelineDocumentDetail({
               >
                 {isPending ? <Loader2 size={12} className="animate-spin mr-1.5" /> : <Plus size={12} className="mr-1.5" />} Save Note
               </Button>
-            </div>
+            </div>}
 
             {/* Notes List */}
             {docNotes.length === 0 ? (
@@ -574,7 +583,7 @@ export function TimelineDocumentDetail({
                       <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] px-1.5 py-0.5 rounded">
                         {note.template_type.replace('_', ' ')}
                       </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      {!readOnly && <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <button
                           onClick={() => handleTogglePin(note)}
                           className={`p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--warning)] hover:bg-[var(--warning-muted)]`}
@@ -589,7 +598,7 @@ export function TimelineDocumentDetail({
                         >
                           <Trash2 size={11} />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                     {note.quote && (
                       <div 
@@ -615,7 +624,7 @@ export function TimelineDocumentDetail({
         )}
       </div>
 
-      <ConfirmDialog
+      {!readOnly && <ConfirmDialog
         isOpen={isDocConfirmOpen}
         onClose={() => {
           documentTrashIdempotencyKey.current = null
@@ -627,9 +636,9 @@ export function TimelineDocumentDetail({
         confirmText="Delete Document"
         variant="destructive"
         isPending={isDeleting}
-      />
+      />}
 
-      <ConfirmDialog
+      {!readOnly && <ConfirmDialog
         isOpen={!!pendingNoteDeleteId}
         onClose={() => setPendingNoteDeleteId(null)}
         onConfirm={handleDeleteNote}
@@ -637,16 +646,16 @@ export function TimelineDocumentDetail({
         description="Are you sure you want to delete this note? This action cannot be undone."
         confirmText="Delete Note"
         variant="destructive"
-      />
+      />}
 
-      <ReassignDocumentDialog
+      {!readOnly && <ReassignDocumentDialog
         isOpen={isReassignOpen}
         onClose={() => {
           setIsReassignOpen(false)
         }}
         documentId={doc.id}
         currentMatterId={doc.matter_id}
-      />
+      />}
     </div>
   )
 }

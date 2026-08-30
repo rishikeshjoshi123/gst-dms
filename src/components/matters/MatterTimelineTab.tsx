@@ -8,11 +8,12 @@ import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 
-export function MatterTimelineTab({ documents, links, notes = [], inspectorMetadataByDocumentId }: {
+export function MatterTimelineTab({ documents, links, notes = [], inspectorMetadataByDocumentId, readOnly = false }: {
   documents: TimelineDocument[]
   links: TimelineLink[]
   notes?: Record<string, unknown>[]
   inspectorMetadataByDocumentId: Record<string, DocumentInspectorMetadata>
+  readOnly?: boolean
 }) {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
 
@@ -39,6 +40,7 @@ export function MatterTimelineTab({ documents, links, notes = [], inspectorMetad
           selectedDocId={selectedDocId}
           onSelectDoc={setSelectedDocId}
           inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
+          readOnly={readOnly}
         />
       </div>
       
@@ -68,6 +70,7 @@ export function MatterTimelineTab({ documents, links, notes = [], inspectorMetad
               effectiveMetadata={inspectorMetadataByDocumentId[selectedDoc.id]}
               inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
               onClose={() => setSelectedDocId(null)}
+              readOnly={readOnly}
             />
           </div>
         </div>

@@ -9,20 +9,18 @@ import { Badge } from '@/components/ui/badge'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 
 import { DeleteClientButton } from './DeleteClientButton'
+import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
 
 export const metadata = { title: 'Client Details — GST Litigation DMS' }
 
 export default async function ClientDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const exactClient = await getExactClient(params.id)
-  // Trash rendering/action suppression is a later tranche. Keep this route
-  // closed until that work can safely make its existing mutations read-only.
-  if (!exactClient || exactClient.state !== 'active') {
-    notFound()
-  }
-  const client = exactClient.record
+  if (!exactClient) notFound()
+  const isTrashReadOnly = exactClient.state === 'trash'
+  const client = isTrashReadOnly ? exactClient.data.record : exactClient.record
 
-  const matters = await getMattersByClient(params.id)
+  const matters = isTrashReadOnly ? exactClient.data.matters : await getMattersByClient(params.id)
 
   const breadcrumbs = [
     { label: 'Clients', href: '/clients' },
@@ -30,8 +28,12 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
   ]
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in flex-1 overflow-y-auto pr-1 custom-scrollbar">
+    <div className="flex min-h-0 max-w-5xl flex-1 flex-col overflow-hidden animate-fade-in">
       <BreadcrumbSetter breadcrumbs={breadcrumbs} />
+      {isTrashReadOnly && <TrashReadOnlyStrip context={exactClient.context} />}
+
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+      <div className="flex flex-col gap-6 py-4">
 
       {/* Client Header Card */}
       <div className="flex items-start justify-between gap-4 p-6 rounded-md bg-[var(--surface)] border border-[var(--border)] shadow-sm">
@@ -50,22 +52,22 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
           </div>
         </div>
 
-        <DeleteClientButton clientId={client.id} clientName={client.name} />
+        {!isTrashReadOnly && <DeleteClientButton clientId={client.id} clientName={client.name} />}
       </div>
 
       {/* Matters Section */}
       <div className="flex flex-col gap-4 mt-2">
         <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
           <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">Matters</h2>
-          <NewMatterButton clientId={client.id} />
+          {!isTrashReadOnly && <NewMatterButton clientId={client.id} />}
         </div>
 
         {matters.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-sm">
             <FolderOpen size={32} className="text-[var(--text-muted)] mb-3" />
-            <p className="text-[14px] text-[var(--text-primary)] font-semibold">No matters yet</p>
-            <p className="text-[12px] text-[var(--text-muted)] mt-1 mb-5">Create a matter to start organizing documents for this client.</p>
-            <NewMatterButton clientId={client.id} />
+            <p className="text-[14px] text-[var(--text-primary)] font-semibold">{isTrashReadOnly ? 'No matters in this Trash hierarchy' : 'No matters yet'}</p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-1 mb-5">{isTrashReadOnly ? 'No readable trashed matters remain beneath this client.' : 'Create a matter to start organizing documents for this client.'}</p>
+            {!isTrashReadOnly && <NewMatterButton clientId={client.id} />}
           </div>
         ) : (
           <div className="grid gap-3">
@@ -95,6 +97,8 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
             ))}
           </div>
         )}
+      </div>
+      </div>
       </div>
     </div>
   )

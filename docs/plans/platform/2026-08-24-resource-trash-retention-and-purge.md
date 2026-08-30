@@ -134,7 +134,13 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Add the persistent `In Trash — read only` context strip and action suppression to Client, Matter Workspace, and Document Workbench routes on desktop and mobile. Then enable `/trash` item links only where the destination is safely read-only. Keep Restore/Permanent Delete authority deferred.
+Implement root-scoped restore with parent/uniqueness validation, conflict resolution, dependent-domain reactivation/re-evaluation, and atomic indexing/schedule events. Keep Permanent Delete authority deferred.
+
+### Completed: canonical Trash read-only routes (2026-08-30)
+
+- Migrations `00086` and `00087` add authenticated, tenant- and lineage-bound exact Trash read projections for the existing Client, Matter, and Document canonical routes. The projections return explicit UI-safe allowlists only; private storage locators remain available solely through a separately fenced exact document-version PDF grant. `purge_scheduled` operations remain readable in `/trash` until purging begins, so the persistent Back to Trash route remains valid.
+- The existing Client, Matter Workspace, and Document Workbench compositions now render authorised trashed records in shared read-only mode rather than a duplicate Trash detail page. Each has the persistent `In Trash — read only` context strip, inherited-root guidance, and Back to Trash. Editing, uploads, notes, relationships, reprocessing, assignment, and destructive actions are suppressed in the UI and fenced by active/non-deleted server-action checks; Restore and Permanent Delete are still absent.
+- Ordinary lists, Search, dashboard, and active route reads remain typed-active and legacy-compatible active-only. Exact projection and PDF fixtures cover cross-tenant, wrong-matter, lifecycle, malformed-lineage, service-role, version, and sensitive-field denial cases. Local rollback SQL fixtures, focused tests, TypeScript, targeted lint, migration checks, webpack production build, diff checks, and fresh independent QA/recheck passed. The default Turbopack build remains an environment/toolchain stall; legacy broad lint debt remains documented and is not represented as passing.
 
 ### Approved `/trash` workspace concept (2026-08-30)
 

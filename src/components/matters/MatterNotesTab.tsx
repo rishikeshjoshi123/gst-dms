@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink } from 'lucide-react'
+import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -28,11 +28,13 @@ export function MatterNotesTab({
   initialNotes,
   documents,
   users,
+  readOnly = false,
 }: {
   matterId: string
   initialNotes: any[]
   documents: any[]
   users: any[]
+  readOnly?: boolean
 }) {
   const [notes, setNotes] = useState(initialNotes)
   const [searchQuery, setSearchQuery] = useState('')
@@ -84,6 +86,7 @@ export function MatterNotesTab({
   }, [allParentNotes, searchQuery, filterType, filterActionItems])
 
   const handleCreateNote = () => {
+    if (readOnly) return
     if (!formContent.trim()) {
       toast.error('Note content cannot be empty')
       return
@@ -122,6 +125,7 @@ export function MatterNotesTab({
   }
 
   const handleTogglePin = async (note: any) => {
+    if (readOnly) return
     const newPinned = !note.is_pinned
     const res = await updateNote(note.id, { is_pinned: newPinned })
     if (res.error) {
@@ -133,6 +137,7 @@ export function MatterNotesTab({
   }
 
   const handleToggleResolve = async (note: any) => {
+    if (readOnly) return
     const newResolved = !note.action_item_resolved
     const res = await updateNote(note.id, { action_item_resolved: newResolved })
     if (res.error) {
@@ -146,6 +151,7 @@ export function MatterNotesTab({
   const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
 
   const handleDeleteNote = async () => {
+    if (readOnly) return
     if (!pendingDeleteNoteId) return
     const noteId = pendingDeleteNoteId
     const res = await deleteNote(noteId)
@@ -160,11 +166,13 @@ export function MatterNotesTab({
   }
 
   const startEditing = (note: any) => {
+    if (readOnly) return
     setEditingNoteId(note.id)
     setEditContent(note.content)
   }
 
   const handleSaveEdit = async (noteId: string) => {
+    if (readOnly) return
     if (!editContent.trim()) return
     const res = await updateNote(noteId, { content: editContent })
     if (res.error) {
@@ -177,6 +185,7 @@ export function MatterNotesTab({
   }
 
   const handleReply = (parentNote: any) => {
+    if (readOnly) return
     if (!replyContent.trim()) return
     startTransition(async () => {
       const res = await createNote({
@@ -225,16 +234,16 @@ export function MatterNotesTab({
             <option value="resolved_tasks">Completed Tasks</option>
           </select>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} size="sm" className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-sm shrink-0">
+        {!readOnly && <Button onClick={() => setIsCreateOpen(true)} size="sm" className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-sm shrink-0">
           <Plus size={14} className="mr-1.5" /> New Note Thread
-        </Button>
+        </Button>}
       </div>
 
       {/* Split Pane */}
-      <div className="flex flex-1 min-h-0 bg-[var(--surface)]">
+      <div className="flex min-h-0 flex-1 flex-col bg-[var(--surface)] md:flex-row">
         
         {/* Left Pane: Thread List */}
-        <div className="w-1/3 min-w-[320px] border-r border-[var(--border-strong)] flex flex-col bg-[var(--bg)]">
+        <div className={`${selectedThread ? 'hidden md:flex' : 'flex'} w-full flex-col border-r border-[var(--border-strong)] bg-[var(--bg)] md:w-1/3 md:min-w-[320px]`}>
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
             {filteredThreads.length === 0 ? (
               <div className="py-10 text-center text-[--text-muted] flex flex-col items-center">
@@ -283,7 +292,7 @@ export function MatterNotesTab({
         </div>
 
         {/* Right Pane: Thread Detail */}
-        <div className="flex-1 flex flex-col bg-[var(--surface)] overflow-hidden relative">
+        <div className={`${selectedThread ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)] relative`}>
           {!selectedThread ? (
             <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)]">
               <FileText size={48} className="text-[var(--border-strong)] mb-4" />
@@ -294,21 +303,24 @@ export function MatterNotesTab({
               {/* Thread Context */}
               <div className="p-3 border-b border-[var(--border)] bg-[var(--bg)] flex items-center justify-between shrink-0">
                 <div className="flex flex-col gap-0.5">
+                  <button type="button" onClick={() => setSelectedThreadId(null)} className="mb-1 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-[var(--text-secondary)] md:hidden">
+                    <ArrowLeft size={14} aria-hidden="true" /> Back to notes
+                  </button>
                   <h3 className="text-sm font-bold text-[var(--text-primary)]">Thread</h3>
                   {selectedThread.documents && (
                     <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}`} className="flex items-center gap-1 text-[11px] text-[--primary] hover:underline font-mono">
-                      <ExternalLink size={10} /> {selectedThread.documents.reference_number || 'Document'}
+                      <ExternalLink size={10} /> {selectedThread.documents.reference_number || selectedThread.documents.display_title || selectedThread.documents.effective_filename || 'Document'}
                     </a>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                {!readOnly && <div className="flex items-center gap-1">
                   <button onClick={() => handleTogglePin(selectedThread)} className={`p-1.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.is_pinned ? 'text-[var(--warning)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]'}`} title="Pin Thread">
                     <Pin size={14} className={selectedThread.is_pinned ? 'fill-current' : ''} />
                   </button>
                   <button onClick={() => setPendingDeleteNoteId(selectedThread.id)} className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-muted)] transition-colors" title="Delete Thread">
                     <Trash2 size={14} />
                   </button>
-                </div>
+                </div>}
               </div>
 
               {/* Messages */}
@@ -335,7 +347,7 @@ export function MatterNotesTab({
                         <span className="text-[11px] text-[var(--text-muted)]">{new Date(selectedThread.created_at).toLocaleString()}</span>
                       </div>
                       
-                      {editingNoteId === selectedThread.id ? (
+                      {!readOnly && editingNoteId === selectedThread.id ? (
                         <div className="flex flex-col gap-2 mt-1">
                            <textarea
                             value={editContent}
@@ -350,7 +362,7 @@ export function MatterNotesTab({
                       ) : (
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-3.5 shadow-sm relative group">
                           <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{selectedThread.content}</p>
-                          <button onClick={() => startEditing(selectedThread)} className="absolute top-1.5 right-1.5 p-1 text-[var(--text-muted)] hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>
+                          {!readOnly && <button onClick={() => startEditing(selectedThread)} className="absolute top-1.5 right-1.5 p-1 text-[var(--text-muted)] hover:text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-opacity bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>}
                         </div>
                       )}
 
@@ -359,9 +371,9 @@ export function MatterNotesTab({
                         <div className={`mt-2.5 p-2.5 rounded-[var(--radius-md)] border flex flex-col gap-2 ${selectedThread.action_item_resolved ? 'bg-[var(--success-muted)] border-[color-mix(in_srgb,var(--success)_24%,transparent)]' : 'bg-[var(--warning-muted)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)]'}`}>
                            <div className="flex items-center justify-between">
                               <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
-                              <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.action_item_resolved ? 'text-[var(--success)] bg-[var(--success-muted)]' : 'text-[var(--warning)] bg-[var(--warning-muted)]'}`}>
+                              {readOnly ? <span className="text-[11px] font-medium text-[var(--text-secondary)]">{selectedThread.action_item_resolved ? 'Resolved' : 'Open'}</span> : <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.action_item_resolved ? 'text-[var(--success)] bg-[var(--success-muted)]' : 'text-[var(--warning)] bg-[var(--warning-muted)]'}`}>
                                 {selectedThread.action_item_resolved ? <><CheckCircle2 size={12}/> Resolved</> : <><Circle size={12} /> Mark Resolved</>}
-                              </button>
+                              </button>}
                            </div>
                            <div className="flex gap-4 text-[11px]">
                               {selectedThread.action_item_assignee && <span>Assignee: <strong>{selectedThread.action_item_assignee}</strong></span>}
@@ -388,7 +400,7 @@ export function MatterNotesTab({
                         <span className="text-[11px] text-[var(--text-muted)]">{new Date(reply.created_at).toLocaleString()}</span>
                       </div>
                       
-                      {editingNoteId === reply.id ? (
+                      {!readOnly && editingNoteId === reply.id ? (
                         <div className="flex flex-col gap-2 mt-1">
                            <textarea
                             value={editContent}
@@ -403,10 +415,10 @@ export function MatterNotesTab({
                       ) : (
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] rounded-tl-sm p-3.5 shadow-sm relative group">
                           <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{reply.content}</p>
-                          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!readOnly && <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => startEditing(reply)} className="p-1 text-[var(--text-muted)] hover:text-[var(--primary)] bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Edit2 size={12} /></button>
                             <button onClick={() => setPendingDeleteNoteId(reply.id)} className="p-1 text-[var(--text-muted)] hover:text-[var(--danger)] bg-[var(--bg)] rounded-md shadow-sm border border-[var(--border)]"><Trash2 size={12} /></button>
-                          </div>
+                          </div>}
                         </div>
                       )}
                     </div>
@@ -415,7 +427,7 @@ export function MatterNotesTab({
               </div>
 
               {/* Reply Box */}
-              <div className="p-3 border-t border-[var(--border)] bg-[var(--bg)] shrink-0">
+              {!readOnly && <div className="p-3 border-t border-[var(--border)] bg-[var(--bg)] shrink-0">
                 <div className="flex items-end gap-2 max-w-4xl mx-auto">
                   <div className="flex-1">
                     <textarea
@@ -429,14 +441,14 @@ export function MatterNotesTab({
                     Reply
                   </Button>
                 </div>
-              </div>
+              </div>}
             </>
           )}
         </div>
       </div>
 
       {/* Create Modal */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+      {!readOnly && <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded-lg shadow-xl max-w-lg p-6">
           <DialogHeader>
             <DialogTitle className="text-[18px] font-semibold text-[var(--text-primary)]">Create Case Note Thread</DialogTitle>
@@ -459,7 +471,7 @@ export function MatterNotesTab({
                 <option value="">-- No Document --</option>
                 {documents.map(d => (
                   <option key={d.id} value={d.id}>
-                    {d.reference_number || d.storage_path.split('/').pop()}
+                    {d.reference_number || d.display_title || d.effective_filename || 'Untitled document'}
                   </option>
                 ))}
               </select>
@@ -550,9 +562,9 @@ export function MatterNotesTab({
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
 
-      <ConfirmDialog
+      {!readOnly && <ConfirmDialog
         isOpen={!!pendingDeleteNoteId}
         onClose={() => setPendingDeleteNoteId(null)}
         onConfirm={handleDeleteNote}
@@ -560,7 +572,7 @@ export function MatterNotesTab({
         description="Are you sure you want to delete this note? This action cannot be undone."
         confirmText="Delete Note"
         variant="destructive"
-      />
+      />}
     </div>
   )
 }

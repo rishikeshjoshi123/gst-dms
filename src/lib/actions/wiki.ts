@@ -16,6 +16,7 @@ async function matterBelongsToActiveOrg(
     .select('id')
     .eq('id', matterId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .maybeSingle()
 

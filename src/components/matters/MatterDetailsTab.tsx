@@ -24,7 +24,7 @@ interface MatterDetails {
   } | null
 }
 
-export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
+export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterDetails; readOnly?: boolean }) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -37,6 +37,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
   const [isPending, startTransition] = useTransition()
 
   const handleDeleteMatter = async () => {
+    if (readOnly) return
     if (!matterTrashIdempotencyKey.current) {
       matterTrashIdempotencyKey.current = `trash.matter.${crypto.randomUUID()}`
     }
@@ -65,6 +66,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
   const isUnknownFY = matter.financial_year === 'Unknown FY' || !matter.financial_year
 
   const handleSave = () => {
+    if (readOnly) return
     if (!title.trim() || title.trim().length < 2) {
       toast.error('Title must be at least 2 characters.')
       return
@@ -148,7 +150,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3 shrink-0 pt-2 md:pt-0">
+        {!readOnly && <div className="flex items-center gap-3 shrink-0 pt-2 md:pt-0">
           <button
             onClick={() => setIsEditing(true)}
             className="inline-flex items-center justify-center rounded-md text-[14px] font-medium h-10 px-4 bg-[var(--surface)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] border border-[var(--border)] transition-colors shadow-sm"
@@ -175,7 +177,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
               Upload Documents
             </Link>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* ── Warning Banner for Unknown FY ── */}
@@ -190,12 +192,12 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
               </p>
             </div>
           </div>
-          <button
+          {!readOnly && <button
             onClick={() => setIsEditing(true)}
             className="min-h-11 shrink-0 text-[12px] font-semibold bg-[var(--warning)] hover:opacity-90 text-[var(--on-warning,var(--surface))] px-3 py-1.5 rounded-[var(--radius-sm)] transition-opacity"
           >
             Update FY Now
-          </button>
+          </button>}
         </div>
       )}
 
@@ -266,12 +268,12 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
               <Info size={18} className="text-[var(--text-muted)]" />
               <h2 className="text-[16px] font-semibold text-[var(--text-primary)]">Matter Synopsis</h2>
             </div>
-            <button
+            {!readOnly && <button
               onClick={() => setIsEditing(true)}
               className="text-[12px] font-medium text-[var(--primary)] hover:underline"
             >
               Edit Synopsis
-            </button>
+            </button>}
           </div>
 
           {matter.description ? (
@@ -282,19 +284,19 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
             <div className="flex flex-col items-center justify-center text-center p-6 border border-dashed border-[var(--border-strong)] rounded-md bg-[var(--bg)]">
               <FileText size={24} className="text-[var(--text-muted)] mb-2" />
               <p className="text-[14px] font-normal text-[var(--text-secondary)]">No synopsis provided yet.</p>
-              <button
+              {!readOnly && <button
                 onClick={() => setIsEditing(true)}
                 className="mt-2 text-[12px] font-semibold text-[var(--primary)] hover:underline"
               >
                 + Add Synopsis
-              </button>
+              </button>}
             </div>
           )}
         </div>
       </div>
 
       {/* ── Edit Matter Details Modal ── */}
-      {isEditing && (
+      {!readOnly && isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--scrim,rgba(11,18,29,0.6))] backdrop-blur-xs animate-fade-in">
           <div className="bg-[var(--surface)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
@@ -420,7 +422,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
       )}
 
       {/* ── Delete Matter Confirmation Modal ── */}
-      {isDeleteModalOpen && (
+      {!readOnly && isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--scrim,rgba(11,18,29,0.6))] backdrop-blur-xs animate-fade-in">
           <div className="bg-[var(--surface)] rounded-lg shadow-xl border border-[var(--border)] w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
             <div className="p-6 flex flex-col gap-3">

@@ -19,11 +19,13 @@ export async function getNotes(filters: {
     .from('case_notes')
     .select(`
       *,
-      matters(id, title),
+      matters!inner(id, title),
       documents(id, storage_path, reference_number)
     `)
     .eq('org_id', orgId)
     .is('deleted_at', null)
+    .eq('matters.record_state', 'active')
+    .is('matters.deleted_at', null)
 
   if (filters.matterId) {
     query = query.eq('matter_id', filters.matterId)
@@ -51,13 +53,27 @@ export async function getNotes(filters: {
     return []
   }
 
+  const documentIds = [...new Set((data ?? []).flatMap((note) => note.document_id ? [note.document_id] : []))]
+  let readableNotes = data ?? []
+  if (documentIds.length > 0) {
+    const { data: activeDocuments } = await supabase
+      .from('documents')
+      .select('id')
+      .in('id', documentIds)
+      .eq('org_id', orgId)
+      .eq('record_state', 'active')
+      .is('deleted_at', null)
+    const activeDocumentIds = new Set((activeDocuments ?? []).map((document) => document.id))
+    readableNotes = readableNotes.filter((note) => !note.document_id || activeDocumentIds.has(note.document_id))
+  }
+
   // Fetch auth users to resolve emails
   try {
     const serviceClient = createServiceClient()
     const { data: { users: authUsers }, error: authError } = await serviceClient.auth.admin.listUsers()
     if (!authError && authUsers) {
       const userMap = new Map(authUsers.map(u => [u.id, u.email]))
-      return (data ?? []).map(note => ({
+      return readableNotes.map(note => ({
         ...note,
         author: {
           id: note.author_id,
@@ -69,7 +85,7 @@ export async function getNotes(filters: {
     console.error('Failed to fetch auth users list:', err)
   }
 
-  return (data ?? []).map(note => ({
+  return readableNotes.map(note => ({
     ...note,
     author: {
       id: note.author_id,
@@ -102,6 +118,7 @@ export async function createNote(data: {
     .select('id')
     .eq('id', data.matterId)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
     .is('deleted_at', null)
     .maybeSingle()
   if (!matter) return { error: 'Matter not found.' }
@@ -113,6 +130,7 @@ export async function createNote(data: {
       .eq('id', data.documentId)
       .eq('matter_id', data.matterId)
       .eq('org_id', orgId)
+      .eq('record_state', 'active')
       .is('deleted_at', null)
       .maybeSingle()
     if (!document) return { error: 'Document not found in this matter.' }
@@ -177,7 +195,19 @@ export async function updateNote(noteId: string, updates: {
     .from('case_notes')
     .select('matter_id, document_id')
     .eq('id', noteId)
-    .single()
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!existingNote) return { error: 'Note not found.' }
+  const { data: activeMatter } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('id', existingNote.matter_id)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!activeMatter) return { error: 'Notes are read-only while this matter is in Trash.' }
 
   const { error } = await supabase
     .from('case_notes')
@@ -187,6 +217,7 @@ export async function updateNote(noteId: string, updates: {
     })
     .eq('id', noteId)
     .eq('org_id', orgId)
+    .is('deleted_at', null)
 
   if (error) {
     console.error('updateNote error:', error)
@@ -218,7 +249,19 @@ export async function deleteNote(noteId: string) {
     .from('case_notes')
     .select('matter_id, document_id')
     .eq('id', noteId)
-    .single()
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!existingNote) return { error: 'Note not found.' }
+  const { data: activeMatter } = await supabase
+    .from('matters')
+    .select('id')
+    .eq('id', existingNote.matter_id)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!activeMatter) return { error: 'Notes are read-only while this matter is in Trash.' }
 
   // Soft delete
   const { error } = await db
@@ -226,6 +269,7 @@ export async function deleteNote(noteId: string) {
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', noteId)
     .eq('org_id', orgId)
+    .is('deleted_at', null)
 
   if (error) {
     console.error('deleteNote error:', error)

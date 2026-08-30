@@ -1,4 +1,4 @@
--- Run after a clean reset through migration 00085. Verifies the bounded Trash
+-- Run after a clean reset through migration 00087. Verifies the bounded Trash
 -- workspace projection, root-only shape, selected hierarchy, and privileges.
 BEGIN;
 
@@ -101,6 +101,19 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.get_trash_workspace(org_b,NULL,NULL,operation_b,50)) THEN
     RAISE EXCEPTION 'forged organisation was exposed';
   END IF;
+
+  -- Scheduled permanent deletion remains a readable, authority-free Trash
+  -- entry until purging begins, matching the canonical exact route strip.
+  PERFORM set_config('request.jwt.claim.role','',true);
+  UPDATE public.trash_operations
+  SET state='purge_scheduled',purge_scheduled_at=now()
+  WHERE id=operation_a;
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
+  PERFORM set_config('request.jwt.claim.sub',admin_a::text,true);
+  IF NOT EXISTS (
+    SELECT 1 FROM public.get_trash_workspace(org_a,NULL,NULL,operation_a,50) AS workspace
+    WHERE workspace.row_kind='operation' AND workspace.operation_id=operation_a
+  ) THEN RAISE EXCEPTION 'purge-scheduled operation disappeared before purging began'; END IF;
 
   -- Once lifecycle leaves the readable states, neither root nor descendants
   -- remain in the operation projection.

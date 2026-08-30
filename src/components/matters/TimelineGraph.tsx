@@ -140,12 +140,14 @@ export function TimelineGraph({
   selectedDocId,
   onSelectDoc,
   inspectorMetadataByDocumentId = {},
+  readOnly = false,
 }: { 
   documents: TimelineGraphDocument[],
   links: any[],
   selectedDocId?: string | null,
   onSelectDoc?: (id: string) => void,
   inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
+  readOnly?: boolean
 }) {
   const [isPending, startTransition] = useTransition()
   const [showSupporting, setShowSupporting] = useState(true)
@@ -178,6 +180,7 @@ export function TimelineGraph({
   const prevEdgeIds = useRef<Set<string>>(new Set())
 
   const handleReevaluate = () => {
+    if (readOnly) return
     if (!matterId) return
     const toastId = toast.loading('Re-evaluating matter links...')
     startTransition(async () => {
@@ -214,6 +217,7 @@ export function TimelineGraph({
         doc, 
         selected: selectedDocId === doc.id,
         effectiveMetadata: inspectorMetadataByDocumentId[doc.id],
+        readOnly,
       },
       position: { x: 0, y: 0 }, // Dagre will override this
       style: { width: nodeWidth, height: nodeHeight },
@@ -224,7 +228,7 @@ export function TimelineGraph({
       .map(buildEdgeFromLink)
 
     return getLayoutedElements(nodes, edges, 'TB')
-  }, [visibleDocuments, visibleDocIds, links, selectedDocId, inspectorMetadataByDocumentId])
+  }, [visibleDocuments, visibleDocIds, links, selectedDocId, inspectorMetadataByDocumentId, readOnly])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -287,6 +291,7 @@ export function TimelineGraph({
   }, [onSelectDoc])
 
   const onConnect = useCallback((connection: Connection) => {
+    if (readOnly) return
     // Check if link already exists between these 2 nodes
     const existingEdge = edges.find(e => 
       (e.source === connection.source && e.target === connection.target) || 
@@ -324,7 +329,7 @@ export function TimelineGraph({
         connection,
       })
     }
-  }, [visibleDocuments, edges, setEdges])
+  }, [visibleDocuments, edges, setEdges, readOnly])
 
   /** User cancelled link creation — remove the optimistic edge */
   const handleLinkDialogClose = useCallback(() => {
@@ -386,7 +391,7 @@ export function TimelineGraph({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
+          {!readOnly && <Button
             variant="outline"
             size="sm"
             onClick={handleReevaluate}
@@ -395,7 +400,7 @@ export function TimelineGraph({
           >
             <RefreshCw size={14} className={`mr-1.5 text-[var(--warning)] ${isPending ? 'animate-spin' : ''}`} />
             Re-evaluate Links
-          </Button>
+          </Button>}
 
           <Button 
             variant="outline" 
@@ -418,7 +423,9 @@ export function TimelineGraph({
           onNodeClick={onNodeClick}
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={onEdgeClick}
-          onConnect={onConnect}
+          onConnect={readOnly ? undefined : onConnect}
+          nodesConnectable={!readOnly}
+          edgesFocusable={!readOnly}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.2 }}
@@ -448,7 +455,7 @@ export function TimelineGraph({
         </ReactFlow>
       </div>
       
-      <LinkCreationDialog
+      {!readOnly && <LinkCreationDialog
         isOpen={linkDialogState.isOpen}
         sourceDoc={linkDialogState.sourceDoc}
         targetDoc={linkDialogState.targetDoc}
@@ -457,9 +464,9 @@ export function TimelineGraph({
         childEffectiveMetadata={linkDialogState.targetDoc ? inspectorMetadataByDocumentId[linkDialogState.targetDoc.id] : undefined}
         onClose={handleLinkDialogClose}
         onSuccess={handleLinkCreated}
-      />
+      />}
 
-      <LinkDeletionDialog
+      {!readOnly && <LinkDeletionDialog
         isOpen={deleteDialogState.isOpen}
         linkId={deleteDialogState.linkId}
         edgeId={deleteDialogState.edgeId}
@@ -470,7 +477,7 @@ export function TimelineGraph({
         targetEffectiveMetadata={deleteDialogState.targetDoc ? inspectorMetadataByDocumentId[deleteDialogState.targetDoc.id] : undefined}
         onClose={handleDeleteDialogClose}
         onOptimisticDelete={handleOptimisticDelete}
-      />
+      />}
 
       <TimelineHelpDialog
         isOpen={isHelpOpen}

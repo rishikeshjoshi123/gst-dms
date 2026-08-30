@@ -26,6 +26,7 @@ export interface TimelineDocument {
   document_class?: string | null
   storage_path?: string | null
   display_title?: string | null
+  effective_filename?: string | null
   created_at: string
   doc_date?: string | null
   reference_number?: string | null
@@ -142,8 +143,8 @@ export function TimelineListFallback({
               
               <div className="text-[13px] font-semibold text-[var(--text-primary)] truncate mb-1">
                 {available
-                  ? effective.referenceNumber || doc.display_title || doc.storage_path?.split('/').pop() || 'Document (reference unavailable)'
-                  : doc.display_title || doc.storage_path?.split('/').pop() || 'Document'}
+                  ? effective.referenceNumber || doc.display_title || doc.effective_filename || 'Document (reference unavailable)'
+                  : doc.display_title || doc.effective_filename || 'Document'}
               </div>
               
               {doc.summary && (

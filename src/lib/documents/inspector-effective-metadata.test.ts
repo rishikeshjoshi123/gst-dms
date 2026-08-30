@@ -91,9 +91,10 @@ test('keeps the protected projection reader on the server and wires both live in
   assert.match(readerSource, /createServiceClient\(\)\.rpc\('read_current_document_inspector_projection'/)
   assert.match(readerSource, /requester[\s\S]*\.from\('documents'\)/)
   assert.doesNotMatch(detailSource, /raw_metadata|extracted_amounts/)
-  assert.match(documentPageSource, /getDocumentInspectorMetadata\(documentInspectorIds\(doc\.id, allDocuments\)\)/)
+  assert.match(documentPageSource, /const inspectorIds = documentInspectorIds\(doc\.id, allDocuments\)/)
+  assert.match(documentPageSource, /getDocumentInspectorMetadata\(inspectorIds\)/)
   assert.match(documentPageSource, /inspectorMetadataByDocumentId=\{inspectorMetadata\}/)
-  assert.match(matterPageSource, /getDocumentInspectorMetadata\(\[/)
+  assert.match(matterPageSource, /getDocumentInspectorMetadata\(documentIds\)/)
   assert.match(detailSource, /inspectorMetadata\.referenceNumber/)
 })
 

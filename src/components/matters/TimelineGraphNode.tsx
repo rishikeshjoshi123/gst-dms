@@ -46,7 +46,7 @@ function getDocTypeColors(docType?: string) {
 }
 
 export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
-  const { doc, selected, effectiveMetadata } = data
+  const { doc, selected, effectiveMetadata, readOnly = false } = data
   const projected = effectiveMetadata?.state === 'available' ? effectiveMetadata : null
   const displayDocType = projected?.docType ?? null
   const displayReferenceNumber = projected?.referenceNumber ?? null
@@ -68,7 +68,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
         <div style={{ position: 'relative', width: 148 }}>
 
           {/* TOP HANDLE — target (child input), pill bar at very top */}
-          <Handle
+          {!readOnly && <Handle
             id="timeline-target"
             type="target"
             position={Position.Top}
@@ -81,7 +81,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
               top: 0, opacity: 0.6,
               cursor: 'crosshair', zIndex: 10,
             }}
-          />
+          />}
 
           {/*
             FILTER WRAPPER: drop-shadow applied here follows the clip-path
@@ -151,7 +151,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
                   whiteSpace: 'nowrap', lineHeight: 1.4,
                   marginBottom: 6,
                 }}>
-                  {displayReferenceNumber || doc.storage_path?.split('/').pop() || 'Unavailable'}
+                  {displayReferenceNumber || doc.display_title || doc.effective_filename || 'Unavailable'}
                 </p>
 
                 {/* Date + supporting badge */}
@@ -175,7 +175,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
           </div>
 
           {/* BOTTOM HANDLE — source (parent output), pill bar at very bottom */}
-          <Handle
+          {!readOnly && <Handle
             id="timeline-source"
             type="source"
             position={Position.Bottom}
@@ -188,7 +188,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
               bottom: 0, opacity: 0.4,
               cursor: 'crosshair', zIndex: 10,
             }}
-          />
+          />}
         </div>
 
       </HoverCardTrigger>
@@ -204,7 +204,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             <h4 className="text-sm font-semibold text-[var(--text-primary)] break-words pr-2">
               <span className={`font-black uppercase ${colors.textClass}`}>{displayDocType?.toUpperCase() || 'UNAVAILABLE'}</span>
               <span className="block text-xs font-normal text-[var(--text-secondary)] font-mono mt-0.5">
-                {displayReferenceNumber || doc.storage_path?.split('/').pop() || 'Unavailable'}
+                {displayReferenceNumber || doc.display_title || doc.effective_filename || 'Unavailable'}
               </span>
             </h4>
           </div>

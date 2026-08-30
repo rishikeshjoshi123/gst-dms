@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { MatterSectionWorkbar } from '@/components/ui/matter-section-workbar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
 
 export const metadata = { title: 'Civic Ink Design System' }
 
@@ -56,6 +57,20 @@ export default function DesignSystemPage() {
           <Button variant="ghost">Quiet action</Button>
           <Button variant="destructive">Destructive</Button>
           <Button disabled>Disabled</Button>
+        </div>
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Trash read-only context</h2>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Exact canonical legal-record routes keep the Trash state and route back to the selected group outside their scrolling body.</p>
+        <div className="mt-4 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+          <TrashReadOnlyStrip context={{
+            state: 'trash', membershipId: 'membership-example', cause: 'inherited', parentMembershipId: 'parent-example',
+            operationId: 'operation-example', rootResourceId: 'matter-example', rootResourceType: 'matter', rootResourceName: 'FY 2024–25 audit response',
+            operationState: 'trashed', trashedAt: '2026-08-30T10:32:00+05:30', trashedBy: null, trashedByName: 'Ananya Kapoor', canRestore: false,
+            retention: { mode: 'manual_only', days: null, purgeEligibleAt: null, autoPurgeEnabled: false, autoPurgeAt: null, purgeScheduledAt: null, blockerCount: 0 },
+          }} />
+          <div className="p-4 text-sm text-[var(--text-muted)]">Canonical Client, Matter, or Document content continues here in read-only mode.</div>
         </div>
       </section>
 

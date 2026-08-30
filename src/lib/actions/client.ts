@@ -122,7 +122,17 @@ export async function updateClientAction(id: string, formData: FormData) {
 
   const db = createServiceClient()
 
-  const { error } = await db
+  const { data: activeClient } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!activeClient) return { error: 'Client not found or is read-only in Trash.' }
+
+  const { data: updatedClient, error } = await db
     .from('clients')
     .update({
       name,
@@ -132,11 +142,16 @@ export async function updateClientAction(id: string, formData: FormData) {
     })
     .eq('id', id)
     .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('Update client error:', error)
     return { error: error.message }
   }
+  if (!updatedClient) return { error: 'Client not found or is read-only in Trash.' }
 
   // Log activity
   await db.from('activity_logs').insert({

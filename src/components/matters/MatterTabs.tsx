@@ -19,7 +19,8 @@ export function MatterTabs({
   wikiSections,
   notes,
   users,
-  inspectorMetadataByDocumentId
+  inspectorMetadataByDocumentId,
+  readOnly = false,
 }: {
   matter: any,
   proceedings: any[],
@@ -29,6 +30,7 @@ export function MatterTabs({
   notes: any[],
   users: any[],
   inspectorMetadataByDocumentId: Record<string, DocumentInspectorMetadata>
+  readOnly?: boolean
 }) {
   const [activeTab, setActiveTab] = useState<'timeline' | 'files' | 'wiki' | 'notes' | 'details'>('timeline')
 
@@ -60,6 +62,7 @@ export function MatterTabs({
   useEffect(() => { matterNoteIdsRef.current = new Set(localNotes.map(note => note.id)) }, [localNotes])
 
   useEffect(() => {
+    if (readOnly) return
     const supabase = createClient()
     const matterId = matter.id
     let timelineRefreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -158,15 +161,15 @@ export function MatterTabs({
       if (timelineRefreshTimer) clearTimeout(timelineRefreshTimer)
       supabase.removeChannel(channel)
     }
-  }, [matter.id])
+  }, [matter.id, readOnly])
 
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden mt-2">
-      <div className="flex items-center gap-6 border-b border-[var(--border)] mb-6 px-2 shrink-0">
+      <div className="custom-scrollbar flex shrink-0 items-center gap-3 overflow-x-auto border-b border-[var(--border)] px-2 sm:gap-6">
         <button
           onClick={() => setActiveTab('timeline')}
-          className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors ${activeTab === 'timeline'
+          className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 transition-colors ${activeTab === 'timeline'
             ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
             : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
@@ -180,7 +183,7 @@ export function MatterTabs({
 
         <button
           onClick={() => setActiveTab('files')}
-          className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors ${activeTab === 'files'
+          className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 transition-colors ${activeTab === 'files'
             ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
             : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
@@ -194,7 +197,7 @@ export function MatterTabs({
 
         <button
           onClick={() => setActiveTab('wiki')}
-          className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors ${activeTab === 'wiki'
+          className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 transition-colors ${activeTab === 'wiki'
             ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
             : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
@@ -205,7 +208,7 @@ export function MatterTabs({
 
         <button
           onClick={() => setActiveTab('notes')}
-          className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors ${activeTab === 'notes'
+          className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 transition-colors ${activeTab === 'notes'
             ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
             : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
@@ -219,7 +222,7 @@ export function MatterTabs({
 
         <button
           onClick={() => setActiveTab('details')}
-          className={`flex items-center gap-2 pb-3 px-1 border-b-2 transition-colors ml-auto ${activeTab === 'details'
+          className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-1 transition-colors sm:ml-auto ${activeTab === 'details'
             ? 'border-[var(--primary)] text-[var(--text-primary)] font-medium'
             : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             }`}
@@ -236,6 +239,7 @@ export function MatterTabs({
             links={localLinks}
             notes={localNotes}
             inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
+            readOnly={readOnly}
           />
         )}
 
@@ -247,12 +251,14 @@ export function MatterTabs({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {localSupporting.map(doc => (
+                {localSupporting.map(doc => {
+                  const fileName = doc.display_title || doc.effective_filename || 'Untitled document'
+                  return (
                   <Link href={`/matters/${doc.matter_id}/documents/${doc.id}`} key={doc.id} className="flex flex-col p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex flex-col gap-1 min-w-0">
-                        <span className="font-medium text-[var(--text-primary)] text-sm truncate" title={doc.storage_path.split('/').pop()}>
-                          {doc.storage_path.split('/').pop()}
+                        <span className="font-medium text-[var(--text-primary)] text-sm truncate" title={fileName}>
+                          {fileName}
                         </span>
                         {doc.document_category && (
                           <span className="text-[10px] text-[var(--text-muted)] font-medium tracking-wider uppercase">
@@ -262,14 +268,15 @@ export function MatterTabs({
                       </div>
                     </div>
                   </Link>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
         )}
 
         {activeTab === 'wiki' && (
-          <CaseWikiTab matterId={matter.id} initialSections={localWikiSections} />
+          <CaseWikiTab matterId={matter.id} initialSections={localWikiSections} readOnly={readOnly} />
         )}
 
         {activeTab === 'notes' && (
@@ -278,11 +285,12 @@ export function MatterTabs({
             initialNotes={localNotes}
             documents={[...localProceedings, ...localSupporting]}
             users={users}
+            readOnly={readOnly}
           />
         )}
 
         {activeTab === 'details' && (
-          <MatterDetailsTab matter={matter} />
+          <MatterDetailsTab matter={matter} readOnly={readOnly} />
         )}
       </div>
     </div>

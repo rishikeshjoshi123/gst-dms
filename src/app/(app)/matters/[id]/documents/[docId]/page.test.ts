@@ -13,6 +13,7 @@ test('standalone inspector supplies selected and linked document projection IDs 
 test('standalone route passes the expanded projection map to linked inspector rows', () => {
   const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /getDocumentInspectorMetadata\(documentInspectorIds\(doc\.id, allDocuments\)\)/)
+  assert.match(source, /const inspectorIds = documentInspectorIds\(doc\.id, allDocuments\)/)
+  assert.match(source, /getDocumentInspectorMetadata\(inspectorIds\)/)
   assert.match(source, /inspectorMetadataByDocumentId=\{inspectorMetadata\}/)
 })

@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { updateWikiSection, triggerWikiGeneration } from '@/lib/actions/wiki'
 
-export function CaseWikiTab({ matterId, initialSections }: { matterId: string; initialSections: any[] }) {
+export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { matterId: string; initialSections: any[]; readOnly?: boolean }) {
   const [sections, setSections] = useState(initialSections)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState<string>('')
@@ -18,6 +18,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
   }, [initialSections])
 
   const handleGenerate = async () => {
+    if (readOnly) return
     setIsGenerating(true)
     const toastId = toast.loading('Triggering Case Synthesis...')
     const res = await triggerWikiGeneration(matterId)
@@ -34,6 +35,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
   }
 
   const startEditing = (section: any) => {
+    if (readOnly) return
     setEditingId(section.id)
     try {
       const parsed = JSON.parse(section.content || '{}')
@@ -44,6 +46,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
   }
 
   const saveEdit = async (section: any) => {
+    if (readOnly) return
     const toastId = toast.loading('Saving section edits...')
     const res = await updateWikiSection(section.id, editContent, matterId)
     if (res.error) {
@@ -69,7 +72,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
         <p className="text-sm max-w-md text-center mb-6 leading-relaxed">
           The CaseWiki provides an automated synthesized summary of the entire matter history, key arguments, and outstanding tasks based on uploaded documents.
         </p>
-        <Button onClick={handleGenerate} disabled={isGenerating} className="bg-[var(--primary)] hover:opacity-90 text-white">
+        {!readOnly && <Button onClick={handleGenerate} disabled={isGenerating} className="bg-[var(--primary)] hover:opacity-90 text-white">
           {isGenerating ? (
             <>
               <RefreshCw size={16} className="mr-2 animate-spin" />
@@ -81,7 +84,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
               Generate Case Wiki
             </>
           )}
-        </Button>
+        </Button>}
       </div>
     )
   }
@@ -93,7 +96,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
 
   return (
     <div className="flex flex-col gap-6 py-2">
-      <div className="flex justify-end mb-2">
+      {!readOnly && <div className="flex justify-end mb-2">
         <Button onClick={handleGenerate} disabled={isGenerating} variant="outline" size="sm">
           {isGenerating ? (
             <RefreshCw size={14} className="mr-2 animate-spin" />
@@ -102,7 +105,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
           )}
           {isGenerating ? 'Regenerating...' : 'Regenerate Wiki'}
         </Button>
-      </div>
+      </div>}
       
       {orderedSections.map((section: any) => {
         let textContent = ''
@@ -125,7 +128,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
                 )}
               </div>
               
-              {!isEditing ? (
+              {!readOnly && (!isEditing ? (
                 <button onClick={() => startEditing(section)} className="text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors p-1 rounded-[var(--radius-sm)] hover:bg-[var(--primary)]/10">
                   <Edit2 size={16} />
                 </button>
@@ -138,7 +141,7 @@ export function CaseWikiTab({ matterId, initialSections }: { matterId: string; i
                     <X size={18} />
                   </button>
                 </div>
-              )}
+              ))}
             </div>
 
             <div className="p-5">
