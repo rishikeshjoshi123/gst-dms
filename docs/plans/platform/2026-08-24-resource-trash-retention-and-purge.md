@@ -134,7 +134,14 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Implement the next approved coherent slice: extend organisation-local exact-PDF duplicate resolution across active documents, historical document versions, Intake, and Trash references. Preserve non-disclosing access behavior and introduce restore-aware duplicate actions before permitting another canonical document. Do not add Trash UI, restore/purge commands, or unrelated dependent-domain suspension in that slice.
+Implement the next approved coherent live slice: add trash-aware exact-resource loaders and a read-only capability context for Client, Matter, and Document. Keep ordinary collection queries and Search strictly active-only. Do not build the Trash route, restore/purge authority, or a material new UI direction in that loader/context tranche.
+
+### Completed: exact-PDF duplicate resolution and version-writer fence (2026-08-30)
+
+- Migrations `00081`–`00083` make exact-PDF duplicate resolution authoritative across active current/historical document versions, live unassigned Intake, and opaque Trash/restricted references. The existing Inbox consumer can open an accessible active document or live Intake, while Trash and restricted results deliberately reveal no identifier or restore/Trash action.
+- The server-observed upload finalisation remains the duplicate authority; the legacy Global Dropzone hash/table preflight no longer cancels an upload. New-document assignment and every production version-materialisation writer serialize on organisation/SHA, re-read durable references, prevent a second logical-document reference, and preserve legitimate same-document history.
+- Attach/replace receipts are actor/key serialized before lookup, re-read after resource/SHA locks, and bind the full document/Intake subject, so concurrent same-key retries return the durable original result and cross-subject reuse fails safely. Fresh local migration replay, expanded resolver/security fixture, cross-writer and same-key concurrency harness, generated type parity, TypeScript, migration checks, and fresh independent QA passed.
+- Restore/Trash route/UI, restore/purge authority, retention/hold behavior, dependent-domain suspension, and possible-duplicate heuristics remain deliberately deferred.
 
 ### Completed: hierarchy-aware Trash commands (2026-08-30)
 

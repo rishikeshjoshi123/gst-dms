@@ -26,6 +26,11 @@ BEGIN
           (asset_expired,org_a,'documents','orgs/'||org_a||'/assets/'||asset_expired||'/original.pdf',50,'application/pdf','available',now(),1,owner),
           (asset_assigned,org_a,'documents','orgs/'||org_a||'/assets/'||asset_assigned||'/original.pdf',60,'application/pdf','available',now(),1,owner),
           (asset_trash,org_a,'documents','orgs/'||org_a||'/assets/'||asset_trash||'/original.pdf',70,'application/pdf','available',now(),1,owner);
+  -- Finalisation always provides the authoritative SHA-256. Populate this
+  -- legacy fixture explicitly so placement exercises the same hash fence.
+  UPDATE public.file_assets
+  SET sha256=lpad(replace(id::text,'-',''),64,'0')
+  WHERE org_id=org_a;
   UPDATE public.file_assets SET availability='failed',validated_at=NULL,failed_at=now(),failure_code='validation_failed' WHERE id=asset_failed;
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at)
     VALUES(session_ready,org_a,asset_ready,'ready.pdf','application/pdf',10,'finalized',owner,now(),now()),

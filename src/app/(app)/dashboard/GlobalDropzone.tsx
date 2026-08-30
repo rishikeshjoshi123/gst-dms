@@ -2,8 +2,6 @@
 
 import { useState, useRef, useTransition } from 'react'
 import { uploadToInbox } from '@/lib/actions/inbox'
-import { checkExactDuplicate } from '@/lib/actions/document'
-import { calculateFileHash } from '@/lib/utils/hash'
 import { toast } from 'sonner'
 import { UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -60,17 +58,8 @@ export function GlobalDropzone() {
       let uploadedCount = 0
       
       for (const { file, idempotencyKey } of files) {
-        // Client-side SHA-256 check
-        const sha256 = await calculateFileHash(file)
-        const dupCheck = await checkExactDuplicate(sha256)
-        
-        if (dupCheck.isDuplicate && dupCheck.duplicateOf) {
-          toast.error(`Upload cancelled: "${file.name}" is an exact duplicate of document ${dupCheck.duplicateOf.reference} in "${dupCheck.duplicateOf.matterTitle}".`)
-          // We remove this file from the state but continue with others
-          setFiles(prev => prev.filter(entry => entry.idempotencyKey !== idempotencyKey))
-          continue
-        }
-
+        // Server-observed finalisation owns exact duplicate truth. Do not let a
+        // client hash cancel an upload before the canonical Intake record exists.
         const formData = new FormData()
         formData.append('file', file)
         formData.append('upload_idempotency_key', idempotencyKey)

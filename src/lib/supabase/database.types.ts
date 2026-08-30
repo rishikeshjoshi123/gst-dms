@@ -4747,6 +4747,7 @@ export type Database = {
         Returns: {
           code: string
           document_id: string
+          intake_id: string
           matter_id: string
         }[]
       }

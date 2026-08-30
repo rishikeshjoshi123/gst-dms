@@ -107,6 +107,9 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
     p_idempotency: idempotencyKey,
   })
   const result = data?.[0]
+  if (result?.code === 'duplicate_reference') {
+    return { error: 'This PDF is already referenced by an existing record. Refresh the Inbox to review the duplicate.' }
+  }
   if (error || !result || result.code !== 'ok') {
     return { error: error?.message ?? 'This intake could not be assigned. Refresh the queue and try again.' }
   }
@@ -142,6 +145,10 @@ export async function getCanonicalDuplicateResolution(intakeId: string) {
   const result = data?.[0]
   if (error || !result) return { code: 'not_available' as const }
   if (result.code === 'in_trash') return { code: 'in_trash' as const }
+  if (result.code === 'restricted') return { code: 'restricted' as const }
+  if (result.code === 'intake' && result.intake_id) {
+    return { code: 'intake' as const, intakeId: result.intake_id }
+  }
   if (result.code === 'ok' && result.document_id && result.matter_id) {
     return { code: 'ok' as const, documentId: result.document_id, matterId: result.matter_id }
   }

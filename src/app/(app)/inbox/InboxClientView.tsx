@@ -219,15 +219,19 @@ function FullPageEmptyInbox({
 export function InboxClientView({
   initialDocuments,
   matters,
-  preselectedMatterId
+  preselectedMatterId,
+  preselectedIntakeId,
 }: {
   initialDocuments: any[]
   matters: any[]
   preselectedMatterId?: string
+  preselectedIntakeId?: string
 }) {
   const [documents, setDocuments] = useState(() => uniqueDocumentsById(initialDocuments))
   const [selectedDocId, setSelectedDocId] = useState<string | null>(
-    initialDocuments.length > 0 ? initialDocuments[0].id : null
+    initialDocuments.some(document => document.id === preselectedIntakeId)
+      ? preselectedIntakeId!
+      : initialDocuments[0]?.id ?? null
   )
   const [selectedMatterId, setSelectedMatterId] = useState<string>(preselectedMatterId || '')
   const [isPending, startTransition] = useTransition()
@@ -364,7 +368,15 @@ export function InboxClientView({
       return
     }
     if (result.code === 'in_trash') {
-      toast.error('The matching document is in your organisation Trash and must be restored before it can be used.')
+      toast.error('A matching document must be restored before this PDF can be used. Contact an administrator if you need help.')
+      return
+    }
+    if (result.code === 'intake') {
+      router.push(`/inbox?intakeId=${encodeURIComponent(result.intakeId)}`)
+      return
+    }
+    if (result.code === 'restricted') {
+      toast.error('A matching document exists, but you do not have access to its details. Contact an administrator.')
       return
     }
     toast.error('The matching document is not available. Refresh the queue or contact support.')
