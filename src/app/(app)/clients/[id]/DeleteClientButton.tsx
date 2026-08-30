@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Trash2, AlertTriangle, Loader2 } from 'lucide-react'
@@ -10,20 +10,29 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const clientTrashIdempotencyKey = useRef<string | null>(null)
 
   const handleDelete = async () => {
+    if (!clientTrashIdempotencyKey.current) {
+      clientTrashIdempotencyKey.current = `trash.client.${crypto.randomUUID()}`
+    }
     setIsDeleting(true)
-    const res = await deleteClientAction(clientId)
+    const res = await deleteClientAction(clientId, clientTrashIdempotencyKey.current)
     setIsDeleting(false)
 
     if (res.error) {
       toast.error(res.error)
     } else {
+      clientTrashIdempotencyKey.current = null
       toast.success('Client deleted successfully')
       setIsOpen(false)
       router.push('/clients')
     }
   }
+
+  useEffect(() => {
+    clientTrashIdempotencyKey.current = null
+  }, [clientId])
 
   return (
     <>
@@ -51,7 +60,10 @@ export function DeleteClientButton({ clientId, clientName }: { clientId: string;
             <div className="flex items-center justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  clientTrashIdempotencyKey.current = null
+                  setIsOpen(false)
+                }}
                 disabled={isDeleting}
                 className="px-4 py-2 text-[14px] font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] rounded-md transition-colors"
               >

@@ -764,7 +764,7 @@ export async function deleteDocumentLink(linkId: string) {
   return { success: true }
 }
 
-export async function deleteDocument(documentId: string) {
+export async function deleteDocument(documentId: string, idempotencyKey = `trash.document.${crypto.randomUUID()}`) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation' }
@@ -772,54 +772,20 @@ export async function deleteDocument(documentId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const db = createServiceClient()
-
-  const { data: doc } = await db
-    .from('documents')
-    .select('id, matter_id, reference_number')
-    .eq('id', documentId)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!doc) return { error: 'Document not found.' }
-
-  // 1. Soft delete associated case notes
-  await db
-    .from('case_notes')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('document_id', documentId)
-    .eq('org_id', orgId)
-
-  // 2. Soft delete document (links remain in system for future restoration)
-  const { error } = await db
-    .from('documents')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', documentId)
-    .eq('org_id', orgId)
-
-  if (error) {
-    console.error('Delete document error:', error)
-    return { error: error.message }
-  }
-
-  // 4. Log activity
-  await appendActivity({
-    org_id: orgId,
-    user_id: user.id,
-    action: 'document_deleted',
-    entity_type: 'document',
-    entity_id: documentId,
-    description: `Deleted document ${doc.reference_number || doc.id}`,
-    is_reversible: true
+  const { data, error } = await supabase.rpc('trash_resource', {
+    p_resource_type: 'document',
+    p_resource_id: documentId,
+    p_idempotency_key: idempotencyKey,
   })
+  const result = data?.[0]
 
-  // 5. Re-evaluate remaining matter links
-  if (doc.matter_id) {
-    const { reevaluateMatterLinks } = require('@/lib/actions/chaining')
-    await reevaluateMatterLinks(db, doc.matter_id, orgId, user.id)
-    revalidatePath(`/matters/${doc.matter_id}`)
+  if (error || !result) return { error: 'Could not move this document to Trash. Please try again.' }
+  if (result.code === 'trashed' || result.code === 'already_trashed') {
+    revalidatePath('/matters')
+    return { success: true, operationId: result.operation_id, status: result.code }
   }
-
-  revalidatePath('/matters')
-  return { success: true }
+  if (result.code === 'not_allowed') return { error: 'You do not have permission to move this document to Trash.' }
+  if (result.code === 'not_available') return { error: 'This document is no longer available.' }
+  if (result.code === 'idempotency_conflict') return { error: 'This request key was already used for another resource.' }
+  return { error: 'Could not move this document to Trash. Please try again.' }
 }

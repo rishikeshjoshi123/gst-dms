@@ -134,7 +134,14 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Implement the next approved coherent live slice: transactional hierarchy-aware trash commands for document, matter, and client, with capability/tenant checks, idempotency, active-descendant membership creation, state changes, and safe activity/outbox intent. Do not add restore, purge, UI, duplicate-flow, or dependent-domain suspension in that command tranche.
+Implement the next approved coherent slice: extend organisation-local exact-PDF duplicate resolution across active documents, historical document versions, Intake, and Trash references. Preserve non-disclosing access behavior and introduce restore-aware duplicate actions before permitting another canonical document. Do not add Trash UI, restore/purge commands, or unrelated dependent-domain suspension in that slice.
+
+### Completed: hierarchy-aware Trash commands (2026-08-30)
+
+- Migration `00080` adds authenticated `trash_resource`, the only live write authority for the existing document, matter, and client delete callers. It checks tenant membership and capability (`Associate`: individual document only; `Admin`/`Owner`: document, matter, or client), serializes hierarchy commands per organisation, locks/re-reads the resource lineage, and records actor-scoped idempotency bound to the immutable root subject.
+- The command atomically creates one Trash operation and active membership tree for active descendants, excludes independently trashed descendants, changes typed and legacy-compatible resource state, and records exactly one identifier-only activity/outbox intent. The protected-state guard rejects direct authenticated and direct service-role DML, including caller-settable marker forgery.
+- `deleteDocument`, `deleteMatterAction`, and `deleteClientAction` are now live RPC adapters. Their confirmation callers retain an idempotency key through retry and clear it only on cancel, target change, or safe success. Restore, purge, Trash/read-only UI, retention-policy snapshot completion, dependent-domain suspension, and duplicate behavior remain deliberately deferred.
+- Fresh local migration replay, command/security fixture, two-session client/matter concurrency harness, generated RPC type parity, TypeScript, migration checks, diff checks, and fresh independent QA passed. Targeted lint retains only documented pre-existing legacy violations.
 
 1. Add `trash_operations`, `resource_trash_memberships`, organisation trash settings, resource record-state fields, legal-hold/blocker interface, RLS, unique active-membership constraints, and typed operation states.
 2. Replace current service-role multi-update deletion functions with transactional security-definer domain functions or equivalent server transactions that verify caller capability and tenant lineage.

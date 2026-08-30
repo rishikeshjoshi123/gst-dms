@@ -111,6 +111,7 @@ export function TimelineDocumentDetail({
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
+  const documentTrashIdempotencyKey = useRef<string | null>(null)
   const [isReassignOpen, setIsReassignOpen] = useState(false)
   const [isReprocessing, setIsReprocessing] = useState(false)
   const reprocessIdempotencyKey = useRef<string | null>(null)
@@ -118,13 +119,17 @@ export function TimelineDocumentDetail({
   const router = useRouter()
 
   const handleDeleteDocument = async () => {
+    if (!documentTrashIdempotencyKey.current) {
+      documentTrashIdempotencyKey.current = `trash.document.${crypto.randomUUID()}`
+    }
     setIsDeleting(true)
-    const res = await deleteDocument(doc.id)
+    const res = await deleteDocument(doc.id, documentTrashIdempotencyKey.current)
     setIsDeleting(false)
-    setIsDocConfirmOpen(false)
     if (res.error) {
       toast.error(res.error)
     } else {
+      documentTrashIdempotencyKey.current = null
+      setIsDocConfirmOpen(false)
       toast.success('Document deleted successfully')
       onClose?.()
     }
@@ -141,6 +146,7 @@ export function TimelineDocumentDetail({
 
   useEffect(() => {
     reprocessIdempotencyKey.current = null
+    documentTrashIdempotencyKey.current = null
   }, [doc.id])
 
   useEffect(() => {
@@ -611,7 +617,10 @@ export function TimelineDocumentDetail({
 
       <ConfirmDialog
         isOpen={isDocConfirmOpen}
-        onClose={() => setIsDocConfirmOpen(false)}
+        onClose={() => {
+          documentTrashIdempotencyKey.current = null
+          setIsDocConfirmOpen(false)
+        }}
         onConfirm={handleDeleteDocument}
         title="Delete Document?"
         description="Are you sure you want to delete this document? This will permanently remove it from the matter timeline."

@@ -5364,6 +5364,21 @@ export type Database = {
           scope: Database["public"]["Enums"]["document_processing_scope"]
         }[]
       }
+      trash_resource: {
+        Args: {
+          p_idempotency_key: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          code: string
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          operation_id: string
+          preexisting_trashed_descendant_count: number
+        }[]
+      }
       resend_organisation_invite: {
         Args: {
           p_expected_revision: number

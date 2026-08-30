@@ -151,87 +151,31 @@ export async function updateClientAction(id: string, formData: FormData) {
   return { success: true }
 }
 
-// ── Soft Delete Client ────────────────────────────────────────────
+// ── Move Client hierarchy to Trash ─────────────────────────────────
 
-export async function deleteClientAction(id: string) {
+export async function deleteClientAction(id: string, idempotencyKey = `trash.client.${crypto.randomUUID()}`) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
-  
   if (!orgId) return { error: 'No active organisation.' }
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const nowStr = new Date().toISOString()
-  const db = createServiceClient()
-
-  // Fetch client details for logging
-  const { data: client } = await db
-    .from('clients')
-    .select('name')
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .single()
-
-  const clientName = client?.name || 'Client'
-
-  // 1. Get client's matters
-  const { data: matters } = await db
-    .from('matters')
-    .select('id')
-    .eq('client_id', id)
-    .eq('org_id', orgId)
-
-  const matterIds = (matters || []).map((m: any) => m.id)
-
-  // 2. Soft delete associated documents
-  if (matterIds.length > 0) {
-    await db
-      .from('documents')
-      .update({ deleted_at: nowStr })
-      .in('matter_id', matterIds)
-      .eq('org_id', orgId)
-
-    // 3. Soft delete associated case notes
-    await db
-      .from('case_notes')
-      .update({ deleted_at: nowStr })
-      .in('matter_id', matterIds)
-      .eq('org_id', orgId)
-
-    // 4. Soft delete associated matters
-    await db
-      .from('matters')
-      .update({ deleted_at: nowStr })
-      .in('id', matterIds)
-      .eq('org_id', orgId)
-
-  }
-
-  // 5. Soft delete client
-  const { error } = await db
-    .from('clients')
-    .update({ deleted_at: nowStr })
-    .eq('id', id)
-    .eq('org_id', orgId)
-
-  if (error) {
-    console.error('Delete client error:', error)
-    return { error: 'Failed to delete client.' }
-  }
-
-  // 6. Log activity
-  await db.from('activity_logs').insert({
-    org_id: orgId,
-    user_id: user.id,
-    action: 'client_deleted',
-    entity_type: 'client',
-    entity_id: id,
-    description: `Deleted client "${clientName}"`,
-    is_reversible: true
+  const { data, error } = await supabase.rpc('trash_resource', {
+    p_resource_type: 'client',
+    p_resource_id: id,
+    p_idempotency_key: idempotencyKey,
   })
+  const result = data?.[0]
 
-  revalidatePath('/clients'); revalidatePath('/dashboard')
-  revalidatePath('/matters')
-  return { success: true }
+  if (error || !result) return { error: 'Could not move this client to Trash. Please try again.' }
+  if (result.code === 'trashed' || result.code === 'already_trashed') {
+    revalidatePath('/clients'); revalidatePath('/dashboard')
+    revalidatePath('/matters')
+    return { success: true, operationId: result.operation_id, status: result.code }
+  }
+  if (result.code === 'not_allowed') return { error: 'You do not have permission to move this client to Trash.' }
+  if (result.code === 'not_available') return { error: 'This client is no longer available.' }
+  if (result.code === 'idempotency_conflict') return { error: 'This request key was already used for another resource.' }
+  return { error: 'Could not move this client to Trash. Please try again.' }
 }

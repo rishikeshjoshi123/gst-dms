@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Edit3, X, Loader2, Info, Building, Calendar, AlertTriangle, FileText, ArrowRight, Trash2 } from 'lucide-react'
@@ -29,6 +29,7 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const matterTrashIdempotencyKey = useRef<string | null>(null)
   const [title, setTitle] = useState(matter.title || '')
   const [financialYear, setFinancialYear] = useState(matter.financial_year || 'Unknown FY')
   const [status, setStatus] = useState<MatterStatus>(matter.status || 'active')
@@ -36,12 +37,16 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
   const [isPending, startTransition] = useTransition()
 
   const handleDeleteMatter = async () => {
+    if (!matterTrashIdempotencyKey.current) {
+      matterTrashIdempotencyKey.current = `trash.matter.${crypto.randomUUID()}`
+    }
     setIsDeleting(true)
-    const res = await deleteMatterAction(matter.id)
+    const res = await deleteMatterAction(matter.id, matterTrashIdempotencyKey.current)
     setIsDeleting(false)
     if (res.error) {
       toast.error(res.error)
     } else {
+      matterTrashIdempotencyKey.current = null
       toast.success('Matter deleted successfully')
       setIsDeleteModalOpen(false)
       if (matter.client_id) {
@@ -51,6 +56,10 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
       }
     }
   }
+
+  useEffect(() => {
+    matterTrashIdempotencyKey.current = null
+  }, [matter.id])
 
   const isClosed = matter.status === 'closed'
   const isUnknownFY = matter.financial_year === 'Unknown FY' || !matter.financial_year
@@ -426,7 +435,10 @@ export function MatterDetailsTab({ matter }: { matter: MatterDetails }) {
             <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 px-6 border-t border-[var(--border)] bg-[var(--bg)]">
               <button
                 type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
+                onClick={() => {
+                  matterTrashIdempotencyKey.current = null
+                  setIsDeleteModalOpen(false)
+                }}
                 disabled={isDeleting}
                 className="px-4 py-2 text-[14px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-md transition-colors"
               >

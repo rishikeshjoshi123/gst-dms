@@ -1,11 +1,10 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
-import { appendActivity } from '@/lib/activity'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -247,7 +246,7 @@ export async function updateMatterTitle(matterId: string, newTitle: string) {
   return updateMatterDetails(matterId, { title: newTitle })
 }
 
-export async function deleteMatterAction(matterId: string) {
+export async function deleteMatterAction(matterId: string, idempotencyKey = `trash.matter.${crypto.randomUUID()}`) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
@@ -255,66 +254,20 @@ export async function deleteMatterAction(matterId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const db = createServiceClient()
-
-  const { data: matter } = await db
-    .from('matters')
-    .select('id, client_id, title')
-    .eq('id', matterId)
-    .eq('org_id', orgId)
-    .single()
-
-  if (!matter) return { error: 'Matter not found.' }
-
-  const nowStr = new Date().toISOString()
-
-  // 1. Soft delete all documents in this matter
-  await db
-    .from('documents')
-    .update({ deleted_at: nowStr })
-    .eq('matter_id', matterId)
-    .eq('org_id', orgId)
-
-  // 2. Soft delete case notes in this matter
-  await db
-    .from('case_notes')
-    .update({ deleted_at: nowStr })
-    .eq('matter_id', matterId)
-    .eq('org_id', orgId)
-
-  // 3. Delete wiki sections in this matter
-  await db
-    .from('wiki_sections')
-    .delete()
-    .eq('matter_id', matterId)
-
-  // 4. Soft delete the matter
-  const { error } = await db
-    .from('matters')
-    .update({ deleted_at: nowStr })
-    .eq('id', matterId)
-    .eq('org_id', orgId)
-
-  if (error) {
-    console.error('Delete matter error:', error)
-    return { error: error.message }
-  }
-
-  // 5. Log activity
-  await appendActivity({
-    org_id: orgId,
-    user_id: user.id,
-    action: 'matter_deleted',
-    entity_type: 'matter',
-    entity_id: matterId,
-    description: `Deleted matter "${matter.title}"`,
-    metadata: { client_id: matter.client_id }
+  const { data, error } = await supabase.rpc('trash_resource', {
+    p_resource_type: 'matter',
+    p_resource_id: matterId,
+    p_idempotency_key: idempotencyKey,
   })
+  const result = data?.[0]
 
-  revalidatePath('/matters'); revalidatePath('/dashboard')
-  if (matter.client_id) {
-    revalidatePath(`/clients/${matter.client_id}`)
+  if (error || !result) return { error: 'Could not move this matter to Trash. Please try again.' }
+  if (result.code === 'trashed' || result.code === 'already_trashed') {
+    revalidatePath('/matters'); revalidatePath('/dashboard')
+    return { success: true, operationId: result.operation_id, status: result.code }
   }
-
-  return { success: true }
+  if (result.code === 'not_allowed') return { error: 'You do not have permission to move this matter to Trash.' }
+  if (result.code === 'not_available') return { error: 'This matter is no longer available.' }
+  if (result.code === 'idempotency_conflict') return { error: 'This request key was already used for another resource.' }
+  return { error: 'Could not move this matter to Trash. Please try again.' }
 }
