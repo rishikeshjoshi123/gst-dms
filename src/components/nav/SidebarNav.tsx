@@ -10,7 +10,8 @@ import {
   Settings,
   Bell,
   StickyNote,
-  Activity
+  Activity,
+  Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +26,7 @@ const navItems = [
 const bottomItems = [
   { href: '/usage',         icon: Activity, label: 'Usage' },
   { href: '/notifications', icon: Bell,     label: 'Notifications', badgeKey: 'notif' },
+  { href: '/trash',         icon: Trash2,   label: 'Trash' },
   { href: '/settings',      icon: Settings, label: 'Settings' },
 ]
 

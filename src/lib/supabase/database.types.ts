@@ -4829,6 +4829,43 @@ export type Database = {
           trashed_by: string | null
         }[]
       }
+      get_trash_workspace: {
+        Args: {
+          p_limit?: number
+          p_org_id: string
+          p_query?: string | null
+          p_resource_type?: Database["public"]["Enums"]["trash_resource_type"] | null
+          p_selected_operation_id?: string | null
+        }
+        Returns: {
+          deleted_at: string | null
+          deleted_by_name: string | null
+          included_client_count: number | null
+          included_document_count: number | null
+          included_matter_count: number | null
+          member_client_id: string | null
+          member_document_id: string | null
+          member_matter_id: string | null
+          member_membership_id: string | null
+          member_name: string | null
+          member_parent_membership_id: string | null
+          member_resource_id: string | null
+          member_resource_type: Database["public"]["Enums"]["trash_resource_type"] | null
+          operation_id: string | null
+          operation_storage_bytes: number | null
+          reason: string | null
+          root_client_id: string | null
+          root_document_id: string | null
+          root_matter_id: string | null
+          root_membership_id: string | null
+          root_name: string | null
+          root_parent_context: string | null
+          root_resource_id: string | null
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"] | null
+          row_kind: string
+          total_storage_bytes: number
+        }[]
+      }
       get_my_pending_organisation_invites: {
         Args: never
         Returns: {

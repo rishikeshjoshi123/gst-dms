@@ -381,6 +381,13 @@ code, kbd, samp, pre, .font-mono {
   border-radius: var(--radius-sm);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--border);
+  }
+}
+
 /* ── Loading spinner ──────────────────────────────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }

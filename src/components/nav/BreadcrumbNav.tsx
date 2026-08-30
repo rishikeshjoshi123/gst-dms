@@ -15,6 +15,7 @@ const fallbackLabels: Record<string, string> = {
   '/review': 'Pending Review',
   '/notifications': 'Notifications',
   '/usage': 'Token Usage',
+  '/trash': 'Trash',
   '/settings': 'Settings',
   '/dev/design-system': 'Design system',
 }

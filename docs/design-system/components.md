@@ -77,9 +77,21 @@ Prefer the shared `Card` composition or a semantic surface using `--surface`, `-
 
 Cards group related information; they are not default wrappers around every section. Prefer dividers and clear headings when a card does not add meaningful grouping.
 
+## Compact operational tables
+
+Use the shared `Table` composition for dense desktop collections whose columns have meaningful relationships. Its shared cells provide the Civic Ink compact row rhythm, semantic separators, sticky-header option, hover treatment, and selected-row treatment.
+
+- Keep only information needed to identify, compare, and select a row. Move explanation, history, and long metadata into the selected detail pane or canonical record view.
+- Every column must support a repeated comparison or the row’s immediate action. Remove columns that merely repeat the detail pane or expose an unavailable future workflow.
+- Use a visible verb label for the row action. The item identity may also be a button when both controls perform the same selection.
+- At mobile breakpoints, replace the table with a prioritized card or drill-down list rather than compressing columns.
+- Loading tables reuse the same column definition and shared cell geometry as their loaded state.
+
 ## Loading, empty, and error states
 
 - Loading preserves layout where practical and says what is happening when users may wait.
+- Use the shared `Skeleton` primitive for placeholder surfaces. The feature layout owns its geometry: reproduce the final row, card, table-column, or pane structure at each breakpoint so loading does not resize or shift the workspace when content arrives.
+- Keep skeletons non-interactive and hidden from the accessibility tree, pair the region with a plain-language loading status, and render a static semantic placeholder when reduced motion is requested.
 - Processing uses real stages and a spinner/current-stage treatment; never fabricate a percentage.
 - Empty states explain why the region is empty and expose the next useful action when one exists.
 - Errors state the problem in plain language and offer retry, correction, or escalation where possible.

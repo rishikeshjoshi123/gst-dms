@@ -2,6 +2,8 @@ import { Check, CircleAlert, Clock3, FileText, ListFilter, Loader2, Plus, Users 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MatterSectionWorkbar } from '@/components/ui/matter-section-workbar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export const metadata = { title: 'Civic Ink Design System' }
 
@@ -66,6 +68,44 @@ export default function DesignSystemPage() {
           context={<span className="hidden text-xs text-[var(--text-muted)] sm:inline">Verified facts only in solid totals</span>}
           actions={<><Button variant="outline" size="sm"><Users size={14} />Participants</Button><Button variant="outline" size="sm"><ListFilter size={14} />Filters</Button><Button size="sm"><Plus size={14} />Add entry</Button></>}
         />
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Compact operational table</h2>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Rows keep comparison and selection context compact; longer explanations belong in the selected detail pane.</p>
+        <div className="mt-4 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+          <Table>
+            <TableCaption>Example compact document collection.</TableCaption>
+            <TableHeader><TableRow><TableHead>Document</TableHead><TableHead>Current stage</TableHead><TableHead className="w-28"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {documents.slice(0, 3).map(({ name, detail, state, variant, icon: Icon }) => (
+                <TableRow key={name} interactive>
+                  <TableCell><strong className="block truncate text-sm font-medium">{name}</strong><small className="mt-0.5 block truncate text-[var(--text-muted)]">{detail}</small></TableCell>
+                  <TableCell><Badge variant={variant} fixedWidth="lg"><Icon size={11} className={state === 'Processing' ? 'animate-spin motion-reduce:animate-none' : ''} aria-hidden="true" />{state}</Badge></TableCell>
+                  <TableCell><Button variant="ghost" size="sm">View details</Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Layout-preserving loading</h2>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Skeletons reuse the final collection geometry, reserve stable row dimensions, and remain static when reduced motion is requested.</p>
+        <div className="mt-4 max-w-2xl overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]" aria-busy="true" aria-label="Loading document rows">
+          <p className="sr-only">Loading document rows…</p>
+          {[1, 2, 3].map((item) => (
+            <div key={item} className={`flex items-center gap-3 p-3 ${item > 1 ? 'border-t border-[var(--border)]' : ''}`}>
+              <Skeleton className="size-9 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <Skeleton className="h-3.5 w-3/5 max-w-64" />
+                <Skeleton className="mt-2 h-3 w-2/5 max-w-44" />
+              </span>
+              <Skeleton className="h-6 w-24 shrink-0" />
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
