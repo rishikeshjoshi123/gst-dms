@@ -2401,6 +2401,41 @@ export type Database = {
           },
         ]
       }
+      organisation_operational_settings: {
+        Row: {
+          created_at: string
+          org_id: string
+          revision: number
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          revision?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          revision?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_operational_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisation_retention_settings: {
         Row: {
           auto_purge_enabled: boolean
@@ -6075,6 +6110,14 @@ export type Database = {
           state: Database["public"]["Enums"]["organisation_membership_state"]
         }[]
       }
+      get_my_organisation_operational_settings: {
+        Args: never
+        Returns: {
+          code: string
+          revision: number
+          timezone: string
+        }[]
+      }
       get_my_pending_organisation_invites: {
         Args: never
         Returns: {
@@ -6894,6 +6937,14 @@ export type Database = {
       search_item_metadata_is_safe: {
         Args: { p_metadata: Json }
         Returns: boolean
+      }
+      set_my_organisation_operational_timezone: {
+        Args: { p_expected_revision: number; p_timezone: string }
+        Returns: {
+          code: string
+          revision: number
+          timezone: string
+        }[]
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

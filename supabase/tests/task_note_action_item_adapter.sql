@@ -32,9 +32,32 @@ BEGIN
     (doc_a,org_a,matter_a,'fixture/task-note.pdf',owner_a);
 END $fixture$;
 
+DO $operational_timezone_defaults$
+BEGIN
+  UPDATE public.user_profiles
+  SET timezone = CASE user_id::text
+    WHEN '95000000-0000-0000-0000-000000000001' THEN 'America/Los_Angeles'
+    WHEN '95000000-0000-0000-0000-000000000002' THEN 'Asia/Tokyo'
+    WHEN '95000000-0000-0000-0000-000000000003' THEN 'Europe/Berlin'
+    ELSE timezone
+  END
+  WHERE user_id IN (
+    '95000000-0000-0000-0000-000000000001',
+    '95000000-0000-0000-0000-000000000002',
+    '95000000-0000-0000-0000-000000000003'
+  );
+  IF (SELECT count(*) FROM public.organisation_operational_settings
+      WHERE org_id IN ('95100000-0000-0000-0000-000000000001', '95100000-0000-0000-0000-000000000002')
+        AND timezone = 'Asia/Kolkata' AND revision = 1) <> 2 THEN
+    RAISE EXCEPTION 'organisation operational timezone was not initialized to Asia/Kolkata';
+  END IF;
+END $operational_timezone_defaults$;
+
 SET LOCAL ROLE authenticated;
 DO $command$
-DECLARE first_result record; replay_result record; ordinary_result record; result record;
+DECLARE first_result record; replay_result record; configured_result record; configured_replay record;
+  no_due_result record; associate_first_result record; associate_replay_result record;
+  ordinary_result record; result record;
 BEGIN
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000001',true);
@@ -52,6 +75,60 @@ BEGIN
   IF replay_result.code<>'ok' OR NOT replay_result.replayed OR replay_result.note_id<>first_result.note_id OR replay_result.task_id<>first_result.task_id THEN
     RAISE EXCEPTION 'same Task command retry did not return the durable original';
   END IF;
+  SELECT * INTO result FROM public.get_my_organisation_operational_settings();
+  IF result.code<>'ok' OR result.timezone<>'Asia/Kolkata' OR result.revision<>1 THEN
+    RAISE EXCEPTION 'owner/admin operational timezone read did not return the initialized own-org setting';
+  END IF;
+  SELECT * INTO result FROM public.set_my_organisation_operational_timezone('Invalid/Timezone', 1);
+  IF result.code<>'invalid_timezone' OR result.timezone<>'Asia/Kolkata' OR result.revision<>1 THEN
+    RAISE EXCEPTION 'invalid organisation timezone was accepted or changed the setting';
+  END IF;
+  SELECT * INTO result FROM public.set_my_organisation_operational_timezone('America/New_York', 1);
+  IF result.code<>'updated' OR result.timezone<>'America/New_York' OR result.revision<>2 THEN
+    RAISE EXCEPTION 'owner/admin operational timezone command did not update the own-org setting';
+  END IF;
+  SELECT * INTO configured_result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Use the organisation timezone','general',true,
+    '95500000-0000-0000-0000-000000000007',NULL,
+    '95000000-0000-0000-0000-000000000002',DATE '2026-09-16',NULL,NULL,NULL);
+  IF configured_result.code<>'ok' OR configured_result.task_id IS NULL OR configured_result.replayed THEN
+    RAISE EXCEPTION 'configured organisation-timezone Task was not created';
+  END IF;
+  SELECT * INTO no_due_result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','No due date has no timezone','general',true,
+    '95500000-0000-0000-0000-000000000008');
+  IF no_due_result.code<>'ok' OR no_due_result.task_id IS NULL OR no_due_result.replayed THEN
+    RAISE EXCEPTION 'undated Task was not created';
+  END IF;
+  SELECT * INTO result FROM public.set_my_organisation_operational_timezone('Europe/London', 2);
+  IF result.code<>'updated' OR result.timezone<>'Europe/London' OR result.revision<>3 THEN
+    RAISE EXCEPTION 'operational timezone did not support a subsequent revisioned update';
+  END IF;
+  SELECT * INTO configured_replay FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Use the organisation timezone','general',true,
+    '95500000-0000-0000-0000-000000000007',NULL,
+    '95000000-0000-0000-0000-000000000002',DATE '2026-09-16',NULL,NULL,NULL);
+  IF configured_replay.code<>'ok' OR NOT configured_replay.replayed
+     OR configured_replay.task_id<>configured_result.task_id THEN
+    RAISE EXCEPTION 'Task replay did not return the original Task after timezone changed';
+  END IF;
+  PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000002',true);
+  SELECT * INTO associate_first_result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Associate replay safety','general',true,
+    '95500000-0000-0000-0000-000000000009',NULL,NULL,DATE '2026-09-17',NULL,NULL,NULL);
+  IF associate_first_result.code<>'ok' OR associate_first_result.note_id IS NULL
+     OR associate_first_result.task_id IS NULL OR associate_first_result.replayed THEN
+    RAISE EXCEPTION 'active associate command did not create a replayable Task';
+  END IF;
+  SELECT * INTO associate_replay_result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Associate replay safety','general',true,
+    '95500000-0000-0000-0000-000000000009',NULL,NULL,DATE '2026-09-17',NULL,NULL,NULL);
+  IF associate_replay_result.code<>'ok' OR NOT associate_replay_result.replayed
+     OR associate_replay_result.note_id<>associate_first_result.note_id
+     OR associate_replay_result.task_id<>associate_first_result.task_id THEN
+    RAISE EXCEPTION 'active associate replay did not return the durable original';
+  END IF;
+  PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000001',true);
   SELECT * INTO ordinary_result FROM public.create_note_with_optional_task(
     '95300000-0000-0000-0000-000000000001','Ordinary note has no Task Activity','general',false,
     '95500000-0000-0000-0000-000000000006');
@@ -81,6 +158,10 @@ BEGIN
     '95500000-0000-0000-0000-000000000003',NULL,'95000000-0000-0000-0000-000000000003');
   IF result.code<>'invalid_assignee' THEN RAISE EXCEPTION 'viewer assignment was accepted'; END IF;
   PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000003',true);
+  SELECT * INTO result FROM public.get_my_organisation_operational_settings();
+  IF result.code<>'not_allowed' THEN RAISE EXCEPTION 'viewer read the operational setting'; END IF;
+  SELECT * INTO result FROM public.set_my_organisation_operational_timezone('Pacific/Auckland', 3);
+  IF result.code<>'not_allowed' THEN RAISE EXCEPTION 'viewer changed the operational setting'; END IF;
   SELECT * INTO result FROM public.create_note_with_optional_task(
     '95300000-0000-0000-0000-000000000001','Viewer mutation','general',false,
     '95500000-0000-0000-0000-000000000004');
@@ -94,12 +175,16 @@ END $command$;
 RESET ROLE;
 
 DO $durability$
-DECLARE note_id uuid; task_id uuid; ordinary_note_id uuid;
+DECLARE note_id uuid; task_id uuid; configured_task_id uuid; no_due_task_id uuid; ordinary_note_id uuid;
 BEGIN
   SELECT receipt.note_id,receipt.task_id INTO note_id,task_id FROM public.task_command_receipts receipt
     WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000001';
   SELECT receipt.note_id INTO ordinary_note_id FROM public.task_command_receipts receipt
     WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000006';
+  SELECT receipt.task_id INTO configured_task_id FROM public.task_command_receipts receipt
+    WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000007';
+  SELECT receipt.task_id INTO no_due_task_id FROM public.task_command_receipts receipt
+    WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000008';
   IF (SELECT count(*) FROM public.tasks WHERE origin_note_id=note_id)<>1
      OR NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=task_id
        AND task.org_id='95100000-0000-0000-0000-000000000001'
@@ -112,6 +197,15 @@ BEGIN
        AND task.due_date=DATE '2026-09-15' AND task.due_time IS NULL AND task.due_timezone='Asia/Kolkata'
        AND task.revision=1 AND task.origin_snapshot='Prepare the hearing bundle') THEN
     RAISE EXCEPTION 'Task did not retain the approved context/origin/date-only contract';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=configured_task_id
+    AND task.due_date=DATE '2026-09-16' AND task.due_time IS NULL
+    AND task.due_timezone='America/New_York') THEN
+    RAISE EXCEPTION 'Task used a personal or changed organisation timezone instead of its creation-time operational timezone';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=no_due_task_id
+    AND task.due_date IS NULL AND task.due_time IS NULL AND task.due_timezone IS NULL) THEN
+    RAISE EXCEPTION 'undated Task retained a timezone';
   END IF;
   IF (SELECT count(*) FROM public.activity_events event WHERE event.subject_type='task' AND event.subject_id=task_id AND event.event_type='task.created' AND event.event_version=1)<>1
      OR (SELECT count(*) FROM public.activity_projector_outbox_events outbox JOIN public.activity_events event ON event.id=outbox.activity_event_id WHERE event.subject_type='task' AND event.subject_id=task_id AND event.event_type='task.created')<>1
@@ -159,6 +253,28 @@ BEGIN
 END $direct_bypass$;
 RESET ROLE;
 
+SET LOCAL ROLE authenticated;
+DO $operational_timezone_direct_table_bypass$
+DECLARE blocked boolean := false;
+BEGIN
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
+  PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000001',true);
+  BEGIN
+    SELECT timezone FROM public.organisation_operational_settings
+    WHERE org_id='95100000-0000-0000-0000-000000000002';
+  EXCEPTION WHEN insufficient_privilege THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'authenticated user read a forged organisation operational setting directly'; END IF;
+  blocked := false;
+  BEGIN
+    UPDATE public.organisation_operational_settings SET timezone='Pacific/Auckland'
+    WHERE org_id='95100000-0000-0000-0000-000000000001';
+  EXCEPTION WHEN insufficient_privilege THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'authenticated user changed an organisation operational setting directly'; END IF;
+END $operational_timezone_direct_table_bypass$;
+RESET ROLE;
+
 SET LOCAL ROLE service_role;
 DO $service_note_bypass$
 DECLARE blocked boolean := false;
@@ -170,6 +286,23 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'service role direct note insert was accepted'; END IF;
 END $service_note_bypass$;
+RESET ROLE;
+
+SET LOCAL ROLE service_role;
+DO $service_operational_timezone_bypass$
+DECLARE blocked boolean := false;
+BEGIN
+  BEGIN
+    SELECT timezone FROM public.organisation_operational_settings
+    WHERE org_id='95100000-0000-0000-0000-000000000001';
+  EXCEPTION WHEN insufficient_privilege THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'service role read an organisation operational setting directly'; END IF;
+  IF has_function_privilege('service_role','public.get_my_organisation_operational_settings()','EXECUTE')
+     OR has_function_privilege('service_role','public.set_my_organisation_operational_timezone(text,bigint)','EXECUTE') THEN
+    RAISE EXCEPTION 'service role received an operational timezone RPC bypass';
+  END IF;
+END $service_operational_timezone_bypass$;
 RESET ROLE;
 
 DO $task_created_target_setup$
@@ -212,14 +345,54 @@ BEGIN
 END $trash$;
 RESET ROLE;
 
+DO $suspend_associate$
+BEGIN
+  UPDATE public.organisation_memberships
+  SET state='suspended',
+      suspended_at=now(),
+      suspended_by='95000000-0000-0000-0000-000000000001'
+  WHERE org_id='95100000-0000-0000-0000-000000000001'
+    AND user_id='95000000-0000-0000-0000-000000000002'
+    AND state='active';
+  IF NOT EXISTS (
+    SELECT 1 FROM public.organisation_memberships
+    WHERE org_id='95100000-0000-0000-0000-000000000001'
+      AND user_id='95000000-0000-0000-0000-000000000002'
+      AND state='suspended'
+  ) THEN
+    RAISE EXCEPTION 'fixture could not suspend the replay actor';
+  END IF;
+END $suspend_associate$;
+
+SET LOCAL ROLE authenticated;
+DO $suspended_actor_replay$
+DECLARE result record;
+BEGIN
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
+  PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000002',true);
+  SELECT * INTO result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Associate replay safety','general',true,
+    '95500000-0000-0000-0000-000000000009',NULL,NULL,DATE '2026-09-17',NULL,NULL,NULL);
+  IF result.code<>'not_allowed' OR result.note_id IS NOT NULL OR result.task_id IS NOT NULL OR result.replayed THEN
+    RAISE EXCEPTION 'suspended actor replay returned a historical note or Task locator';
+  END IF;
+END $suspended_actor_replay$;
+RESET ROLE;
+
 DO $grant_surface$
 BEGIN
   IF has_table_privilege('authenticated','public.tasks','INSERT')
      OR has_table_privilege('authenticated','public.tasks','UPDATE')
      OR has_table_privilege('service_role','public.tasks','INSERT')
      OR has_table_privilege('service_role','public.activity_events','INSERT')
+     OR has_table_privilege('authenticated','public.organisation_operational_settings','SELECT')
+     OR has_table_privilege('authenticated','public.organisation_operational_settings','UPDATE')
+     OR has_table_privilege('service_role','public.organisation_operational_settings','SELECT')
+     OR has_table_privilege('service_role','public.organisation_operational_settings','UPDATE')
      OR has_function_privilege('authenticated','public.append_activity_event(uuid,text,smallint,public.activity_actor_kind,uuid,text,text,uuid,uuid,uuid,text,text,jsonb,text,uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE')
      OR has_function_privilege('service_role','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE')
+     OR has_function_privilege('service_role','public.set_my_organisation_operational_timezone(text,bigint)','EXECUTE')
+     OR NOT has_function_privilege('authenticated','public.set_my_organisation_operational_timezone(text,bigint)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE') THEN
     RAISE EXCEPTION 'Task command grant surface is unsafe';
   END IF;
