@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: '%s — CaseChain',
   },
   description:
-    'Manage GST litigation cases, chain legal documents into a visual timeline, and track proceedings with AI-powered extraction.',
+    'A connected workspace for GST litigation—bringing notices, replies, orders, evidence, and deadlines into one clear matter record.',
   robots: 'noindex, nofollow',
   icons: {
     icon: '/icon.svg',
