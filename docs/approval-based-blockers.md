@@ -18,6 +18,21 @@ the rest of the approved portfolio.
 
 ## Open
 
+### 2026-09-01 — Dedicated Tasks workspace concept
+
+- **Plan:** Work Orchestration, Review, Activity, Notifications, and Today.
+- **What is waiting:** visual approval for the fixture-only Tasks workspace at
+  `/dev/tasks-workspace-concept` before live Task reader/transition work begins.
+- **Proposed direction:** a compact desktop queue/detail workspace with stable
+  filters and pane headers; mobile becomes a list-to-detail flow with a clear
+  return path. Notes show immutable origins and a live read-only Task summary;
+  all Task actions live in the dedicated workspace.
+- **Why:** the approved product decision establishes ownership of Task actions,
+  but the visual and interaction direction needs human judgement before it is
+  applied to the production application.
+- **Then:** implement the secured Task reader/transition closure, organisation
+  timezone semantics, and Notes summary against the approved visual contract.
+
 ### 2026-08-31 — Local browser sign-in for permanent-delete verification
 
 - **Plan:** Hierarchical Resource Trash, Retention, and Purge.
