@@ -34,7 +34,7 @@ END $fixture$;
 
 SET LOCAL ROLE authenticated;
 DO $command$
-DECLARE first_result record; replay_result record; result record;
+DECLARE first_result record; replay_result record; ordinary_result record; result record;
 BEGIN
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000001',true);
@@ -51,6 +51,12 @@ BEGIN
     '95000000-0000-0000-0000-000000000002',DATE '2026-09-15',NULL,NULL,NULL);
   IF replay_result.code<>'ok' OR NOT replay_result.replayed OR replay_result.note_id<>first_result.note_id OR replay_result.task_id<>first_result.task_id THEN
     RAISE EXCEPTION 'same Task command retry did not return the durable original';
+  END IF;
+  SELECT * INTO ordinary_result FROM public.create_note_with_optional_task(
+    '95300000-0000-0000-0000-000000000001','Ordinary note has no Task Activity','general',false,
+    '95500000-0000-0000-0000-000000000006');
+  IF ordinary_result.code<>'ok' OR ordinary_result.note_id IS NULL OR ordinary_result.task_id IS NOT NULL OR ordinary_result.replayed THEN
+    RAISE EXCEPTION 'ordinary note command did not remain Task-free';
   END IF;
   -- The successful command must not leave any reusable transaction setting or
   -- table privilege that lets a direct insert escape the Task transaction.
@@ -88,10 +94,12 @@ END $command$;
 RESET ROLE;
 
 DO $durability$
-DECLARE note_id uuid; task_id uuid;
+DECLARE note_id uuid; task_id uuid; ordinary_note_id uuid;
 BEGIN
   SELECT receipt.note_id,receipt.task_id INTO note_id,task_id FROM public.task_command_receipts receipt
     WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000001';
+  SELECT receipt.note_id INTO ordinary_note_id FROM public.task_command_receipts receipt
+    WHERE receipt.idempotency_key='95500000-0000-0000-0000-000000000006';
   IF (SELECT count(*) FROM public.tasks WHERE origin_note_id=note_id)<>1
      OR NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=task_id
        AND task.org_id='95100000-0000-0000-0000-000000000001'
@@ -105,6 +113,23 @@ BEGIN
        AND task.revision=1 AND task.origin_snapshot='Prepare the hearing bundle') THEN
     RAISE EXCEPTION 'Task did not retain the approved context/origin/date-only contract';
   END IF;
+  IF (SELECT count(*) FROM public.activity_events event WHERE event.subject_type='task' AND event.subject_id=task_id AND event.event_type='task.created' AND event.event_version=1)<>1
+     OR (SELECT count(*) FROM public.activity_projector_outbox_events outbox JOIN public.activity_events event ON event.id=outbox.activity_event_id WHERE event.subject_type='task' AND event.subject_id=task_id AND event.event_type='task.created')<>1
+     OR NOT EXISTS (SELECT 1 FROM public.activity_events event WHERE event.subject_id=task_id
+       AND event.org_id='95100000-0000-0000-0000-000000000001'
+       AND event.client_id='95200000-0000-0000-0000-000000000001'
+       AND event.matter_id='95300000-0000-0000-0000-000000000001'
+       AND event.target_type='task' AND event.target_id=task_id
+       AND event.subject_snapshot='Task' AND event.summary='Task created' AND event.metadata='{}'::jsonb
+       AND event.idempotency_key ~ '^[0-9a-f]{64}$') THEN
+    RAISE EXCEPTION 'Task Activity/outbox was not exactly once, lineaged, or snapshot-safe';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.activity_events event WHERE event.event_type='task.created' AND event.subject_id=ordinary_note_id)
+     OR EXISTS (SELECT 1 FROM public.tasks task WHERE task.origin_note_id=ordinary_note_id) THEN
+    RAISE EXCEPTION 'ordinary note created Task state or Task Activity';
+  END IF;
+  INSERT INTO public.tasks(id,org_id,client_id,matter_id,title,origin_kind,origin_note_id,origin_snapshot,creator_user_id,status_changed_by)
+  VALUES ('95400000-0000-0000-0000-000000000002','95100000-0000-0000-0000-000000000001','95200000-0000-0000-0000-000000000001','95300000-0000-0000-0000-000000000001','Other task','case_note',gen_random_uuid(),'Other task', '95000000-0000-0000-0000-000000000001','95000000-0000-0000-0000-000000000001');
   UPDATE public.case_notes SET content='Edited note',action_item_resolved=true,deleted_at=now() WHERE id=note_id;
   IF NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=task_id AND task.status='open'
     AND task.origin_snapshot='Prepare the hearing bundle' AND task.lifecycle_state='active') THEN
@@ -134,6 +159,45 @@ BEGIN
 END $direct_bypass$;
 RESET ROLE;
 
+SET LOCAL ROLE service_role;
+DO $service_note_bypass$
+DECLARE blocked boolean := false;
+BEGIN
+  BEGIN
+    INSERT INTO public.case_notes(org_id,author_id,matter_id,content,template_type,is_action_item)
+    VALUES('95100000-0000-0000-0000-000000000001','95000000-0000-0000-0000-000000000001','95300000-0000-0000-0000-000000000001','Forged service note','general',false);
+  EXCEPTION WHEN insufficient_privilege THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'service role direct note insert was accepted'; END IF;
+END $service_note_bypass$;
+RESET ROLE;
+
+DO $task_created_target_setup$
+DECLARE task_a uuid;
+BEGIN
+  SELECT task_id INTO task_a FROM public.task_command_receipts
+    WHERE idempotency_key='95500000-0000-0000-0000-000000000001';
+  PERFORM set_config('casechain.fixture_task_a', task_a::text, true);
+END $task_created_target_setup$;
+
+SET LOCAL ROLE service_role;
+DO $task_created_target$
+DECLARE task_a uuid := current_setting('casechain.fixture_task_a')::uuid; blocked boolean := false;
+BEGIN
+  BEGIN
+    PERFORM public.append_activity_event(
+      '95100000-0000-0000-0000-000000000001','task.created',1::smallint,'user',
+      '95000000-0000-0000-0000-000000000001',NULL,'task',task_a,
+      '95200000-0000-0000-0000-000000000001','95300000-0000-0000-0000-000000000001',
+      'Task','Task created','{}'::jsonb,'task','95400000-0000-0000-0000-000000000002',NULL,
+      NULL,NULL,'task-fixture-forged-created-target',now()
+    );
+  EXCEPTION WHEN raise_exception THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'task.created accepted another Task in the same matter as its target'; END IF;
+END $task_created_target$;
+RESET ROLE;
+
 SET LOCAL ROLE authenticated;
 DO $trash$
 DECLARE result record;
@@ -153,6 +217,8 @@ BEGIN
   IF has_table_privilege('authenticated','public.tasks','INSERT')
      OR has_table_privilege('authenticated','public.tasks','UPDATE')
      OR has_table_privilege('service_role','public.tasks','INSERT')
+     OR has_table_privilege('service_role','public.activity_events','INSERT')
+     OR has_function_privilege('authenticated','public.append_activity_event(uuid,text,smallint,public.activity_actor_kind,uuid,text,text,uuid,uuid,uuid,text,text,jsonb,text,uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE')
      OR has_function_privilege('service_role','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE') THEN
     RAISE EXCEPTION 'Task command grant surface is unsafe';

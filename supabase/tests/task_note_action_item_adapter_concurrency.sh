@@ -36,5 +36,6 @@ rg -q '^ok:false$' "$temp_dir/first"
 rg -q '^ok:true$' "$temp_dir/second"
 [[ "$elapsed" -ge 1 ]]
 [[ "$(db_psql -c "SELECT count(*) FROM public.tasks WHERE org_id='95700000-0000-0000-0000-000000000001' AND origin_note_id=(SELECT note_id FROM public.task_command_receipts WHERE idempotency_key='96000000-0000-0000-0000-000000000001');")" == '1' ]]
+[[ "$(db_psql -c "SELECT count(*) FROM public.activity_projector_outbox_events outbox JOIN public.activity_events event ON event.id=outbox.activity_event_id WHERE event.org_id='95700000-0000-0000-0000-000000000001' AND event.event_type='task.created' AND event.subject_type='task' AND event.subject_id=(SELECT task_id FROM public.task_command_receipts WHERE idempotency_key='96000000-0000-0000-0000-000000000001');")" == '1' ]]
 
-echo 'Task note-adapter same-key concurrency passed with one durable Task.'
+echo 'Task note-adapter same-key concurrency passed with one durable Task and Activity outbox event.'
