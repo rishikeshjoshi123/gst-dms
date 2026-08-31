@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition, useEffect } from 'react'
+import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
@@ -55,6 +55,7 @@ export function MatterNotesTab({
   const [formIsAction, setFormIsAction] = useState(false)
   const [formAssignee, setFormAssignee] = useState('')
   const [formDueDate, setFormDueDate] = useState('')
+  const createNoteIdempotency = useRef<{ key: string; fingerprint: string } | null>(null)
 
   // Edit/Reply State
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -92,6 +93,19 @@ export function MatterNotesTab({
       return
     }
 
+    const fingerprint = JSON.stringify({
+      matterId,
+      documentId: formDoc || null,
+      content: formContent,
+      templateType: formType,
+      isActionItem: formIsAction,
+      actionItemAssignee: formAssignee || null,
+      actionItemDueDate: formDueDate || null,
+    })
+    if (createNoteIdempotency.current?.fingerprint !== fingerprint) {
+      createNoteIdempotency.current = { key: crypto.randomUUID(), fingerprint }
+    }
+
     startTransition(async () => {
       const res = await createNote({
         matterId,
@@ -101,6 +115,7 @@ export function MatterNotesTab({
         isActionItem: formIsAction,
         actionItemAssignee: formAssignee || null,
         actionItemDueDate: formDueDate || null,
+        idempotencyKey: createNoteIdempotency.current?.key,
       })
 
       if (res.error) {
@@ -122,6 +137,7 @@ export function MatterNotesTab({
     setFormIsAction(false)
     setFormAssignee('')
     setFormDueDate('')
+    createNoteIdempotency.current = null
   }
 
   const handleTogglePin = async (note: any) => {
@@ -534,7 +550,7 @@ export function MatterNotesTab({
                   >
                     <option value="">Unassigned</option>
                     {users.map(u => (
-                      <option key={u.id} value={u.email}>{u.email}</option>
+                      <option key={u.id} value={u.id}>{u.email}</option>
                     ))}
                   </select>
                 </div>

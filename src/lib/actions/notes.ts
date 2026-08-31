@@ -3,6 +3,8 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { randomUUID } from 'node:crypto'
+import type { Database } from '@/lib/supabase/database.types'
 
 export async function getNotes(filters: {
   matterId?: string
@@ -37,7 +39,7 @@ export async function getNotes(filters: {
     query = query.eq('is_action_item', filters.isActionItem)
   }
   if (filters.templateType) {
-    query = query.eq('template_type', filters.templateType as any)
+    query = query.eq('template_type', filters.templateType as Database['public']['Enums']['note_template_type'])
   }
   if (filters.search) {
     query = query.ilike('content', `%${filters.search}%`)
@@ -105,6 +107,8 @@ export async function createNote(data: {
   parentNoteId?: string | null
   quote?: string | null
   pageNumber?: number | null
+  // Callers that can retry a failed submission retain this opaque key.
+  idempotencyKey?: string
 }) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
@@ -113,53 +117,45 @@ export async function createNote(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const { data: matter } = await supabase
-    .from('matters')
-    .select('id')
-    .eq('id', data.matterId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!matter) return { error: 'Matter not found.' }
-
-  if (data.documentId) {
-    const { data: document } = await supabase
-      .from('documents')
-      .select('id')
-      .eq('id', data.documentId)
-      .eq('matter_id', data.matterId)
-      .eq('org_id', orgId)
-      .eq('record_state', 'active')
-      .is('deleted_at', null)
-      .maybeSingle()
-    if (!document) return { error: 'Document not found in this matter.' }
+  const commandArgs = {
+      p_matter_id: data.matterId,
+      p_content: data.content,
+      p_template_type: data.templateType,
+      p_is_action_item: data.isActionItem,
+      p_idempotency_key: data.idempotencyKey || randomUUID(),
+      ...(data.documentId ? { p_document_id: data.documentId } : {}),
+      ...(data.actionItemAssignee ? { p_action_item_assignee: data.actionItemAssignee } : {}),
+      ...(data.actionItemDueDate ? { p_action_item_due_date: data.actionItemDueDate } : {}),
+      ...(data.parentNoteId ? { p_parent_note_id: data.parentNoteId } : {}),
+      ...(data.quote ? { p_quote: data.quote } : {}),
+      ...(data.pageNumber !== null && data.pageNumber !== undefined ? { p_page_number: data.pageNumber } : {}),
+    }
+  const { data: command, error: commandError } = await supabase.rpc(
+    'create_note_with_optional_task',
+    commandArgs,
+  )
+  const result = command?.[0]
+  if (commandError || !result || result.code !== 'ok' || !result.note_id) {
+    console.error('createNote command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      context_unavailable: 'Matter or document is unavailable.',
+      invalid_assignee: 'Choose an active operational team member.',
+      invalid_parent_note: 'The parent note is unavailable.',
+      not_allowed: 'You do not have permission to create this note.',
+      idempotency_conflict: 'This submission key was already used for another request.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Unable to create this note.' }
   }
 
   const { data: note, error } = await supabase
     .from('case_notes')
-    .insert({
-      org_id: orgId,
-      author_id: user.id,
-      matter_id: data.matterId,
-      document_id: data.documentId || null,
-      content: data.content,
-      template_type: data.templateType,
-      is_action_item: data.isActionItem,
-      action_item_assignee: data.actionItemAssignee || null,
-      action_item_due_date: data.actionItemDueDate || null,
-      parent_note_id: data.parentNoteId || null,
-      quote: data.quote || null,
-      page_number: data.pageNumber || null,
-      is_pinned: false,
-      action_item_resolved: false
-    })
     .select()
+    .eq('id', result.note_id)
+    .eq('org_id', orgId)
     .single()
-
-  if (error) {
-    console.error('createNote error:', error)
-    return { error: error.message }
+  if (error || !note) {
+    console.error('createNote readback error:', error)
+    return { error: 'Note was created but could not be loaded. Refresh and try again.' }
   }
 
   revalidatePath('/notes')

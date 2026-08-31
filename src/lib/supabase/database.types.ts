@@ -3906,6 +3906,146 @@ export type Database = {
           },
         ]
       }
+      task_command_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          note_id: string
+          org_id: string
+          request_fingerprint: string
+          task_id: string | null
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          note_id: string
+          org_id: string
+          request_fingerprint: string
+          task_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          note_id?: string
+          org_id?: string
+          request_fingerprint?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_command_receipts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assignee_user_id: string | null
+          client_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          creator_user_id: string
+          description: string | null
+          document_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          id: string
+          lifecycle_state: Database["public"]["Enums"]["task_lifecycle_state"]
+          matter_id: string | null
+          org_id: string
+          origin_kind: string
+          origin_note_id: string
+          origin_snapshot: string
+          priority: Database["public"]["Enums"]["task_priority"]
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          status_changed_at: string
+          status_changed_by: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_user_id?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          creator_user_id: string
+          description?: string | null
+          document_id?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          due_timezone?: string | null
+          id?: string
+          lifecycle_state?: Database["public"]["Enums"]["task_lifecycle_state"]
+          matter_id?: string | null
+          org_id: string
+          origin_kind: string
+          origin_note_id: string
+          origin_snapshot: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          revision?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          status_changed_at?: string
+          status_changed_by?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_user_id?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          creator_user_id?: string
+          description?: string | null
+          document_id?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          due_timezone?: string | null
+          id?: string
+          lifecycle_state?: Database["public"]["Enums"]["task_lifecycle_state"]
+          matter_id?: string | null
+          org_id?: string
+          origin_kind?: string
+          origin_note_id?: string
+          origin_snapshot?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          revision?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          status_changed_at?: string
+          status_changed_by?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trash_operation_created_effect_receipts: {
         Row: {
           affected_count: number
@@ -5252,6 +5392,27 @@ export type Database = {
           code: string
           document_id: string
           lifecycle_revision: number
+        }[]
+      }
+      create_note_with_optional_task: {
+        Args: {
+          p_action_item_assignee?: string
+          p_action_item_due_date?: string
+          p_content: string
+          p_document_id?: string
+          p_idempotency_key: string
+          p_is_action_item: boolean
+          p_matter_id: string
+          p_page_number?: number
+          p_parent_note_id?: string
+          p_quote?: string
+          p_template_type: Database["public"]["Enums"]["note_template_type"]
+        }
+        Returns: {
+          code: string
+          note_id: string
+          replayed: boolean
+          task_id: string
         }[]
       }
       create_organisation_invite: {
@@ -6939,6 +7100,14 @@ export type Database = {
         | "contracts"
         | "correspondence"
         | "others"
+      task_lifecycle_state: "active" | "archived"
+      task_priority: "low" | "normal" | "high" | "urgent"
+      task_status:
+        | "open"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "suspended"
       trash_operation_state:
         | "trashed"
         | "restore_blocked"
@@ -7402,6 +7571,15 @@ export const Constants = {
         "contracts",
         "correspondence",
         "others",
+      ],
+      task_lifecycle_state: ["active", "archived"],
+      task_priority: ["low", "normal", "high", "urgent"],
+      task_status: [
+        "open",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "suspended",
       ],
       trash_operation_state: [
         "trashed",

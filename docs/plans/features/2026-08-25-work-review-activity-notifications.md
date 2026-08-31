@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: in-progress
 created: 2026-08-25
-updated: 2026-08-31
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -179,8 +179,9 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - **2026-08-31 — Step 1, Freeze catalogues:** completed in [Work Catalogue Inventory](../../work-catalogue-inventory.md). It records current live, compatibility, and missing sources with one approved destination each; it does not migrate any producer or consumer.
 - **2026-08-31 — Step 2, Activity definition/event foundation:** migration `00094` adds the private append-only definition/event, projector-outbox, and receipt contracts. It validates tenant lineage—including document-root Trash operations—safe snapshots/metadata, typed target/version locators, active-member user/integration attribution, and globally bound idempotency before atomically writing one event/outbox pair. All four tables are force-RLS/private; only service-only append/lease/complete functions have authority. Local replay, focused SQL fixture, generated types, TypeScript, migration checks, and independent QA passed. Existing `activity_logs`, producers, readers, and UI remain untouched: this is a prerequisite contract, not a consumer migration.
+- **2026-09-01 — Step 3, Task write foundation and live note-create adapter:** migration `00095` adds private `tasks` and command-receipt contracts plus the authenticated atomic note/optional-Task command. The existing Matter Notes create path is the live caller: action-item notes create one Task with a retained retry key, while ordinary notes create no Task. Direct browser and service-role inserts to both Task tables and `case_notes` are denied; the command validates tenant, role, active context, Trash state, parent note, assignee, origin, date-only semantics, and globally bound replay before writing. The note remains the legacy display/resolve source for now; edits, deletes, and legacy resolution deliberately do not mutate the immutable Task origin snapshot. Local reset, SQL authority fixture, concurrent same-key replay harness, generated types, TypeScript, migration checks, and independent QA passed. This is a live write adapter, not a Task reader, transition, Activity, outbox, My Work, or notification migration.
 
-**Canonical next action:** step 3, introduce first-class Tasks with a coherent live command/read caller; do not merely add unused tables.
+**Canonical next action:** continue step 3 with the smallest coherent Task transition and secured reader slice. It must connect a real existing consumer, define the approved legacy action-item completion/assignment compatibility boundary, use organisation—not personal—timezone semantics, and add Task Activity/outbox only when the typed Activity registry has the approved Task definition. Do not claim My Work, Task UI, or broader Work-plan completion from the write adapter.
 
 ## Interfaces and Data Changes
 
