@@ -5,6 +5,7 @@ import { MatterSectionWorkbar } from '@/components/ui/matter-section-workbar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
+import { SwitchSpecimen } from './SwitchSpecimen'
 
 export const metadata = { title: 'Civic Ink Design System' }
 
@@ -58,6 +59,12 @@ export default function DesignSystemPage() {
           <Button variant="destructive">Destructive</Button>
           <Button disabled>Disabled</Button>
         </div>
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Binary settings</h2>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Switches keep one shared focus, motion, disabled, and effective touch-target contract.</p>
+        <SwitchSpecimen />
       </section>
 
       <section className="border-t border-[var(--border)] py-6">

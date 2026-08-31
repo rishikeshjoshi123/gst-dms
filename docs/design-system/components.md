@@ -55,6 +55,14 @@ Use [`input.tsx`](../../src/components/ui/input.tsx) with [`label.tsx`](../../sr
 - Inputs are `44px` on mobile and may use compact desktop density at established breakpoints.
 - Do not use placeholder text as the only label or instruction.
 
+## Switch
+
+Use [`switch.tsx`](../../src/components/ui/switch.tsx) for a binary setting that takes effect as one choice, not for a command that needs a separate confirmation button.
+
+- Supply a visible label and connect supporting text with `aria-describedby` when the consequence needs explanation.
+- Use `checked` and `onCheckedChange`; do not recreate the track, thumb, disabled opacity, focus ring, motion, or touch target in feature code.
+- A disabled switch must be accompanied by nearby text that explains what prerequisite or permission makes it unavailable.
+
 ## Dialogs and confirmations
 
 Use Radix-backed [`dialog.tsx`](../../src/components/ui/dialog.tsx) and [`ConfirmDialog.tsx`](../../src/components/ui/ConfirmDialog.tsx).
@@ -68,6 +76,8 @@ Use Radix-backed [`dialog.tsx`](../../src/components/ui/dialog.tsx) and [`Confir
 ## Menus, avatars, and navigation
 
 Use the shared Radix dropdown and Avatar implementations. A small avatar inside a button does not reduce the button's required target size.
+
+Use checkbox menu items only for independent options that may be enabled together. Mutually exclusive choices use `DropdownMenuRadioGroup` and `DropdownMenuRadioItem` so their semantics match their behaviour.
 
 The authenticated desktop navigation contract is fixed: a `64px` rail expands to `224px` on hover or focus and overlays content. Mobile uses the accessible navigation drawer. New navigation items belong in the shared navigation configuration, not in a page-local sidebar.
 

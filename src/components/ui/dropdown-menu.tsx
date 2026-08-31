@@ -104,6 +104,31 @@ function DropdownMenuCheckboxItem({
   )
 }
 
+function DropdownMenuRadioItem({
+  className,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      className={cn(
+        'relative flex cursor-pointer select-none items-center gap-2 rounded-[var(--radius-sm)]',
+        'py-2 pl-8 pr-3 text-[14px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]',
+        'transition-colors outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        className,
+      )}
+      {...props}
+    >
+      <span className="absolute left-2.5 flex items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <span className="size-2 rounded-[var(--radius-full)] bg-[var(--accent)]" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.RadioItem>
+  )
+}
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -113,6 +138,7 @@ export {
   DropdownMenuSeparator,
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
+  DropdownMenuRadioItem,
   DropdownMenuPortal,
   DropdownMenuSub,
   DropdownMenuRadioGroup,
