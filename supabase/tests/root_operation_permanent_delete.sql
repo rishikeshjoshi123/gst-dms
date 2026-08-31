@@ -16,6 +16,8 @@ DECLARE
   legacy_client uuid:='98200000-0000-0000-0000-000000000009'; legacy_matter uuid:='98300000-0000-0000-0000-000000000009';
   other_client uuid:='98200000-0000-0000-0000-000000000002'; other_matter uuid:='98300000-0000-0000-0000-000000000002';
   other_doc uuid:='98400000-0000-0000-0000-000000000005';
+  wiki_client uuid:='98200000-0000-0000-0000-000000000010'; wiki_matter uuid:='98300000-0000-0000-0000-000000000010';
+  wiki_doc uuid:='98400000-0000-0000-0000-000000000010'; wiki_operation uuid;
   unique_asset uuid:='98500000-0000-0000-0000-000000000001'; shared_asset uuid:='98500000-0000-0000-0000-000000000002';
   referenced_asset uuid:='98500000-0000-0000-0000-000000000003'; provenance_run uuid:='98900000-0000-0000-0000-000000000001';
   provenance_successor uuid:='98900000-0000-0000-0000-000000000004';
@@ -40,9 +42,11 @@ BEGIN
   INSERT INTO public.clients(id,org_id,name,gstin,pan) VALUES
     (client,org,'Purge client','27PPPPP0000P1Z5','PPPPP0000P'),
     (legacy_client,org,'Legacy client',NULL,NULL),
+    (wiki_client,org,'Wiki client',NULL,NULL),
     (other_client,other_org,'Other purge client','27QQQQQ0000Q1Z5','QQQQQ0000Q');
   INSERT INTO public.matters(id,org_id,client_id,title,matter_code) VALUES
     (matter,org,client,'Purge matter','PURGE-01'),(legacy_matter,org,legacy_client,'Legacy matter','LEGACY-01'),
+    (wiki_matter,org,wiki_client,'Wiki matter','WIKI-01'),
     (other_matter,other_org,other_client,'Other matter','OTHER-01');
   INSERT INTO public.documents(id,org_id,matter_id,storage_path,created_by,display_title) VALUES
     (unique_doc,org,matter,'fixture/unique.pdf',owner,'Unique document'),
@@ -53,6 +57,7 @@ BEGIN
     (race_doc,org,matter,'fixture/race.pdf',owner,'Race document'),
     (retry_doc,org,matter,'fixture/retry.pdf',owner,'Retry document'),
     (legacy_doc,org,legacy_matter,'fixture/legacy.pdf',owner,'Legacy supporting root'),
+    (wiki_doc,org,wiki_matter,'fixture/wiki.pdf',owner,'Wiki purge document'),
     (other_doc,other_org,other_matter,'fixture/other.pdf',other_owner,'Other document');
   INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by) VALUES
     (unique_asset,org,'documents','orgs/98000000-0000-0000-0000-000000000001/assets/98500000-0000-0000-0000-000000000001/original.pdf',repeat('a',64),100,'application/pdf','available',now(),1,owner),
@@ -75,6 +80,8 @@ BEGIN
   PERFORM public.materialize_source_field_candidate(provenance_run,'document.reference','document.reference_number','code','"PURGE/1"'::jsonb,1,'Purge reference',NULL,0.99,'eligible',NULL);
   PERFORM public.materialize_document_version_analysis('98600000-0000-0000-0000-000000000001',provenance_run,'purge_fixture',owner);
   PERFORM public.materialize_document_version_analysis('98600000-0000-0000-0000-000000000001',provenance_successor,'purge_fixture_successor',owner);
+  IF (SELECT count(*) FROM public.document_version_analysis_bindings WHERE document_version_id='98600000-0000-0000-0000-000000000001')<>2 THEN
+    RAISE EXCEPTION 'binding fixture did not create the governed document-version delete path'; END IF;
   SELECT id INTO candidate_id FROM public.document_field_candidates WHERE document_id=unique_doc LIMIT 1;
   PERFORM public.record_document_field_decision(candidate_id,'accepted',NULL,'Purge fixture decision',owner,'purge.fixture.decision');
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at)
@@ -97,6 +104,14 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'direct client hard delete bypassed Trash lifecycle'; END IF;
   INSERT INTO public.case_notes(id,matter_id,document_id,org_id,author_id,content) VALUES
     ('98700000-0000-0000-0000-000000000001',matter,unique_doc,org,owner,'content that must be removed');
+  denied:=false; BEGIN DELETE FROM public.case_notes WHERE document_id=unique_doc; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'ordinary dependent delete bypassed the governed purge fence'; END IF;
+  INSERT INTO public.wiki_sections(id,matter_id,section_key,title,content) VALUES
+    ('98700000-0000-0000-0000-000000000010',wiki_matter,'purge','Purge wiki','{}');
+  INSERT INTO public.wiki_section_versions(id,wiki_section_id,content,generated_by) VALUES
+    ('98700000-0000-0000-0000-000000000011','98700000-0000-0000-0000-000000000010','{}','fixture');
+  denied:=false; BEGIN DELETE FROM public.wiki_sections WHERE id='98700000-0000-0000-0000-000000000010'; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'ordinary wiki delete bypassed the governed purge fence'; END IF;
 
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',owner::text,'iat',extract(epoch FROM now())::bigint)::text,true);
@@ -108,6 +123,7 @@ BEGIN
   SELECT operation_id INTO race_operation FROM public.trash_resource('document',race_doc,'purge.fixture.race');
   SELECT operation_id INTO retry_operation FROM public.trash_resource('document',retry_doc,'purge.fixture.retry');
   SELECT operation_id INTO legacy_operation FROM public.trash_resource('matter',legacy_matter,'purge.fixture.legacy');
+  SELECT operation_id INTO wiki_operation FROM public.trash_resource('matter',wiki_matter,'purge.fixture.wiki');
   PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',other_owner::text,'iat',extract(epoch FROM now())::bigint)::text,true);
   PERFORM set_config('request.jwt.claim.sub',other_owner::text,true);
   SELECT operation_id INTO other_operation FROM public.trash_resource('document',other_doc,'purge.fixture.other');
@@ -115,6 +131,16 @@ BEGIN
   PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',owner::text,'iat',extract(epoch FROM now())::bigint)::text,true);
   PERFORM set_config('request.jwt.claim.sub',owner::text,true);
   IF EXISTS (SELECT 1 FROM public.get_trash_purge_impact(other_operation)) THEN RAISE EXCEPTION 'cross-tenant impact disclosed'; END IF;
+  SELECT * INTO impact FROM public.get_trash_purge_impact(wiki_operation);
+  SELECT * INTO result FROM public.confirm_trash_purge(wiki_operation,impact.impact_fingerprint,'WIKI-01','purge.fixture.wiki');
+  IF result.code<>'queued' THEN RAISE EXCEPTION 'wiki purge did not queue: %',result.code; END IF;
+  SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=wiki_operation;
+  SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
+  IF result.code<>'prepared' OR EXISTS (SELECT 1 FROM public.wiki_sections WHERE matter_id=wiki_matter)
+     OR EXISTS (SELECT 1 FROM public.wiki_section_versions WHERE wiki_section_id='98700000-0000-0000-0000-000000000010') THEN
+    RAISE EXCEPTION 'fenced wiki purge did not explicitly clean the wiki/version dependency'; END IF;
+  SELECT * INTO result FROM public.finish_trash_purge_attempt(job.job_id,job.lease_token);
+  IF result.code<>'purged' THEN RAISE EXCEPTION 'fenced wiki purge did not finish'; END IF;
   SELECT * INTO impact FROM public.get_trash_purge_impact(shared_operation);
   IF impact.unique_bytes<>0 OR impact.shared_bytes_retained<>200 OR NOT impact.can_purge THEN RAISE EXCEPTION 'shared asset impact was unsafe'; END IF;
   SELECT * INTO impact FROM public.get_trash_purge_impact(referenced_operation);
@@ -197,6 +223,10 @@ BEGIN
   SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
   IF job.job_id IS NULL OR (SELECT record_state::text FROM public.documents WHERE id=unique_doc)<>'purging' THEN RAISE EXCEPTION 'purge did not fence root lifecycle'; END IF;
   UPDATE public.trash_purge_jobs SET lease_expires_at=now()-interval '1 second' WHERE id=job.job_id;
+  INSERT INTO public.trash_purge_execution_fences(transaction_id,job_id) VALUES(txid_current(),job.job_id);
+  denied:=false; BEGIN DELETE FROM public.case_notes WHERE document_id=unique_doc; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'expired worker fence retained dependent-delete authority'; END IF;
+  DELETE FROM public.trash_purge_execution_fences WHERE transaction_id=txid_current() AND job_id=job.job_id;
   SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
   IF result.code<>'stale_lease' THEN RAISE EXCEPTION 'expired worker lease retained authority'; END IF;
   SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
@@ -327,6 +357,9 @@ BEGIN
      OR has_table_privilege('service_role','public.documents','DELETE')
      OR has_table_privilege('service_role','public.supporting_documents','DELETE')
      OR has_table_privilege('service_role','public.supporting_documents','TRUNCATE')
+     OR has_table_privilege('service_role','public.case_notes','DELETE')
+     OR has_table_privilege('service_role','public.document_links','DELETE')
+     OR has_table_privilege('service_role','public.wiki_sections','TRUNCATE')
      OR NOT has_function_privilege('authenticated','public.get_trash_purge_impact(uuid)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.confirm_trash_purge(uuid,text,text,text)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.retry_trash_purge(uuid,text,text)','EXECUTE')
@@ -359,7 +392,23 @@ DO $service_dml_denial$ DECLARE denied boolean:=false; BEGIN
   denied:=false;
   BEGIN DELETE FROM public.documents WHERE id='98400000-0000-0000-0000-000000000002'; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
   IF NOT denied THEN RAISE EXCEPTION 'service role direct Document delete succeeded'; END IF;
+  denied:=false;
+  BEGIN DELETE FROM public.case_notes WHERE document_id='98400000-0000-0000-0000-000000000001'; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'service role direct dependent delete succeeded'; END IF;
+  denied:=false;
+  BEGIN TRUNCATE public.wiki_sections; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'service role direct hierarchy truncate succeeded'; END IF;
 END $service_dml_denial$;
 RESET ROLE;
+
+DO $postgres_like_dml_denial$
+DECLARE denied boolean:=false;
+BEGIN
+  BEGIN DELETE FROM public.clients WHERE id='98200000-0000-0000-0000-000000000001'; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'postgres-like direct root delete bypassed lifecycle trigger'; END IF;
+  denied:=false;
+  BEGIN TRUNCATE public.clients CASCADE; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'postgres-like hierarchy truncate bypassed lifecycle trigger'; END IF;
+END $postgres_like_dml_denial$;
 
 ROLLBACK;

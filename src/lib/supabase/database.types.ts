@@ -992,7 +992,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "document_relationship_placement_effect_document_version_id_fkey"
+            foreignKeyName: "document_relationship_effect_version_fkey"
             columns: ["document_version_id"]
             isOneToOne: false
             referencedRelation: "document_versions"
