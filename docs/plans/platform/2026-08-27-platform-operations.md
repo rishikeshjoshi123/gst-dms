@@ -2,7 +2,7 @@
 title: Platform Operations
 status: approved
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -128,6 +128,12 @@ The goals are to make these functions safe, auditable, and operationally useful 
 - Rollout beyond the controlled pilot is blocked until a successful restore drill exists and no critical backup alert is overdue.
 
 ## Implementation Plan
+
+### Completed prerequisite: platform operator identity and capability foundation (2026-09-01)
+
+- Migration `00100` adds a private, append-only platform-operator history, safe bootstrap audit, exact fail-closed role/capability matrix, non-disclosing authenticated context, and a database-owner-only one-time bootstrap runbook contract. Tenant membership never grants platform authority; API roles cannot execute bootstrap or directly access the private tables.
+- The first Owner is deliberately not created by this repository: a controlled deployment session must verify an Auth UID out of band and call the one-time bootstrap contract with a safe reason and idempotency key. No `/platform` route, console, usage, alert, AAL2, or privileged-intent consumer has migrated.
+- Fresh local reset, rollback fixture, capability/tenant/append-only/last-owner/grant checks, generated-type parity review, TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed. The checked-in RPC result types deliberately model SQL `NULL` denial results because the local generator cannot express nullable `RETURNS TABLE` fields.
 
 1. Establish the approved Organisation Administration identity/RBAC foundation, then the Document Record and File Lifecycle foundation. Preserve owning-domain durable outbox/run records and safe state before adding the platform projections.
 2. Add platform trust/config/accounting/audit/alert schema, enum/check constraints, append-only permissions, RLS, capability RPCs, safe projections, revision/idempotency support, and explicit retention jobs. Bootstrap the first Owner with the controlled runbook and audit it.

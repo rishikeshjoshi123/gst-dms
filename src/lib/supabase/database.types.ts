@@ -2829,6 +2829,113 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_audit_events: {
+        Row: {
+          action: string
+          actor_operator_id: string | null
+          actor_user_id: string | null
+          capability: string | null
+          correlation_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          metadata: Json
+          outcome: string
+          reason_code: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          action: string
+          actor_operator_id?: string | null
+          actor_user_id?: string | null
+          capability?: string | null
+          correlation_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          outcome: string
+          reason_code: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          action?: string
+          actor_operator_id?: string | null
+          actor_user_id?: string | null
+          capability?: string | null
+          correlation_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          outcome?: string
+          reason_code?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_audit_events_actor_operator_id_fkey"
+            columns: ["actor_operator_id"]
+            isOneToOne: false
+            referencedRelation: "platform_operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_audit_events_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "platform_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_operators: {
+        Row: {
+          created_at: string
+          generation: number
+          id: string
+          idempotency_key: string
+          lifecycle_reason_code: string
+          prior_operator_id: string | null
+          role: Database["public"]["Enums"]["platform_operator_role"]
+          state: Database["public"]["Enums"]["platform_operator_state"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation: number
+          id?: string
+          idempotency_key: string
+          lifecycle_reason_code: string
+          prior_operator_id?: string | null
+          role: Database["public"]["Enums"]["platform_operator_role"]
+          state: Database["public"]["Enums"]["platform_operator_state"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generation?: number
+          id?: string
+          idempotency_key?: string
+          lifecycle_reason_code?: string
+          prior_operator_id?: string | null
+          role?: Database["public"]["Enums"]["platform_operator_role"]
+          state?: Database["public"]["Enums"]["platform_operator_state"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_operators_prior_operator_id_fkey"
+            columns: ["prior_operator_id"]
+            isOneToOne: false
+            referencedRelation: "platform_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_storage_policy: {
         Row: {
           created_at: string
@@ -5381,6 +5488,13 @@ export type Database = {
           source_analysis_run_id: string
         }[]
       }
+      bootstrap_platform_owner: {
+        Args: { p_idempotency_key: string; p_reason_code: string; p_user_id: string }
+        Returns: {
+          code: string
+          operator_id: string | null
+        }[]
+      }
       begin_organisation_invitation_accept_intent: {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
@@ -6127,6 +6241,16 @@ export type Database = {
           role: Database["public"]["Enums"]["org_member_role"]
         }[]
       }
+      get_my_platform_context: {
+        Args: never
+        Returns: {
+          capabilities: string[]
+          code: string
+          generation: number | null
+          operator_id: string | null
+          role: Database["public"]["Enums"]["platform_operator_role"] | null
+        }[]
+      }
       get_my_team_members: {
         Args: never
         Returns: {
@@ -6360,6 +6484,10 @@ export type Database = {
       }
       has_organisation_capability: {
         Args: { check_org_id: string; requested_capability: string }
+        Returns: boolean
+      }
+      has_platform_capability: {
+        Args: { requested_capability: string }
         Returns: boolean
       }
       has_team_capability: {
@@ -7285,6 +7413,11 @@ export type Database = {
         | "revoked"
         | "superseded"
       organisation_membership_state: "active" | "suspended" | "removed"
+      platform_operator_role:
+        | "platform_owner"
+        | "platform_operator"
+        | "platform_auditor"
+      platform_operator_state: "active" | "suspended" | "removed"
       outbox_delivery_state:
         | "pending"
         | "leased"
@@ -7741,6 +7874,12 @@ export const Constants = {
         "superseded",
       ],
       organisation_membership_state: ["active", "suspended", "removed"],
+      platform_operator_role: [
+        "platform_owner",
+        "platform_operator",
+        "platform_auditor",
+      ],
+      platform_operator_state: ["active", "suspended", "removed"],
       outbox_delivery_state: [
         "pending",
         "leased",
