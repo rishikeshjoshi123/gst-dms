@@ -18,6 +18,25 @@ the rest of the approved portfolio.
 
 ## Open
 
+### 2026-08-31 — Retention for historical soft-deleted records
+
+- **Plan:** Hierarchical Resource Trash, Retention, and Purge — legacy
+  `deleted_at` compatibility migration.
+- **What is waiting:** the retention rule for records that were already
+  soft-deleted before the new Trash policy existed.
+- **Why:** the system knows their old deletion timestamp but not whether their
+  organisation ever agreed to automatic deletion. Starting a 30/60/90-day
+  schedule retroactively could permanently delete legal records using invented
+  history; leaving them unscheduled creates a narrow legacy exception.
+- **Recommended action:** create each recoverable old record as a clearly
+  labelled historical Trash entry with no automatic deletion date. A future
+  authorised Owner/Admin action can choose a policy explicitly. This never
+  changes a live/new Trash operation.
+- **Alternative:** apply the current 30/60/90-day policy from the migration
+  date. This is simpler but may delete old legal records sooner than the
+  organisation expects.
+- **Then:** implement and verify the legacy migration using the chosen rule.
+
 ### 2026-08-31 — Local browser sign-in for permanent-delete verification
 
 - **Plan:** Hierarchical Resource Trash, Retention, and Purge.
