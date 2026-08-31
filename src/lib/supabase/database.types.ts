@@ -34,6 +34,159 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_event_definitions: {
+        Row: {
+          category: string
+          created_at: string
+          default_visibility: Database["public"]["Enums"]["activity_visibility"]
+          event_type: string
+          event_version: number
+          lifecycle: string
+          metadata_contract: Json
+          renderer_key: string
+          subject_types: string[]
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          default_visibility: Database["public"]["Enums"]["activity_visibility"]
+          event_type: string
+          event_version: number
+          lifecycle?: string
+          metadata_contract?: Json
+          renderer_key: string
+          subject_types: string[]
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          default_visibility?: Database["public"]["Enums"]["activity_visibility"]
+          event_type?: string
+          event_version?: number
+          lifecycle?: string
+          metadata_contract?: Json
+          renderer_key?: string
+          subject_types?: string[]
+        }
+        Relationships: []
+      }
+      activity_events: {
+        Row: {
+          actor_id: string | null
+          actor_kind: Database["public"]["Enums"]["activity_actor_kind"]
+          actor_snapshot: string
+          causation_event_id: string | null
+          client_id: string | null
+          correlation_id: string | null
+          event_type: string
+          event_version: number
+          id: string
+          idempotency_key: string
+          matter_id: string | null
+          metadata: Json
+          occurred_at: string
+          org_id: string
+          recorded_at: string
+          renderer_key: string
+          subject_id: string
+          subject_snapshot: string
+          subject_type: string
+          summary: string
+          target_id: string
+          target_type: string
+          target_version_id: string | null
+          visibility: Database["public"]["Enums"]["activity_visibility"]
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_kind: Database["public"]["Enums"]["activity_actor_kind"]
+          actor_snapshot: string
+          causation_event_id?: string | null
+          client_id?: string | null
+          correlation_id?: string | null
+          event_type: string
+          event_version: number
+          id?: string
+          idempotency_key: string
+          matter_id?: string | null
+          metadata?: Json
+          occurred_at: string
+          org_id: string
+          recorded_at?: string
+          renderer_key: string
+          subject_id: string
+          subject_snapshot: string
+          subject_type: string
+          summary: string
+          target_id: string
+          target_type: string
+          target_version_id?: string | null
+          visibility: Database["public"]["Enums"]["activity_visibility"]
+        }
+        Update: {
+          actor_id?: string | null
+          actor_kind?: Database["public"]["Enums"]["activity_actor_kind"]
+          actor_snapshot?: string
+          causation_event_id?: string | null
+          client_id?: string | null
+          correlation_id?: string | null
+          event_type?: string
+          event_version?: number
+          id?: string
+          idempotency_key?: string
+          matter_id?: string | null
+          metadata?: Json
+          occurred_at?: string
+          org_id?: string
+          recorded_at?: string
+          renderer_key?: string
+          subject_id?: string
+          subject_snapshot?: string
+          subject_type?: string
+          summary?: string
+          target_id?: string
+          target_type?: string
+          target_version_id?: string | null
+          visibility?: Database["public"]["Enums"]["activity_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_events_causation_event_id_fkey"
+            columns: ["causation_event_id"]
+            isOneToOne: false
+            referencedRelation: "activity_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_definition_fkey"
+            columns: ["event_type", "event_version"]
+            isOneToOne: false
+            referencedRelation: "activity_event_definitions"
+            referencedColumns: ["event_type", "event_version"]
+          },
+          {
+            foreignKeyName: "activity_events_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           action: string
@@ -83,6 +236,105 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_projector_outbox_events: {
+        Row: {
+          activity_event_id: string
+          attempt_count: number
+          created_at: string
+          delivered_at: string | null
+          delivery_state: Database["public"]["Enums"]["activity_projector_delivery_state"]
+          failed_at: string | null
+          id: string
+          last_error_code: string | null
+          lease_expires_at: string | null
+          lease_token: string | null
+          org_id: string
+          projector_key: string
+          updated_at: string
+        }
+        Insert: {
+          activity_event_id: string
+          attempt_count?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: Database["public"]["Enums"]["activity_projector_delivery_state"]
+          failed_at?: string | null
+          id?: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          org_id: string
+          projector_key?: string
+          updated_at?: string
+        }
+        Update: {
+          activity_event_id?: string
+          attempt_count?: number
+          created_at?: string
+          delivered_at?: string | null
+          delivery_state?: Database["public"]["Enums"]["activity_projector_delivery_state"]
+          failed_at?: string | null
+          id?: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          org_id?: string
+          projector_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_projector_outbox_events_activity_event_id_fkey"
+            columns: ["activity_event_id"]
+            isOneToOne: true
+            referencedRelation: "activity_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_projector_outbox_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_projector_receipts: {
+        Row: {
+          activity_event_id: string
+          outbox_event_id: string
+          projected_at: string
+          projector_key: string
+        }
+        Insert: {
+          activity_event_id: string
+          outbox_event_id: string
+          projected_at?: string
+          projector_key: string
+        }
+        Update: {
+          activity_event_id?: string
+          outbox_event_id?: string
+          projected_at?: string
+          projector_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_projector_receipts_activity_event_id_fkey"
+            columns: ["activity_event_id"]
+            isOneToOne: false
+            referencedRelation: "activity_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_projector_receipts_outbox_event_id_fkey"
+            columns: ["outbox_event_id"]
+            isOneToOne: false
+            referencedRelation: "activity_projector_outbox_events"
             referencedColumns: ["id"]
           },
         ]
@@ -4645,6 +4897,56 @@ export type Database = {
           code: string
         }[]
       }
+      activity_metadata_is_safe: {
+        Args: { p_contract: Json; p_metadata: Json }
+        Returns: boolean
+      }
+      activity_safe_text: {
+        Args: { p_max_length: number; p_value: string }
+        Returns: boolean
+      }
+      activity_validate_subject: {
+        Args: {
+          p_client_id: string
+          p_matter_id: string
+          p_org_id: string
+          p_subject_id: string
+          p_subject_type: string
+          p_target_id: string
+          p_target_type: string
+          p_target_version_id: string
+        }
+        Returns: boolean
+      }
+      append_activity_event: {
+        Args: {
+          p_actor_id: string
+          p_actor_kind: Database["public"]["Enums"]["activity_actor_kind"]
+          p_actor_snapshot: string
+          p_causation_event_id: string
+          p_client_id: string
+          p_correlation_id: string
+          p_event_type: string
+          p_event_version: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_metadata: Json
+          p_occurred_at?: string
+          p_org_id: string
+          p_subject_id: string
+          p_subject_snapshot: string
+          p_subject_type: string
+          p_summary: string
+          p_target_id: string
+          p_target_type: string
+          p_target_version_id: string
+        }
+        Returns: {
+          activity_event_id: string
+          outbox_event_id: string
+          replayed: boolean
+        }[]
+      }
       assert_staged_document_adapter_retirement_ready: {
         Args: never
         Returns: undefined
@@ -4872,6 +5174,12 @@ export type Database = {
         Args: { p_batch_size?: number; p_delivered_before?: string }
         Returns: {
           compacted_count: number
+        }[]
+      }
+      complete_activity_projector_event: {
+        Args: { p_lease_token: string; p_outbox_event_id: string }
+        Returns: {
+          code: string
         }[]
       }
       complete_document_upload: {
@@ -5679,6 +5987,15 @@ export type Database = {
       is_email_in_any_org: { Args: { search_email: string }; Returns: boolean }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      lease_activity_projector_events: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          activity_event_id: string
+          lease_token: string
+          org_id: string
+          outbox_event_id: string
+        }[]
+      }
       lease_document_outbox_events: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -6265,6 +6582,18 @@ export type Database = {
           resource_type: Database["public"]["Enums"]["trash_resource_type"]
         }[]
       }
+      trash_purge_current_job_owns_asset: {
+        Args: { p_asset_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      trash_purge_current_job_owns_resource: {
+        Args: {
+          p_org_id: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: boolean
+      }
       trash_purge_impact_fingerprint: {
         Args: { p_operation_id: string; p_org_id: string }
         Returns: string
@@ -6348,6 +6677,13 @@ export type Database = {
       }
     }
     Enums: {
+      activity_actor_kind: "user" | "system" | "integration"
+      activity_projector_delivery_state:
+        | "pending"
+        | "leased"
+        | "delivered"
+        | "dead_letter"
+      activity_visibility: "organisation" | "matter"
       deadline_type:
         | "appeal_window"
         | "pre_deposit"
@@ -6771,6 +7107,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      activity_actor_kind: ["user", "system", "integration"],
+      activity_projector_delivery_state: [
+        "pending",
+        "leased",
+        "delivered",
+        "dead_letter",
+      ],
+      activity_visibility: ["organisation", "matter"],
       deadline_type: [
         "appeal_window",
         "pre_deposit",

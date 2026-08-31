@@ -1,6 +1,6 @@
 ---
 title: Work Orchestration, Review, Activity, Notifications, and Today
-status: approved
+status: in-progress
 created: 2026-08-25
 updated: 2026-08-31
 owners:
@@ -175,9 +175,12 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 11. **Migrate legacy data additively.** Backfill Activity snapshots, convert note action items to tasks, convert actual document/link exceptions to Review, keep staged placement in Intake, migrate eligible notifications, and explicitly archive/remove routine or unresolvable notification rows.
 12. **Cut over producers/consumers.** Audit every Server Action/worker for exact-once approved events. Shadow counts, switch navigation/badges/pages, stop dual writes, then remove legacy logs, note task columns, notification enums/preferences, and page-specific aggregate queries in rollback-bounded migrations.
 
-## Completed prerequisite record
+## Completed prerequisite records
 
-- **2026-08-31 — Step 1, Freeze catalogues:** completed in [Work Catalogue Inventory](../../work-catalogue-inventory.md). It records current live, compatibility, and missing sources with one approved destination each; it does not migrate any producer or consumer. **Canonical next action:** step 2, add append-only Activity definitions/events and transactional outbox/projector foundations.
+- **2026-08-31 — Step 1, Freeze catalogues:** completed in [Work Catalogue Inventory](../../work-catalogue-inventory.md). It records current live, compatibility, and missing sources with one approved destination each; it does not migrate any producer or consumer.
+- **2026-08-31 — Step 2, Activity definition/event foundation:** migration `00094` adds the private append-only definition/event, projector-outbox, and receipt contracts. It validates tenant lineage—including document-root Trash operations—safe snapshots/metadata, typed target/version locators, active-member user/integration attribution, and globally bound idempotency before atomically writing one event/outbox pair. All four tables are force-RLS/private; only service-only append/lease/complete functions have authority. Local replay, focused SQL fixture, generated types, TypeScript, migration checks, and independent QA passed. Existing `activity_logs`, producers, readers, and UI remain untouched: this is a prerequisite contract, not a consumer migration.
+
+**Canonical next action:** step 3, introduce first-class Tasks with a coherent live command/read caller; do not merely add unused tables.
 
 ## Interfaces and Data Changes
 
