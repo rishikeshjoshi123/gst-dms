@@ -2,7 +2,7 @@
 title: Organisation Administration, Team Access, and Personal Settings
 status: in-progress
 created: 2026-08-26
-updated: 2026-08-29
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -124,8 +124,8 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - `created_at` is immutable system metadata. `established_on` is optional historical information supplied by the organisation and is never presented as the account creation date.
 - The tagline is limited to restrained organisation/profile and invitation contexts; it does not consume Matter headers, Today, loading screens, or operational workspaces.
 - Do not create AI-generated motivational quotes, a rotating quote table, or background quote-refresh jobs. They add cost and distraction without helping legal work. A later content feature would require evidence of user value.
-- Operations settings own the already approved Trash retention options (`Manual purge only`, 30, 60, 90, 180, or 365 days), auto-purge off by default, organisation timezone, default deadline reminder policy, weekly digest defaults, and read-only storage entitlement/usage. They also own an Owner/Admin-only initial document-placement policy: `manual_suggestions` (default), `strong_evidence_auto_place`, or `intended_matter_only`. The setting describes how unassigned Intake may be placed; it can never silently move an already assigned document.
-- Tenant administrators can choose retention within the approved policy but cannot raise platform quota, change provider pricing, see other organisations, or bypass legal holds. Initial storage entitlement remains the separately approved 100 MB of unique assets.
+- Operations settings own organisation timezone, default deadline reminder policy, weekly digest defaults, and read-only storage entitlement/usage. Trash retention is owned by the Trash contract: Owner/Admins choose one automatic 30-, 60-, or 90-day period (default 90); there is no manual-only option or separate auto-purge switch. They also own an Owner/Admin-only initial document-placement policy: `manual_suggestions` (default), `strong_evidence_auto_place`, or `intended_matter_only`. The setting describes how unassigned Intake may be placed; it can never silently move an already assigned document.
+- Tenant administrators can choose the approved Trash retention period but cannot raise platform quota, change provider pricing, see other organisations, or bypass legal holds. Initial storage entitlement remains the separately approved 100 MB of unique assets.
 - Organisation defaults seed new personal preferences; they cannot force non-mandatory email on an existing user. Mandatory access/security delivery remains governed by the notification plan.
 - Organisation deletion/closure is not an ordinary Settings action in the initial release. It requires a separate, support-visible, retention-aware closure design and is not implemented as a cascading delete.
 
@@ -180,7 +180,7 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 4. **Rebuild invitation commands.** Add hashed token versions, delivery limits, resend/supersession, atomic accept/reject/revoke/expire behavior, safe sign-in return flow, events, and an expiry worker.
 5. **Add administration events and offboarding.** Implement impact projections and transactional role change, suspend, reactivate, remove, leave, and ownership-transfer commands with reassignment and grant reconciliation hooks.
 6. **Build the Team workspace.** Add server-driven Members/Invitations views, search/filter/pagination, member inspector, invitation flow, permissions, impact confirmations, mobile drill-down, and complete loading/empty/error/long-content states.
-7. **Build organisation settings.** Add profile/defaults, retention/auto-purge controls from the Trash plan, storage entitlement/usage, notification defaults, revision checks, and read-only views for ordinary members. Do not add an MFA/security-policy surface in this phase.
+7. **Build organisation settings.** Add profile/defaults, the Trash plan's 30/60/90 automatic-retention selector, storage entitlement/usage, notification defaults, revision checks, and read-only views for ordinary members. Do not add an MFA/security-policy surface in this phase.
 8. **Build My settings.** Add the single-scroll profile, password/email workflows, appearance, notification/digest preferences, and quiet hours/timezone. Defer MFA and active-session management.
 9. **Update the shell and onboarding.** Move appearance control into the account menu, remove the unsupported workspace switcher, route Team/Settings correctly, and distinguish no-membership, invitation, removed, and suspended states.
 10. **Integrate dependent domains.** Make Notes mentions, Tasks, Review, Deadlines, internal-cost participants, realtime topic access, Search, notification delivery, Trash, and signed file access consume membership/capability state and offboarding events.
@@ -195,7 +195,7 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - `organisation_memberships`: stable membership ID, organisation/user, role, state, generation, invited-through ID, join/suspend/remove actors/reasons/timestamps, revision, and created time. One active/suspended organisation per user during the pilot and one active/suspended generation per user/organisation.
 - `organisations`: retain immutable `created_by`; add current `owner_membership_id`, revision, and update metadata.
 - `organisation_profiles`: names, logo asset, establishment date, tagline, locale/date format, currency, revision, and actor/timestamps.
-- `organisation_operational_settings`: organisation timezone, retention policy reference, auto-purge, deadline reminder defaults, digest defaults, storage entitlement reference/read model, and revision.
+- `organisation_operational_settings`: organisation timezone, deadline reminder defaults, digest defaults, storage entitlement reference/read model, and revision. The implemented `organisation_retention_settings` remains the sole owner of the Trash 30/60/90 automatic-retention policy.
 - `organisation_security_policies` is deferred; do not create an unused MFA-policy table in the initial migration.
 - `organisation_invites`: normalised email, current token-hash/version, role, state, expiry, inviter, accepted user/membership, superseded/revoked/rejected data, delivery counters, revision, and timestamps.
 - `organisation_invite_deliveries`: invite/version, channel/provider reference, attempt, scheduled/sent/failure state, safe error, and timestamps.
@@ -282,7 +282,7 @@ Every mutation accepts an idempotency key and expected revision where relevant a
 - The last eligible Admin and sole Owner invariants cannot be broken. Ownership transfer requires an eligible recipient and explicit confirmation; MFA/recent-auth enforcement is deferred until the provider-backed contract is implemented.
 - Suspended/removed users are immediately denied by RLS and all authenticated loaders/actions, including Workbench signing, Search, realtime joins, notification delivery, digest schedules, and Matter-specific grants, without relying on sign-out. New signed asset issuance is blocked; already-issued short-lived signed URLs remain usable only until their bounded TTL expires.
 - Personal profile data is visible only through the approved member projection. Ordinary members do not receive invitation history, security posture, suspension reasons, or unauthorised email data.
-- Organisation settings distinguish immutable system creation date from optional establishment date, enforce approved retention values, keep auto-purge off initially, and never permit tenant quota elevation or legal-hold bypass.
+- Organisation settings distinguish immutable system creation date from optional establishment date, surface the approved 30/60/90 automatic Trash retention policy without a manual/toggle alternative, and never permit tenant quota elevation or legal-hold bypass.
 - Personal settings implement per-family delivery, quiet hours, verified-deadline offsets, timezone, and the approved weekly digest. Optional email and digest preferences begin off; routine processing has no notification toggle; mandatory security delivery cannot be disabled.
 - Appearance supports System/Light/Dark and the existing semantic token contract without decorative transition scenes. All app animation and transitions honor `prefers-reduced-motion`; no app-specific motion toggle is stored.
 - Password and email flows use the auth provider, require provider verification where appropriate, and never store or expose secrets in application tables/logs. MFA and session-management UI are absent from the initial release.
