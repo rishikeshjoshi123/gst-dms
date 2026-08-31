@@ -2991,6 +2991,197 @@ export type Database = {
           },
         ]
       }
+      search_index_runs: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          content_fingerprint: string | null
+          created_at: string
+          document_id: string
+          document_version_id: string
+          failed_at: string | null
+          id: string
+          indexing_version: string
+          org_id: string
+          processing_run_id: string | null
+          safe_error_code: string | null
+          search_item_id: string | null
+          source_id: string
+          source_type: string
+          started_at: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          content_fingerprint?: string | null
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          failed_at?: string | null
+          id?: string
+          indexing_version?: string
+          org_id: string
+          processing_run_id?: string | null
+          safe_error_code?: string | null
+          search_item_id?: string | null
+          source_id: string
+          source_type: string
+          started_at?: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          content_fingerprint?: string | null
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          failed_at?: string | null
+          id?: string
+          indexing_version?: string
+          org_id?: string
+          processing_run_id?: string | null
+          safe_error_code?: string | null
+          search_item_id?: string | null
+          source_id?: string
+          source_type?: string
+          started_at?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_index_runs_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_index_runs_document_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_index_runs_item_org_fkey"
+            columns: ["org_id", "search_item_id"]
+            isOneToOne: false
+            referencedRelation: "search_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_index_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      search_items: {
+        Row: {
+          client_id: string
+          content_availability: Database["public"]["Enums"]["document_content_availability"]
+          content_fingerprint: string
+          content_version_id: string
+          created_at: string
+          document_id: string
+          document_version_id: string
+          id: string
+          indexed_at: string
+          indexing_version: string
+          matter_id: string
+          metadata: Json
+          org_id: string
+          source_id: string
+          source_type: string
+          title: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          client_id: string
+          content_availability: Database["public"]["Enums"]["document_content_availability"]
+          content_fingerprint: string
+          content_version_id: string
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          id?: string
+          indexed_at?: string
+          indexing_version?: string
+          matter_id: string
+          metadata?: Json
+          org_id: string
+          source_id: string
+          source_type: string
+          title: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          client_id?: string
+          content_availability?: Database["public"]["Enums"]["document_content_availability"]
+          content_fingerprint?: string
+          content_version_id?: string
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          id?: string
+          indexed_at?: string
+          indexing_version?: string
+          matter_id?: string
+          metadata?: Json
+          org_id?: string
+          source_id?: string
+          source_type?: string
+          title?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_items_client_org_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_items_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_items_document_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_items_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_analysis_attempts: {
         Row: {
           attempt_number: number
@@ -5597,6 +5788,21 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_search_index_reprocess_work_pre_item_storage: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+          p_projection_fingerprint?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       finish_document_search_index_reprocess_work_retry_fence: {
         Args: {
           p_embedding?: string
@@ -6116,6 +6322,14 @@ export type Database = {
       has_team_capability: {
         Args: { check_org_id: string; requested_capability: string }
         Returns: boolean
+      }
+      invalidate_current_document_metadata_search_storage: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_org_id: string
+        }
+        Returns: undefined
       }
       invalidate_effective_metadata_search_embedding: {
         Args: {
@@ -6677,6 +6891,10 @@ export type Database = {
         Args: { p_attempt_number: number; p_processing_run_id: string }
         Returns: number
       }
+      search_item_metadata_is_safe: {
+        Args: { p_metadata: Json }
+        Returns: boolean
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       source_field_candidate_normalized_value_is_valid: {
@@ -6794,6 +7012,21 @@ export type Database = {
           updated_at: string
         }[]
       }
+      upsert_current_document_metadata_search_storage: {
+        Args: {
+          p_attempt_count?: number
+          p_document_id: string
+          p_document_version_id: string
+          p_org_id: string
+          p_processing_run_id?: string
+          p_projection_fingerprint: string
+          p_safe_error_code?: string
+          p_state?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       validate_document_intake_asset: {
         Args: {
           p_idempotency: string
@@ -6808,6 +7041,21 @@ export type Database = {
         }[]
       }
       write_current_document_search_index_embedding: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_embedding: string
+          p_embedding_model: string
+          p_embedding_version: string
+          p_input_tokens: number
+          p_org_id: string
+          p_projection_fingerprint?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      write_current_document_search_index_embedding_pre_item_storage: {
         Args: {
           p_document_id: string
           p_document_version_id: string

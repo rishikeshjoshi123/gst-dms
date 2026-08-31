@@ -149,10 +149,25 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
   targeted lint, and independent QA passed. This upgrades existing embedding
   behavior only; it does not add Search storage, hybrid retrieval, or UI.
 
-**Canonical next action:** continue step 3 with the smallest coherent private
-search-item/chunk storage slice and a real indexing writer. It must preserve
-the existing document-version, tenant, Trash, and failure/replay fences without
-claiming a query/UI consumer until one is connected.
+- **2026-09-01 — Step 3a, private metadata storage and live writer:** migration
+  `00097` adds force-RLS `search_items` and `search_index_runs` for one bounded
+  current document-metadata owner. The existing leased search-index completion
+  and matter reindex writer now atomically maintain one safe item/run under
+  their current version, lease, and projection-fingerprint fences. The storage
+  contains no body/OCR, files, locators, embeddings, raw metadata, provider
+  payload, or query text. Effective metadata (including clears), scalar
+  projection, Matter/client reassignment, document version/lifecycle, and Trash
+  changes withdraw the stale private projection before a later reindex can
+  recreate it. Same-org Matter→Client ownership is enforced. Local reset,
+  authority/replay/stale-lineage rollback fixture, generated types, focused
+  tests, TypeScript, lint, migration checks, and independent QA/recheck passed.
+  `processing_run_id` remains an internal nullable derived UUID without a
+  foreign key; an organisation-aware delete-policy decision is deferred.
+
+**Canonical next action:** continue step 4 with a page-aware document text/OCR
+chunking slice that writes changed chunks to the private item model. It must
+retain source version/page anchors and the same current-version, tenant, Trash,
+lease, and replay fences; do not add a query/UI consumer yet.
 
 ## Interfaces and Data Changes
 
