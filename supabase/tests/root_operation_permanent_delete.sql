@@ -1,4 +1,4 @@
--- Run after migration 00091 on a disposable local database. All fixture data
+-- Run after migration 00099 on a disposable local database. All fixture data
 -- rolls back. Covers tenant/capability/recent-auth/fingerprint/blocker gates,
 -- shared assets, durable leases, idempotent storage completion, and tombstones.
 BEGIN;
@@ -94,6 +94,8 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'ordinary provenance decision delete bypassed immutability'; END IF;
   denied:=false; BEGIN UPDATE public.source_analysis_runs SET safe_error_code='direct_mutation' WHERE id=unbound_run; EXCEPTION WHEN others THEN denied:=true; END;
   IF NOT denied THEN RAISE EXCEPTION 'ordinary terminal provenance mutation bypassed immutability'; END IF;
+  denied:=false; BEGIN UPDATE public.source_analysis_runs SET superseded_by_run_id=NULL WHERE id=provenance_run; EXCEPTION WHEN others THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'ordinary terminal provenance unlink bypassed immutability'; END IF;
   denied:=false; BEGIN DELETE FROM public.source_analysis_runs WHERE id=unbound_run; EXCEPTION WHEN others THEN denied:=true; END;
   IF NOT denied THEN RAISE EXCEPTION 'ordinary provenance run delete bypassed lifecycle fence'; END IF;
   denied:=false; BEGIN DELETE FROM public.documents WHERE id=unique_doc; EXCEPTION WHEN others THEN denied:=true; END;
@@ -357,6 +359,7 @@ BEGIN
      OR has_table_privilege('service_role','public.documents','DELETE')
      OR has_table_privilege('service_role','public.supporting_documents','DELETE')
      OR has_table_privilege('service_role','public.supporting_documents','TRUNCATE')
+     OR NOT (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='public.supporting_documents'::regclass)
      OR has_table_privilege('service_role','public.case_notes','DELETE')
      OR has_table_privilege('service_role','public.document_links','DELETE')
      OR has_table_privilege('service_role','public.wiki_sections','TRUNCATE')

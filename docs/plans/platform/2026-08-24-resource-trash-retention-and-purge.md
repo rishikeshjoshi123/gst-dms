@@ -139,6 +139,7 @@ Complete the authenticated local-browser verification for the governed permanent
 ### WIP: governed root permanent deletion (pending authenticated browser QA)
 
 - Checkpoint `906b986` implements the approved root-operation impact, confirmation, durable worker, retry/reconciliation, shared-asset, blocker, tombstone, and operational-status contract. Fresh local migration replay through `00092`, rollback and multi-session adversarial fixtures, DB lint, generated types, TypeScript, focused tests, scoped lint, migration checks, and fresh independent QA/rechecks passed.
+- Migration `00099` repairs the two subsequently found permanent-delete data-layer blockers: the governed worker may unlink only a terminal provenance run's supersession edge while it owns the exact current live purge lease, and no direct service or browser role can delete a supporting-document blocker. Ordinary terminal provenance writes remain immutable; supporting-document deletes/truncates are force-RLS/ACL/trigger fenced and the relevant link actions are `RESTRICT`. Local migration upgrade, complete rollback fixture, concurrency harness, TypeScript, migration checks, driver inspection, and fresh independent QA passed.
 - The only unfinished gate is authenticated local-browser interaction using a generated disposable Owner fixture. It is recorded as a plain-language Open entry in `docs/approval-based-blockers.md`; no plan-completion claim is made until that action is verified.
 
 ### Completed: physical parent-delete/cascade hardening prerequisite (2026-08-31)
