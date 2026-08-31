@@ -141,6 +141,12 @@ The goals are to make these functions safe, auditable, and operationally useful 
 - Intent tables and RPCs are force-RLS private and revoked from browser and service roles. Opaque audit events retain only the command family; no nonce, identity, secret, or command content is persisted. Generated database types include the final tables, enum, RPC signatures, and polymorphic audit relationship state.
 - Fresh local reset, rollback fixture, AAL/actor/nonce/family/expiry/replay/append-only/privilege checks, TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed. This is a prerequisite contract only: no `/platform` route, account launcher, browser grant, or live privileged-command consumer has migrated.
 
+### Completed prerequisite: private durable-alert foundation (2026-09-01)
+
+- Migration `00102` adds private alert identity, immutable occurrence/event history, safe operational metadata, logical dedupe, occurrence replay fencing, and revision-fenced trusted-worker upserts. Alerts are explicitly limited to opaque platform, organisation, and operational-run subjects; their metadata and audit entries exclude legal content, paths, provider payloads, secrets, and contact data.
+- The sole exposed surface is a service-only ingestion RPC. Acknowledgement and resolution deliberately remain unavailable until the later AAL2/capability-derived platform command boundary can attribute the acting operator. No alert producer, notification, console, or browser consumer has migrated.
+- Fresh local rollback fixture, direct privilege/append-only/idempotency/revision/privacy checks, generated-type parity (including nullable failure results), TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed.
+
 1. Establish the approved Organisation Administration identity/RBAC foundation, then the Document Record and File Lifecycle foundation. Preserve owning-domain durable outbox/run records and safe state before adding the platform projections.
 2. Add platform trust/config/accounting/audit/alert schema, enum/check constraints, append-only permissions, RLS, capability RPCs, safe projections, revision/idempotency support, and explicit retention jobs. Bootstrap the first Owner with the controlled runbook and audit it.
 3. Build platform authentication/authorisation: isolated route/layout, active-operator lookup, AAL2 enforcement, 10-minute privileged intent, non-disclosing denial, account launcher, Owner lifecycle invariant, and service-role boundary narrowing.

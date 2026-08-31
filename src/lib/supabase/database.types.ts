@@ -2829,6 +2829,158 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_alert_events: {
+        Row: {
+          alert_id: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["platform_alert_event_type"]
+          id: string
+          idempotency_key: string
+          occurrence_id: string | null
+          prior_state:
+            | Database["public"]["Enums"]["platform_alert_state"]
+            | null
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_alert_state"]
+        }
+        Insert: {
+          alert_id: string
+          created_at?: string
+          event_type: Database["public"]["Enums"]["platform_alert_event_type"]
+          id?: string
+          idempotency_key: string
+          occurrence_id?: string | null
+          prior_state?:
+            | Database["public"]["Enums"]["platform_alert_state"]
+            | null
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_alert_state"]
+        }
+        Update: {
+          alert_id?: string
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["platform_alert_event_type"]
+          id?: string
+          idempotency_key?: string
+          occurrence_id?: string | null
+          prior_state?:
+            | Database["public"]["Enums"]["platform_alert_state"]
+            | null
+          reason_code?: string
+          revision?: number
+          state?: Database["public"]["Enums"]["platform_alert_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_alert_events_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "platform_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "platform_alert_events_occurrence_id_fkey"
+            columns: ["occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "platform_alert_occurrences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_alert_occurrences: {
+        Row: {
+          alert_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          observed_at: string
+          source_occurrence_id: string
+        }
+        Insert: {
+          alert_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          observed_at: string
+          source_occurrence_id: string
+        }
+        Update: {
+          alert_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          observed_at?: string
+          source_occurrence_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_alert_occurrences_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "platform_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_reason_code: string | null
+          alert_kind: Database["public"]["Enums"]["platform_alert_kind"]
+          dedupe_key: string
+          first_detected_at: string
+          id: string
+          last_detected_at: string
+          metadata: Json
+          occurrence_count: number
+          resolved_at: string | null
+          resolved_reason_code: string | null
+          revision: number
+          severity: Database["public"]["Enums"]["platform_alert_severity"]
+          state: Database["public"]["Enums"]["platform_alert_state"]
+          subject_id: string
+          subject_type: Database["public"]["Enums"]["platform_alert_subject_type"]
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_reason_code?: string | null
+          alert_kind: Database["public"]["Enums"]["platform_alert_kind"]
+          dedupe_key: string
+          first_detected_at: string
+          id?: string
+          last_detected_at: string
+          metadata?: Json
+          occurrence_count?: number
+          resolved_at?: string | null
+          resolved_reason_code?: string | null
+          revision?: number
+          severity: Database["public"]["Enums"]["platform_alert_severity"]
+          state?: Database["public"]["Enums"]["platform_alert_state"]
+          subject_id: string
+          subject_type: Database["public"]["Enums"]["platform_alert_subject_type"]
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_reason_code?: string | null
+          alert_kind?: Database["public"]["Enums"]["platform_alert_kind"]
+          dedupe_key?: string
+          first_detected_at?: string
+          id?: string
+          last_detected_at?: string
+          metadata?: Json
+          occurrence_count?: number
+          resolved_at?: string | null
+          resolved_reason_code?: string | null
+          revision?: number
+          severity?: Database["public"]["Enums"]["platform_alert_severity"]
+          state?: Database["public"]["Enums"]["platform_alert_state"]
+          subject_id?: string
+          subject_type?: Database["public"]["Enums"]["platform_alert_subject_type"]
+        }
+        Relationships: []
+      }
       platform_audit_events: {
         Row: {
           action: string
@@ -2879,6 +3031,50 @@ export type Database = {
           {
             foreignKeyName: "platform_audit_events_actor_operator_id_fkey"
             columns: ["actor_operator_id"]
+            isOneToOne: false
+            referencedRelation: "platform_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_operators: {
+        Row: {
+          created_at: string
+          generation: number
+          id: string
+          idempotency_key: string
+          lifecycle_reason_code: string
+          prior_operator_id: string | null
+          role: Database["public"]["Enums"]["platform_operator_role"]
+          state: Database["public"]["Enums"]["platform_operator_state"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation: number
+          id?: string
+          idempotency_key: string
+          lifecycle_reason_code: string
+          prior_operator_id?: string | null
+          role: Database["public"]["Enums"]["platform_operator_role"]
+          state: Database["public"]["Enums"]["platform_operator_state"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generation?: number
+          id?: string
+          idempotency_key?: string
+          lifecycle_reason_code?: string
+          prior_operator_id?: string | null
+          role?: Database["public"]["Enums"]["platform_operator_role"]
+          state?: Database["public"]["Enums"]["platform_operator_state"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_operators_prior_operator_id_fkey"
+            columns: ["prior_operator_id"]
             isOneToOne: false
             referencedRelation: "platform_operators"
             referencedColumns: ["id"]
@@ -2952,50 +3148,6 @@ export type Database = {
           {
             foreignKeyName: "platform_privileged_intents_operator_id_fkey"
             columns: ["operator_id"]
-            isOneToOne: false
-            referencedRelation: "platform_operators"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_operators: {
-        Row: {
-          created_at: string
-          generation: number
-          id: string
-          idempotency_key: string
-          lifecycle_reason_code: string
-          prior_operator_id: string | null
-          role: Database["public"]["Enums"]["platform_operator_role"]
-          state: Database["public"]["Enums"]["platform_operator_state"]
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          generation: number
-          id?: string
-          idempotency_key: string
-          lifecycle_reason_code: string
-          prior_operator_id?: string | null
-          role: Database["public"]["Enums"]["platform_operator_role"]
-          state: Database["public"]["Enums"]["platform_operator_state"]
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          generation?: number
-          id?: string
-          idempotency_key?: string
-          lifecycle_reason_code?: string
-          prior_operator_id?: string | null
-          role?: Database["public"]["Enums"]["platform_operator_role"]
-          state?: Database["public"]["Enums"]["platform_operator_state"]
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "platform_operators_prior_operator_id_fkey"
-            columns: ["prior_operator_id"]
             isOneToOne: false
             referencedRelation: "platform_operators"
             referencedColumns: ["id"]
@@ -5554,17 +5706,21 @@ export type Database = {
           source_analysis_run_id: string
         }[]
       }
-      bootstrap_platform_owner: {
-        Args: { p_idempotency_key: string; p_reason_code: string; p_user_id: string }
-        Returns: {
-          code: string
-          operator_id: string | null
-        }[]
-      }
       begin_organisation_invitation_accept_intent: {
         Args: { p_nonce_hash: string; p_selector_hash: string }
         Returns: {
           code: string
+        }[]
+      }
+      bootstrap_platform_owner: {
+        Args: {
+          p_idempotency_key: string
+          p_reason_code: string
+          p_user_id: string
+        }
+        Returns: {
+          code: string
+          operator_id: string | null
         }[]
       }
       claim_document_asset_storage_deletion_work: {
@@ -6588,18 +6744,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      issue_platform_privileged_intent: {
-        Args: {
-          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
-          p_issuance_idempotency_key: string
-        }
-        Returns: {
-          code: string
-          expires_at: string | null
-          intent_id: string | null
-          nonce: string | null
-        }[]
-      }
       invitation_actor: {
         Args: { org: string }
         Returns: {
@@ -6623,6 +6767,18 @@ export type Database = {
       is_email_in_any_org: { Args: { search_email: string }; Returns: boolean }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      issue_platform_privileged_intent: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          p_issuance_idempotency_key: string
+        }
+        Returns: {
+          code: string
+          expires_at: string | null
+          intent_id: string | null
+          nonce: string | null
+        }[]
+      }
       lease_activity_projector_events: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -6719,7 +6875,7 @@ export type Database = {
           p_document_version_id: string
           p_source_analysis_run_id: string
         }
-        Returns: string
+        Returns: string | null
       }
       materialize_source_field_candidate: {
         Args: {
@@ -6773,19 +6929,38 @@ export type Database = {
           notification_count: number
         }[]
       }
+      platform_alert_metadata_is_safe: {
+        Args: { p_metadata: Json }
+        Returns: boolean
+      }
+      platform_audit_metadata_is_safe: {
+        Args: { p_metadata: Json }
+        Returns: boolean
+      }
+      platform_capability_is_known: {
+        Args: { p_capability: string }
+        Returns: boolean
+      }
+      platform_current_request_has_aal2: { Args: never; Returns: boolean }
+      platform_operator_capabilities: {
+        Args: {
+          p_role: Database["public"]["Enums"]["platform_operator_role"]
+          p_state: Database["public"]["Enums"]["platform_operator_state"]
+        }
+        Returns: string[]
+      }
+      platform_privileged_command_capability: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+        }
+        Returns: string | null
+      }
       prepare_trash_purge_database: {
         Args: { p_job_id: string; p_lease_token: string }
         Returns: {
           code: string
           storage_deletion_count: number
         }[]
-      }
-      platform_current_request_has_aal2: { Args: never; Returns: boolean }
-      platform_privileged_command_capability: {
-        Args: {
-          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
-        }
-        Returns: string | null
       }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }
@@ -6945,6 +7120,15 @@ export type Database = {
         Returns: {
           code: string
         }[]
+      }
+      record_platform_alert_audit: {
+        Args: {
+          p_action: string
+          p_alert: Database["public"]["Tables"]["platform_alerts"]["Row"]
+          p_idempotency_key: string
+          p_reason_code: string
+        }
+        Returns: undefined
       }
       record_staged_document_backfill_verification: {
         Args: {
@@ -7303,6 +7487,28 @@ export type Database = {
           code: string
         }[]
       }
+      upsert_platform_alert: {
+        Args: {
+          p_alert_kind: Database["public"]["Enums"]["platform_alert_kind"]
+          p_dedupe_key: string
+          p_expected_revision?: number
+          p_metadata: Json
+          p_observed_at?: string
+          p_reason_code?: string
+          p_reopen_resolved?: boolean
+          p_severity: Database["public"]["Enums"]["platform_alert_severity"]
+          p_source_occurrence_id: string
+          p_subject_id: string
+          p_subject_type: Database["public"]["Enums"]["platform_alert_subject_type"]
+        }
+        Returns: {
+          alert_id: string | null
+          code: string
+          occurrence_id: string | null
+          revision: number | null
+          state: Database["public"]["Enums"]["platform_alert_state"] | null
+        }[]
+      }
       validate_document_intake_asset: {
         Args: {
           p_idempotency: string
@@ -7521,6 +7727,31 @@ export type Database = {
         | "revoked"
         | "superseded"
       organisation_membership_state: "active" | "suspended" | "removed"
+      outbox_delivery_state:
+        | "pending"
+        | "leased"
+        | "delivered"
+        | "failed"
+        | "dead_letter"
+      platform_alert_event_type:
+        | "opened"
+        | "occurred"
+        | "reopened"
+        | "acknowledged"
+        | "resolved"
+      platform_alert_kind:
+        | "configuration_integrity"
+        | "operational_health"
+        | "provider_usage_unpriced"
+        | "storage_guard"
+        | "backup_freshness"
+        | "restore_drill"
+      platform_alert_severity: "warning" | "critical"
+      platform_alert_state: "open" | "acknowledged" | "resolved"
+      platform_alert_subject_type:
+        | "platform"
+        | "organisation"
+        | "operational_run"
       platform_operator_role:
         | "platform_owner"
         | "platform_operator"
@@ -7535,12 +7766,6 @@ export type Database = {
         | "platform.features.kill_switch.manage"
         | "platform.operators.manage"
         | "platform.backup_recovery.execute"
-      outbox_delivery_state:
-        | "pending"
-        | "leased"
-        | "delivered"
-        | "failed"
-        | "dead_letter"
       resource_hold_scope: "resource" | "subtree"
       resource_hold_state: "active" | "released"
       resource_record_state: "active" | "trashed" | "purging" | "purged"
@@ -7991,6 +8216,35 @@ export const Constants = {
         "superseded",
       ],
       organisation_membership_state: ["active", "suspended", "removed"],
+      outbox_delivery_state: [
+        "pending",
+        "leased",
+        "delivered",
+        "failed",
+        "dead_letter",
+      ],
+      platform_alert_event_type: [
+        "opened",
+        "occurred",
+        "reopened",
+        "acknowledged",
+        "resolved",
+      ],
+      platform_alert_kind: [
+        "configuration_integrity",
+        "operational_health",
+        "provider_usage_unpriced",
+        "storage_guard",
+        "backup_freshness",
+        "restore_drill",
+      ],
+      platform_alert_severity: ["warning", "critical"],
+      platform_alert_state: ["open", "acknowledged", "resolved"],
+      platform_alert_subject_type: [
+        "platform",
+        "organisation",
+        "operational_run",
+      ],
       platform_operator_role: [
         "platform_owner",
         "platform_operator",
@@ -8006,13 +8260,6 @@ export const Constants = {
         "platform.features.kill_switch.manage",
         "platform.operators.manage",
         "platform.backup_recovery.execute",
-      ],
-      outbox_delivery_state: [
-        "pending",
-        "leased",
-        "delivered",
-        "failed",
-        "dead_letter",
       ],
       resource_hold_scope: ["resource", "subtree"],
       resource_hold_state: ["active", "released"],
