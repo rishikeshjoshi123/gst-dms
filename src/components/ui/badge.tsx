@@ -19,7 +19,12 @@ const variantStyles: Record<BadgeVariant, string> = {
   outline:  'bg-transparent text-[var(--text-primary)] border-[var(--border-strong)]',
 }
 
-const fixedWidths = { sm: 'w-16', md: 'w-20', lg: 'w-24', xl: 'w-32' }
+const fixedWidths = {
+  sm: 'w-16 shrink-0',
+  md: 'w-20 shrink-0',
+  lg: 'w-24 shrink-0',
+  xl: 'w-32 shrink-0',
+}
 
 const dotColors: Record<BadgeVariant, string> = {
   default:  'bg-[--accent]',
@@ -36,7 +41,7 @@ export function Badge({ className, variant = 'default', dot, fixedWidth, childre
   return (
     <span
       className={cn(
-        'inline-flex min-h-6 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+        'inline-flex min-h-6 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
         variantStyles[variant],
         fixedWidth && fixedWidths[fixedWidth],
         className
@@ -44,7 +49,7 @@ export function Badge({ className, variant = 'default', dot, fixedWidth, childre
       {...props}
     >
       {dot && <span className={cn('status-dot', dotColors[variant])} />}
-      <span className="inline-block min-w-0 truncate">{children}</span>
+      <span className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 overflow-hidden whitespace-nowrap [&>svg]:shrink-0">{children}</span>
     </span>
   )
 }
