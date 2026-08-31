@@ -2,7 +2,7 @@
 title: Document Hub, Ingestion, Placement, Relationships, and Workbench
 status: approved
 created: 2026-08-25
-updated: 2026-08-29
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -352,6 +352,28 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 - Track placement and relationship quality by rule version: coverage, auto-decision count, sampled accuracy, human overrides, conflicts, and false-negative labels. Pause an auto rule without deploying code.
 - Reuse source analysis only for the same organisation, immutable asset hash, extraction model/prompt/schema/catalogue version, and page/OCR content version. Matter-specific and human-effective projections are never shared blindly.
 - A provider outage leaves validated files accessible, keeps Global Intake in a retryable state, and allows manual placement/classification. Exact duplicate checks, PDF viewing, native-text extraction, and existing search continue where possible.
+
+### Visual approval boundary (2026-09-01)
+
+- The fixture-only concept at `/dev/document-hub-workbench-concept` presents
+  the approved operational queue and shared Workbench direction without
+  production data, routes, APIs, uploads, storage, permissions, or real PDF
+  rendering. It uses a compact desktop queue/viewer/inspector composition and
+  a phone list-to-document flow with Document, Details, Notes, and Placement
+  modes.
+- Local fixture controls cover queue states, upload-tray progress, quotation
+  context, Viewer read-only behavior, loading, empty, error, long content,
+  light/dark, and responsive layout. Consequential controls explicitly report
+  a local preview result and make no mutation.
+- Driver checks and independent QA passed responsive page-overflow, bounded
+  viewer/inspector scrolling, tablet dialog Escape/focus-return, state
+  filtering, scope isolation, TypeScript, targeted lint, and diff checks. The
+  in-app browser harness could not independently advance Tab focus, so its
+  dialog focus-containment observation is limited; the Radix dialog contract
+  and Escape/focus-return were verified.
+- Visual approval remains required before live Document Hub or Workbench UI
+  work begins. The open review item is recorded in
+  `docs/approval-based-blockers.md`.
 
 ## Implementation Plan
 

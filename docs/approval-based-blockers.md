@@ -18,6 +18,24 @@ the rest of the approved portfolio.
 
 ## Open
 
+### 2026-09-01 — Document Hub and Workbench concept
+
+- **Plan:** Document Hub, Ingestion, Placement, Relationships, and Workbench.
+- **What is waiting:** visual approval for the fixture-only concept at
+  `/dev/document-hub-workbench-concept` before live Document Hub or Workbench
+  UI is implemented.
+- **Proposed direction:** one compact operational queue with upload and state
+  context outside the moving body; a shared document viewer and inspector on
+  desktop; and a list-to-document flow with Document, Details, Notes, and
+  Placement modes on phones. The page placeholder and every consequential
+  control state plainly say that this is a local preview, not real document
+  work.
+- **Why:** the approved plan defines capability and workflow, but the dense
+  queue/Workbench layout and mobile adaptation need human visual judgement
+  before they become production UI.
+- **Then:** implement the secured Document Hub reader/upload/placement and
+  shared Workbench consumers against the approved visual contract.
+
 ### 2026-09-01 — Search page-text source for evidence chunks
 
 - **Plan:** Universal Search and Evidence Retrieval.
