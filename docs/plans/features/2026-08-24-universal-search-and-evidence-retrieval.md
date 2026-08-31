@@ -1,8 +1,8 @@
 ---
 title: CaseChain Universal Search and Evidence Retrieval
-status: approved
+status: in-progress
 created: 2026-08-24
-updated: 2026-08-27
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -120,6 +120,25 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
 10. **Add operational controls.** Expose indexing state on documents, organisation backfill progress, safe reindex by source/version, failure retry, usage accounting, and provider outage degradation. Do not expose a manual rebuild control to ordinary users.
 11. **Run shadow evaluation and cut over.** Compare rebuilt results against the frozen evaluation set and current production-like queries without showing the new ranking to users. Cut over only after relevance, isolation, deep-link, and latency targets pass. Retire `documents.embedding` and the old match RPCs after rollback coverage expires.
 12. **Gate cited answers separately.** After search launch, evaluate a small cited-answer prototype over retrieved passages. Ship it only through a separate approved plan if every material answer statement can link to accessible evidence and abstention behavior passes testing.
+
+## Completed prerequisite records
+
+- **2026-09-01 — Step 1, relevance and security baseline:**
+  `scripts/search/evaluate-legacy-search-baseline.ts` provides a versioned,
+  offline `search-evaluation-v1` corpus with 112 synthetic deterministic cases
+  across exact, legal, synonym, numeric, date/FY, compound, availability,
+  multilingual, negative, and isolation coverage. It retains a separately
+  labelled synthetic model of the current legacy `searchAll` behavior, while
+  future target expectations use rich source fields, integer paise comparisons,
+  range checks, and source-derived tenant non-disclosure assertions. The
+  validator rejects malformed, cross-tenant, and sensitive-looking fixtures;
+  no runtime reader, provider, schema, or UI has migrated. Focused validation,
+  TypeScript, targeted lint, and independent QA passed. Runtime RLS and
+  relevance measurements remain later implementation/cutover gates.
+
+**Canonical next action:** continue step 2 with the smallest coherent typed
+embedding-provider contract and migrate its real existing corpus/query callers
+without changing Search UI or claiming hybrid retrieval.
 
 ## Interfaces and Data Changes
 

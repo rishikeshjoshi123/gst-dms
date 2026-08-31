@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:assignment": "tsx --test src/lib/actions/assignment.test.ts",
     "test:metadata": "tsx --test src/lib/document-metadata.test.ts",
+    "test:search-baseline": "tsx scripts/search/evaluate-legacy-search-baseline.ts",
     "test:db:migrations": "node --test scripts/check-supabase-migrations.test.mjs",
     "trigger:dev": "npx trigger.dev@latest dev",
     "db:migrations:check": "node scripts/check-supabase-migrations.mjs",
