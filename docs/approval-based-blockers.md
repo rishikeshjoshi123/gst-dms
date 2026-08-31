@@ -18,6 +18,31 @@ the rest of the approved portfolio.
 
 ## Open
 
+### 2026-09-01 — Search page-text source for evidence chunks
+
+- **Plan:** Universal Search and Evidence Retrieval.
+- **What is waiting:** choose the approved source that supplies retained,
+  page-by-page document text (and, for scans, OCR text plus page/word
+  coordinates) to the Search chunk writer.
+- **What exists today:** the processing pipeline stores validated field
+  candidates and their evidence quotations, but it does not retain the full
+  extracted/OCR text or page coordinate stream. The only legacy
+  `document_text` column belongs to staged intake records and has no live
+  producer or version/page binding.
+- **Why:** a chunk writer without that source would either invent passages or
+  lose the exact version/page citation that Search promises. The approved plan
+  requires versioned, page-aware chunks, so the extraction storage contract
+  cannot be inferred as a routine implementation detail.
+- **Recommended direction:** add a private, version-bound extraction artifact
+  owned by the document-processing pipeline. It should keep page text and
+  optional word/region anchors only for the current immutable document version,
+  be service-writer-only, and be removed with the source version during Trash
+  and purge. The Search worker then chunks that artifact and never reads a raw
+  storage path.
+- **Then:** implement the page-aware changed-chunk writer against that approved
+  artifact, with the existing current-version, tenant, Trash, lease, and replay
+  fences.
+
 ### 2026-09-01 — Dedicated Tasks workspace concept
 
 - **Plan:** Work Orchestration, Review, Activity, Notifications, and Today.

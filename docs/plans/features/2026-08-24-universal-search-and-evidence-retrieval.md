@@ -164,10 +164,18 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
   `processing_run_id` remains an internal nullable derived UUID without a
   foreign key; an organisation-aware delete-policy decision is deferred.
 
-**Canonical next action:** continue step 4 with a page-aware document text/OCR
-chunking slice that writes changed chunks to the private item model. It must
-retain source version/page anchors and the same current-version, tenant, Trash,
-lease, and replay fences; do not add a query/UI consumer yet.
+**Approval boundary recorded 2026-09-01:** the current processing pipeline
+persists validated field candidates and quotations, but no retained,
+version-bound page text/OCR artifact. The legacy staged-intake `document_text`
+column has no live producer and cannot safely supply version/page citations.
+The Search chunk slice therefore waits for the material extraction-storage
+decision recorded in [`docs/approval-based-blockers.md`](../../approval-based-blockers.md).
+
+**Canonical next action after approval:** implement the page-aware document
+text/OCR changed-chunk writer against the approved private, version-bound
+extraction artifact. It must retain source version/page anchors and the same
+current-version, tenant, Trash, lease, and replay fences; do not add a query/UI
+consumer yet.
 
 ## Interfaces and Data Changes
 
