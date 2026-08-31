@@ -18,25 +18,6 @@ the rest of the approved portfolio.
 
 ## Open
 
-### 2026-08-31 — Retention for historical soft-deleted records
-
-- **Plan:** Hierarchical Resource Trash, Retention, and Purge — legacy
-  `deleted_at` compatibility migration.
-- **What is waiting:** the retention rule for records that were already
-  soft-deleted before the new Trash policy existed.
-- **Why:** the system knows their old deletion timestamp but not whether their
-  organisation ever agreed to automatic deletion. Starting a 30/60/90-day
-  schedule retroactively could permanently delete legal records using invented
-  history; leaving them unscheduled creates a narrow legacy exception.
-- **Recommended action:** create each recoverable old record as a clearly
-  labelled historical Trash entry with no automatic deletion date. A future
-  authorised Owner/Admin action can choose a policy explicitly. This never
-  changes a live/new Trash operation.
-- **Alternative:** apply the current 30/60/90-day policy from the migration
-  date. This is simpler but may delete old legal records sooner than the
-  organisation expects.
-- **Then:** implement and verify the legacy migration using the chosen rule.
-
 ### 2026-08-31 — Local browser sign-in for permanent-delete verification
 
 - **Plan:** Hierarchical Resource Trash, Retention, and Purge.
@@ -46,11 +27,10 @@ the rest of the approved portfolio.
   database. Browser safety requires confirmation immediately before entering
   its generated password, even though it is not a real account and cannot
   affect production.
-- **Recommended action:** approve entering the generated local test password at
+- **Recommended action:** enter the generated local test password at
   `http://localhost:3000/login` solely to verify the local Trash screens. It
   will not delete any records or call any production service.
-- **Then:** finish the browser check, move this entry to Resolved, and update
-  the verified Trash checkpoint.
+- **Then:** finish the browser check and update the verified Trash checkpoint.
 
 ## Resolved
 
@@ -66,3 +46,16 @@ the rest of the approved portfolio.
   tranche.
 - **Next action:** implement and independently verify the governed permanent-delete
   authority and durable execution workflow.
+
+### 2026-08-31 — Retention for historical soft-deleted records
+
+- **Plan:** Hierarchical Resource Trash, Retention, and Purge.
+- **Decision:** no legacy compatibility migration is required before the first
+  production deployment.
+- **Why:** the local database contains test data only; no real client records
+  exist that predate the automatic Trash policy. Production begins with the
+  approved automatic retention policy, so it cannot contain pre-policy Trash
+  entries.
+- **Outcome:** do not invent or maintain a legacy exception for test data. If a
+  future import introduces historical records, it must use its own approved
+  import/retention contract.

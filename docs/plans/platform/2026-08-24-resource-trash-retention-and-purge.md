@@ -134,7 +134,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Complete the one pending authenticated local-browser verification for the governed permanent-delete WIP recorded in [`docs/approval-based-blockers.md`](../../approval-based-blockers.md). The legacy `deleted_at` compatibility migration remains independently ready, but its retention policy is a recorded user-decision boundary; once resolved, create synthetic accessible Trash operations without inferring unavailable actor/reason information, preserve IDs, and never imply that already hard-deleted data is recoverable. While both wait, continue the next independent approved portfolio action rather than treating either as a stop condition.
+Complete the authenticated local-browser verification for the governed permanent-delete WIP. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy. Continue the approved Work foundation from its completed catalogue inventory after the browser gate.
 
 ### WIP: governed root permanent deletion (pending authenticated browser QA)
 
@@ -146,6 +146,10 @@ Complete the one pending authenticated local-browser verification for the govern
 - Migration `00093` replaces remaining destructive hierarchy foreign-key actions with `RESTRICT`, blocks direct dependent deletion and `TRUNCATE`, and permits dependency cleanup only in the current transaction of the exact running, unexpired purge job that owns the affected operation resource or asset.
 - It explicitly preserves a schema-valid, content-free Matter purge shell and handles provenance, version, binding, candidate, reservation, Wiki, and other governed dependants without allowing an arbitrary concurrent purge fence to authorise unrelated rows. Generated FK metadata and rollback/upgrade fixtures were updated with the final schema.
 - Fresh local replay through `00093`, the rollback-scoped permanent-delete fixture (including version-analysis bindings and Wiki cleanup), the populated `00092 → 00093` upgrade harness, migration uniqueness checks, TypeScript, scoped lint, diff checks, and fresh independent QA passed. This is a prerequisite hardening slice; it does not itself complete the pending authenticated browser gate for permanent delete.
+
+### Resolved: historical soft-delete compatibility migration not applicable (2026-08-31)
+
+- The user confirmed that the database contains test data only and the product has not reached production. There are therefore no real pre-policy soft-deleted records to migrate. Production begins with the approved automatic 30/60/90-day Trash policy, so this plan deliberately does not create a synthetic historical Trash path for disposable local data. Any future historical import must follow its own approved import and retention contract.
 
 ### Approved permanent-delete concept (2026-08-31)
 

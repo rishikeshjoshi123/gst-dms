@@ -175,6 +175,10 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 11. **Migrate legacy data additively.** Backfill Activity snapshots, convert note action items to tasks, convert actual document/link exceptions to Review, keep staged placement in Intake, migrate eligible notifications, and explicitly archive/remove routine or unresolvable notification rows.
 12. **Cut over producers/consumers.** Audit every Server Action/worker for exact-once approved events. Shadow counts, switch navigation/badges/pages, stop dual writes, then remove legacy logs, note task columns, notification enums/preferences, and page-specific aggregate queries in rollback-bounded migrations.
 
+## Completed prerequisite record
+
+- **2026-08-31 — Step 1, Freeze catalogues:** completed in [Work Catalogue Inventory](../../work-catalogue-inventory.md). It records current live, compatibility, and missing sources with one approved destination each; it does not migrate any producer or consumer. **Canonical next action:** step 2, add append-only Activity definitions/events and transactional outbox/projector foundations.
+
 ## Interfaces and Data Changes
 
 ### Core tables
