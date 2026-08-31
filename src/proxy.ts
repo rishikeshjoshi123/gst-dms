@@ -53,6 +53,8 @@ export async function proxy(request: NextRequest) {
     '/contact',
     // Static, non-production-data concept route used for in-app design review.
     '/dev/matter-workspace-concept',
+    '/dev/trash-workspace-concept',
+    '/dev/trash-retention-settings-concept',
   ]
   const isPublicRoute = pathname === '/' || publicRoutes.some((route) => route === '/api/invites/accept' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
 
