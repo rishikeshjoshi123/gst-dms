@@ -3,9 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import {
-  generateEmbedding,
-  VERTEX_EMBEDDING_MODEL,
-  VERTEX_EMBEDDING_VERSION,
+  vertexEmbeddingProvider,
 } from '@/lib/ai/vertex'
 
 export interface SearchResultItem {
@@ -50,7 +48,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
   let vectorMatches: SearchDocumentRow[] = []
   if (semantic) {
     try {
-      const aiResult = await generateEmbedding(query, 'RETRIEVAL_QUERY')
+      const aiResult = await vertexEmbeddingProvider.embed({ input: query, purpose: 'query' })
       if (aiResult?.embedding) {
         // Log AI usage for semantic search
         const { logUsage } = await import('@/lib/actions/usage')
@@ -58,7 +56,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
           orgId,
           userId: user?.id,
           operationType: 'semantic_search',
-          modelName: VERTEX_EMBEDDING_MODEL,
+          modelName: aiResult.model,
           inputTokens: aiResult.inputTokens,
           outputTokens: 0
         })
@@ -68,8 +66,8 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
           match_threshold: 0.7,
           match_count: 5,
           p_org_id: orgId,
-          p_embedding_model: VERTEX_EMBEDDING_MODEL,
-          p_embedding_version: VERTEX_EMBEDDING_VERSION,
+          p_embedding_model: aiResult.model,
+          p_embedding_version: aiResult.version,
         })
         const vMatches = vMatchesRes
         if (vMatches && vMatches.length > 0) {
@@ -88,8 +86,9 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
           }
         }
       }
-    } catch (e) {
-      console.error('Vector search failed', e)
+    } catch {
+      // Lexical results below remain available when semantic retrieval fails.
+      vectorMatches = []
     }
   }
 

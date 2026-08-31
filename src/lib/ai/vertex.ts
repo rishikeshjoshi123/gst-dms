@@ -228,26 +228,123 @@ export async function generateWikiSummary(
 // ── Embeddings ───────────────────────────────────────────────────────────────
 
 /**
- * Generate a versioned 768-dimensional embedding for retrieval.
- * Returns null on failure.
+ * The application-level embedding contract deliberately names intent rather
+ * than exposing a provider's task strings to callers. Corpus and query
+ * embeddings are not interchangeable; similarity is reserved for the
+ * separate duplicate/similarity use case and is not used by Search today.
  */
-export type EmbeddingTaskType = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'
+export type EmbeddingPurpose = 'corpus' | 'query' | 'similarity'
+
+export type EmbeddingRequest = {
+  input: string
+  purpose: EmbeddingPurpose
+}
+
+export type EmbeddingBillableUsage = {
+  unit: 'tokens' | 'characters'
+  quantity: number
+}
 
 export type EmbeddingResult = {
   embedding: number[]
+  dimensions: number
   inputTokens: number
+  // Vertex Predict does not report billing in its documented response. Other
+  // providers can supply this without callers treating input tokens as billing.
+  billableUsage: EmbeddingBillableUsage | null
   truncated: boolean
+  // These identify the configured provider deployment. Vertex Predict does not
+  // report them in its embedding response, so they are not response metadata.
   model: string
   version: string
-  taskType: EmbeddingTaskType
+  purpose: EmbeddingPurpose
 }
 
-export async function generateEmbedding(
-  text: string,
-  taskType: EmbeddingTaskType = 'RETRIEVAL_DOCUMENT',
-): Promise<EmbeddingResult | null> {
+export interface EmbeddingProvider {
+  embed(request: EmbeddingRequest): Promise<EmbeddingResult | null>
+}
+
+type VertexEmbeddingStatistics = {
+  token_count?: unknown
+  truncated?: unknown
+  billable_token_count?: unknown
+  billable_character_count?: unknown
+}
+
+type VertexEmbeddingResponse = {
+  predictions?: Array<{
+    embeddings?: {
+      values?: unknown
+      statistics?: VertexEmbeddingStatistics
+    }
+  }>
+}
+
+const vertexTaskTypeByPurpose: Record<EmbeddingPurpose, string> = {
+  corpus: 'RETRIEVAL_DOCUMENT',
+  query: 'RETRIEVAL_QUERY',
+  similarity: 'SEMANTIC_SIMILARITY',
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function providerBillableUsage(statistics: VertexEmbeddingStatistics | undefined): EmbeddingBillableUsage | null {
+  if (isNonNegativeInteger(statistics?.billable_token_count)) {
+    return { unit: 'tokens', quantity: statistics.billable_token_count }
+  }
+  if (isNonNegativeInteger(statistics?.billable_character_count)) {
+    return { unit: 'characters', quantity: statistics.billable_character_count }
+  }
+  return null
+}
+
+export function buildVertexEmbeddingRequest(request: EmbeddingRequest) {
+  return {
+    instances: [{
+      content: request.input,
+      task_type: vertexTaskTypeByPurpose[request.purpose],
+    }],
+    parameters: {
+      outputDimensionality: VERTEX_EMBEDDING_DIMENSIONS,
+      autoTruncate: false,
+    },
+  }
+}
+
+/** Returns null unless Vertex reports a complete, safe embedding response. */
+export function validateVertexEmbeddingResponse(
+  response: unknown,
+  purpose: EmbeddingPurpose,
+): EmbeddingResult | null {
+  const data = response as VertexEmbeddingResponse
+  const prediction = data?.predictions?.[0]?.embeddings
+  const embedding = prediction?.values
+  const statistics = prediction?.statistics
+  const billableUsage = providerBillableUsage(statistics)
+  if (!Array.isArray(embedding)
+    || embedding.length !== VERTEX_EMBEDDING_DIMENSIONS
+    || embedding.some((value) => typeof value !== 'number' || !Number.isFinite(value))
+    || !isNonNegativeInteger(statistics?.token_count)
+    || statistics?.truncated !== false) return null
+
+  return {
+    embedding,
+    dimensions: embedding.length,
+    inputTokens: statistics.token_count,
+    billableUsage,
+    truncated: false,
+    model: VERTEX_EMBEDDING_MODEL,
+    version: VERTEX_EMBEDDING_VERSION,
+    purpose,
+  }
+}
+
+export const vertexEmbeddingProvider: EmbeddingProvider = {
+  async embed(request: EmbeddingRequest): Promise<EmbeddingResult | null> {
   try {
-    const normalizedText = text.trim()
+    const normalizedText = request.input.trim()
     if (!normalizedText) return null
 
     const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
@@ -272,51 +369,13 @@ export async function generateEmbedding(
         'Authorization': `Bearer ${token.token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        instances: [
-          {
-            content: normalizedText,
-            task_type: taskType,
-          },
-        ],
-        parameters: {
-          outputDimensionality: VERTEX_EMBEDDING_DIMENSIONS,
-          autoTruncate: false,
-        },
-      }),
+      body: JSON.stringify(buildVertexEmbeddingRequest({ ...request, input: normalizedText })),
     })
 
     if (!res.ok) return null
-
-    const data = await res.json() as {
-      predictions: Array<{
-        embeddings: {
-          values: number[]
-          statistics?: {
-            token_count?: number
-            truncated?: boolean
-          }
-        }
-      }>
-    }
-
-    const prediction = data.predictions[0]?.embeddings
-    const embedding = prediction?.values ?? null
-    const inputTokens = prediction?.statistics?.token_count
-    const truncated = prediction?.statistics?.truncated
-    if (!embedding || embedding.length !== VERTEX_EMBEDDING_DIMENSIONS
-      || typeof inputTokens !== 'number' || !Number.isInteger(inputTokens) || inputTokens < 0
-      || typeof truncated !== 'boolean') return null
-
-    return {
-      embedding,
-      inputTokens,
-      truncated,
-      model: VERTEX_EMBEDDING_MODEL,
-      version: VERTEX_EMBEDDING_VERSION,
-      taskType,
-    }
+    return validateVertexEmbeddingResponse(await res.json(), request.purpose)
   } catch {
     return null
   }
+  },
 }

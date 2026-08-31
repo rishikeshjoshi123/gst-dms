@@ -9,6 +9,7 @@ import {
   serializeSearchIndexEmbedding,
   type ScopedReprocessRpcClient,
 } from './scoped-reprocess'
+import type { EmbeddingResult } from '@/lib/ai/vertex'
 
 const claim = {
   code: 'claimed' as const,
@@ -42,6 +43,28 @@ function workerClient(calls: Array<{ name: string; args: Record<string, unknown>
   }
 }
 
+function corpusProvider(result: EmbeddingResult, onRequest?: (request: { input: string; purpose: string }) => void) {
+  return {
+    embed: async (request: { input: string; purpose: 'corpus' | 'query' | 'similarity' }) => {
+      onRequest?.(request)
+      return result
+    },
+  }
+}
+
+function validCorpusEmbedding(): EmbeddingResult {
+  return {
+    embedding: Array.from({ length: 768 }, () => 0.1),
+    dimensions: 768,
+    inputTokens: 7,
+    billableUsage: null,
+    truncated: false,
+    model: 'gemini-embedding-001',
+    version: 'gemini-embedding-001-768-v1',
+    purpose: 'corpus',
+  }
+}
+
 test('accepts only an identifier-only search-index lease claim', () => {
   assert.equal(isScopedSearchIndexClaim(claim), true)
   assert.equal(isScopedSearchIndexClaim({ ...claim, lease_token: 'not-a-uuid' }), false)
@@ -59,17 +82,10 @@ test('uses the effective event projection, including multiple financial years an
     financial_years: ['2021-22', '2023-24'],
     issued_by: null,
     projection_fingerprint: 'a'.repeat(64),
-  }), claim, async (text) => {
-    embeddedText = text
-    return {
-      embedding: Array.from({ length: 768 }, () => 0.1),
-      inputTokens: 7,
-      truncated: false,
-      model: 'gemini-embedding-001',
-      version: 'gemini-embedding-001-768-v1',
-      taskType: 'RETRIEVAL_DOCUMENT',
-    }
-  })
+  }), claim, corpusProvider(validCorpusEmbedding(), (request) => {
+    embeddedText = request.input
+    assert.equal(request.purpose, 'corpus')
+  }))
 
   assert.deepEqual(outcome, { outcome: 'indexed' })
   assert.match(embeddedText, /Document type: OIO/)
@@ -80,14 +96,7 @@ test('uses the effective event projection, including multiple financial years an
 
 test('loads only a leased typed summary and completes the index through the fenced RPC', async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = []
-  const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, async () => ({
-    embedding: Array.from({ length: 768 }, () => 0.1),
-    inputTokens: 7,
-    truncated: false,
-    model: 'gemini-embedding-001',
-    version: 'gemini-embedding-001-768-v1',
-    taskType: 'RETRIEVAL_DOCUMENT',
-  }))
+  const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, corpusProvider(validCorpusEmbedding()))
 
   assert.deepEqual(outcome, { outcome: 'indexed' })
   assert.deepEqual(calls.map((call) => call.name), [
@@ -105,14 +114,7 @@ test('loads only a leased typed summary and completes the index through the fenc
 
 test('does not retry malformed or truncated embedding output and records only a safe failure', async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = []
-  const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, async () => ({
-    embedding: Array.from({ length: 768 }, () => 0.1),
-    inputTokens: 7,
-    truncated: true,
-    model: 'gemini-embedding-001',
-    version: 'gemini-embedding-001-768-v1',
-    taskType: 'RETRIEVAL_DOCUMENT',
-  }))
+  const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, corpusProvider({ ...validCorpusEmbedding(), truncated: true }))
 
   assert.deepEqual(outcome, { outcome: 'failed' })
   assert.equal(calls.at(-1)?.args.p_outcome, 'failed')
@@ -130,14 +132,7 @@ test('requires the matching current source version and rejects truncated embeddi
     embedding_version: 'gemini-embedding-001-768-v1',
     embedding_document_version_id: claim.document_version_id,
   }, claim.document_version_id), true)
-  assert.equal(serializeSearchIndexEmbedding({
-    embedding: Array.from({ length: 768 }, () => 0.1),
-    inputTokens: 7,
-    truncated: true,
-    model: 'gemini-embedding-001',
-    version: 'gemini-embedding-001-768-v1',
-    taskType: 'RETRIEVAL_DOCUMENT',
-  }), null)
+  assert.equal(serializeSearchIndexEmbedding({ ...validCorpusEmbedding(), truncated: true }), null)
 })
 
 test('rejects missing provider token usage and a mismatched configured model without a provider retry', async () => {
@@ -146,11 +141,8 @@ test('rejects missing provider token usage and a mismatched configured model wit
     { inputTokens: 7, model: 'unapproved-model' },
   ]) {
     const calls: Array<{ name: string; args: Record<string, unknown> }> = []
-    const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, async () => ({
-      embedding: Array.from({ length: 768 }, () => 0.1),
-      truncated: false,
-      version: 'gemini-embedding-001-768-v1',
-      taskType: 'RETRIEVAL_DOCUMENT',
+    const outcome = await runScopedSearchIndexReprocessWorker(workerClient(calls), claim, corpusProvider({
+      ...validCorpusEmbedding(),
       ...embedding,
     }))
     assert.deepEqual(outcome, { outcome: 'failed' })

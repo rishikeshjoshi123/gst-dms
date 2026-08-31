@@ -136,9 +136,23 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
   TypeScript, targeted lint, and independent QA passed. Runtime RLS and
   relevance measurements remain later implementation/cutover gates.
 
-**Canonical next action:** continue step 2 with the smallest coherent typed
-embedding-provider contract and migrate its real existing corpus/query callers
-without changing Search UI or claiming hybrid retrieval.
+- **2026-09-01 — Step 2, typed embedding-provider contract:**
+  `vertexEmbeddingProvider` now presents one typed `corpus`/`query`/`similarity`
+  contract to the current runtime callers. The existing semantic `searchAll`
+  path uses `query`; the fenced leased search-index worker and matter reindex
+  worker use `corpus`. Vertex's documented Predict response is validated for a
+  finite 768-dimensional vector, provider token count, and `truncated: false`;
+  configured model/version identify the provider deployment, while billing is
+  explicitly nullable when the REST response does not report it. No billing is
+  inferred. Provider failure preserves lexical fallback or the established
+  fenced worker failure path. Focused caller/provider tests, TypeScript,
+  targeted lint, and independent QA passed. This upgrades existing embedding
+  behavior only; it does not add Search storage, hybrid retrieval, or UI.
+
+**Canonical next action:** continue step 3 with the smallest coherent private
+search-item/chunk storage slice and a real indexing writer. It must preserve
+the existing document-version, tenant, Trash, and failure/replay fences without
+claiming a query/UI consumer until one is connected.
 
 ## Interfaces and Data Changes
 

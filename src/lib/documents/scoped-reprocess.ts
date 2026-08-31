@@ -1,4 +1,4 @@
-import { VERTEX_EMBEDDING_DIMENSIONS, VERTEX_EMBEDDING_MODEL, VERTEX_EMBEDDING_VERSION, generateEmbedding, type EmbeddingResult } from '@/lib/ai/vertex'
+import { VERTEX_EMBEDDING_DIMENSIONS, VERTEX_EMBEDDING_MODEL, VERTEX_EMBEDDING_VERSION, vertexEmbeddingProvider, type EmbeddingProvider, type EmbeddingResult } from '@/lib/ai/vertex'
 import { buildEmbeddingText } from '@/lib/ai/prompts'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
@@ -27,7 +27,7 @@ type SearchIndexInput = {
 }
 
 export type ScopedSearchIndexWorkerOutcome = 'indexed' | 'not_indexable' | 'failed'
-export type SearchEmbedding = (text: string) => Promise<EmbeddingResult | null>
+export type SearchEmbedding = Pick<EmbeddingProvider, 'embed'>
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -67,10 +67,11 @@ async function rpc<T>(client: ScopedReprocessRpcClient, name: string, args: Reco
 }
 
 export function serializeSearchIndexEmbedding(result: EmbeddingResult) {
-  if (result.taskType !== 'RETRIEVAL_DOCUMENT' || result.model !== VERTEX_EMBEDDING_MODEL
+  if (result.purpose !== 'corpus' || result.model !== VERTEX_EMBEDDING_MODEL
     || result.version !== VERTEX_EMBEDDING_VERSION || !Number.isInteger(result.inputTokens)
-    || result.inputTokens < 0 || result.truncated
+    || result.inputTokens < 0 || result.truncated || result.dimensions !== VERTEX_EMBEDDING_DIMENSIONS
     || result.embedding.length !== VERTEX_EMBEDDING_DIMENSIONS
+    || (result.billableUsage !== null && (!Number.isInteger(result.billableUsage.quantity) || result.billableUsage.quantity < 0))
     || result.embedding.some((value) => !Number.isFinite(value))) return null
   return `[${result.embedding.join(',')}]`
 }
@@ -122,7 +123,7 @@ async function finish(
 export async function runScopedSearchIndexReprocessWorker(
   client: ScopedReprocessRpcClient,
   claim: ScopedSearchIndexClaim,
-  embed: SearchEmbedding = (text) => generateEmbedding(text, 'RETRIEVAL_DOCUMENT'),
+  embed: SearchEmbedding = vertexEmbeddingProvider,
 ): Promise<{ outcome: ScopedSearchIndexWorkerOutcome }> {
   try {
     const input = await rpc<SearchIndexInput>(client, 'get_document_search_index_reprocess_input', {
@@ -150,7 +151,7 @@ export async function runScopedSearchIndexReprocessWorker(
       return { outcome: 'not_indexable' }
     }
 
-    const embedding = await embed(text)
+    const embedding = await embed.embed({ input: text, purpose: 'corpus' })
     if (!embedding || !serializeSearchIndexEmbedding(embedding)) {
       await finish(client, claim, 'failed')
       return { outcome: 'failed' }

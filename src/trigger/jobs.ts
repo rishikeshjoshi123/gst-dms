@@ -9,7 +9,7 @@
 import { task } from '@trigger.dev/sdk/v3'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
-import { analyzeDocumentWithOutcome, generateEmbedding } from '@/lib/ai/vertex'
+import { analyzeDocumentWithOutcome, vertexEmbeddingProvider } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
 import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
@@ -332,7 +332,7 @@ export const reindexMatterEmbeddings = task({
         client_name: clientName,
       })
 
-      const result = await generateEmbedding(embeddingText, 'RETRIEVAL_DOCUMENT')
+      const result = await vertexEmbeddingProvider.embed({ input: embeddingText, purpose: 'corpus' })
       const embedding = result && serializeSearchIndexEmbedding(result)
       if (!embedding || !result) {
         failed += 1
