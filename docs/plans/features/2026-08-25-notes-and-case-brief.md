@@ -2,7 +2,7 @@
 title: Matter Notes and Cited Case Brief
 status: approved
 created: 2026-08-25
-updated: 2026-08-27
+updated: 2026-09-01
 owners:
   - product
   - engineering
@@ -74,6 +74,8 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 - Message edits append immutable versions and show an `Edited` marker. The author may edit their own message; an Admin/Owner may moderate it with a required reason. Original versions remain audit-visible to authorized roles.
 - Message deletion is a soft tombstone that retains author/time and says the message was removed. It does not delete replies, source quotes, tasks, or Activity history. Admin moderation records actor and reason.
 - Creating a task from Notes calls the first-class task domain. The message stores a link to the task; changing or deleting the message does not delete the task.
+- Clicking a linked Task card opens the dedicated Tasks workspace with that task selected in its detail pane. The Task's **Open in Notes** origin action performs the reverse deep link to this exact Notes thread and message/version, focuses the message after navigation, and shows an honest tombstone or non-disclosing unavailable state when the origin was removed or access was revoked.
+- The Notes conversation remains independent after task creation. Messages posted below the originating message are not copied into the Task's Comments tab, and Task Comments are not projected back into Notes.
 - Viewer is read-only. Associate and above may create threads/messages, edit/delete their own messages, and mention accessible teammates. Admin/Owner may archive threads and moderate. Trashed Matters and all descendants are fully read-only.
 
 ### Exact document quotations
@@ -170,7 +172,7 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 
 1. Implement thread/message commands with immutable versions, moderation, mention-delta calculation, Activity/outbox writes, and idempotency.
 2. Implement exact quotation creation through the Workbench selection/region tool and source-locator validation.
-3. Build shared Notes workspace components used by Matter Notes and Organisation Notes: thread list, thread header, message feed, unread divider, composer, mention picker, linked-task card, quote card, and context pane.
+3. Build shared Notes workspace components used by Matter Notes and Organisation Notes: thread list, thread header, message feed, unread divider, composer, mention picker, linked-task card, quote card, and context pane. Expose the feed, reply, mention, unread, and composer primitives for the separate Task Comments domain while keeping Notes and Task Comment storage, routes, permissions, and message streams distinct.
 4. Add personal cursors and selective Matter Notes Broadcast according to the Realtime plan.
 5. Add search indexing and deep-link handling after message commits through durable outbox consumers.
 
@@ -251,6 +253,7 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 - Unread tests cover first open, viewport observation, multiple devices, out-of-order/duplicate Broadcast, reconnect reconciliation, deleted message, and Organisation Notes aggregate counts.
 - Brief tests cover fixed section order, schema rejection, unknown block type, forged source/fact ID, first generation, section selection, source hashing/no-op, coalesced triggers, idempotent retry, citation validation, protected human segment, consequential fact change, conflicting evidence, issue/evidence matrix fallback, review acceptance/rejection, failure preservation, and version restore.
 - Search tests prove only authorized published/live content is indexed and all result deep links resolve to the correct thread/message or Brief block/source.
+- Task-link integration tests prove Notes opens the correct selected Task and Task details returns to the exact thread/message/version. Later Notes messages and Task Comments remain independent, and removed or inaccessible origins do not leak content.
 - Migration tests compare legacy/live counts per organisation/matter, preserve human-edited CaseWiki content, never fabricate legacy citation coordinates, and support rollback before contract phase.
 - Component/accessibility tests cover keyboard composer, mention picker, focus-visible citations, screen-reader provenance/change states, 44px mobile targets, long names/content, empty/loading/error/read-only states, and reduced motion.
 
@@ -259,6 +262,7 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 - On desktop, the Matter identity and section navigation remain fixed; thread list, message feed, and optional source pane scroll independently without page horizontal overflow.
 - On mobile, the thread list opens a full conversation, Back restores the list, the message feed is the principal scroller, and composer/navigation do not cover the last message.
 - Typing `@` shows only active accessible Matter teammates. Posting produces one persisted mention and one eligible notification intent; retry does not duplicate either.
+- Clicking a linked Task card opens the Tasks workspace with that task selected. Returning through **Open in Notes** restores the exact thread, scrolls to and focuses the originating message, and preserves an accessible fallback when it has been tombstoned.
 - Selecting text in a text PDF or a region in a scanned PDF creates a note quote. Clicking it reopens the exact immutable PDF page with highlight and preserved context.
 - The Case Brief explains current posture without duplicating the full Timeline. Every material generated claim has an operable citation.
 - Editing a sentence as a human visibly records provenance. A later conflicting proceeding document produces a proposal and leaves that sentence unchanged until a decision.

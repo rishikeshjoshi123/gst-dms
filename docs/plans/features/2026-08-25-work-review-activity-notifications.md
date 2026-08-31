@@ -12,6 +12,7 @@ related:
   - ../platform/2026-08-24-ai-extraction-and-model-lifecycle.md
   - ../platform/2026-08-24-resource-trash-retention-and-purge.md
   - ./2026-08-24-universal-search-and-evidence-retrieval.md
+  - ./2026-08-25-notes-and-case-brief.md
   - ../design-system/2026-08-20-casechain-design-system-overhaul.md
 ---
 
@@ -70,8 +71,15 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - Introduce first-class `tasks`; remove action-item state from note messages after migration.
 - A task has organisation lineage, optional client/matter/document context, concise title, optional description, creator, one active assignee, priority (`low`, `normal`, `high`, `urgent`), status (`open`, `in_progress`, `completed`, `cancelled`, `suspended`), optional date/time due contract, origin locator, and audit timestamps.
-- A note message may create/link a task, but editing or deleting the message does not silently delete the task. The task retains an origin snapshot and authorised link to the message/version.
+- A task may be created directly in the Tasks workspace or from an authorised Notes message. A Notes-created task retains an immutable origin snapshot plus an authorised deep link to the exact Notes thread and message/version; editing or deleting the message does not silently delete the task.
+- Clicking a linked Task card in Notes opens the Tasks workspace with that task selected in its detail pane. The route carries stable task and active-tab state so refresh, browser history, and shared authorised links preserve the selection.
 - Initial tasks have one assignee. Multi-assignee tasks, subtasks, recurrence, dependencies, private personal tasks, time tracking, and external-client assignment are out of scope.
+- Task details use two peer tabs: **Task details** and **Comments**. Task details owns current fields, actions, related resources, immutable origin, and transition history. Comments owns the task-scoped human conversation; comments are never rendered as task status/history entries and never change task state implicitly.
+- Task Comments reuse the Notes conversation presentation and authoring primitives: chronological left-aligned feed, accessible mentions, reply-to-one-message, unread divider/cursor, long-content handling, and a fixed composer with a visible **Send** action. They do not use alternating chat bubbles and do not duplicate a Notes thread's messages.
+- The Task Comments composer deliberately omits task creation and task-linking actions. A task cannot contain a subtask or create a task-within-task relationship in the initial release.
+- A task created directly in Tasks starts with an empty Comments stream. A task created from Notes links back to its exact origin message, but the surrounding Notes conversation and Task Comments continue independently; later Notes messages are not copied into Task Comments.
+- Creator and assignee follow Task Comments by default for unread visibility; routine comments do not create interruptive notifications. Valid `@` mentions notify accessible active organisation members under the same access revalidation and delivery rules as Notes mentions. Comment unread state is personal and does not affect task status.
+- Completed and cancelled tasks remain commentable so collaborators can record follow-up context without reopening work. Reopening is always an explicit task transition. A task suspended because its owning resource is in Trash is fully read-only, including Comments, until restore re-evaluates it.
 - Owner/Admin and Associate may create tasks and assign them to active operational members. Viewer is read-only and cannot be a task or Review assignee in the first release.
 - Reassignment, due-date change, priority change, completion, cancellation, reopening, and suspension are domain transitions with optimistic concurrency and Activity.
 - Removing a member unassigns their open tasks in one audited operation and surfaces urgent/unassigned work to Owner/Admin. It never deletes or marks tasks complete.
@@ -102,7 +110,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 ### Notification policy
 
-- Notifications are addressed personal interruptions. The initial allowlist is direct note mentions; task assignment/reassignment; Review assignment/escalation; approaching or overdue verified deadlines assigned/subscribed to the user; organisation invitations and material security/access changes; processing failures requiring that user's action; and urgent storage/operational risk directed to authorised administrators.
+- Notifications are addressed personal interruptions. The initial allowlist is direct Notes or Task Comment mentions; task assignment/reassignment; Review assignment/escalation; approaching or overdue verified deadlines assigned/subscribed to the user; organisation invitations and material security/access changes; processing failures requiring that user's action; and urgent storage/operational risk directed to authorised administrators.
 - Do not notify for ordinary upload completion, successful extraction, document processed/ready, staged intake ready, routine relationship creation, Case Brief refresh, generic Activity, or another person's normal task completion.
 - Create `notification_intents` from domain/outbox events, then fan out idempotently into personal `notifications` and channel `notification_deliveries`. A deterministic dedupe key prevents repeated retries or schedulers from producing duplicates.
 - `notifications` stores recipient, event family, reason, concise title/body snapshot, source event, target locator, action label, unread/read/archive timestamps, dedupe key, and creation/expiry data. Replace `is_read` with `read_at`; archiving is separate from reading.
@@ -148,6 +156,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - **Review:** desktop list/detail workspace with stable queue filters and evidence/decision pane; mobile uses list-to-detail navigation with preserved list position. Every row states why, impact, age, owner, evidence availability, and one primary decision.
 - **Activity:** dense chronological feed grouped by Today, Yesterday, and calendar date. Server filters cover actor, category/event, client, matter, entity, source, and date range; URL state is shareable. Matter Activity reuses the same renderer.
 - **Notifications:** stable chronological list. Newly received items show a `New notifications` affordance instead of shifting the scrolled list. Each row explains why the user received it and exposes its action.
+- **Tasks:** desktop uses a compact table/list with an on-demand detail pane; selecting a row or following a Notes task link opens the same pane without requiring a second page. Its stable header contains **Task details** and **Comments** tabs. Each tab owns one deliberate body scroller while the tab bar and permitted actions remain fixed. Mobile uses list-to-full-detail navigation with the same two tabs, preserved list position, and one principal content scroller.
 - All pages use Civic Ink shared components and stable workspace chrome. Desktop and mobile define one deliberate scroll owner and retain full capability.
 
 ### Permissions and lifecycle integration
@@ -164,7 +173,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 1. **Freeze catalogues.** Inventory every current activity action, notification type, review reason, note action item, deadline reminder, processing failure, and dashboard query. Map each to Activity, Task, Review, Notification, inline status, operational telemetry, or removal.
 2. **Add event foundations.** Create Activity definitions/events and transactional outbox/projector contracts with RLS, append-only enforcement, metadata schemas, snapshots, locators, idempotency, correlation, and Trash/purge behavior.
-3. **Introduce Tasks.** Add task tables/state transitions, commands, assignment validation, due semantics, origin links, Activity/outbox emission, member-removal handling, and note-task migration adapters.
+3. **Introduce Tasks.** Add task tables/state transitions, commands, assignment validation, due semantics, exact Notes-origin links, task comment threads/messages/mentions/read cursors, Activity/outbox emission, member-removal handling, and note-task migration adapters. Build the two-tab Task detail pane by reusing shared Notes conversation primitives without sharing Notes thread ownership or enabling nested task creation.
 4. **Introduce Review.** Add items/evidence/decisions, typed resolvers, dedupe/revision logic, transitions, and producers for AI, duplicates, placement, relationships, deadlines, financials, Case Brief, import, restore, and recovery.
 5. **Rebuild notification generation/delivery.** Add intents, personal notifications, channel deliveries, preferences, schedules, quiet hours, digests, retry/dedupe, target validation, read/archive state, and retention. Stop routine-processing producers.
 6. **Create secured read models.** Implement RLS-safe RPCs/views for My Work, Today, queue/badge counts, overdue/upcoming work, Admin attention, recent views, and Activity filters. Derive scope from `auth.uid()` and paginate server-side.
@@ -207,6 +216,11 @@ is recorded in [Approval-based blockers](../../approval-based-blockers.md#resolv
 - `activity_event_definitions`: event type/version, category, subject contract, visibility, metadata schema/version, renderer key, and lifecycle.
 - `activity_events`: organisation/client/matter lineage, actor kind/ID/snapshot, event type/version, subject/label snapshot, summary, safe metadata, target locator, correlation/causation/idempotency IDs, and timestamps.
 - `tasks`: organisation lineage, context locators, title/description, creator/assignee, priority/status, due date/time/timezone, origin locator, revision, transition data, and timestamps.
+- `task_comment_threads`: one task-scoped conversation identity with organisation/task lineage and sequence metadata; it is not a Notes thread.
+- `task_comments`: task thread, author, optional single-message reply target, structured body, monotonic sequence, edit/tombstone fields, and timestamps.
+- `task_comment_mentions`: comment, mentioned member/user, creator, and timestamp; unique per comment/member.
+- `task_comment_read_cursors`: member/task thread, highest observed sequence, and observed timestamp.
+- `task_comment_followers`: task/member follow source (`creator`, `assignee`, or explicit preference), mute state where policy permits, and timestamps.
 - `review_items`: organisation lineage, type/reason, subject/source locators and versions, impact, priority/state, assignee, dedupe key, revision, escalation and lifecycle timestamps.
 - `review_item_evidence`: review item, typed evidence locator, label, excerpt/structured facts, ordering, and access state.
 - `review_item_decisions`: review item/revision, validated decision type/payload, actor/reason, result locator, and timestamp; append-only.
@@ -256,11 +270,19 @@ type DeliveryStatus = 'pending' | 'sent' | 'failed' | 'suppressed' | 'cancelled'
 
 Read/archive timestamps define notification state; do not add another ambiguous notification status enum.
 
+Task routes accept validated URL state equivalent to `task=<task-id>&tab=details|comments`. A Notes origin locator resolves to an authorised Matter Notes route with both thread and message identity so **Open in Notes** focuses and scrolls to the exact originating message rather than merely opening the Matter's Notes section.
+
+Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComment`, `markTaskCommentsObserved`, and `setTaskCommentFollowPreference`. They use the same sanitized rich-text and single-reply contracts as Notes, but authorize against the Task and its current resource lifecycle. Comment creation/edit/removal and mention events use the durable outbox; only `task.comment_member_mentioned` creates personal notification intent. Routine comments update followers' unread projections without generating interruption cards or email.
+
 ## Testing and Acceptance Criteria
 
 - Every material mutation emits exactly one allowed Activity event with stable snapshots, correct lineage/locator, safe metadata, and idempotency. Retries do not duplicate it.
 - Historical Activity renders after rename, member removal, Trash, restore, source replacement, and purge without live administrator user enumeration or raw UUID descriptions.
 - Legacy note action items migrate one-to-one to Tasks with assignee, due date, completion state, origin, and legacy provenance. Note edits/deletion do not silently mutate the task.
+- A linked Task card in Notes opens the Tasks workspace with the correct task selected. **Open in Notes** from Task details returns to the exact authorised thread/message and focuses the message; deleted origins render an honest tombstone and inaccessible origins do not disclose identity.
+- Task details and Comments are keyboard-accessible URL-addressable tabs. Comments match the shared Notes feed/composer interaction, mentions and unread behavior, but Task Comments and Notes messages never copy or mirror one another.
+- The Task Comments composer exposes no create-task action. Direct Tasks begin with an empty stream; completed/cancelled Tasks accept comments without reopening; suspended Tasks are read-only. Posting, editing, deleting, mentioning, observing, retrying, and concurrent delivery are tenant-safe and idempotent, and none changes Task status implicitly.
+- Task transition history contains actual task-domain transitions and assignment/field changes, not synthetic states or duplicated comment rows. Comments remain available in their dedicated tab.
 - Tasks, ordinary staged placement, and routine processing never appear in Review. Every Review item identifies a current decision, evidence, impact, assignee/state, and valid typed resolver.
 - Concurrent Review claim/resolution and stale-version tests prevent double resolution or outdated writes. Dismiss is unavailable when an explicit decision is required.
 - Clean AI extraction creates no gratuitous Review rows; risk-based exceptions bundle related fields under the AI plan.
