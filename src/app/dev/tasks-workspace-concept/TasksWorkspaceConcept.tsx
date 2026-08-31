@@ -4,8 +4,6 @@ import { useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
-  CalendarClock,
-  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -16,7 +14,6 @@ import {
   Gavel,
   Info,
   ListTodo,
-  MessageSquareText,
   MoreHorizontal,
   PauseCircle,
   PlayCircle,
@@ -25,6 +22,7 @@ import {
   ShieldCheck,
   UserRound,
   Users,
+  X,
   XCircle,
 } from 'lucide-react'
 
@@ -51,6 +49,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { MobileNavDrawer } from '@/components/nav/MobileNavDrawer'
 import { cn } from '@/lib/utils'
 
 type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'suspended'
@@ -202,13 +202,6 @@ const statusVariants: Record<TaskStatus, 'default' | 'success' | 'muted' | 'warn
   suspended: 'muted',
 }
 
-const priorityVariants: Record<Priority, 'danger' | 'warning' | 'outline' | 'muted'> = {
-  urgent: 'danger',
-  high: 'warning',
-  normal: 'outline',
-  low: 'muted',
-}
-
 const roleLabels: Record<Role, string> = {
   owner_admin: 'Owner / Admin',
   associate: 'Associate',
@@ -219,12 +212,6 @@ function formatDue(task: Task) {
   if (!task.due) return 'No due date'
   if (task.due.kind === 'date') return task.due.date
   return `${task.due.date} · ${task.due.time} IST`
-}
-
-function dueContract(task: Task) {
-  if (!task.due) return 'No date or time set'
-  if (task.due.kind === 'date') return 'Date only · organisation day in Asia/Kolkata'
-  return `Timed · ${task.due.time} in ${task.due.timezone}`
 }
 
 function StatusIcon({ status }: { status: TaskStatus }) {
@@ -240,62 +227,45 @@ function StatusIcon({ status }: { status: TaskStatus }) {
   return <Icon className="size-3.5" aria-hidden="true" />
 }
 
-function AppRail() {
-  return (
-    <aside className="hidden w-16 shrink-0 flex-col items-center border-r border-[var(--sidebar-border,var(--border))] bg-[var(--sidebar-bg)] py-3 text-[var(--sidebar-text)] lg:flex">
-      <span className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--sidebar-active)] text-[var(--on-sidebar)]" aria-label="CaseChain">
-        <Gavel className="size-5" aria-hidden="true" />
-      </span>
-      <div className="group relative mt-5">
-        <button type="button" aria-label="Tasks" className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--sidebar-active)] text-[var(--on-sidebar)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-accent)]">
-          <ListTodo className="size-5" aria-hidden="true" />
-        </button>
-        <span role="tooltip" className="pointer-events-none absolute left-12 top-1/2 z-30 -translate-y-1/2 rounded-[var(--radius-sm)] bg-[var(--sidebar-hover)] px-2 py-1 text-xs font-medium text-[var(--on-sidebar)] opacity-0 shadow-[var(--shadow-md)] group-focus-within:opacity-100 group-hover:opacity-100">Tasks</span>
+function ConceptRail() {
+  return <div className="relative z-20 hidden h-full w-16 shrink-0 md:block">
+    <aside className="group/sidebar absolute inset-y-0 left-0 z-30 flex w-16 flex-col overflow-hidden border-r border-[var(--sidebar-border,var(--border))] bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] transition-[width,box-shadow] duration-200 ease-out hover:w-56 hover:shadow-[var(--shadow-xl)] focus-within:w-56 focus-within:shadow-[var(--shadow-xl)]">
+      <div className="flex h-14 shrink-0 items-center border-b border-[var(--sidebar-border,var(--border))] px-4">
+        <Gavel className="size-5 shrink-0 text-[var(--sidebar-accent)]" aria-hidden="true" />
+        <span className="ml-3 whitespace-nowrap text-sm font-semibold text-[var(--on-sidebar)] opacity-0 transition-opacity group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">CaseChain</span>
       </div>
-      <span className="mt-auto flex size-9 items-center justify-center rounded-[var(--radius-full)] border border-[var(--sidebar-border)] text-xs font-semibold">RJ</span>
+      <div className="px-2 py-4">
+        <button type="button" className="flex min-h-11 w-full items-center rounded-[var(--radius-sm)] bg-[var(--sidebar-active)] px-3 text-[var(--on-sidebar)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-accent)]" aria-current="page">
+          <ListTodo className="size-4 shrink-0" aria-hidden="true" />
+          <span className="ml-3 whitespace-nowrap text-sm font-medium opacity-0 transition-opacity group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">Tasks</span>
+        </button>
+      </div>
     </aside>
-  )
+  </div>
 }
 
-function RoleMenu({ role, onChange }: { role: Role; onChange: (role: Role) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="min-h-11 lg:min-h-8"><ShieldCheck className="size-4" />{roleLabels[role]}<ChevronDown className="size-3.5" /></Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Preview capability</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={role} onValueChange={(value) => onChange(value as Role)}>
-          <DropdownMenuRadioItem value="owner_admin">Owner / Admin</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="associate">Associate</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="viewer">Viewer · read only</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function PreviewMenu({ state, onChange, onAbout }: { state: PreviewState; onChange: (state: PreviewState) => void; onAbout: () => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="min-h-11 lg:min-h-8"><MoreHorizontal className="size-4" />Preview<ChevronDown className="size-3.5" /></Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Workspace state</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={state} onValueChange={(value) => onChange(value as PreviewState)}>
-          <DropdownMenuRadioItem value="default">Default</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="loading">Loading</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="empty">Empty</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="error">Error</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onAbout}><Info className="size-4" />About this concept</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+function PreviewMenu({ state, role, onStateChange, onRoleChange, onAbout }: { state: PreviewState; role: Role; onStateChange: (state: PreviewState) => void; onRoleChange: (role: Role) => void; onAbout: () => void }) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><MoreHorizontal className="size-4" />Preview<ChevronDown className="size-3.5" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuLabel>Page state</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={state} onValueChange={(value) => onStateChange(value as PreviewState)}>
+        <DropdownMenuRadioItem value="default">Default</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="loading">Loading</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="empty">Empty</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="error">Error</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Role</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={role} onValueChange={(value) => onRoleChange(value as Role)}>
+        <DropdownMenuRadioItem value="owner_admin">Owner / Admin</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="associate">Associate</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="viewer">Viewer · read only</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onAbout}><Info className="size-4" />About this concept</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
 }
 
 function FilterMenu<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void }) {
@@ -313,136 +283,111 @@ function FilterMenu<T extends string>({ label, value, options, onChange }: { lab
   )
 }
 
-function QueueHeader({ query, onQuery, status, onStatus, assignment, onAssignment, count }: { query: string; onQuery: (value: string) => void; status: StatusFilter; onStatus: (value: StatusFilter) => void; assignment: AssignmentFilter; onAssignment: (value: AssignmentFilter) => void; count: number }) {
-  return (
-    <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--surface)] p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div><h2 className="text-sm font-semibold">Task queue</h2><p className="mt-0.5 text-xs text-[var(--text-muted)]">{count} shown · organisation tasks</p></div>
-        <Badge variant="outline">Asia/Kolkata</Badge>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-        <div className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" /><Input value={query} onChange={(event) => onQuery(event.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="pl-9" /></div>
-        <FilterMenu label="Status" value={status} onChange={onStatus} options={[
-          { value: 'active', label: 'Active work' }, { value: 'all', label: 'All statuses' }, { value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In progress' }, { value: 'completed', label: 'Completed' }, { value: 'cancelled', label: 'Cancelled' }, { value: 'suspended', label: 'Suspended' },
-        ]} />
-        <FilterMenu label="Assignment" value={assignment} onChange={onAssignment} options={[
-          { value: 'all', label: 'All assignees' }, { value: 'mine', label: 'Assigned to me' }, { value: 'unassigned', label: 'Unassigned' },
-        ]} />
-      </div>
-    </div>
-  )
+function WorkspaceHeader({ state, role, onStateChange, onRoleChange, onAbout, onCreate, canCreate }: { state: PreviewState; role: Role; onStateChange: (state: PreviewState) => void; onRoleChange: (role: Role) => void; onAbout: () => void; onCreate: () => void; canCreate: boolean }) {
+  return <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 md:px-6">
+    <MobileNavDrawer />
+    <div className="flex min-w-0 items-center gap-2 text-sm"><span className="hidden text-[var(--text-muted)] sm:inline">Apex Tax Advocates</span><ChevronRight className="hidden size-3.5 text-[var(--text-muted)] sm:block" /><h1 className="truncate font-semibold">Tasks</h1></div>
+    <div className="ml-auto flex items-center gap-2"><PreviewMenu state={state} role={role} onStateChange={onStateChange} onRoleChange={onRoleChange} onAbout={onAbout} /><Button size="sm" onClick={onCreate} disabled={!canCreate}><Plus className="size-4" />Create task</Button></div>
+  </header>
 }
 
-function TaskRow({ task, selected, onSelect }: { task: Task; selected: boolean; onSelect: () => void }) {
-  return (
-    <button type="button" onClick={onSelect} aria-current={selected ? 'true' : undefined} className={cn('group w-full border-b border-[var(--border-subtle)] p-3 text-left outline-none transition-colors hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]', selected && 'bg-[var(--accent-muted)]')}>
-      <div className="flex min-w-0 items-start gap-3">
-        <span className={cn('mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)]', task.priority === 'urgent' ? 'bg-[var(--danger-muted)] text-[var(--danger)]' : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]')}><ListTodo className="size-4" aria-hidden="true" /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-[var(--text-primary)]">{task.title}</span>
-          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-[var(--text-muted)]"><span className="truncate">{task.client ?? 'Organisation task'}</span>{task.matter && <><ChevronRight className="size-3 shrink-0" /><span className="truncate">{task.matter}</span></>}</span>
-          <span className="mt-2 flex flex-wrap items-center gap-2"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><Badge variant={priorityVariants[task.priority]} fixedWidth="lg" className="capitalize">{task.priority}</Badge></span>
-          <span className="mt-2 grid grid-cols-2 gap-2 text-xs"><span className="min-w-0"><span className="block text-[var(--text-muted)]">Assignee</span><span className={cn('mt-0.5 block truncate font-medium', !task.assignee && 'text-[var(--danger)]')}>{task.assignee ?? 'Unassigned'}</span></span><span className="min-w-0"><span className="block text-[var(--text-muted)]">Due</span><span className="mt-0.5 block truncate font-mono font-medium">{formatDue(task)}</span></span></span>
-        </span>
-        <ChevronRight className="mt-1 size-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
-      </div>
-    </button>
-  )
+function QueueHeader({ query, onQuery, status, onStatus, assignment, onAssignment, count }: { query: string; onQuery: (value: string) => void; status: StatusFilter; onStatus: (value: StatusFilter) => void; assignment: AssignmentFilter; onAssignment: (value: AssignmentFilter) => void; count: number | null }) {
+  return <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--surface)] px-3 py-2 sm:px-4">
+    <div className="grid gap-2 sm:grid-cols-[minmax(200px,320px)_auto_auto_1fr] sm:items-center">
+      <div className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" /><Input value={query} onChange={(event) => onQuery(event.target.value)} aria-label="Search tasks" placeholder="Search tasks" className="pl-9" /></div>
+      <div className="grid grid-cols-2 gap-2 sm:contents"><FilterMenu label="Status" value={status} onChange={onStatus} options={[{ value: 'active', label: 'Active' }, { value: 'all', label: 'All statuses' }, { value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In progress' }, { value: 'completed', label: 'Completed' }, { value: 'cancelled', label: 'Cancelled' }, { value: 'suspended', label: 'Suspended' }]} /><FilterMenu label="Assignment" value={assignment} onChange={onAssignment} options={[{ value: 'all', label: 'All assignees' }, { value: 'mine', label: 'Assigned to me' }, { value: 'unassigned', label: 'Unassigned' }]} /></div>
+      {count !== null && <p className="hidden justify-self-end text-xs text-[var(--text-muted)] sm:block">{count} {count === 1 ? 'task' : 'tasks'}</p>}
+    </div>
+  </div>
+}
+
+function PriorityText({ priority, quiet = false }: { priority: Priority; quiet?: boolean }) {
+  if (quiet && priority === 'normal') return null
+  return <span className={cn('text-xs font-medium capitalize', priority === 'urgent' && 'text-[var(--danger)]', priority === 'high' && 'text-[var(--warning)]', (priority === 'normal' || priority === 'low') && 'text-[var(--text-muted)]')}>{priority}</span>
+}
+
+function formatDueCompact(task: Task) {
+  if (!task.due) return 'No due date'
+  if (task.due.kind === 'date') return task.due.date
+  return `${task.due.date} · ${task.due.time}`
+}
+
+function TaskTable({ tasks, selectedId, onSelect }: { tasks: Task[]; selectedId: string | null; onSelect: (id: string) => void }) {
+  return <Table className="table-fixed"><TableCaption>Organisation tasks. Select a task to view details.</TableCaption><colgroup><col className="w-[46%]" /><col className="w-[20%]" /><col className="w-[18%]" /><col className="w-[16%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{tasks.map((task) => <TableRow key={task.id} interactive selected={selectedId === task.id} tabIndex={0} aria-label={`View details for ${task.title}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(task.id) } }} className="cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]"><TableCell><div className="flex min-h-11 w-full min-w-0 items-center gap-3 text-left"><span className="min-w-0"><span className="block truncate font-medium text-[var(--text-primary)]">{task.title}</span><span className="mt-0.5 flex min-w-0 items-center gap-2"><span className="truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</span><PriorityText priority={task.priority} quiet /></span></span></div></TableCell><TableCell className="truncate text-xs font-medium">{task.assignee ?? <span className="text-[var(--warning)]">Unassigned</span>}</TableCell><TableCell className="truncate font-mono text-xs text-[var(--text-secondary)]">{formatDueCompact(task)}</TableCell><TableCell><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge></TableCell></TableRow>)}</TableBody></Table>
+}
+
+function MobileTaskList({ tasks, onSelect }: { tasks: Task[]; onSelect: (id: string) => void }) {
+  return <div>{tasks.map((task) => <button key={task.id} type="button" onClick={() => onSelect(task.id)} className="flex min-h-[88px] w-full items-start gap-3 border-b border-[var(--border-subtle)] px-3 py-3 text-left outline-none hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:px-4"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{task.title}</span><span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</span><span className="mt-2 flex items-center gap-2 text-xs"><span className={cn('truncate', !task.assignee && 'text-[var(--warning)]')}>{task.assignee ?? 'Unassigned'}</span><span className="text-[var(--border-strong)]">·</span><span className="truncate font-mono text-[var(--text-secondary)]">{formatDueCompact(task)}</span></span></span><span className="flex shrink-0 flex-col items-end gap-2"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><PriorityText priority={task.priority} quiet /></span></button>)}</div>
 }
 
 function QueueLoading() {
-  return <div aria-busy="true" aria-live="polite"><p className="sr-only">Loading tasks…</p>{[1, 2, 3, 4].map((item) => <div key={item} className="flex min-h-36 gap-3 border-b border-[var(--border-subtle)] p-3" aria-hidden="true"><Skeleton className="size-8 shrink-0" /><span className="min-w-0 flex-1"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /><span className="mt-3 flex gap-2"><Skeleton className="h-6 w-32" /><Skeleton className="h-6 w-24" /></span><span className="mt-3 grid grid-cols-2 gap-3"><Skeleton className="h-8" /><Skeleton className="h-8" /></span></span></div>)}</div>
+  return <div aria-busy="true" aria-live="polite"><p className="sr-only">Loading tasks…</p><div className="hidden lg:block"><Table className="table-fixed"><TableCaption>Loading tasks.</TableCaption><colgroup><col className="w-[46%]" /><col className="w-[20%]" /><col className="w-[18%]" /><col className="w-[16%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{[1, 2, 3, 4, 5].map((item) => <TableRow key={item} aria-hidden="true"><TableCell><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-6 w-28" /></TableCell></TableRow>)}</TableBody></Table></div><div className="lg:hidden">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="min-h-[88px] border-b border-[var(--border-subtle)] px-3 py-3" aria-hidden="true"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /><Skeleton className="mt-3 h-3 w-1/2" /></div>)}</div></div>
 }
 
-function QueueState({ state, tasks, selectedId, onSelect, onRetry }: { state: PreviewState; tasks: Task[]; selectedId: string; onSelect: (id: string) => void; onRetry: () => void }) {
+function QueueState({ state, tasks, selectedId, onSelect, onRetry }: { state: PreviewState; tasks: Task[]; selectedId: string | null; onSelect: (id: string) => void; onRetry: () => void }) {
   if (state === 'loading') return <QueueLoading />
-  if (state === 'empty') return <div className="grid min-h-full place-items-center p-6 text-center"><div><ListTodo className="mx-auto size-8 text-[var(--text-muted)]" /><h3 className="mt-3 text-section-heading">No tasks match</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Try a broader status or assignment filter. Nothing was changed.</p></div></div>
-  if (state === 'error') return <div className="grid min-h-full place-items-center p-6 text-center"><div><CircleAlert className="mx-auto size-8 text-[var(--danger)]" /><h3 className="mt-3 text-section-heading">Tasks could not be displayed</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--text-muted)]">The fixture list did not load. Try the preview again without changing task state.</p><Button variant="outline" className="mt-4" onClick={onRetry}>Try again</Button></div></div>
-  return tasks.length ? <div>{tasks.map((task) => <TaskRow key={task.id} task={task} selected={selectedId === task.id} onSelect={() => onSelect(task.id)} />)}</div> : <div className="grid min-h-full place-items-center p-6 text-center"><div><Search className="mx-auto size-8 text-[var(--text-muted)]" /><h3 className="mt-3 text-section-heading">No matching tasks</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--text-muted)]">Clear the search or broaden the filters to return to the queue.</p></div></div>
+  if (state === 'empty') return <StateMessage icon={ListTodo} title="No tasks yet" body="Create a task when work needs an owner or due date." />
+  if (state === 'error') return <StateMessage icon={CircleAlert} title="Tasks could not be displayed" body="Try loading the task list again." action={<Button variant="outline" onClick={onRetry}>Try again</Button>} danger />
+  if (!tasks.length) return <StateMessage icon={Search} title="No matching tasks" body="Clear the search or broaden the filters." />
+  return <><div className="hidden lg:block"><TaskTable tasks={tasks} selectedId={selectedId} onSelect={onSelect} /></div><div className="lg:hidden"><MobileTaskList tasks={tasks} onSelect={onSelect} /></div></>
 }
 
-function DefinitionItem({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="min-w-0"><dt className="text-xs text-[var(--text-muted)]">{label}</dt><dd className="mt-1 break-words text-sm font-medium text-[var(--text-primary)]">{children}</dd></div>
+function StateMessage({ icon: Icon, title, body, action, danger = false }: { icon: typeof ListTodo; title: string; body: string; action?: React.ReactNode; danger?: boolean }) {
+  return <div className="grid min-h-[320px] place-items-center p-6 text-center"><div><Icon className={cn('mx-auto size-8 text-[var(--text-muted)]', danger && 'text-[var(--danger)]')} /><h2 className="mt-3 text-section-heading">{title}</h2><p className="mx-auto mt-2 max-w-sm text-sm text-[var(--text-muted)]">{body}</p>{action && <div className="mt-4">{action}</div>}</div></div>
+}
+
+function DetailItem({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="min-w-0"><dt className="text-caption text-[var(--text-muted)]">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{children}</dd></div>
+}
+
+function taskHistory(task: Task) {
+  const currentTitle: Record<TaskStatus, string> = {
+    open: 'Ready to start',
+    in_progress: 'Work started',
+    completed: 'Task completed',
+    cancelled: 'Task cancelled',
+    suspended: 'Task paused',
+  }
+
+  return [
+    {
+      title: currentTitle[task.status],
+      detail: task.status === 'suspended' ? 'Paused while the related matter remains in Trash.' : `${statusLabels[task.status]} · ${task.assignee ?? 'Unassigned'}`,
+      at: task.updatedAt,
+      current: true,
+    },
+    ...(task.assignee ? [{ title: `Assigned to ${task.assignee}`, detail: `Assigned by ${task.creator}`, at: task.origin.createdAt, current: false }] : []),
+    {
+      title: task.origin.kind === 'note' ? 'Created from a note' : 'Task created',
+      detail: task.origin.label,
+      at: task.origin.createdAt,
+      current: false,
+    },
+  ]
+}
+
+function TaskHistory({ task }: { task: Task }) {
+  const items = taskHistory(task)
+  return <section className="mt-5" aria-labelledby="task-history-heading"><div className="flex items-center justify-between gap-3"><h3 id="task-history-heading" className="text-sm font-semibold">Task history</h3><span className="text-xs text-[var(--text-muted)]">Newest first</span></div><ol className="mt-3">{items.map((item, index) => <li key={`${item.title}-${index}`} className="relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pb-4 pl-6 last:pb-0">{index < items.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[5px] top-2.5 w-px bg-[var(--border)]" />}<span aria-hidden="true" className={cn('absolute left-0 top-1.5 size-2.5 rounded-[var(--radius-full)] border-2 border-[var(--surface)]', item.current ? 'bg-[var(--accent)]' : 'bg-[var(--border-strong)]')} /><div className="min-w-0"><p className="text-sm font-medium">{item.title}</p><p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">{item.detail}</p></div><time className="whitespace-nowrap pt-0.5 text-right text-xs text-[var(--text-muted)]">{item.at}</time></li>)}</ol></section>
 }
 
 function DetailBody({ task }: { task: Task }) {
-  return (
-    <div className="mx-auto w-full max-w-3xl p-4 sm:p-5">
-      <section aria-labelledby="task-overview-heading">
-        <h3 id="task-overview-heading" className="text-section-heading">Task overview</h3>
-        {task.title.length > 100 && <div className="mt-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] p-3"><p className="text-xs text-[var(--text-muted)]">Full task title</p><p className="mt-1 break-words text-sm font-semibold leading-6">{task.title}</p></div>}
-        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{task.description}</p>
-        <dl className="mt-4 grid gap-4 border-y border-[var(--border-subtle)] py-4 sm:grid-cols-2">
-          <DefinitionItem label="Assignee"><span className={cn('inline-flex items-center gap-1.5', !task.assignee && 'text-[var(--danger)]')}><UserRound className="size-4" />{task.assignee ?? 'Unassigned'}</span></DefinitionItem>
-          <DefinitionItem label="Created by">{task.creator}</DefinitionItem>
-          <DefinitionItem label="Due">{formatDue(task)}</DefinitionItem>
-          <DefinitionItem label="Due contract">{dueContract(task)}</DefinitionItem>
-          <DefinitionItem label="Last activity">{task.updatedAt}</DefinitionItem>
-          <DefinitionItem label="Task reference"><span className="font-mono">{task.id.toUpperCase()}</span></DefinitionItem>
-        </dl>
-      </section>
-
-      <section className="mt-5" aria-labelledby="task-context-heading">
-        <h3 id="task-context-heading" className="text-section-heading">Work context</h3>
-        <div className="mt-3 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
-          {task.client && <div className="flex gap-3 border-b border-[var(--border-subtle)] p-3"><Users className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" /><div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">Client</p><p className="mt-0.5 break-words text-sm font-medium">{task.client}</p></div></div>}
-          {task.matter && <div className="flex gap-3 border-b border-[var(--border-subtle)] p-3"><Gavel className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" /><div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">Matter</p><p className="mt-0.5 break-words text-sm font-medium">{task.matter}</p></div></div>}
-          {task.document && <div className="flex gap-3 p-3"><FileText className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" /><div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">Document</p><p className="mt-0.5 break-words text-sm font-medium">{task.document}</p></div></div>}
-        </div>
-      </section>
-
-      <section className="mt-5" aria-labelledby="task-origin-heading">
-        <div className="flex flex-wrap items-center gap-2"><h3 id="task-origin-heading" className="text-section-heading">Origin</h3><Badge variant="muted"><ShieldCheck className="size-3.5" />Immutable</Badge></div>
-        <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4">
-          <div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--bg-overlay)] text-[var(--text-muted)]">{task.origin.kind === 'note' ? <MessageSquareText className="size-4" /> : <ListTodo className="size-4" />}</span><div className="min-w-0"><p className="text-sm font-semibold">{task.origin.label}</p><p className="mt-0.5 text-xs text-[var(--text-muted)]">{task.origin.author ? `${task.origin.author} · ` : ''}{task.origin.createdAt}</p></div></div>
-          {task.origin.snapshot && <blockquote className="mt-3 border-l-2 border-[var(--border-strong)] pl-3 text-sm leading-6 text-[var(--text-secondary)]">“{task.origin.snapshot}”</blockquote>}
-          <div className="mt-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3">
-            <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-[var(--text-primary)]">Live Task summary</span><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge></div>
-            <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">The note keeps this origin snapshot read-only. Current status, assignee, priority, and due contract come only from the Task and change only here in Tasks.</p>
-          </div>
-        </div>
-      </section>
-
-      {task.status === 'suspended' && <div className="mt-5 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-sm leading-6"><AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--warning)]" /><span>This fixture task is suspended because its matter is in Trash. It is absent from active personal work until restore re-evaluates relevance.</span></div>}
-    </div>
-  )
+  return <div className="p-4"><div className="min-w-0"><div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--accent)]"><ListTodo className="size-4" /></span><div className="min-w-0 flex-1"><h2 className="text-base font-semibold leading-6">{task.title}</h2><p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</p></div></div><div className="mt-3 flex items-center gap-2 pl-12"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><PriorityText priority={task.priority} /></div></div><dl className="mt-4 grid grid-cols-2 gap-x-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3"><DetailItem label="Assignee"><span className={cn(!task.assignee && 'text-[var(--warning)]')}>{task.assignee ?? 'Unassigned'}</span></DetailItem><DetailItem label="Due">{formatDue(task)}</DetailItem></dl><section className="mt-5" aria-labelledby="task-description-heading"><h3 id="task-description-heading" className="text-sm font-semibold">Description</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{task.description}</p></section>{task.status === 'suspended' && <div className="mt-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-sm leading-6"><AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--warning)]" /><span>This task is paused because its matter is in Trash.</span></div>}<TaskHistory task={task} /><section className="mt-5" aria-labelledby="task-context-heading"><h3 id="task-context-heading" className="text-sm font-semibold">Related work</h3><div className="mt-2 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">{task.client && <ContextRow icon={Users} label="Client" value={task.client} />}{task.matter && <ContextRow icon={Gavel} label="Matter" value={task.matter} />}{task.document && <ContextRow icon={FileText} label="Document" value={task.document} />}</div></section>{task.origin.snapshot && <section className="mt-5" aria-labelledby="task-note-heading"><h3 id="task-note-heading" className="text-sm font-semibold">Original note</h3><blockquote className="mt-2 border-l-2 border-[var(--border-strong)] pl-3 text-sm leading-6 text-[var(--text-secondary)]">“{task.origin.snapshot}”</blockquote></section>}</div>
 }
 
-function DetailLoading() {
-  return <div className="mx-auto w-full max-w-3xl p-5" aria-busy="true"><p className="sr-only">Loading task details…</p><Skeleton className="h-5 w-36" /><Skeleton className="mt-4 h-4 w-full" /><Skeleton className="mt-2 h-4 w-4/5" /><div className="mt-5 grid grid-cols-2 gap-4 border-y border-[var(--border-subtle)] py-4">{[1, 2, 3, 4, 5, 6].map((item) => <span key={item}><Skeleton className="h-3 w-20" /><Skeleton className="mt-2 h-4 w-4/5" /></span>)}</div><Skeleton className="mt-6 h-5 w-28" /><Skeleton className="mt-3 h-40 w-full" /><Skeleton className="mt-6 h-5 w-20" /><Skeleton className="mt-3 h-56 w-full" /></div>
+function ContextRow({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
+  return <div className="flex min-w-0 items-center gap-3 py-3"><Icon className="size-4 shrink-0 text-[var(--text-muted)]" /><div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">{label}</p><p className="truncate text-sm font-medium">{value}</p></div></div>
 }
 
-function DetailPane({ task, role, state, mobile, onBack, onTransition, onReassign, onDue, onPriority }: { task: Task; role: Role; state: PreviewState; mobile?: boolean; onBack?: () => void; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
+function TaskActions({ task, canManage, onTransition, onReassign, onDue, onPriority }: { task: Task; canManage: boolean; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
+  const primary = task.status === 'open' ? { label: 'Start task', status: 'in_progress' as TaskStatus, icon: PlayCircle } : task.status === 'in_progress' ? { label: 'Complete task', status: 'completed' as TaskStatus, icon: CheckCircle2 } : { label: 'Reopen task', status: 'open' as TaskStatus, icon: CircleDashed }
+  const PrimaryIcon = primary.icon
+  return <div className="flex items-center justify-end gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={!canManage}><MoreHorizontal className="size-4" />More actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={onReassign}><UserRound className="size-4" />Reassign</DropdownMenuItem><DropdownMenuItem onSelect={onDue}>Change due date</DropdownMenuItem><DropdownMenuItem onSelect={onPriority}>Change priority</DropdownMenuItem>{(task.status === 'open' || task.status === 'in_progress') && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => onTransition('suspended')}><PauseCircle className="size-4" />Pause task</DropdownMenuItem><DropdownMenuItem onSelect={() => onTransition('cancelled')} className="text-[var(--danger)]"><XCircle className="size-4" />Cancel task</DropdownMenuItem></>}</DropdownMenuContent></DropdownMenu><Button size="sm" onClick={() => onTransition(primary.status)} disabled={!canManage}><PrimaryIcon className="size-4" />{primary.label}</Button></div>
+}
+
+function DetailPane({ task, role, state, mobile, onClose, onTransition, onReassign, onDue, onPriority }: { task: Task; role: Role; state: PreviewState; mobile?: boolean; onClose: () => void; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
   const canManage = role !== 'viewer'
-  const showComplete = task.status === 'open' || task.status === 'in_progress'
-  const showReopen = task.status === 'completed' || task.status === 'cancelled' || task.status === 'suspended'
-  if (state === 'empty') return <section aria-label="Task details" className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]"><div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface)] p-3 sm:p-4">{mobile && <Button variant="ghost" size="sm" className="-ml-2 min-h-11 shrink-0" onClick={onBack}><ArrowLeft className="size-4" />Back to tasks</Button>}<div><h2 className="text-base font-semibold">No task selected</h2><p className="mt-0.5 text-xs text-[var(--text-muted)]">The queue preview is empty</p></div></div><div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6 text-center"><div><ListTodo className="mx-auto size-8 text-[var(--text-muted)]" /><h3 className="mt-3 text-section-heading">Select a task when work appears</h3><p className="mt-2 text-sm text-[var(--text-muted)]">Details and task actions will open here without moving the queue header.</p></div></div></section>
-  return (
-    <section aria-label={`Task details for ${task.title}`} className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]">
-      <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--surface)] p-3 sm:p-4">
-        <div className="flex min-w-0 items-start gap-3">
-          {mobile && <Button variant="ghost" size="sm" className="-ml-2 min-h-11 shrink-0" onClick={onBack}><ArrowLeft className="size-4" />Back to tasks</Button>}
-          <div className={cn('min-w-0 flex-1', mobile && 'hidden sm:block')}><div className="flex flex-wrap items-center gap-2"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><Badge variant={priorityVariants[task.priority]} fixedWidth="lg" className="capitalize">{task.priority}</Badge></div><h2 className="mt-2 line-clamp-2 text-base font-semibold leading-6 text-[var(--text-primary)]">{task.title}</h2><p className="mt-1 truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</p></div>
-          {!mobile && <Button variant="outline" size="sm" onClick={onReassign} disabled={!canManage}><UserRound className="size-4" />Reassign task</Button>}
-        </div>
-        {mobile && <div className="mt-2 min-w-0 sm:hidden"><div className="flex flex-wrap items-center gap-2"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><Badge variant={priorityVariants[task.priority]} fixedWidth="lg" className="capitalize">{task.priority}</Badge></div><h2 className="mt-2 line-clamp-2 text-base font-semibold leading-6">{task.title}</h2></div>}
-        {role === 'viewer' && <div className="mt-3 flex items-start gap-2 rounded-[var(--radius-sm)] bg-[var(--bg-overlay)] p-2.5 text-xs leading-5 text-[var(--text-muted)]"><ShieldCheck className="mt-0.5 size-4 shrink-0" /><span>Viewer preview is read-only. Task creation, assignment, and state changes are unavailable.</span></div>}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{state === 'loading' ? <DetailLoading /> : state === 'error' ? <div className="grid min-h-full place-items-center p-6 text-center"><div><CircleAlert className="mx-auto size-8 text-[var(--danger)]" /><h3 className="mt-3 text-section-heading">Task details are unavailable</h3><p className="mt-2 text-sm text-[var(--text-muted)]">Return to the queue or retry the workspace preview.</p></div></div> : <DetailBody task={task} />}</div>
-      {state === 'default' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3">
-        <div className="flex flex-wrap items-center justify-end gap-2 [&_button]:min-h-11 lg:[&_button]:min-h-8">
-          <Button variant="outline" size="sm" onClick={onDue} disabled={!canManage}><CalendarClock className="size-4" />Change due date</Button>
-          <Button variant="outline" size="sm" onClick={onPriority} disabled={!canManage}><AlertTriangle className="size-4" />Change priority</Button>
-          {mobile && <Button variant="outline" size="sm" onClick={onReassign} disabled={!canManage}><UserRound className="size-4" />Reassign task</Button>}
-          {task.status === 'open' && <Button size="sm" onClick={() => onTransition('in_progress')} disabled={!canManage}><PlayCircle className="size-4" />Start task</Button>}
-          {showComplete && <Button size="sm" onClick={() => onTransition('completed')} disabled={!canManage}><Check className="size-4" />Complete task</Button>}
-          {showComplete && <Button variant="outline" size="sm" onClick={() => onTransition('suspended')} disabled={!canManage}><PauseCircle className="size-4" />Suspend task</Button>}
-          {showComplete && <Button variant="destructive" size="sm" onClick={() => onTransition('cancelled')} disabled={!canManage}><XCircle className="size-4" />Cancel task</Button>}
-          {showReopen && <Button size="sm" onClick={() => onTransition('open')} disabled={!canManage}><CircleDashed className="size-4" />Reopen task</Button>}
-        </div>
-      </div>}
-    </section>
-  )
+  return <aside aria-label={`Task details for ${task.title}`} className={cn('flex h-full min-h-0 flex-1 flex-col bg-[var(--surface)]', !mobile && 'border-l border-[var(--border)] xl:max-w-md xl:shrink-0')}><div className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-4">{mobile ? <Button variant="ghost" size="sm" className="-ml-2" onClick={onClose}><ArrowLeft className="size-4" />Back to tasks</Button> : <><ListTodo className="size-4 text-[var(--accent)]" /><span className="text-sm font-semibold">Task details</span><Button variant="ghost" size="icon" className="ml-auto" onClick={onClose} aria-label="Close task details"><X className="size-4" /></Button></>}{role === 'viewer' && <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]"><ShieldCheck className="size-3.5" />Read only</span>}</div><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{state === 'loading' ? <div className="space-y-3 p-4" aria-busy="true"><p className="sr-only">Loading task details…</p><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-4/5" /><Skeleton className="mt-4 h-32 w-full" /><Skeleton className="h-40 w-full" /></div> : state === 'error' ? <StateMessage icon={CircleAlert} title="Details unavailable" body="Try loading the workspace again." danger /> : <DetailBody task={task} />}</div>{state === 'default' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions task={task} canManage={canManage} onTransition={onTransition} onReassign={onReassign} onDue={onDue} onPriority={onPriority} /></div>}</aside>
 }
 
 function CreateTaskDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (title: string) => void }) {
@@ -453,10 +398,10 @@ function CreateTaskDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
 
 export function TasksWorkspaceConcept() {
   const [tasks, setTasks] = useState(initialTasks)
-  const [selectedId, setSelectedId] = useState(initialTasks[0].id)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
   const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('all')
   const [previewState, setPreviewState] = useState<PreviewState>('default')
   const [role, setRole] = useState<Role>('owner_admin')
@@ -474,46 +419,38 @@ export function TasksWorkspaceConcept() {
     return matchesQuery && matchesStatus && matchesAssignment
   }), [assignmentFilter, query, statusFilter, tasks])
 
-  const selectedTask = tasks.find((task) => task.id === selectedId) ?? tasks[0]
+  const selectedTask = tasks.find((task) => task.id === selectedId) ?? null
   const selectMobile = (id: string) => { mobileListScroll.current = mobileListRef.current?.scrollTop ?? 0; setSelectedId(id); setMobileDetail(true) }
-  const backToList = () => { setMobileDetail(false); requestAnimationFrame(() => { if (mobileListRef.current) mobileListRef.current.scrollTop = mobileListScroll.current }) }
-  const updateSelected = (update: (task: Task) => Task, message: string) => { setTasks((current) => current.map((task) => task.id === selectedTask.id ? update(task) : task)); setAnnouncement(message) }
-  const transition = (status: TaskStatus) => updateSelected((task) => ({ ...task, status, updatedAt: `Just now · fixture ${statusLabels[status].toLowerCase()}` }), `${selectedTask.title} changed to ${statusLabels[status]} in this fixture.`)
-  const reassign = () => updateSelected((task) => ({ ...task, assignee: task.assignee === 'Ananya Kapoor' ? 'Rishikesh Joshi' : 'Ananya Kapoor' }), `Fixture assignee changed for ${selectedTask.title}.`)
-  const changeDue = () => updateSelected((task) => ({ ...task, due: task.due?.kind === 'date' ? { kind: 'time', date: task.due.date, time: '14:30', timezone: 'Asia/Kolkata' } : { kind: 'date', date: task.due?.date ?? '8 Sep 2026' } }), `Fixture due contract changed for ${selectedTask.title}.`)
-  const changePriority = () => updateSelected((task) => ({ ...task, priority: task.priority === 'urgent' ? 'normal' : 'urgent' }), `Fixture priority changed for ${selectedTask.title}.`)
-  const createTask = (title: string) => { const task: Task = { id: `task-fixture-${tasks.length + 1}`, title, description: 'Locally created fixture task for interaction review.', status: 'open', priority: 'normal', assignee: 'Rishikesh Joshi', creator: roleLabels[role], due: null, origin: { kind: 'manual', label: 'Created in Tasks', createdAt: 'Just now · fixture only' }, updatedAt: 'Just now · fixture created' }; setTasks((current) => [task, ...current]); setSelectedId(task.id); setPreviewState('default'); setCreateOpen(false); setAnnouncement(`${title} was added to this fixture.`) }
+  const closeDetails = () => { setMobileDetail(false); setSelectedId(null); requestAnimationFrame(() => { if (mobileListRef.current) mobileListRef.current.scrollTop = mobileListScroll.current }) }
+  const updateSelected = (update: (task: Task) => Task, message: string) => { if (!selectedTask) return; setTasks((current) => current.map((task) => task.id === selectedTask.id ? update(task) : task)); setAnnouncement(message) }
+  const transition = (status: TaskStatus) => { if (selectedTask) updateSelected((task) => ({ ...task, status, updatedAt: `Just now · fixture ${statusLabels[status].toLowerCase()}` }), `${selectedTask.title} changed to ${statusLabels[status]} in this fixture.`) }
+  const reassign = () => { if (selectedTask) updateSelected((task) => ({ ...task, assignee: task.assignee === 'Ananya Kapoor' ? 'Rishikesh Joshi' : 'Ananya Kapoor' }), `Fixture assignee changed for ${selectedTask.title}.`) }
+  const changeDue = () => { if (selectedTask) updateSelected((task) => ({ ...task, due: task.due?.kind === 'date' ? { kind: 'time', date: task.due.date, time: '14:30', timezone: 'Asia/Kolkata' } : { kind: 'date', date: task.due?.date ?? '8 Sep 2026' } }), `Fixture due date changed for ${selectedTask.title}.`) }
+  const changePriority = () => { if (selectedTask) updateSelected((task) => ({ ...task, priority: task.priority === 'urgent' ? 'normal' : 'urgent' }), `Fixture priority changed for ${selectedTask.title}.`) }
+  const createTask = (title: string) => { const task: Task = { id: `task-fixture-${tasks.length + 1}`, title, description: 'Locally created fixture task for interaction review.', status: 'open', priority: 'normal', assignee: 'Rishikesh Joshi', creator: roleLabels[role], due: null, origin: { kind: 'manual', label: 'Created in Tasks', createdAt: 'Just now · fixture only' }, updatedAt: 'Just now · fixture created' }; setTasks((current) => [task, ...current]); setSelectedId(task.id); setMobileDetail(true); setPreviewState('default'); setCreateOpen(false); setAnnouncement(`${title} was added to this fixture.`) }
 
   return (
     <div className="flex h-dvh max-w-full overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
-      <AppRail />
+      <ConceptRail />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)]">
-          <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
-            <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><ListTodo className="size-5 shrink-0 text-[var(--accent)]" /><h1 className="text-page-title truncate">Tasks</h1></div><p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">Organisation task queue · Task is the live source of state</p></div>
-            <div className="flex flex-wrap items-center justify-end gap-2"><RoleMenu role={role} onChange={setRole} /><PreviewMenu state={previewState} onChange={setPreviewState} onAbout={() => setAboutOpen(true)} /><Button size="sm" className="min-h-11 lg:min-h-8" onClick={() => setCreateOpen(true)} disabled={role === 'viewer'}><Plus className="size-4" />Create task</Button></div>
-          </div>
-          <div className="flex min-h-9 items-center gap-2 border-t border-[var(--border-subtle)] px-3 text-xs text-[var(--text-muted)] sm:px-4"><Info className="size-3.5 shrink-0" /><span className="truncate">Approval concept · local fixture transitions only · no production data</span></div>
-        </header>
+        <WorkspaceHeader state={previewState} role={role} onStateChange={setPreviewState} onRoleChange={setRole} onAbout={() => setAboutOpen(true)} onCreate={() => setCreateOpen(true)} canCreate={role !== 'viewer'} />
+        {!mobileDetail && <QueueHeader query={query} onQuery={setQuery} status={statusFilter} onStatus={setStatusFilter} assignment={assignmentFilter} onAssignment={setAssignmentFilter} count={previewState === 'default' ? visibleTasks.length : null} />}
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="hidden h-full min-h-0 lg:flex">
-            <section aria-label="Task queue" className="flex w-[44%] min-w-[390px] max-w-[610px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
-              <QueueHeader query={query} onQuery={setQuery} status={statusFilter} onStatus={setStatusFilter} assignment={assignmentFilter} onAssignment={setAssignmentFilter} count={previewState === 'default' ? visibleTasks.length : 0} />
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} onRetry={() => setPreviewState('default')} /></div>
-            </section>
-            <DetailPane task={selectedTask} role={role} state={previewState} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} />
+          <div className="hidden h-full min-h-0 xl:flex">
+            <section aria-label="Task list" className="min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} onRetry={() => setPreviewState('default')} /></section>
+            {selectedTask && previewState !== 'empty' && <DetailPane task={selectedTask} role={role} state={previewState} onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} />}
           </div>
 
-          <div className="h-full min-h-0 lg:hidden">
-            {mobileDetail ? <DetailPane task={selectedTask} role={role} state={previewState} mobile onBack={backToList} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} /> : <section aria-label="Task queue" className="flex h-full min-h-0 flex-col bg-[var(--surface)]"><QueueHeader query={query} onQuery={setQuery} status={statusFilter} onStatus={setStatusFilter} assignment={assignmentFilter} onAssignment={setAssignmentFilter} count={previewState === 'default' ? visibleTasks.length : 0} /><div ref={mobileListRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={selectMobile} onRetry={() => setPreviewState('default')} /></div></section>}
+          <div className="h-full min-h-0 xl:hidden">
+            {mobileDetail && selectedTask ? <DetailPane task={selectedTask} role={role} state={previewState} mobile onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} /> : <section aria-label="Task list" ref={mobileListRef} className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={selectMobile} onRetry={() => setPreviewState('default')} /></section>}
           </div>
         </div>
       </main>
 
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <CreateTaskDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={createTask} />
-      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}><DialogContent><DialogHeader><DialogTitle>Tasks workspace concept</DialogTitle><DialogDescription>This is a fixture-only browser concept for visual and interaction approval. It does not implement the secured reader or task commands.</DialogDescription></DialogHeader><div className="space-y-3 text-sm leading-6 text-[var(--text-secondary)]"><p className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3">Search, filters, role previews, task creation, assignment, due, priority, and lifecycle buttons change only local component state. Reloading restores the original fixtures.</p><p className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3">The concept intentionally excludes recurrence, subtasks, dependencies, multi-assignee work, time tracking, bulk completion, notifications, My Work, and Review.</p></div><DialogFooter><Button onClick={() => setAboutOpen(false)}>Close concept details</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}><DialogContent><DialogHeader><DialogTitle>Tasks workspace concept</DialogTitle><DialogDescription>This review page uses local fixture data only. Nothing is saved.</DialogDescription></DialogHeader><p className="text-sm leading-6 text-[var(--text-secondary)]">Search, filters, role previews, task creation, assignment, dates, priorities, and status changes reset when the page reloads.</p><DialogFooter><Button onClick={() => setAboutOpen(false)}>Close</Button></DialogFooter></DialogContent></Dialog>
     </div>
   )
 }
