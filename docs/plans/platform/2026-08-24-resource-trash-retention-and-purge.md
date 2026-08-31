@@ -136,6 +136,12 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 Implement the approved root-operation permanent-delete impact and execution workflow: holds/blockers, recent authentication, typed confirmation, durable dependency-ordered purge, shared-asset safety, tombstones, retry/reconciliation, and operational visibility. Reuse the now-live scheduled-deletion policy and Team-attention projection; do not add a separate retention policy.
 
+### Proposed permanent-delete concept (awaiting visual approval)
+
+- The fixture-only browser concept at `/dev/trash-permanent-delete-concept` proposes the root-operation permanent-delete review as a visual continuation of the approved Trash workspace. It keeps the irreversible consequence language and selected root identity outside the moving decision context, uses a complete non-mutating impact before confirmation, separates unique bytes from safely retained shared assets, and exposes dependent-domain consequences, holds, exports, and inherited-child boundaries without adding live authority.
+- Owner/Admin previews proceed from impact review through recent-authentication status and exact typed client code; Associate and Viewer previews remain explicitly read-only. Hold/blocker, incomplete impact, purge in progress, retryable failure, and minimal content-free tombstone states replace unavailable controls with safe guidance and operation visibility. Manual and scheduled deletion are presented as the same durable, dependency-ordered workflow.
+- The concept is local state only: it has no purge API, server action, authentication request, database write, asset deletion, permission enforcement, or success claim. Desktop uses independently scrolling impact and decision panes beneath stable context; mobile uses one principal scroller. Production UI work remains blocked on human visual approval of this direction and the separately required end-to-end authority, orchestration, reconciliation, and security implementation.
+
 ### Completed: live retention policy and Team attention projection (2026-08-31)
 
 - Migration `00090` replaces the temporary manual-compatible organisation policy with exactly one Owner/Admin-controlled 30/60/90-day automatic retention choice, defaulting to 90 days. It normalises every permitted `00079` legacy policy shape before adding the final non-null constraint, including the legacy-valid `retention_period`/NULL-days row.
