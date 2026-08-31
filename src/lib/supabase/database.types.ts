@@ -2883,9 +2883,75 @@ export type Database = {
             referencedRelation: "platform_operators"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      platform_privileged_intent_receipts: {
+        Row: {
+          command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          consumed_at: string
+          consumption_idempotency_key: string
+          id: string
+          intent_id: string
+          operator_id: string
+        }
+        Insert: {
+          command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          consumed_at?: string
+          consumption_idempotency_key: string
+          id?: string
+          intent_id: string
+          operator_id: string
+        }
+        Update: {
+          command_family?: Database["public"]["Enums"]["platform_privileged_command_family"]
+          consumed_at?: string
+          consumption_idempotency_key?: string
+          id?: string
+          intent_id?: string
+          operator_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "platform_audit_events_target_id_fkey"
-            columns: ["target_id"]
+            foreignKeyName: "platform_privileged_intent_receipts_intent_actor_command_fkey"
+            columns: ["intent_id", "operator_id", "command_family"]
+            isOneToOne: false
+            referencedRelation: "platform_privileged_intents"
+            referencedColumns: ["id", "operator_id", "command_family"]
+          },
+        ]
+      }
+      platform_privileged_intents: {
+        Row: {
+          command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          expires_at: string
+          id: string
+          issuance_idempotency_key: string
+          issued_at: string
+          nonce: string
+          operator_id: string
+        }
+        Insert: {
+          command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          expires_at: string
+          id?: string
+          issuance_idempotency_key: string
+          issued_at?: string
+          nonce?: string
+          operator_id: string
+        }
+        Update: {
+          command_family?: Database["public"]["Enums"]["platform_privileged_command_family"]
+          expires_at?: string
+          id?: string
+          issuance_idempotency_key?: string
+          issued_at?: string
+          nonce?: string
+          operator_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_privileged_intents_operator_id_fkey"
+            columns: ["operator_id"]
             isOneToOne: false
             referencedRelation: "platform_operators"
             referencedColumns: ["id"]
@@ -5719,6 +5785,18 @@ export type Database = {
           operation_id: string
         }[]
       }
+      consume_platform_privileged_intent: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          p_consumption_idempotency_key: string
+          p_intent_id: string
+          p_nonce: string
+        }
+        Returns: {
+          code: string
+          receipt_id: string | null
+        }[]
+      }
       create_metadata_only_document: {
         Args: {
           p_display_title: string
@@ -6510,6 +6588,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      issue_platform_privileged_intent: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          p_issuance_idempotency_key: string
+        }
+        Returns: {
+          code: string
+          expires_at: string | null
+          intent_id: string | null
+          nonce: string | null
+        }[]
+      }
       invitation_actor: {
         Args: { org: string }
         Returns: {
@@ -6689,6 +6779,13 @@ export type Database = {
           code: string
           storage_deletion_count: number
         }[]
+      }
+      platform_current_request_has_aal2: { Args: never; Returns: boolean }
+      platform_privileged_command_capability: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+        }
+        Returns: string | null
       }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }
@@ -7219,6 +7316,17 @@ export type Database = {
           intake_item_id: string
         }[]
       }
+      validate_platform_privileged_intent: {
+        Args: {
+          p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
+          p_intent_id: string
+          p_nonce: string
+        }
+        Returns: {
+          code: string
+          valid: boolean
+        }[]
+      }
       write_current_document_search_index_embedding: {
         Args: {
           p_document_id: string
@@ -7418,6 +7526,15 @@ export type Database = {
         | "platform_operator"
         | "platform_auditor"
       platform_operator_state: "active" | "suspended" | "removed"
+      platform_privileged_command_family:
+        | "platform.jobs.retry"
+        | "platform.organisations.safety_mode.manage"
+        | "platform.organisations.entitlement.manage"
+        | "platform.policy.storage_quota.manage"
+        | "platform.models.runtime_pricing.manage"
+        | "platform.features.kill_switch.manage"
+        | "platform.operators.manage"
+        | "platform.backup_recovery.execute"
       outbox_delivery_state:
         | "pending"
         | "leased"
@@ -7880,6 +7997,16 @@ export const Constants = {
         "platform_auditor",
       ],
       platform_operator_state: ["active", "suspended", "removed"],
+      platform_privileged_command_family: [
+        "platform.jobs.retry",
+        "platform.organisations.safety_mode.manage",
+        "platform.organisations.entitlement.manage",
+        "platform.policy.storage_quota.manage",
+        "platform.models.runtime_pricing.manage",
+        "platform.features.kill_switch.manage",
+        "platform.operators.manage",
+        "platform.backup_recovery.execute",
+      ],
       outbox_delivery_state: [
         "pending",
         "leased",
