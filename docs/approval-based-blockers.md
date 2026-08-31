@@ -18,6 +18,29 @@ the rest of the approved portfolio.
 
 ## Open
 
+### 2026-09-01 — Task and legacy note action-item compatibility
+
+- **Plan:** Work Orchestration, Review, Activity, Notifications, and Today.
+- **What is waiting:** choose how the existing note action-item controls behave
+  while first-class Tasks are introduced.
+- **Why:** today, the Matter Notes and Notes screens can mark a note action item
+  resolved or change its assignment directly. The new Task is deliberately a
+  separate record. Continuing to update both would create two competing sources
+  of truth; leaving the old controls active would make the screen claim work is
+  complete without changing the Task.
+- **Recommended action:** approve **Task-only current state**. Keep a note as a
+  historical record of what was created, but make Task the sole authority for
+  completion, reopening, reassignment, and due-date changes. Remove the old
+  note mutation controls and later show current Task state from the Task
+  reader. Do not mirror Task changes back into the note.
+- **Alternatives:** mirror every Task transition back to the note (more familiar
+  short-term, but creates retry, race, reconciliation, and eventual-cleanup
+  risk); or temporarily disable the controls without a Task reader (safe but
+  leaves a dead-end workflow).
+- **Then:** add the approved Task reader/transition command, organisational
+  timezone semantics, typed Activity/outbox effects, and an additive one-to-one
+  legacy backfill before claiming broader Task coverage.
+
 ### 2026-08-31 — Local browser sign-in for permanent-delete verification
 
 - **Plan:** Hierarchical Resource Trash, Retention, and Purge.

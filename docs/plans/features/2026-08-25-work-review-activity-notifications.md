@@ -183,6 +183,15 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 **Canonical next action:** continue step 3 with the smallest coherent Task transition and secured reader slice. It must connect a real existing consumer, define the approved legacy action-item completion/assignment compatibility boundary, use organisation—not personal—timezone semantics, and add Task Activity/outbox only when the typed Activity registry has the approved Task definition. Do not claim My Work, Task UI, or broader Work-plan completion from the write adapter.
 
+**Proposed decision awaiting approval (2026-09-01):** make Task the sole live
+authority for completion, reopening, reassignment, and due-date changes. Retain
+the note only as an immutable-at-creation historical origin snapshot; remove
+legacy note action-item mutation controls rather than dual-writing Task state
+back to `case_notes`. The approved Task reader/transition slice will provide the
+replacement current-state experience and an idempotent one-to-one legacy
+backfill. This is recorded in
+[Approval-based blockers](../../approval-based-blockers.md#2026-09-01--task-and-legacy-note-action-item-compatibility).
+
 ## Interfaces and Data Changes
 
 ### Core tables
