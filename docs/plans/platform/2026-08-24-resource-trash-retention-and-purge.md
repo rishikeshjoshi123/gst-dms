@@ -134,7 +134,12 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Implement the approved root-operation permanent-delete impact and execution workflow: holds/blockers, recent authentication, typed confirmation, durable dependency-ordered purge, shared-asset safety, tombstones, retry/reconciliation, and operational visibility. Reuse the now-live scheduled-deletion policy and Team-attention projection; do not add a separate retention policy.
+Complete the one pending authenticated local-browser verification for the governed permanent-delete WIP recorded in [`docs/approval-based-blockers.md`](../../approval-based-blockers.md). While that isolated browser gate waits, implement the independent approved compatibility migration for existing legacy `deleted_at` records: create synthetic accessible Trash operations without inferring unavailable actor/reason information, preserve IDs, and never imply that already hard-deleted data is recoverable.
+
+### WIP: governed root permanent deletion (pending authenticated browser QA)
+
+- Checkpoint `906b986` implements the approved root-operation impact, confirmation, durable worker, retry/reconciliation, shared-asset, blocker, tombstone, and operational-status contract. Fresh local migration replay through `00092`, rollback and multi-session adversarial fixtures, DB lint, generated types, TypeScript, focused tests, scoped lint, migration checks, and fresh independent QA/rechecks passed.
+- The only unfinished gate is authenticated local-browser interaction using a generated disposable Owner fixture. It is recorded as a plain-language Open entry in `docs/approval-based-blockers.md`; no plan-completion claim is made until that action is verified.
 
 ### Approved permanent-delete concept (2026-08-31)
 
