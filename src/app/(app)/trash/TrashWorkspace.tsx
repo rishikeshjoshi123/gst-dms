@@ -248,13 +248,17 @@ function OperationCollection({ operations, selectedId, timeZone, filtered, onSel
   )
 }
 
-function DetailPanel({ operation, timeZone, mobile, onClose }: {
+function DetailPanel({ operation, timeZone, mobile, onClose, onPermanentDelete }: {
   operation: TrashOperation
   timeZone: string
   mobile?: boolean
   onClose: () => void
+  onPermanentDelete?: () => void
 }) {
   const RootIcon = typeIcon[operation.resourceType]
+  const purgeOperational = operation.purgeImpact?.operationState === 'purging'
+    || operation.purgeImpact?.operationState === 'purge_failed'
+  const showPurgeRoute = purgeOperational || operation.purgeImpact?.canPurge === true
   return (
     <aside
       aria-label={`Trash details for ${operation.name}`}
@@ -306,8 +310,8 @@ function DetailPanel({ operation, timeZone, mobile, onClose }: {
           <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Included items belong to this root Trash group and have no independent actions.</p>
         </div>
       </div>
-      {operation.restorePreflight && (operation.restorePreflight.canRestore || operation.restorePreflight.status === 'restore_blocked') && (
-        <div className="flex min-h-14 shrink-0 items-center justify-end border-t border-[var(--border-subtle)] p-3">
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--border-subtle)] p-3">
+        {!purgeOperational && operation.restorePreflight && (operation.restorePreflight.canRestore || operation.restorePreflight.status === 'restore_blocked') && (
           <RestoreTrashOperationControl
             operationId={operation.id}
             operationName={operation.name}
@@ -316,8 +320,11 @@ function DetailPanel({ operation, timeZone, mobile, onClose }: {
             successPath={operation.canonicalPath || '/trash'}
             compact
           />
-        </div>
-      )}
+        )}
+        {showPurgeRoute && <Button variant={purgeOperational ? 'outline' : 'destructive'} size="sm" onClick={onPermanentDelete}>
+          <Trash2 className="size-4" aria-hidden="true" />{purgeOperational ? 'View permanent deletion status' : 'Review permanent deletion'}
+        </Button>}
+      </div>
     </aside>
   )
 }
@@ -383,11 +390,11 @@ export function TrashWorkspace({ data, query, resourceType }: {
           <section aria-label="Trash groups" className={cn('custom-scrollbar min-w-0 flex-1 overflow-y-auto overscroll-contain', selectedId && 'hidden xl:block')}>
             <OperationCollection operations={data.operations} selectedId={selectedId} timeZone={data.timeZone} filtered={filtered} onSelect={(id) => navigate({ selected: id })} />
           </section>
-          {data.selectedOperation && <DetailPanel operation={data.selectedOperation} timeZone={data.timeZone} onClose={() => navigate({ selected: null })} />}
+          {data.selectedOperation && <DetailPanel operation={data.selectedOperation} timeZone={data.timeZone} onClose={() => navigate({ selected: null })} onPermanentDelete={() => router.push(`/trash/${data.selectedOperation?.id}/permanent-delete`)} />}
         </div>
         <div className="h-full overflow-hidden md:hidden">
           {data.selectedOperation ? (
-            <DetailPanel operation={data.selectedOperation} timeZone={data.timeZone} mobile onClose={() => navigate({ selected: null })} />
+            <DetailPanel operation={data.selectedOperation} timeZone={data.timeZone} mobile onClose={() => navigate({ selected: null })} onPermanentDelete={() => router.push(`/trash/${data.selectedOperation?.id}/permanent-delete`)} />
           ) : (
             <section aria-label="Trash groups" className="custom-scrollbar h-full overflow-y-auto overscroll-contain">
               <OperationCollection operations={data.operations} selectedId={selectedId} timeZone={data.timeZone} filtered={filtered} onSelect={(id) => navigate({ selected: id })} />

@@ -1,4 +1,5 @@
 import type { TrashRestorePreflight } from './restore-model'
+import type { TrashPurgeImpact } from './purge-model'
 
 export type TrashResourceType = 'client' | 'matter' | 'document'
 export type TrashResourceFilter = 'all' | TrashResourceType
@@ -64,6 +65,7 @@ export type TrashOperation = {
   storageBytes: number
   includedItems: TrashIncludedItem[]
   restorePreflight: TrashRestorePreflight | null
+  purgeImpact: TrashPurgeImpact | null
 }
 
 export type TrashWorkspaceData = {
@@ -124,6 +126,7 @@ export function shapeTrashWorkspaceRows(
         storageBytes: row.operation_storage_bytes ?? 0,
         includedItems: [],
         restorePreflight: null,
+        purgeImpact: null,
       }
       byId.set(row.operation_id, operation)
     }

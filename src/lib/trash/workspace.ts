@@ -10,6 +10,7 @@ import {
   type TrashWorkspaceProjectionRow,
 } from './workspace-model'
 import type { TrashRestorePreflight } from './restore-model'
+import { shapeTrashPurgeImpact } from './purge-model'
 
 type TrashWorkspaceRow = Database['public']['Functions']['get_trash_workspace']['Returns'][number]
 
@@ -56,9 +57,10 @@ export async function getTrashWorkspace(query: TrashWorkspaceQuery): Promise<Tra
 
   const shaped = shapeTrashWorkspaceRows(data as (TrashWorkspaceRow & TrashWorkspaceProjectionRow)[], query.selectedOperationId)
   if (shaped.selectedOperation) {
-    const { data: preflightRows } = await supabase.rpc('get_trash_restore_preflight', {
-      p_operation_id: shaped.selectedOperation.id,
-    })
+    const [{ data: preflightRows }, { data: impactRows }] = await Promise.all([
+      supabase.rpc('get_trash_restore_preflight', { p_operation_id: shaped.selectedOperation.id }),
+      supabase.rpc('get_trash_purge_impact', { p_operation_id: shaped.selectedOperation.id }),
+    ])
     const preflight = preflightRows?.[0]
     if (preflight) {
       shaped.selectedOperation.restorePreflight = {
@@ -68,6 +70,8 @@ export async function getTrashWorkspace(query: TrashWorkspaceQuery): Promise<Tra
         blockingOperationId: preflight.blocking_operation_id,
       }
     }
+    const impact = (impactRows as unknown as Array<Record<string, unknown>> | null)?.[0]
+    if (impact) shaped.selectedOperation.purgeImpact = shapeTrashPurgeImpact(impact)
   }
 
   return {

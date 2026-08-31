@@ -18,7 +18,20 @@ the rest of the approved portfolio.
 
 ## Open
 
-No open approval blockers.
+### 2026-08-31 — Local browser sign-in for permanent-delete verification
+
+- **Plan:** Hierarchical Resource Trash, Retention, and Purge.
+- **What is waiting:** the final authenticated desktop/mobile/keyboard check of
+  the new permanent-delete screen.
+- **Why:** a generated Owner test account exists only in the disposable local
+  database. Browser safety requires confirmation immediately before entering
+  its generated password, even though it is not a real account and cannot
+  affect production.
+- **Recommended action:** approve entering the generated local test password at
+  `http://localhost:3000/login` solely to verify the local Trash screens. It
+  will not delete any records or call any production service.
+- **Then:** finish the browser check, move this entry to Resolved, and update
+  the verified Trash checkpoint.
 
 ## Resolved
 

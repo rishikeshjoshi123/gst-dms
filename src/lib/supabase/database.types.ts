@@ -3839,6 +3839,290 @@ export type Database = {
           },
         ]
       }
+      trash_purge_blockers: {
+        Row: {
+          blocker_kind: Database["public"]["Enums"]["trash_purge_blocker_kind"]
+          created_at: string
+          id: string
+          opaque_reference: string
+          operation_id: string
+          org_id: string
+          released_at: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          state: Database["public"]["Enums"]["trash_purge_blocker_state"]
+        }
+        Insert: {
+          blocker_kind: Database["public"]["Enums"]["trash_purge_blocker_kind"]
+          created_at?: string
+          id?: string
+          opaque_reference: string
+          operation_id: string
+          org_id: string
+          released_at?: string | null
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          state?: Database["public"]["Enums"]["trash_purge_blocker_state"]
+        }
+        Update: {
+          blocker_kind?: Database["public"]["Enums"]["trash_purge_blocker_kind"]
+          created_at?: string
+          id?: string
+          opaque_reference?: string
+          operation_id?: string
+          org_id?: string
+          released_at?: string | null
+          resource_id?: string
+          resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          state?: Database["public"]["Enums"]["trash_purge_blocker_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_purge_blockers_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      trash_purge_command_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_id: string | null
+          operation_id: string
+          org_id: string
+          result_code: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          job_id?: string | null
+          operation_id: string
+          org_id: string
+          result_code: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          job_id?: string | null
+          operation_id?: string
+          org_id?: string
+          result_code?: string
+        }
+        Relationships: []
+      }
+      trash_purge_execution_fences: {
+        Row: {
+          created_at: string
+          job_id: string
+          transaction_id: number
+        }
+        Insert: {
+          created_at?: string
+          job_id: string
+          transaction_id: number
+        }
+        Update: {
+          created_at?: string
+          job_id?: string
+          transaction_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_purge_execution_fences_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "trash_purge_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trash_purge_jobs: {
+        Row: {
+          attempt_count: number
+          completed_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          database_prepared_at: string | null
+          id: string
+          idempotency_key: string | null
+          impact_fingerprint: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          operation_id: string
+          org_id: string
+          safe_error_code: string | null
+          source: Database["public"]["Enums"]["trash_purge_source"]
+          started_at: string | null
+          state: Database["public"]["Enums"]["trash_purge_job_state"]
+        }
+        Insert: {
+          attempt_count?: number
+          completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          database_prepared_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          impact_fingerprint: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          operation_id: string
+          org_id: string
+          safe_error_code?: string | null
+          source: Database["public"]["Enums"]["trash_purge_source"]
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["trash_purge_job_state"]
+        }
+        Update: {
+          attempt_count?: number
+          completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          database_prepared_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          impact_fingerprint?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          operation_id?: string
+          org_id?: string
+          safe_error_code?: string | null
+          source?: Database["public"]["Enums"]["trash_purge_source"]
+          started_at?: string | null
+          state?: Database["public"]["Enums"]["trash_purge_job_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_purge_jobs_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      trash_purge_storage_deletions: {
+        Row: {
+          asset_id: string | null
+          attempt_count: number
+          bucket_id: string | null
+          created_at: string
+          deleted_at: string | null
+          id: string
+          job_id: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          object_key: string | null
+          org_id: string
+          safe_error_code: string | null
+          state: Database["public"]["Enums"]["trash_purge_storage_state"]
+        }
+        Insert: {
+          asset_id?: string | null
+          attempt_count?: number
+          bucket_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          job_id: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          object_key?: string | null
+          org_id: string
+          safe_error_code?: string | null
+          state?: Database["public"]["Enums"]["trash_purge_storage_state"]
+        }
+        Update: {
+          asset_id?: string | null
+          attempt_count?: number
+          bucket_id?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          job_id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          object_key?: string | null
+          org_id?: string
+          safe_error_code?: string | null
+          state?: Database["public"]["Enums"]["trash_purge_storage_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_purge_storage_deletions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "trash_purge_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trash_purge_tombstones: {
+        Row: {
+          actor_user_id: string | null
+          former_resource_id: string
+          id: string
+          job_id: string
+          operation_id: string
+          org_id: string
+          purged_at: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          source: Database["public"]["Enums"]["trash_purge_source"]
+          verification_code: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          former_resource_id: string
+          id?: string
+          job_id: string
+          operation_id: string
+          org_id: string
+          purged_at: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          source: Database["public"]["Enums"]["trash_purge_source"]
+          verification_code: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          former_resource_id?: string
+          id?: string
+          job_id?: string
+          operation_id?: string
+          org_id?: string
+          purged_at?: string
+          resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          source?: Database["public"]["Enums"]["trash_purge_source"]
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_purge_tombstones_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "trash_purge_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trash_purge_tombstones_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trash_restore_effect_receipts: {
         Row: {
           affected_count: number
@@ -4554,6 +4838,30 @@ export type Database = {
           purge_lease_token: string
         }[]
       }
+      claim_trash_purge_storage_deletions: {
+        Args: {
+          p_batch_size?: number
+          p_job_id: string
+          p_job_lease_token: string
+          p_lease_seconds?: number
+        }
+        Returns: {
+          bucket_id: string
+          deletion_id: string
+          lease_token: string
+          object_key: string
+        }[]
+      }
+      claim_trash_purge_work: {
+        Args: { p_batch_size?: number; p_lease_seconds?: number }
+        Returns: {
+          database_prepared: boolean
+          job_id: string
+          lease_token: string
+          operation_id: string
+          org_id: string
+        }[]
+      }
       cleanup_compacted_outbox_delivery_receipts: {
         Args: { p_batch_size?: number; p_compacted_before?: string }
         Returns: {
@@ -4608,6 +4916,19 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      confirm_trash_purge: {
+        Args: {
+          p_confirmation_text: string
+          p_idempotency_key: string
+          p_impact_fingerprint: string
+          p_operation_id: string
+        }
+        Returns: {
+          code: string
+          job_id: string
+          operation_id: string
         }[]
       }
       create_metadata_only_document: {
@@ -4729,6 +5050,13 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      enqueue_due_trash_purges: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          blocked_count: number
+          queued_count: number
+        }[]
       }
       fail_document_outbox_event: {
         Args: {
@@ -4861,6 +5189,24 @@ export type Database = {
           p_outcome: string
           p_page_count: number
           p_source_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      finish_trash_purge_attempt: {
+        Args: { p_job_id: string; p_lease_token: string }
+        Returns: {
+          code: string
+          operation_id: string
+          pending_storage_count: number
+        }[]
+      }
+      finish_trash_purge_storage_deletion: {
+        Args: {
+          p_deletion_id: string
+          p_lease_token: string
+          p_outcome: string
         }
         Returns: {
           code: string
@@ -5171,6 +5517,35 @@ export type Database = {
           source_object_key: string
         }[]
       }
+      get_trash_purge_impact: {
+        Args: { p_operation_id: string }
+        Returns: {
+          active_export_count: number
+          blocker_count: number
+          blockers: Json
+          can_purge: boolean
+          code: string
+          confirmation_text: string
+          hold_count: number
+          impact_fingerprint: string
+          impact_version: number
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          job_safe_error_code: string
+          job_state: Database["public"]["Enums"]["trash_purge_job_state"]
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          purged_at: string
+          requires_recent_auth: boolean
+          root_name: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          scheduled_permanent_deletion_at: string
+          shared_bytes_retained: number
+          unique_bytes: number
+        }[]
+      }
       get_trash_restore_preflight: {
         Args: { p_operation_id: string }
         Returns: {
@@ -5445,6 +5820,13 @@ export type Database = {
           notification_count: number
         }[]
       }
+      prepare_trash_purge_database: {
+        Args: { p_job_id: string; p_lease_token: string }
+        Returns: {
+          code: string
+          storage_deletion_count: number
+        }[]
+      }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -5671,6 +6053,19 @@ export type Database = {
           code: string
         }[]
       }
+      register_trash_purge_blocker: {
+        Args: {
+          p_active: boolean
+          p_blocker_kind: Database["public"]["Enums"]["trash_purge_blocker_kind"]
+          p_opaque_reference: string
+          p_operation_id: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       release_legacy_staged_document_action: {
         Args: {
           p_lease_token: string
@@ -5788,6 +6183,18 @@ export type Database = {
           root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
         }[]
       }
+      retry_trash_purge: {
+        Args: {
+          p_idempotency_key: string
+          p_impact_fingerprint: string
+          p_operation_id: string
+        }
+        Returns: {
+          code: string
+          job_id: string
+          operation_id: string
+        }[]
+      }
       search_index_reprocess_retry_delay_seconds: {
         Args: { p_attempt_number: number; p_processing_run_id: string }
         Returns: number
@@ -5848,6 +6255,19 @@ export type Database = {
         Returns: {
           code: string
         }[]
+      }
+      trash_purge_active_blockers: {
+        Args: { p_operation_id: string; p_org_id: string }
+        Returns: {
+          blocker_id: string
+          code: string
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }[]
+      }
+      trash_purge_impact_fingerprint: {
+        Args: { p_operation_id: string; p_org_id: string }
+        Returns: string
       }
       trash_resource: {
         Args: {
@@ -5950,6 +6370,7 @@ export type Database = {
         | "source_attached"
         | "source_indexed"
         | "source_unreadable"
+        | "purged"
       document_effective_metadata_resolution:
         | "automatic"
         | "accepted"
@@ -6191,6 +6612,20 @@ export type Database = {
         | "purge_failed"
         | "restored"
         | "purged"
+      trash_purge_blocker_kind:
+        | "active_export"
+        | "active_backup"
+        | "platform_dependency"
+      trash_purge_blocker_state: "active" | "released"
+      trash_purge_job_state:
+        | "queued"
+        | "running"
+        | "waiting_storage"
+        | "retryable"
+        | "blocked"
+        | "completed"
+      trash_purge_source: "manual" | "retention_schedule"
+      trash_purge_storage_state: "pending" | "leased" | "deleted"
       trash_resource_type: "client" | "matter" | "document"
       trash_retention_attention_resolution:
         | "source_restored"
@@ -6360,6 +6795,7 @@ export const Constants = {
         "source_attached",
         "source_indexed",
         "source_unreadable",
+        "purged",
       ],
       document_effective_metadata_resolution: [
         "automatic",
@@ -6633,6 +7069,22 @@ export const Constants = {
         "restored",
         "purged",
       ],
+      trash_purge_blocker_kind: [
+        "active_export",
+        "active_backup",
+        "platform_dependency",
+      ],
+      trash_purge_blocker_state: ["active", "released"],
+      trash_purge_job_state: [
+        "queued",
+        "running",
+        "waiting_storage",
+        "retryable",
+        "blocked",
+        "completed",
+      ],
+      trash_purge_source: ["manual", "retention_schedule"],
+      trash_purge_storage_state: ["pending", "leased", "deleted"],
       trash_resource_type: ["client", "matter", "document"],
       trash_retention_attention_resolution: [
         "source_restored",

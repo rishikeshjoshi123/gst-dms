@@ -11,6 +11,7 @@ import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orch
 import { isScopedSearchIndexClaim, runScopedSearchIndexReprocessWorker } from '@/lib/documents/scoped-reprocess'
 import { validatePdfBytes } from '@/lib/documents/validation'
 import { runTrashOperationCreatedEffect, runTrashRestoreEffect } from '@/lib/trash/restore-effects'
+import { runTrashPurgeBatch } from '@/lib/trash/purge-worker'
 
 type RpcClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
@@ -193,6 +194,22 @@ export const projectTrashRetentionTeamAttention = schedules.task({
     return (result.data as Array<Record<string, unknown>> | null)?.[0]
       ?? { projected_count: 0, already_projected_count: 0 }
   },
+})
+
+export const trashPurgeDispatcher = task({
+  id: 'dispatch-trash-permanent-delete',
+  retry: { maxAttempts: 1 },
+  queue: { concurrencyLimit: 1 },
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    return runTrashPurgeBatch(createServiceClient() as unknown as RpcClient)
+  },
+})
+
+export const reconcileTrashPurge = schedules.task({
+  id: 'reconcile-trash-permanent-delete',
+  cron: { pattern: '* * * * *', timezone: 'UTC' },
+  run: async () => trashPurgeDispatcher.trigger(),
 })
 
 // A successful gateway delivery only proves Trigger accepted the event. This
