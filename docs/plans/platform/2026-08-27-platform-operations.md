@@ -147,6 +147,12 @@ The goals are to make these functions safe, auditable, and operationally useful 
 - The sole exposed surface is a service-only ingestion RPC. Acknowledgement and resolution deliberately remain unavailable until the later AAL2/capability-derived platform command boundary can attribute the acting operator. No alert producer, notification, console, or browser consumer has migrated.
 - Fresh local rollback fixture, direct privilege/append-only/idempotency/revision/privacy checks, generated-type parity (including nullable failure results), TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed.
 
+### Completed prerequisite: private model/runtime/pricing foundation (2026-09-01)
+
+- Migration `00103` adds force-RLS immutable model-catalogue, runtime-config, pricing-version, and pricing-rate histories. Explicit provider-unit contracts use integer micro-USD rate items; effective windows are half-open and overlap-fenced. The resolver returns `unpriced` rather than a zero or partial rate when a version is missing, pending verification, ambiguous, or incomplete.
+- The service-only legacy seed copies old `model_pricing` rows as `legacy_seed_pending_verification`, never claims their correctness, preserves character-priced embeddings as character rates, is replay/concurrency fenced, and fails closed on collision with a verified catalogue. Legacy pricing, usage writers, routes, and UI remain unchanged.
+- Fresh local reset, rollback fixture, effective-window/rate-contract/replay/collision/privacy/privilege checks, generated-type parity, TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed. This is a prerequisite contract only: no browser grant, provider billing, `/platform/models`, or secured usage consumer has migrated.
+
 1. Establish the approved Organisation Administration identity/RBAC foundation, then the Document Record and File Lifecycle foundation. Preserve owning-domain durable outbox/run records and safe state before adding the platform projections.
 2. Add platform trust/config/accounting/audit/alert schema, enum/check constraints, append-only permissions, RLS, capability RPCs, safe projections, revision/idempotency support, and explicit retention jobs. Bootstrap the first Owner with the controlled runbook and audit it.
 3. Build platform authentication/authorisation: isolated route/layout, active-operator lookup, AAL2 enforcement, 10-minute privileged intent, non-disclosing denial, account launcher, Owner lifecycle invariant, and service-role boundary narrowing.

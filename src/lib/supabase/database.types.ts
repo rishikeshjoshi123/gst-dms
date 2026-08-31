@@ -1937,6 +1937,48 @@ export type Database = {
           },
         ]
       }
+      model_catalogue_versions: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          effective_window: unknown
+          id: string
+          model_key: string
+          origin: Database["public"]["Enums"]["platform_configuration_origin"]
+          provider_key: string
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_model_catalogue_state"]
+        }
+        Insert: {
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          model_key: string
+          origin: Database["public"]["Enums"]["platform_configuration_origin"]
+          provider_key: string
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_model_catalogue_state"]
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          model_key?: string
+          origin?: Database["public"]["Enums"]["platform_configuration_origin"]
+          provider_key?: string
+          reason_code?: string
+          revision?: number
+          state?: Database["public"]["Enums"]["platform_model_catalogue_state"]
+        }
+        Relationships: []
+      }
       model_pricing: {
         Row: {
           created_at: string
@@ -3175,6 +3217,100 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_pricing_rate_items: {
+        Row: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          created_at: string
+          id: string
+          micro_usd_amount: number
+          pricing_version_id: string
+          unit_quantity: number
+        }
+        Insert: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          created_at?: string
+          id?: string
+          micro_usd_amount: number
+          pricing_version_id: string
+          unit_quantity: number
+        }
+        Update: {
+          billable_unit?: Database["public"]["Enums"]["provider_billable_unit"]
+          created_at?: string
+          id?: string
+          micro_usd_amount?: number
+          pricing_version_id?: string
+          unit_quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_pricing_rate_items_pricing_version_id_fkey"
+            columns: ["pricing_version_id"]
+            isOneToOne: false
+            referencedRelation: "provider_pricing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_pricing_versions: {
+        Row: {
+          catalogue_version_id: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          effective_window: unknown
+          id: string
+          legacy_source_model_name: string | null
+          model_key: string
+          origin: Database["public"]["Enums"]["platform_configuration_origin"]
+          pricing_contract: Database["public"]["Enums"]["provider_pricing_contract"]
+          pricing_state: Database["public"]["Enums"]["provider_pricing_state"]
+          provider_key: string
+          reason_code: string
+          revision: number
+        }
+        Insert: {
+          catalogue_version_id: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          legacy_source_model_name?: string | null
+          model_key: string
+          origin: Database["public"]["Enums"]["platform_configuration_origin"]
+          pricing_contract: Database["public"]["Enums"]["provider_pricing_contract"]
+          pricing_state: Database["public"]["Enums"]["provider_pricing_state"]
+          provider_key: string
+          reason_code: string
+          revision: number
+        }
+        Update: {
+          catalogue_version_id?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          legacy_source_model_name?: string | null
+          model_key?: string
+          origin?: Database["public"]["Enums"]["platform_configuration_origin"]
+          pricing_contract?: Database["public"]["Enums"]["provider_pricing_contract"]
+          pricing_state?: Database["public"]["Enums"]["provider_pricing_state"]
+          provider_key?: string
+          reason_code?: string
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_pricing_versions_catalogue_fkey"
+            columns: ["catalogue_version_id", "provider_key", "model_key"]
+            isOneToOne: false
+            referencedRelation: "model_catalogue_versions"
+            referencedColumns: ["id", "provider_key", "model_key"]
+          },
+        ]
+      }
       resource_holds: {
         Row: {
           authority_reference: string | null
@@ -3348,6 +3484,59 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "resource_trash_memberships"
             referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      runtime_config_versions: {
+        Row: {
+          catalogue_version_id: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          effective_window: unknown
+          id: string
+          model_key: string
+          operation_family: string
+          provider_key: string
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_runtime_config_state"]
+        }
+        Insert: {
+          catalogue_version_id: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          model_key: string
+          operation_family: string
+          provider_key: string
+          reason_code: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_runtime_config_state"]
+        }
+        Update: {
+          catalogue_version_id?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          effective_window?: unknown
+          id?: string
+          model_key?: string
+          operation_family?: string
+          provider_key?: string
+          reason_code?: string
+          revision?: number
+          state?: Database["public"]["Enums"]["platform_runtime_config_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runtime_config_versions_catalogue_fkey"
+            columns: ["catalogue_version_id", "provider_key", "model_key"]
+            isOneToOne: false
+            referencedRelation: "model_catalogue_versions"
+            referencedColumns: ["id", "provider_key", "model_key"]
           },
         ]
       }
@@ -5680,6 +5869,15 @@ export type Database = {
           lifecycle_revision: number
         }[]
       }
+      backfill_legacy_model_pricing: {
+        Args: never
+        Returns: {
+          code: string
+          conflict_count: number
+          seeded_count: number
+          skipped_count: number
+        }[]
+      }
       begin_document_processing_ai_extraction: {
         Args: {
           p_catalogue_version: string
@@ -7313,6 +7511,17 @@ export type Database = {
           lease_token: string
         }[]
       }
+      resolve_verified_provider_pricing_version: {
+        Args: {
+          p_model_key: string
+          p_occurred_at: string
+          p_provider_key: string
+        }
+        Returns: {
+          code: string
+          pricing_version_id: string | null
+        }[]
+      }
       restore_trash_operation: {
         Args: { p_idempotency_key: string; p_operation_id: string }
         Returns: {
@@ -7752,6 +7961,13 @@ export type Database = {
         | "platform"
         | "organisation"
         | "operational_run"
+      platform_configuration_origin:
+        | "platform_verified"
+        | "legacy_seed_pending_verification"
+      platform_model_catalogue_state:
+        | "active"
+        | "retired"
+        | "legacy_seed_pending_verification"
       platform_operator_role:
         | "platform_owner"
         | "platform_operator"
@@ -7766,6 +7982,20 @@ export type Database = {
         | "platform.features.kill_switch.manage"
         | "platform.operators.manage"
         | "platform.backup_recovery.execute"
+      platform_runtime_config_state: "enabled" | "paused"
+      provider_billable_unit:
+        | "input_token"
+        | "output_token"
+        | "cached_input_token"
+        | "image"
+        | "page"
+        | "character"
+        | "request"
+      provider_pricing_contract:
+        | "input_output_tokens"
+        | "input_tokens"
+        | "input_characters"
+      provider_pricing_state: "priced" | "legacy_seed_pending_verification"
       resource_hold_scope: "resource" | "subtree"
       resource_hold_state: "active" | "released"
       resource_record_state: "active" | "trashed" | "purging" | "purged"
@@ -8245,6 +8475,15 @@ export const Constants = {
         "organisation",
         "operational_run",
       ],
+      platform_configuration_origin: [
+        "platform_verified",
+        "legacy_seed_pending_verification",
+      ],
+      platform_model_catalogue_state: [
+        "active",
+        "retired",
+        "legacy_seed_pending_verification",
+      ],
       platform_operator_role: [
         "platform_owner",
         "platform_operator",
@@ -8261,6 +8500,22 @@ export const Constants = {
         "platform.operators.manage",
         "platform.backup_recovery.execute",
       ],
+      platform_runtime_config_state: ["enabled", "paused"],
+      provider_billable_unit: [
+        "input_token",
+        "output_token",
+        "cached_input_token",
+        "image",
+        "page",
+        "character",
+        "request",
+      ],
+      provider_pricing_contract: [
+        "input_output_tokens",
+        "input_tokens",
+        "input_characters",
+      ],
+      provider_pricing_state: ["priced", "legacy_seed_pending_verification"],
       resource_hold_scope: ["resource", "subtree"],
       resource_hold_state: ["active", "released"],
       resource_record_state: ["active", "trashed", "purging", "purged"],
