@@ -5,6 +5,7 @@ import { getCurrentOrgId } from './org'
 import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
+import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -282,6 +283,7 @@ export async function deleteMatterAction(matterId: string, idempotencyKey = `tra
 
   if (error || !result) return { error: 'Could not move this matter to Trash. Please try again.' }
   if (result.code === 'trashed' || result.code === 'already_trashed') {
+    scheduleDocumentOutboxWake()
     revalidatePath('/matters'); revalidatePath('/dashboard')
     return { success: true, operationId: result.operation_id, status: result.code }
   }

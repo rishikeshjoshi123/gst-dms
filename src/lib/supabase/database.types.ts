@@ -2155,7 +2155,7 @@ export type Database = {
           created_at: string
           org_id: string
           policy_version: number
-          trash_retention_days: number | null
+          trash_retention_days: number
           trash_retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
           updated_at: string
           updated_by: string | null
@@ -2165,7 +2165,7 @@ export type Database = {
           created_at?: string
           org_id: string
           policy_version?: number
-          trash_retention_days?: number | null
+          trash_retention_days?: number
           trash_retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
           updated_at?: string
           updated_by?: string | null
@@ -2175,7 +2175,7 @@ export type Database = {
           created_at?: string
           org_id?: string
           policy_version?: number
-          trash_retention_days?: number | null
+          trash_retention_days?: number
           trash_retention_mode?: Database["public"]["Enums"]["trash_retention_mode"]
           updated_at?: string
           updated_by?: string | null
@@ -3654,6 +3654,51 @@ export type Database = {
           },
         ]
       }
+      trash_operation_created_effect_receipts: {
+        Row: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Insert: {
+          affected_count: number
+          event_id: string
+          event_kind: string
+          handled_at?: string
+          operation_id: string
+          org_id: string
+          outcome_code: string
+        }
+        Update: {
+          affected_count?: number
+          event_id?: string
+          event_kind?: string
+          handled_at?: string
+          operation_id?: string
+          org_id?: string
+          outcome_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_operation_created_effect_receipts_event_org_fkey"
+            columns: ["org_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "outbox_events"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "trash_operation_created_effect_receipts_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       trash_operations: {
         Row: {
           actor_user_id: string | null
@@ -3839,51 +3884,6 @@ export type Database = {
           },
         ]
       }
-      trash_operation_created_effect_receipts: {
-        Row: {
-          affected_count: number
-          event_id: string
-          event_kind: string
-          handled_at: string
-          operation_id: string
-          org_id: string
-          outcome_code: string
-        }
-        Insert: {
-          affected_count: number
-          event_id: string
-          event_kind: string
-          handled_at?: string
-          operation_id: string
-          org_id: string
-          outcome_code: string
-        }
-        Update: {
-          affected_count?: number
-          event_id?: string
-          event_kind?: string
-          handled_at?: string
-          operation_id?: string
-          org_id?: string
-          outcome_code?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "trash_operation_created_effect_receipts_event_org_fkey"
-            columns: ["org_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "outbox_events"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "trash_operation_created_effect_receipts_operation_org_fkey"
-            columns: ["org_id", "operation_id"]
-            isOneToOne: false
-            referencedRelation: "trash_operations"
-            referencedColumns: ["org_id", "id"]
-          },
-        ]
-      }
       trash_restore_receipts: {
         Row: {
           actor_user_id: string
@@ -3928,6 +3928,53 @@ export type Database = {
           },
           {
             foreignKeyName: "trash_restore_receipts_operation_org_fkey"
+            columns: ["org_id", "operation_id"]
+            isOneToOne: false
+            referencedRelation: "trash_operations"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      trash_retention_team_attention_items: {
+        Row: {
+          available_at: string
+          created_at: string
+          operation_id: string
+          org_id: string
+          resolution:
+            | Database["public"]["Enums"]["trash_retention_attention_resolution"]
+            | null
+          resolved_at: string | null
+          scheduled_permanent_deletion_at: string
+          state: Database["public"]["Enums"]["trash_retention_attention_state"]
+        }
+        Insert: {
+          available_at: string
+          created_at?: string
+          operation_id: string
+          org_id: string
+          resolution?:
+            | Database["public"]["Enums"]["trash_retention_attention_resolution"]
+            | null
+          resolved_at?: string | null
+          scheduled_permanent_deletion_at: string
+          state?: Database["public"]["Enums"]["trash_retention_attention_state"]
+        }
+        Update: {
+          available_at?: string
+          created_at?: string
+          operation_id?: string
+          org_id?: string
+          resolution?:
+            | Database["public"]["Enums"]["trash_retention_attention_resolution"]
+            | null
+          resolved_at?: string | null
+          scheduled_permanent_deletion_at?: string
+          state?: Database["public"]["Enums"]["trash_retention_attention_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trash_retention_attention_operation_org_fkey"
             columns: ["org_id", "operation_id"]
             isOneToOne: false
             referencedRelation: "trash_operations"
@@ -4883,6 +4930,71 @@ export type Database = {
           object_key: string
         }[]
       }
+      get_exact_resource_trash_context: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+        }[]
+      }
+      get_exact_trashed_resource_projection: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          related_documents: Json
+          related_inspector_metadata: Json
+          related_links: Json
+          related_matters: Json
+          related_notes: Json
+          related_wiki_sections: Json
+          resource_id: string
+          resource_record: Json
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_name: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+          trashed_by_name: string
+        }[]
+      }
       get_intake_duplicate_resolution: {
         Args: { p_intake_id: string }
         Returns: {
@@ -4942,129 +5054,6 @@ export type Database = {
           state: Database["public"]["Enums"]["organisation_membership_state"]
         }[]
       }
-      get_exact_resource_trash_context: {
-        Args: {
-          p_expected_matter_id?: string | null
-          p_resource_id: string
-          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-        }
-        Returns: {
-          can_restore: boolean
-          cause: Database["public"]["Enums"]["resource_trash_cause"]
-          membership_id: string
-          operation_id: string
-          operation_state: Database["public"]["Enums"]["trash_operation_state"]
-          parent_membership_id: string | null
-          auto_purge_at: string | null
-          auto_purge_enabled: boolean
-          blocker_count: number
-          purge_eligible_at: string | null
-          purge_scheduled_at: string | null
-          retention_days: number | null
-          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
-          resource_id: string
-          resource_type: Database["public"]["Enums"]["trash_resource_type"]
-          root_resource_id: string
-          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-          trashed_at: string
-          trashed_by: string | null
-        }[]
-      }
-      get_exact_trashed_resource_projection: {
-        Args: {
-          p_expected_matter_id?: string | null
-          p_resource_id: string
-          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-        }
-        Returns: {
-          auto_purge_at: string | null
-          auto_purge_enabled: boolean
-          blocker_count: number
-          can_restore: boolean
-          cause: Database["public"]["Enums"]["resource_trash_cause"]
-          membership_id: string
-          operation_id: string
-          operation_state: Database["public"]["Enums"]["trash_operation_state"]
-          parent_membership_id: string | null
-          purge_eligible_at: string | null
-          purge_scheduled_at: string | null
-          related_documents: Json
-          related_inspector_metadata: Json
-          related_links: Json
-          related_matters: Json
-          related_notes: Json
-          related_wiki_sections: Json
-          resource_id: string
-          resource_record: Json
-          resource_type: Database["public"]["Enums"]["trash_resource_type"]
-          retention_days: number | null
-          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
-          root_resource_id: string
-          root_resource_name: string
-          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-          trashed_at: string
-          trashed_by: string | null
-          trashed_by_name: string
-        }[]
-      }
-      get_trashed_document_version_read_grant: {
-        Args: {
-          p_document_id: string
-          p_document_version_id: string
-          p_expected_matter_id: string
-        }
-        Returns: {
-          bucket_id: string
-          code: string
-          object_key: string
-        }[]
-      }
-      get_trash_workspace: {
-        Args: {
-          p_limit?: number
-          p_org_id: string
-          p_query?: string | null
-          p_resource_type?: Database["public"]["Enums"]["trash_resource_type"] | null
-          p_selected_operation_id?: string | null
-        }
-        Returns: {
-          deleted_at: string | null
-          deleted_by_name: string | null
-          included_client_count: number | null
-          included_document_count: number | null
-          included_matter_count: number | null
-          member_client_id: string | null
-          member_document_id: string | null
-          member_matter_id: string | null
-          member_membership_id: string | null
-          member_name: string | null
-          member_parent_membership_id: string | null
-          member_resource_id: string | null
-          member_resource_type: Database["public"]["Enums"]["trash_resource_type"] | null
-          operation_id: string | null
-          operation_storage_bytes: number | null
-          reason: string | null
-          root_client_id: string | null
-          root_document_id: string | null
-          root_matter_id: string | null
-          root_membership_id: string | null
-          root_name: string | null
-          root_parent_context: string | null
-          root_resource_id: string | null
-          root_resource_type: Database["public"]["Enums"]["trash_resource_type"] | null
-          row_kind: string
-          total_storage_bytes: number
-        }[]
-      }
-      get_trash_restore_preflight: {
-        Args: { p_operation_id: string }
-        Returns: {
-          blocker_code: string
-          blocking_operation_id: string
-          can_restore: boolean
-          code: string
-        }[]
-      }
       get_my_pending_organisation_invites: {
         Args: never
         Returns: {
@@ -5099,6 +5088,15 @@ export type Database = {
           revision: number
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_invite_state"]
+        }[]
+      }
+      get_organisation_trash_retention_policy: {
+        Args: { p_org_id: string }
+        Returns: {
+          can_manage: boolean
+          policy_version: number
+          trash_retention_days: number
+          updated_at: string
         }[]
       }
       get_staged_document_backfill_action_guard: {
@@ -5173,7 +5171,75 @@ export type Database = {
           source_object_key: string
         }[]
       }
-      handle_trash_restore_effect: {
+      get_trash_restore_preflight: {
+        Args: { p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          can_restore: boolean
+          code: string
+        }[]
+      }
+      get_trash_retention_team_attention: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          operation_id: string
+          projected_at: string
+          root_label: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          scheduled_permanent_deletion_at: string
+        }[]
+      }
+      get_trash_workspace: {
+        Args: {
+          p_limit?: number
+          p_org_id: string
+          p_query?: string
+          p_resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          p_selected_operation_id?: string
+        }
+        Returns: {
+          deleted_at: string
+          deleted_by_name: string
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          member_client_id: string
+          member_document_id: string
+          member_matter_id: string
+          member_membership_id: string
+          member_name: string
+          member_parent_membership_id: string
+          member_resource_id: string
+          member_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          operation_id: string
+          operation_storage_bytes: number
+          reason: string
+          root_client_id: string
+          root_document_id: string
+          root_matter_id: string
+          root_membership_id: string
+          root_name: string
+          root_parent_context: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          row_kind: string
+          total_storage_bytes: number
+        }[]
+      }
+      get_trashed_document_version_read_grant: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_expected_matter_id: string
+        }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
+        }[]
+      }
+      handle_trash_operation_created_effect: {
         Args: {
           p_delivery_lease_token: string
           p_event_id: string
@@ -5186,7 +5252,7 @@ export type Database = {
           outcome_code: string
         }[]
       }
-      handle_trash_operation_created_effect: {
+      handle_trash_restore_effect: {
         Args: {
           p_delivery_lease_token: string
           p_event_id: string
@@ -5377,6 +5443,13 @@ export type Database = {
           code: string
           link_count: number
           notification_count: number
+        }[]
+      }
+      project_due_trash_retention_team_attention: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          already_projected_count: number
+          projected_count: number
         }[]
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
@@ -5655,42 +5728,6 @@ export type Database = {
           scope: Database["public"]["Enums"]["document_processing_scope"]
         }[]
       }
-      trash_resource: {
-        Args: {
-          p_idempotency_key: string
-          p_resource_id: string
-          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-        }
-        Returns: {
-          code: string
-          included_client_count: number
-          included_document_count: number
-          included_matter_count: number
-          operation_id: string
-          preexisting_trashed_descendant_count: number
-        }[]
-      }
-      restore_trash_operation: {
-        Args: { p_idempotency_key: string; p_operation_id: string }
-        Returns: {
-          blocker_code: string
-          blocking_operation_id: string
-          code: string
-          operation_id: string
-          root_client_id: string
-          root_document_id: string
-          root_matter_id: string
-          root_resource_id: string
-          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
-        }[]
-      }
-      trash_restore_blocker: {
-        Args: { p_operation_id: string; p_org_id: string }
-        Returns: {
-          blocker_code: string
-          blocking_operation_id: string
-        }[]
-      }
       resend_organisation_invite: {
         Args: {
           p_expected_revision: number
@@ -5735,6 +5772,20 @@ export type Database = {
         Returns: {
           code: string
           lease_token: string
+        }[]
+      }
+      restore_trash_operation: {
+        Args: { p_idempotency_key: string; p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          code: string
+          operation_id: string
+          root_client_id: string
+          root_document_id: string
+          root_matter_id: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
         }[]
       }
       search_index_reprocess_retry_delay_seconds: {
@@ -5796,6 +5847,41 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      trash_resource: {
+        Args: {
+          p_idempotency_key: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          code: string
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          operation_id: string
+          preexisting_trashed_descendant_count: number
+        }[]
+      }
+      trash_restore_blocker: {
+        Args: { p_operation_id: string; p_org_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+        }[]
+      }
+      update_organisation_trash_retention_policy: {
+        Args: {
+          p_expected_policy_version: number
+          p_org_id: string
+          p_trash_retention_days: number
+        }
+        Returns: {
+          code: string
+          policy_version: number
+          trash_retention_days: number
+          updated_at: string
         }[]
       }
       validate_document_intake_asset: {
@@ -6106,6 +6192,11 @@ export type Database = {
         | "restored"
         | "purged"
       trash_resource_type: "client" | "matter" | "document"
+      trash_retention_attention_resolution:
+        | "source_restored"
+        | "source_purged"
+        | "source_ineligible"
+      trash_retention_attention_state: "active" | "resolved"
       trash_retention_mode: "manual_only" | "retention_period"
       upload_session_state:
         | "reserved"
@@ -6543,6 +6634,12 @@ export const Constants = {
         "purged",
       ],
       trash_resource_type: ["client", "matter", "document"],
+      trash_retention_attention_resolution: [
+        "source_restored",
+        "source_purged",
+        "source_ineligible",
+      ],
+      trash_retention_attention_state: ["active", "resolved"],
       trash_retention_mode: ["manual_only", "retention_period"],
       upload_session_state: [
         "reserved",

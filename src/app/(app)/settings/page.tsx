@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SettingsClient } from './SettingsClient'
 import type { Metadata } from 'next'
 import { getCurrentOrgId } from '@/lib/actions/org'
+import { getOrganisationTrashRetentionPolicy } from '@/lib/trash/retention-policy'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -23,7 +24,10 @@ export default async function SettingsPage() {
 
   if (!org) redirect('/onboarding')
 
-  const { data: memberRows } = await (supabase.rpc as any)('get_my_team_members')
+  const [{ data: memberRows }, retentionPolicyResult] = await Promise.all([
+    (supabase.rpc as any)('get_my_team_members'),
+    getOrganisationTrashRetentionPolicy(orgId),
+  ])
   const members = (memberRows ?? []).map((m: any) => ({ membership_id: m.membership_id, role: m.role as 'admin' | 'associate' | 'viewer', email: m.authorised_email ?? null, full_name: m.display_name ?? null, professional_title: m.professional_title ?? null, is_owner: m.is_owner, state: m.state, joined_at: m.joined_at }))
 
   const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
@@ -52,6 +56,8 @@ export default async function SettingsPage() {
         status: i.state,
         expires_at: i.expires_at,
       }))}
+      retentionPolicy={retentionPolicyResult.policy}
+      retentionPolicyLoadError={retentionPolicyResult.error}
     />
   )
 }

@@ -18,6 +18,8 @@ import {
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import type { TrashRetentionPolicy } from '@/lib/trash/retention-policy'
+import { TrashRetentionSettingsSection } from './TrashRetentionSettingsSection'
 
 interface Member {
   membership_id: string
@@ -46,6 +48,8 @@ interface SettingsClientProps {
   capabilities: string[]
   members: Member[]
   pendingInvites: Invite[]
+  retentionPolicy: TrashRetentionPolicy | null
+  retentionPolicyLoadError: boolean
 }
 
 const roleIcon: Record<string, React.ElementType> = {
@@ -62,6 +66,8 @@ export function SettingsClient({
   capabilities,
   members,
   pendingInvites,
+  retentionPolicy,
+  retentionPolicyLoadError,
 }: SettingsClientProps) {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -135,6 +141,11 @@ export function SettingsClient({
             </div>
           </div>
         </div>
+
+        <TrashRetentionSettingsSection
+          initialPolicy={retentionPolicy}
+          loadError={retentionPolicyLoadError}
+        />
 
         {/* Team Members Card */}
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">

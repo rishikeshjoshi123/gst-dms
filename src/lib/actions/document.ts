@@ -817,6 +817,7 @@ export async function deleteDocument(documentId: string, idempotencyKey = `trash
 
   if (error || !result) return { error: 'Could not move this document to Trash. Please try again.' }
   if (result.code === 'trashed' || result.code === 'already_trashed') {
+    scheduleDocumentOutboxWake()
     revalidatePath('/matters')
     return { success: true, operationId: result.operation_id, status: result.code }
   }

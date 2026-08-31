@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { formatDistanceToNow, differenceInDays, isToday, isYesterday, differenceInCalendarWeeks } from 'date-fns'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
+import type { TrashRetentionTeamAttentionItem } from '@/lib/trash/retention-policy'
+import { TrashRetentionTeamAttentionPanel } from './TrashRetentionTeamAttentionPanel'
 
 interface DashboardContentProps {
   firstName: string
@@ -22,6 +24,7 @@ interface DashboardContentProps {
   statCards: Array<{ label: string; value: number; href: string }>
   activityLogs: any[]
   upcomingDeadlines: any[]
+  trashRetentionAttention: TrashRetentionTeamAttentionItem[]
 }
 
 /* ─── Stat Card Config ─────────────────── */
@@ -130,6 +133,7 @@ export function DashboardContent({
   statCards,
   activityLogs,
   upcomingDeadlines,
+  trashRetentionAttention,
 }: DashboardContentProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResultItem[]>([])
@@ -330,6 +334,8 @@ export function DashboardContent({
           <NeedsAttentionPanel documents={needsReviewDocs} />
         </div>
       )}
+
+      <TrashRetentionTeamAttentionPanel items={trashRetentionAttention} />
 
       {/* ── Empty State (no clients) ──────────────────────────────── */}
       {stats.clients === 0 && (

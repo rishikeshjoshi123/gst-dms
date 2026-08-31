@@ -113,7 +113,7 @@ async function getTrashProjection<Record>(
   const { data, error } = await supabase.rpc('get_exact_trashed_resource_projection', {
     p_resource_type: resourceType,
     p_resource_id: resourceId,
-    p_expected_matter_id: expectedMatterId,
+    p_expected_matter_id: expectedMatterId ?? undefined,
   })
 
   const projection = data?.[0]

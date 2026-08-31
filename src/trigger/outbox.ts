@@ -179,6 +179,22 @@ export const recoverDocumentOutbox = schedules.task({
   run: async () => documentOutboxDispatcher.trigger({}),
 })
 
+// Trash operations already contain their authoritative deletion schedule. A
+// minute-level projector creates the one operation-keyed Team attention row
+// only inside its 24-hour window; it never starts permanent deletion.
+export const projectTrashRetentionTeamAttention = schedules.task({
+  id: 'project-trash-retention-team-attention',
+  cron: { pattern: '* * * * *', timezone: 'UTC' },
+  run: async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const client = createServiceClient() as unknown as RpcClient
+    const result = await client.rpc('project_due_trash_retention_team_attention', { p_batch_size: 100 })
+    if (result.error) throw new Error('Trash retention attention projection unavailable')
+    return (result.data as Array<Record<string, unknown>> | null)?.[0]
+      ?? { projected_count: 0, already_projected_count: 0 }
+  },
+})
+
 // A successful gateway delivery only proves Trigger accepted the event. This
 // The reconciler replays only expired validation leases. Legacy document
 // processing is fenced into a durable recovery case because its downstream

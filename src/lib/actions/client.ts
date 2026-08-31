@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { appendActivity } from '@/lib/activity'
+import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 
 // ── Read Clients ──────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ export async function deleteClientAction(id: string, idempotencyKey = `trash.cli
 
   if (error || !result) return { error: 'Could not move this client to Trash. Please try again.' }
   if (result.code === 'trashed' || result.code === 'already_trashed') {
+    scheduleDocumentOutboxWake()
     revalidatePath('/clients'); revalidatePath('/dashboard')
     revalidatePath('/matters')
     return { success: true, operationId: result.operation_id, status: result.code }
