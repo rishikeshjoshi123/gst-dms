@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: approved
 created: 2026-08-25
-updated: 2026-08-27
+updated: 2026-08-31
 owners:
   - product
   - engineering
@@ -136,6 +136,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - Needs action includes overdue verified deadlines/tasks, urgent assigned Review, and assigned failures. Coming up is grouped by date.
 - Overdue deadlines are always included; the current future-only query behavior is removed. Provisional deadlines are clearly labelled and appear only when the user must verify them.
 - Owner/Admin may see a compact Team attention section for unassigned urgent Review, unassigned urgent tasks, and systemic failures. Do not add portfolio totals or vanity metrics.
+- Team attention also includes a deduplicated Trash warning 24 hours before a root Trash operation is scheduled for permanent deletion. It links to that operation for restore or authorised permanent deletion and resolves automatically if the source is restored or deleted first; it is an organisation attention projection, not a copied task or Review item.
 - Use actual source state to derive the first-use checklist: organisation profile, first client, first matter, first upload, and team invitation where authorised. Do not store completion flags that can drift.
 - Track per-user recent resource views with tenant-scoped rows, bounded history, and explicit access/Trash filters. Viewing Activity or a list page does not overwrite substantive resume context.
 - Keep a restrained greeting/date if useful, but no motivational quotes, decorative illustrations, generated summaries, or theatrical motion.
@@ -156,6 +157,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - Associate can manage operational tasks and resolve permitted extraction, relationship, placement, and deadline Review. Owner/Admin has organisation triage, reassignment, configuration, and privileged decision capabilities. Financial/internal-cost and destructive permissions remain with their owning plans.
 - Future matter-level access automatically limits Activity, My Work, Review, notifications, counts, and locators. No projection reveals inaccessible existence or counts.
 - Trash suspends dependent tasks/Review/reminders and removes them from active Today/My Work. Restore re-evaluates relevance; it does not send accumulated notifications or reopen stale decisions blindly.
+- Trash scheduled-deletion warnings are the exception to ordinary Trash suspension: only authorised Owner/Admin users see the 24-hour Team attention projection, and access is revalidated before identity or counts are disclosed.
 - Member removal archives their personal notifications, preserves Activity actor snapshots, unassigns open work, and triggers Admin/Owner attention for urgent orphaned responsibilities.
 
 ## Implementation Plan

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { isReprocessIdempotencyKey, isReprocessScope, reprocessScopes } from './reprocess'
+import { isReprocessIdempotencyKey, isReprocessScope, reprocessScopes } from '../reprocess-policy'
 
 test('accepts exactly the approved explicit reprocess scopes', () => {
   assert.deepEqual(reprocessScopes, ['extract', 'ocr', 'relationships', 'search_index', 'full'])

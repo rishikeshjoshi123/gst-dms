@@ -43,7 +43,7 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 | Plan | Status | Updated |
 | --- | --- | --- |
 | [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `approved` | 2026-08-27 |
-| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `approved` | 2026-08-27 |
+| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `approved` | 2026-08-31 |
 | [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-08-25 |
 | [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-08-27 |
 | [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-08-27 |
@@ -56,7 +56,7 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 | [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-29 |
 | [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `in-progress` | 2026-08-29 |
 | [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-29 |
-| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-08-30 |
+| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-08-31 |
 | [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `approved` | 2026-08-27 |
 | [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-08-27 |
 | [Platform Operations](./platform/2026-08-27-platform-operations.md) | `approved` | 2026-08-27 |
@@ -65,4 +65,5 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 
 | Plan | Status | Updated |
 | --- | --- | --- |
+| [Design Partner Pilot Execution Sequence](./operations/2026-08-29-design-partner-pilot-execution-sequence.md) | `proposed` | 2026-08-29 |
 | [Project Portal and GitHub Pages](./operations/2026-08-27-project-portal-and-github-pages.md) | `in-progress` | 2026-08-27 |

@@ -2,26 +2,19 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
-
-export const reprocessScopes = ['extract', 'ocr', 'relationships', 'search_index', 'full'] as const
-export type ReprocessScope = typeof reprocessScopes[number]
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-export function isReprocessScope(scope: unknown): scope is ReprocessScope {
-  return typeof scope === 'string' && (reprocessScopes as readonly string[]).includes(scope)
-}
-
-export function isReprocessIdempotencyKey(value: unknown): value is string {
-  return typeof value === 'string' && uuidPattern.test(value)
-}
+import {
+  isReprocessDocumentId,
+  isReprocessIdempotencyKey,
+  isReprocessScope,
+  type ReprocessScope,
+} from '@/lib/reprocess-policy'
 
 export async function reprocessDocument(
   documentId: string,
   scope: ReprocessScope,
   idempotencyKey: string,
 ) {
-  if (!uuidPattern.test(documentId) || !isReprocessScope(scope) || !isReprocessIdempotencyKey(idempotencyKey)) {
+  if (!isReprocessDocumentId(documentId) || !isReprocessScope(scope) || !isReprocessIdempotencyKey(idempotencyKey)) {
     return { error: 'Choose one supported reprocessing scope.' }
   }
   if (scope !== 'search_index') {
