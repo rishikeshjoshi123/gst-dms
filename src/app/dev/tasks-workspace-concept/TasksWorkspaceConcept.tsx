@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
+  AtSign,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -14,11 +15,13 @@ import {
   Gavel,
   Info,
   ListTodo,
+  MessageSquare,
   MoreHorizontal,
   PauseCircle,
   PlayCircle,
   Plus,
   Search,
+  Send,
   ShieldCheck,
   UserRound,
   Users,
@@ -27,6 +30,7 @@ import {
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -59,6 +63,7 @@ type PreviewState = 'default' | 'loading' | 'empty' | 'error'
 type Role = 'owner_admin' | 'associate' | 'viewer'
 type StatusFilter = 'active' | 'all' | TaskStatus
 type AssignmentFilter = 'all' | 'mine' | 'unassigned'
+type DetailTab = 'details' | 'comments'
 
 type Task = {
   id: string
@@ -72,8 +77,18 @@ type Task = {
   client?: string
   matter?: string
   document?: string
-  origin: { kind: 'note' | 'manual'; label: string; snapshot?: string; author?: string; createdAt: string }
+  origin: { kind: 'note' | 'manual'; label: string; snapshot?: string; author?: string; createdAt: string; notesHref?: string }
   updatedAt: string
+}
+
+type TaskComment = {
+  id: string
+  author: string
+  initials: string
+  at: string
+  body: React.ReactNode
+  replyTo?: { author: string; excerpt: string }
+  unread?: boolean
 }
 
 const initialTasks: Task[] = [
@@ -95,6 +110,7 @@ const initialTasks: Task[] = [
       snapshot: 'I created a follow-up for the invoice verification. It should be completed before we finalise the grounds.',
       author: 'Meera Shah',
       createdAt: '1 Sep 2026 · 10:17 IST',
+      notesHref: '/dev/notes-case-brief-concept?view=notes&thread=hearing&message=note-18&focus=1',
     },
     updatedAt: 'Today · 11:42 IST',
   },
@@ -186,6 +202,49 @@ const initialTasks: Task[] = [
   },
 ]
 
+const initialComments: Record<string, TaskComment[]> = {
+  'task-482': [
+    {
+      id: 'comment-482-1',
+      author: 'Meera Shah',
+      initials: 'MS',
+      at: 'Today, 11:58',
+      body: <>The residual list is now reconciled against the signed bundle. <span className="rounded bg-[var(--accent-muted)] px-1 font-medium text-[var(--accent)]">@Rishikesh</span>, please confirm the two invoice references marked in yellow.</>,
+    },
+    {
+      id: 'comment-482-2',
+      author: 'Rishikesh Joshi',
+      initials: 'RJ',
+      at: 'Today, 12:16',
+      replyTo: { author: 'Meera Shah', excerpt: 'Please confirm the two invoice references marked in yellow.' },
+      body: 'Confirmed. Both references match the signed appeal bundle; I have recorded the page numbers in the working paper.',
+      unread: true,
+    },
+  ],
+  'task-479': [],
+  'task-476': [
+    { id: 'comment-476-1', author: 'Ananya Kapoor', initials: 'AK', at: '30 Aug, 11:06', body: 'I will use the verified event dates only. Please add any counsel-specific framing directly here.' },
+  ],
+  'task-470': [
+    { id: 'comment-470-1', author: 'Ananya Kapoor', initials: 'AK', at: '29 Aug, 16:02', body: 'The signed authority was sent to counsel and receipt was acknowledged. Adding this after completion for the record.' },
+  ],
+  'task-465': [
+    { id: 'comment-465-1', author: 'Meera Shah', initials: 'MS', at: '28 Aug, 10:11', body: 'The task is cancelled, but comments remain available if the client later supplies additional context.' },
+  ],
+  'task-461': [
+    { id: 'comment-461-1', author: 'Rishikesh Joshi', initials: 'RJ', at: '30 Aug, 10:31', body: 'The matter entered Trash before this review was completed. This conversation is preserved but read-only until restore re-evaluates the task.' },
+  ],
+  'task-458': [
+    {
+      id: 'comment-458-1',
+      author: 'Ananya Kapoor',
+      initials: 'AK',
+      at: '22 Aug, 18:03',
+      body: 'Long-content fixture: the reconciliation workbook contains supplier confirmations spanning several reporting periods, a schedule of exceptions, annexure references, and explanatory observations that must wrap naturally without widening the pane or hiding the reply action. The message remains readable as one professional left-aligned entry rather than becoming a chat bubble.',
+    },
+  ],
+}
+
 const statusLabels: Record<TaskStatus, string> = {
   open: 'Open',
   in_progress: 'In progress',
@@ -199,7 +258,7 @@ const statusVariants: Record<TaskStatus, 'default' | 'success' | 'muted' | 'warn
   in_progress: 'warning',
   completed: 'success',
   cancelled: 'muted',
-  suspended: 'muted',
+  suspended: 'warning',
 }
 
 const roleLabels: Record<Role, string> = {
@@ -313,7 +372,7 @@ function formatDueCompact(task: Task) {
 }
 
 function TaskTable({ tasks, selectedId, onSelect }: { tasks: Task[]; selectedId: string | null; onSelect: (id: string) => void }) {
-  return <Table className="table-fixed"><TableCaption>Organisation tasks. Select a task to view details.</TableCaption><colgroup><col className="w-[46%]" /><col className="w-[20%]" /><col className="w-[18%]" /><col className="w-[16%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{tasks.map((task) => <TableRow key={task.id} interactive selected={selectedId === task.id} tabIndex={0} aria-label={`View details for ${task.title}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(task.id) } }} className="cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]"><TableCell><div className="flex min-h-11 w-full min-w-0 items-center gap-3 text-left"><span className="min-w-0"><span className="block truncate font-medium text-[var(--text-primary)]">{task.title}</span><span className="mt-0.5 flex min-w-0 items-center gap-2"><span className="truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</span><PriorityText priority={task.priority} quiet /></span></span></div></TableCell><TableCell className="truncate text-xs font-medium">{task.assignee ?? <span className="text-[var(--warning)]">Unassigned</span>}</TableCell><TableCell className="truncate font-mono text-xs text-[var(--text-secondary)]">{formatDueCompact(task)}</TableCell><TableCell><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge></TableCell></TableRow>)}</TableBody></Table>
+  return <Table className="table-fixed"><TableCaption>Organisation tasks. Select a task to view details.</TableCaption><colgroup><col className="w-[40%]" /><col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[15%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Created by</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{tasks.map((task) => <TableRow key={task.id} interactive selected={selectedId === task.id} tabIndex={0} aria-label={`View details for ${task.title}`} onClick={() => onSelect(task.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(task.id) } }} className="cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]"><TableCell><div className="flex min-h-11 w-full min-w-0 items-center gap-3 text-left"><span className="min-w-0"><span className="block truncate font-medium text-[var(--text-primary)]">{task.title}</span><span className="mt-0.5 flex min-w-0 items-center gap-2"><span className="truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</span><PriorityText priority={task.priority} quiet /></span></span></div></TableCell><TableCell className="truncate text-xs font-medium">{task.assignee ?? <span className="text-[var(--warning)]">Unassigned</span>}</TableCell><TableCell className="truncate text-xs text-[var(--text-secondary)]">{task.creator}</TableCell><TableCell className="truncate font-mono text-xs text-[var(--text-secondary)]">{formatDueCompact(task)}</TableCell><TableCell><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge></TableCell></TableRow>)}</TableBody></Table>
 }
 
 function MobileTaskList({ tasks, onSelect }: { tasks: Task[]; onSelect: (id: string) => void }) {
@@ -321,7 +380,7 @@ function MobileTaskList({ tasks, onSelect }: { tasks: Task[]; onSelect: (id: str
 }
 
 function QueueLoading() {
-  return <div aria-busy="true" aria-live="polite"><p className="sr-only">Loading tasks…</p><div className="hidden lg:block"><Table className="table-fixed"><TableCaption>Loading tasks.</TableCaption><colgroup><col className="w-[46%]" /><col className="w-[20%]" /><col className="w-[18%]" /><col className="w-[16%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{[1, 2, 3, 4, 5].map((item) => <TableRow key={item} aria-hidden="true"><TableCell><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-6 w-28" /></TableCell></TableRow>)}</TableBody></Table></div><div className="lg:hidden">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="min-h-[88px] border-b border-[var(--border-subtle)] px-3 py-3" aria-hidden="true"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /><Skeleton className="mt-3 h-3 w-1/2" /></div>)}</div></div>
+  return <div aria-busy="true" aria-live="polite"><p className="sr-only">Loading tasks…</p><div className="hidden lg:block"><Table className="table-fixed"><TableCaption>Loading tasks.</TableCaption><colgroup><col className="w-[40%]" /><col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[15%]" /></colgroup><TableHeader sticky><TableRow><TableHead>Task</TableHead><TableHead>Assignee</TableHead><TableHead>Created by</TableHead><TableHead>Due</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>{[1, 2, 3, 4, 5].map((item) => <TableRow key={item} aria-hidden="true"><TableCell><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-3.5 w-24" /></TableCell><TableCell><Skeleton className="h-6 w-28" /></TableCell></TableRow>)}</TableBody></Table></div><div className="lg:hidden">{[1, 2, 3, 4, 5].map((item) => <div key={item} className="min-h-[88px] border-b border-[var(--border-subtle)] px-3 py-3" aria-hidden="true"><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-2 h-3 w-3/5" /><Skeleton className="mt-3 h-3 w-1/2" /></div>)}</div></div>
 }
 
 function QueueState({ state, tasks, selectedId, onSelect, onRetry }: { state: PreviewState; tasks: Task[]; selectedId: string | null; onSelect: (id: string) => void; onRetry: () => void }) {
@@ -341,29 +400,20 @@ function DetailItem({ label, children }: { label: string; children: React.ReactN
 }
 
 function taskHistory(task: Task) {
-  const currentTitle: Record<TaskStatus, string> = {
-    open: 'Ready to start',
-    in_progress: 'Work started',
-    completed: 'Task completed',
-    cancelled: 'Task cancelled',
-    suspended: 'Task paused',
-  }
-
-  return [
+  const items = [
+    ...(task.status === 'completed' ? [{ title: 'Task completed', detail: `Completed by ${task.assignee ?? task.creator}`, at: task.updatedAt }] : []),
+    ...(task.status === 'cancelled' ? [{ title: 'Task cancelled', detail: `Cancelled by ${task.creator}`, at: task.updatedAt }] : []),
+    ...(task.status === 'suspended' ? [{ title: 'Task suspended', detail: 'Owning matter moved to Trash', at: task.updatedAt }] : []),
+    ...(task.status === 'in_progress' ? [{ title: 'Status changed to In progress', detail: `Changed by ${task.assignee ?? task.creator}`, at: task.updatedAt }] : []),
+    ...(task.assignee ? [{ title: `Assigned to ${task.assignee}`, detail: `Assigned by ${task.creator}`, at: task.origin.createdAt }] : []),
     {
-      title: currentTitle[task.status],
-      detail: task.status === 'suspended' ? 'Paused while the related matter remains in Trash.' : `${statusLabels[task.status]} · ${task.assignee ?? 'Unassigned'}`,
-      at: task.updatedAt,
-      current: true,
-    },
-    ...(task.assignee ? [{ title: `Assigned to ${task.assignee}`, detail: `Assigned by ${task.creator}`, at: task.origin.createdAt, current: false }] : []),
-    {
-      title: task.origin.kind === 'note' ? 'Created from a note' : 'Task created',
-      detail: task.origin.label,
+      title: task.origin.kind === 'note' ? 'Task created from note' : 'Task created',
+      detail: `${task.origin.label} · Created by ${task.origin.author ?? task.creator}`,
       at: task.origin.createdAt,
-      current: false,
     },
   ]
+
+  return items.map((item, index) => ({ ...item, current: index === 0 }))
 }
 
 function TaskHistory({ task }: { task: Task }) {
@@ -371,23 +421,53 @@ function TaskHistory({ task }: { task: Task }) {
   return <section className="mt-5" aria-labelledby="task-history-heading"><div className="flex items-center justify-between gap-3"><h3 id="task-history-heading" className="text-sm font-semibold">Task history</h3><span className="text-xs text-[var(--text-muted)]">Newest first</span></div><ol className="mt-3">{items.map((item, index) => <li key={`${item.title}-${index}`} className="relative grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pb-4 pl-6 last:pb-0">{index < items.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[5px] top-2.5 w-px bg-[var(--border)]" />}<span aria-hidden="true" className={cn('absolute left-0 top-1.5 size-2.5 rounded-[var(--radius-full)] border-2 border-[var(--surface)]', item.current ? 'bg-[var(--accent)]' : 'bg-[var(--border-strong)]')} /><div className="min-w-0"><p className="text-sm font-medium">{item.title}</p><p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">{item.detail}</p></div><time className="whitespace-nowrap pt-0.5 text-right text-xs text-[var(--text-muted)]">{item.at}</time></li>)}</ol></section>
 }
 
-function DetailBody({ task }: { task: Task }) {
-  return <div className="p-4"><div className="min-w-0"><div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--accent)]"><ListTodo className="size-4" /></span><div className="min-w-0 flex-1"><h2 className="text-base font-semibold leading-6">{task.title}</h2><p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</p></div></div><div className="mt-3 flex items-center gap-2 pl-12"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><PriorityText priority={task.priority} /></div></div><dl className="mt-4 grid grid-cols-2 gap-x-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3"><DetailItem label="Assignee"><span className={cn(!task.assignee && 'text-[var(--warning)]')}>{task.assignee ?? 'Unassigned'}</span></DetailItem><DetailItem label="Due">{formatDue(task)}</DetailItem></dl><section className="mt-5" aria-labelledby="task-description-heading"><h3 id="task-description-heading" className="text-sm font-semibold">Description</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{task.description}</p></section>{task.status === 'suspended' && <div className="mt-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-sm leading-6"><AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--warning)]" /><span>This task is paused because its matter is in Trash.</span></div>}<TaskHistory task={task} /><section className="mt-5" aria-labelledby="task-context-heading"><h3 id="task-context-heading" className="text-sm font-semibold">Related work</h3><div className="mt-2 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">{task.client && <ContextRow icon={Users} label="Client" value={task.client} />}{task.matter && <ContextRow icon={Gavel} label="Matter" value={task.matter} />}{task.document && <ContextRow icon={FileText} label="Document" value={task.document} />}</div></section>{task.origin.snapshot && <section className="mt-5" aria-labelledby="task-note-heading"><h3 id="task-note-heading" className="text-sm font-semibold">Original note</h3><blockquote className="mt-2 border-l-2 border-[var(--border-strong)] pl-3 text-sm leading-6 text-[var(--text-secondary)]">“{task.origin.snapshot}”</blockquote></section>}</div>
+function DetailBody({ task, onOpenNotes }: { task: Task; onOpenNotes: () => void }) {
+  return <div className="p-4"><div className="min-w-0"><div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--accent)]"><ListTodo className="size-4" /></span><div className="min-w-0 flex-1"><h2 className="text-base font-semibold leading-6">{task.title}</h2><p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{task.matter ?? task.client ?? 'Organisation task'}</p></div></div><div className="mt-3 flex items-center gap-2 pl-12"><Badge variant={statusVariants[task.status]} fixedWidth="xl"><StatusIcon status={task.status} />{statusLabels[task.status]}</Badge><PriorityText priority={task.priority} /></div></div><dl className="mt-4 grid grid-cols-2 gap-x-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3"><DetailItem label="Assignee"><span className={cn(!task.assignee && 'text-[var(--warning)]')}>{task.assignee ?? 'Unassigned'}</span></DetailItem><DetailItem label="Due">{formatDue(task)}</DetailItem></dl><section className="mt-5" aria-labelledby="task-description-heading"><h3 id="task-description-heading" className="text-sm font-semibold">Description</h3><p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{task.description}</p></section>{task.status === 'suspended' && <div className="mt-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-sm leading-6"><AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--warning)]" /><span>This task is paused because its matter is in Trash.</span></div>}<section className="mt-5" aria-labelledby="task-context-heading"><h3 id="task-context-heading" className="text-sm font-semibold">Related work</h3><div className="mt-2 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">{task.client && <ContextRow icon={Users} label="Client" value={task.client} />}{task.matter && <ContextRow icon={Gavel} label="Matter" value={task.matter} />}{task.document && <ContextRow icon={FileText} label="Document" value={task.document} />}</div></section><section className="mt-5" aria-labelledby="task-origin-heading"><h3 id="task-origin-heading" className="text-sm font-semibold">Origin</h3><p className="mt-2 text-xs font-medium text-[var(--text-muted)]">{task.origin.label} · {task.origin.createdAt}</p>{task.origin.snapshot && <blockquote className="mt-2 border-l-2 border-[var(--border-strong)] pl-3 text-sm leading-6 text-[var(--text-secondary)]">“{task.origin.snapshot}”</blockquote>}{task.origin.notesHref && <Button variant="outline" size="sm" className="mt-3" onClick={onOpenNotes}><MessageSquare className="size-4" />Open in Notes</Button>}</section><TaskHistory task={task} /></div>
 }
 
 function ContextRow({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return <div className="flex min-w-0 items-center gap-3 py-3"><Icon className="size-4 shrink-0 text-[var(--text-muted)]" /><div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">{label}</p><p className="truncate text-sm font-medium">{value}</p></div></div>
 }
 
-function TaskActions({ task, canManage, onTransition, onReassign, onDue, onPriority }: { task: Task; canManage: boolean; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
-  const primary = task.status === 'open' ? { label: 'Start task', status: 'in_progress' as TaskStatus, icon: PlayCircle } : task.status === 'in_progress' ? { label: 'Complete task', status: 'completed' as TaskStatus, icon: CheckCircle2 } : { label: 'Reopen task', status: 'open' as TaskStatus, icon: CircleDashed }
-  const PrimaryIcon = primary.icon
-  return <div className="flex items-center justify-end gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={!canManage}><MoreHorizontal className="size-4" />More actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={onReassign}><UserRound className="size-4" />Reassign</DropdownMenuItem><DropdownMenuItem onSelect={onDue}>Change due date</DropdownMenuItem><DropdownMenuItem onSelect={onPriority}>Change priority</DropdownMenuItem>{(task.status === 'open' || task.status === 'in_progress') && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => onTransition('suspended')}><PauseCircle className="size-4" />Pause task</DropdownMenuItem><DropdownMenuItem onSelect={() => onTransition('cancelled')} className="text-[var(--danger)]"><XCircle className="size-4" />Cancel task</DropdownMenuItem></>}</DropdownMenuContent></DropdownMenu><Button size="sm" onClick={() => onTransition(primary.status)} disabled={!canManage}><PrimaryIcon className="size-4" />{primary.label}</Button></div>
+function UnreadDivider({ count }: { count: number }) {
+  return <div className="flex items-center gap-3" role="separator" aria-label={`${count} unread ${count === 1 ? 'comment' : 'comments'}`}><span className="h-px flex-1 bg-[var(--border-subtle)]" /><span className="rounded-[var(--radius-full)] bg-[var(--accent-muted)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">{count} new {count === 1 ? 'comment' : 'comments'}</span><span className="h-px flex-1 bg-[var(--border-subtle)]" /></div>
 }
 
-function DetailPane({ task, role, state, mobile, onClose, onTransition, onReassign, onDue, onPriority }: { task: Task; role: Role; state: PreviewState; mobile?: boolean; onClose: () => void; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
+function CommentsBody({ comments, canReply, onReply }: { comments: TaskComment[]; canReply: boolean; onReply: (comment: TaskComment) => void }) {
+  if (!comments.length) return <StateMessage icon={MessageSquare} title="No comments yet" body="Start a task-specific conversation. Notes messages are not copied into this stream." />
+  const firstUnread = comments.findIndex((comment) => comment.unread)
+  const unreadCount = comments.filter((comment) => comment.unread).length
+  return <div className="space-y-5 p-4">{comments.map((comment, index) => <div key={comment.id}>{index === firstUnread && <div className="mb-5"><UnreadDivider count={unreadCount} /></div>}<article className="flex min-w-0 gap-3"><Avatar name={comment.author} size="sm" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><h3 className="text-sm font-semibold">{comment.author}</h3><time className="text-xs text-[var(--text-muted)]">{comment.at}</time></div>{comment.replyTo && <div className="mt-2 rounded-[var(--radius-sm)] border-l-2 border-[var(--border-strong)] bg-[var(--bg)] px-3 py-2"><p className="text-xs font-medium text-[var(--text-secondary)]">Replying to {comment.replyTo.author}</p><p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[var(--text-muted)]">{comment.replyTo.excerpt}</p></div>}<p className="mt-1 break-words text-sm leading-6 text-[var(--text-secondary)]">{comment.body}</p>{canReply && <Button variant="link" size="sm" className="mt-1 text-xs" onClick={() => onReply(comment)}>Reply</Button>}</div></article></div>)}</div>
+}
+
+function CommentComposer({ replyTo, value, onChange, onReplyClear, onSend }: { replyTo: TaskComment | null; value: string; onChange: (value: string) => void; onReplyClear: () => void; onSend: () => void }) {
+  const mentionMembers = ['Rishikesh Joshi', 'Meera Shah', 'Ananya Kapoor']
+  const mentionMatch = value.match(/@([\p{L}\p{N}._-]*)$/u)
+  const mentionQuery = mentionMatch?.[1] ?? null
+  const matchingMembers = mentionQuery === null ? [] : mentionMembers.filter((name) => name.toLocaleLowerCase().includes(mentionQuery.toLocaleLowerCase()))
+  const focusComposer = () => requestAnimationFrame(() => document.getElementById('task-comment')?.focus())
+  const startMention = () => { onChange(`${value}${value && !value.endsWith(' ') ? ' ' : ''}@`); focusComposer() }
+  const selectMention = (name: string) => { if (!mentionMatch || mentionMatch.index === undefined) return; onChange(`${value.slice(0, mentionMatch.index)}@${name} `); focusComposer() }
+
+  return <div className="relative shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg)] p-3">{mentionQuery !== null && <div role="listbox" aria-label="Mention a team member" className="absolute bottom-[112px] left-3 z-20 w-[min(18rem,calc(100vw-1.5rem))] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface)] p-1 shadow-[var(--shadow-md)]"><div className="flex min-h-9 items-center gap-2 border-b border-[var(--border-subtle)] px-3 text-xs text-[var(--text-muted)]"><Search className="size-4" /><span className="truncate">{mentionQuery ? `Searching for “${mentionQuery}”` : 'Type a name to search'}</span></div>{matchingMembers.length ? matchingMembers.map((name) => <button role="option" aria-selected="false" key={name} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => selectMention(name)} className="flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-sm)] px-3 text-left text-sm hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"><Avatar name={name} size="xs" /><span className="min-w-0"><span className="block truncate font-medium">{name}</span><span className="block text-[10px] text-[var(--text-muted)]">Task collaborator</span></span></button>) : <p className="px-3 py-4 text-sm text-[var(--text-muted)]">No accessible members found</p>}</div>}<div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] focus-within:ring-2 focus-within:ring-[var(--accent-ring)]">{replyTo && <div className="flex items-start gap-2 border-b border-[var(--border-subtle)] px-3 py-2"><div className="min-w-0 flex-1"><p className="text-xs font-medium">Replying to {replyTo.author}</p><p className="truncate text-xs text-[var(--text-muted)]">{typeof replyTo.body === 'string' ? replyTo.body : 'Mentioned comment'}</p></div><Button variant="ghost" size="icon" className="-mr-2 -my-1" aria-label="Cancel reply" onClick={onReplyClear}><X className="size-4" /></Button></div>}<Label htmlFor="task-comment" className="sr-only">Write a task comment</Label><textarea id="task-comment" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); onSend() } }} placeholder="Write a comment… Type @ to mention someone" className="min-h-16 w-full resize-none bg-transparent px-3 pt-3 text-sm outline-none focus-visible:!outline-none placeholder:text-[var(--text-muted)]" /><div className="flex items-center gap-1 border-t border-[var(--border-subtle)] px-2 py-1.5"><Button variant="ghost" size="sm" onClick={startMention}><AtSign className="size-4" />Mention</Button><span className="hidden text-xs text-[var(--text-muted)] sm:inline">Routine comments update unread state; direct mentions may notify.</span><Button size="sm" className="ml-auto" onClick={onSend} disabled={!value.trim()}><Send className="size-4" />Send</Button></div></div></div>
+}
+
+function TaskActions({ task, canManage, onTransition, onReassign, onDue, onPriority }: { task: Task; canManage: boolean; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void }) {
+  if (task.status === 'cancelled' || task.status === 'completed') return <div className="flex items-center justify-end"><Button size="sm" onClick={() => onTransition('open')} disabled={!canManage}><CircleDashed className="size-4" />Reopen task</Button></div>
+
+  const primary = task.status === 'open' ? { label: 'Start task', status: 'in_progress' as TaskStatus, icon: PlayCircle } : { label: 'Complete task', status: 'completed' as TaskStatus, icon: CheckCircle2 }
+  const PrimaryIcon = primary.icon
+  return <div className="flex items-center justify-end gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={!canManage}><MoreHorizontal className="size-4" />More actions</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={onReassign}><UserRound className="size-4" />Reassign</DropdownMenuItem><DropdownMenuItem onSelect={onDue}>Change due date</DropdownMenuItem><DropdownMenuItem onSelect={onPriority}>Change priority</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => onTransition('cancelled')} className="text-[var(--danger)]"><XCircle className="size-4" />Cancel task</DropdownMenuItem></DropdownMenuContent></DropdownMenu><Button size="sm" onClick={() => onTransition(primary.status)} disabled={!canManage}><PrimaryIcon className="size-4" />{primary.label}</Button></div>
+}
+
+function DetailPane({ task, role, state, mobile, activeTab, comments, onTabChange, onClose, onTransition, onReassign, onDue, onPriority, onOpenNotes, onAddComment }: { task: Task; role: Role; state: PreviewState; mobile?: boolean; activeTab: DetailTab; comments: TaskComment[]; onTabChange: (tab: DetailTab) => void; onClose: () => void; onTransition: (status: TaskStatus) => void; onReassign: () => void; onDue: () => void; onPriority: () => void; onOpenNotes: () => void; onAddComment: (body: string, replyTo: TaskComment | null) => void }) {
   const canManage = role !== 'viewer'
-  return <aside aria-label={`Task details for ${task.title}`} className={cn('flex h-full min-h-0 flex-1 flex-col bg-[var(--surface)]', !mobile && 'border-l border-[var(--border)] xl:max-w-md xl:shrink-0')}><div className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-4">{mobile ? <Button variant="ghost" size="sm" className="-ml-2" onClick={onClose}><ArrowLeft className="size-4" />Back to tasks</Button> : <><ListTodo className="size-4 text-[var(--accent)]" /><span className="text-sm font-semibold">Task details</span><Button variant="ghost" size="icon" className="ml-auto" onClick={onClose} aria-label="Close task details"><X className="size-4" /></Button></>}{role === 'viewer' && <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]"><ShieldCheck className="size-3.5" />Read only</span>}</div><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{state === 'loading' ? <div className="space-y-3 p-4" aria-busy="true"><p className="sr-only">Loading task details…</p><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-4/5" /><Skeleton className="mt-4 h-32 w-full" /><Skeleton className="h-40 w-full" /></div> : state === 'error' ? <StateMessage icon={CircleAlert} title="Details unavailable" body="Try loading the workspace again." danger /> : <DetailBody task={task} />}</div>{state === 'default' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions task={task} canManage={canManage} onTransition={onTransition} onReassign={onReassign} onDue={onDue} onPriority={onPriority} /></div>}</aside>
+  const commentsReadOnly = task.status === 'suspended' || role === 'viewer'
+  const [replyTo, setReplyTo] = useState<TaskComment | null>(null)
+  const [draft, setDraft] = useState('')
+  const send = () => { if (!draft.trim() || commentsReadOnly) return; onAddComment(draft.trim(), replyTo); setDraft(''); setReplyTo(null) }
+  const tabs = [{ id: 'details' as const, label: 'Task details', icon: ListTodo }, { id: 'comments' as const, label: 'Comments', icon: MessageSquare }]
+  return <aside aria-label={`Task workspace for ${task.title}`} className={cn('flex h-full min-h-0 flex-1 flex-col bg-[var(--surface)]', !mobile && 'border-l border-[var(--border)] xl:max-w-md xl:shrink-0')}>{mobile && <div className="flex h-12 shrink-0 items-center border-b border-[var(--border-subtle)] px-3"><Button variant="ghost" size="sm" className="-ml-2" onClick={onClose}><ArrowLeft className="size-4" />Back to tasks</Button>{role === 'viewer' && <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]"><ShieldCheck className="size-3.5" />Read only</span>}</div>}<div className="flex h-14 shrink-0 items-stretch border-b border-[var(--border-subtle)] px-2" role="tablist" aria-label="Task sidebar sections">{tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" role="tab" aria-selected={activeTab === id} aria-controls={`task-${id}-panel`} onClick={() => onTabChange(id)} className={cn('relative flex min-w-0 items-center gap-2 px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]', activeTab === id ? 'text-[var(--text-primary)] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]')}><Icon className="size-4 shrink-0" /><span>{label}</span>{id === 'comments' && comments.some((comment) => comment.unread) && <span className="size-2 rounded-[var(--radius-full)] bg-[var(--accent)]" aria-label="Unread comments" />}</button>)}{!mobile && <Button variant="ghost" size="icon" className="ml-auto self-center" onClick={onClose} aria-label="Close task sidebar"><X className="size-4" /></Button>}</div><div id={`task-${activeTab}-panel`} role="tabpanel" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{state === 'loading' ? <div className="space-y-3 p-4" aria-busy="true"><p className="sr-only">Loading {activeTab === 'details' ? 'task details' : 'comments'}…</p><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-4/5" /><Skeleton className="mt-4 h-24 w-full" /><Skeleton className="h-32 w-full" /></div> : state === 'error' ? <StateMessage icon={CircleAlert} title={activeTab === 'details' ? 'Details unavailable' : 'Comments unavailable'} body="Try loading the workspace again." danger /> : activeTab === 'details' ? <DetailBody task={task} onOpenNotes={onOpenNotes} /> : <CommentsBody comments={comments} canReply={!commentsReadOnly} onReply={setReplyTo} />}</div>{state === 'default' && activeTab === 'details' && task.status !== 'suspended' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions task={task} canManage={canManage} onTransition={onTransition} onReassign={onReassign} onDue={onDue} onPriority={onPriority} /></div>}{state === 'default' && activeTab === 'comments' && (commentsReadOnly ? <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg)] p-3 text-sm text-[var(--text-muted)]"><div className="flex items-center gap-2"><ShieldCheck className="size-4" /><span>{task.status === 'suspended' ? 'Comments are read-only while this task is suspended.' : 'Your role has read-only access to comments.'}</span></div></div> : <CommentComposer replyTo={replyTo} value={draft} onChange={setDraft} onReplyClear={() => setReplyTo(null)} onSend={send} />)}</aside>
 }
 
 function CreateTaskDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (title: string) => void }) {
@@ -398,7 +478,9 @@ function CreateTaskDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
 
 export function TasksWorkspaceConcept() {
   const [tasks, setTasks] = useState(initialTasks)
+  const [commentsByTask, setCommentsByTask] = useState<Record<string, TaskComment[]>>(initialComments)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<DetailTab>('details')
   const [mobileDetail, setMobileDetail] = useState(false)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
@@ -411,6 +493,15 @@ export function TasksWorkspaceConcept() {
   const mobileListRef = useRef<HTMLDivElement>(null)
   const mobileListScroll = useRef(0)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const taskId = params.get('task')
+    if (!taskId || !initialTasks.some((task) => task.id === taskId)) return
+    const tab = params.get('tab') === 'comments' ? 'comments' : 'details'
+    const showMobileDetail = window.matchMedia('(max-width: 1279px)').matches
+    requestAnimationFrame(() => { setSelectedId(taskId); setActiveTab(tab); setMobileDetail(showMobileDetail) })
+  }, [])
+
   const visibleTasks = useMemo(() => tasks.filter((task) => {
     const text = `${task.title} ${task.client ?? ''} ${task.matter ?? ''} ${task.document ?? ''}`.toLowerCase()
     const matchesQuery = text.includes(query.trim().toLowerCase())
@@ -420,14 +511,19 @@ export function TasksWorkspaceConcept() {
   }), [assignmentFilter, query, statusFilter, tasks])
 
   const selectedTask = tasks.find((task) => task.id === selectedId) ?? null
-  const selectMobile = (id: string) => { mobileListScroll.current = mobileListRef.current?.scrollTop ?? 0; setSelectedId(id); setMobileDetail(true) }
-  const closeDetails = () => { setMobileDetail(false); setSelectedId(null); requestAnimationFrame(() => { if (mobileListRef.current) mobileListRef.current.scrollTop = mobileListScroll.current }) }
+  const updateRoute = (taskId: string | null, tab: DetailTab = 'details') => { const url = new URL(window.location.href); if (taskId) { url.searchParams.set('task', taskId); url.searchParams.set('tab', tab) } else { url.searchParams.delete('task'); url.searchParams.delete('tab') } window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`) }
+  const selectDesktop = (id: string) => { setSelectedId(id); setActiveTab('details'); updateRoute(id, 'details') }
+  const selectMobile = (id: string) => { mobileListScroll.current = mobileListRef.current?.scrollTop ?? 0; setSelectedId(id); setActiveTab('details'); setMobileDetail(true); updateRoute(id, 'details') }
+  const changeTab = (tab: DetailTab) => { setActiveTab(tab); if (selectedId) updateRoute(selectedId, tab) }
+  const closeDetails = () => { setMobileDetail(false); setSelectedId(null); setActiveTab('details'); updateRoute(null); requestAnimationFrame(() => { if (mobileListRef.current) mobileListRef.current.scrollTop = mobileListScroll.current }) }
   const updateSelected = (update: (task: Task) => Task, message: string) => { if (!selectedTask) return; setTasks((current) => current.map((task) => task.id === selectedTask.id ? update(task) : task)); setAnnouncement(message) }
   const transition = (status: TaskStatus) => { if (selectedTask) updateSelected((task) => ({ ...task, status, updatedAt: `Just now · fixture ${statusLabels[status].toLowerCase()}` }), `${selectedTask.title} changed to ${statusLabels[status]} in this fixture.`) }
   const reassign = () => { if (selectedTask) updateSelected((task) => ({ ...task, assignee: task.assignee === 'Ananya Kapoor' ? 'Rishikesh Joshi' : 'Ananya Kapoor' }), `Fixture assignee changed for ${selectedTask.title}.`) }
   const changeDue = () => { if (selectedTask) updateSelected((task) => ({ ...task, due: task.due?.kind === 'date' ? { kind: 'time', date: task.due.date, time: '14:30', timezone: 'Asia/Kolkata' } : { kind: 'date', date: task.due?.date ?? '8 Sep 2026' } }), `Fixture due date changed for ${selectedTask.title}.`) }
   const changePriority = () => { if (selectedTask) updateSelected((task) => ({ ...task, priority: task.priority === 'urgent' ? 'normal' : 'urgent' }), `Fixture priority changed for ${selectedTask.title}.`) }
-  const createTask = (title: string) => { const task: Task = { id: `task-fixture-${tasks.length + 1}`, title, description: 'Locally created fixture task for interaction review.', status: 'open', priority: 'normal', assignee: 'Rishikesh Joshi', creator: roleLabels[role], due: null, origin: { kind: 'manual', label: 'Created in Tasks', createdAt: 'Just now · fixture only' }, updatedAt: 'Just now · fixture created' }; setTasks((current) => [task, ...current]); setSelectedId(task.id); setMobileDetail(true); setPreviewState('default'); setCreateOpen(false); setAnnouncement(`${title} was added to this fixture.`) }
+  const createTask = (title: string) => { const task: Task = { id: `task-fixture-${tasks.length + 1}`, title, description: 'Locally created fixture task for interaction review.', status: 'open', priority: 'normal', assignee: 'Rishikesh Joshi', creator: roleLabels[role], due: null, origin: { kind: 'manual', label: 'Created in Tasks', createdAt: 'Just now · fixture only' }, updatedAt: 'Just now · fixture created' }; setTasks((current) => [task, ...current]); setCommentsByTask((current) => ({ ...current, [task.id]: [] })); setSelectedId(task.id); setActiveTab('details'); setMobileDetail(true); updateRoute(task.id, 'details'); setPreviewState('default'); setCreateOpen(false); setAnnouncement(`${title} was added to this fixture.`) }
+  const addComment = (body: string, replyTo: TaskComment | null) => { if (!selectedTask) return; const comment: TaskComment = { id: `comment-${selectedTask.id}-${Date.now()}`, author: 'Rishikesh Joshi', initials: 'RJ', at: 'Just now', body, replyTo: replyTo ? { author: replyTo.author, excerpt: typeof replyTo.body === 'string' ? replyTo.body : 'Mentioned comment' } : undefined }; setCommentsByTask((current) => ({ ...current, [selectedTask.id]: [...(current[selectedTask.id] ?? []), comment] })); setAnnouncement(body.includes('@') ? 'Comment sent. Direct mentions may notify accessible members.' : 'Comment sent. Followers will see it in their unread state without a notification.') }
+  const openNotes = () => { if (selectedTask?.origin.notesHref) window.location.assign(selectedTask.origin.notesHref) }
 
   return (
     <div className="flex h-dvh max-w-full overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
@@ -438,12 +534,12 @@ export function TasksWorkspaceConcept() {
 
         <div className="min-h-0 flex-1 overflow-hidden">
           <div className="hidden h-full min-h-0 xl:flex">
-            <section aria-label="Task list" className="min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={setSelectedId} onRetry={() => setPreviewState('default')} /></section>
-            {selectedTask && previewState !== 'empty' && <DetailPane task={selectedTask} role={role} state={previewState} onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} />}
+            <section aria-label="Task list" className="min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={selectDesktop} onRetry={() => setPreviewState('default')} /></section>
+            {selectedTask && previewState !== 'empty' && <DetailPane task={selectedTask} role={role} state={previewState} activeTab={activeTab} comments={commentsByTask[selectedTask.id] ?? []} onTabChange={changeTab} onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} onOpenNotes={openNotes} onAddComment={addComment} />}
           </div>
 
           <div className="h-full min-h-0 xl:hidden">
-            {mobileDetail && selectedTask ? <DetailPane task={selectedTask} role={role} state={previewState} mobile onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} /> : <section aria-label="Task list" ref={mobileListRef} className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={selectMobile} onRetry={() => setPreviewState('default')} /></section>}
+            {mobileDetail && selectedTask ? <DetailPane task={selectedTask} role={role} state={previewState} mobile activeTab={activeTab} comments={commentsByTask[selectedTask.id] ?? []} onTabChange={changeTab} onClose={closeDetails} onTransition={transition} onReassign={reassign} onDue={changeDue} onPriority={changePriority} onOpenNotes={openNotes} onAddComment={addComment} /> : <section aria-label="Task list" ref={mobileListRef} className="h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--surface)]"><QueueState state={previewState} tasks={visibleTasks} selectedId={selectedId} onSelect={selectMobile} onRetry={() => setPreviewState('default')} /></section>}
           </div>
         </div>
       </main>

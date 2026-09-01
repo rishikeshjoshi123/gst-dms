@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   ArrowLeft,
@@ -149,7 +149,7 @@ function EvidenceCard({ evidence, onOpen }: { evidence: Evidence; onOpen: () => 
   )
 }
 
-function MessageFeed({ onEvidence }: { onEvidence: () => void }) {
+function MessageFeed({ onEvidence, focusedMessage, onOpenTask }: { onEvidence: () => void; focusedMessage: string | null; onOpenTask: () => void }) {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-5 lg:px-7">
       <div className="flex gap-3">
@@ -161,9 +161,9 @@ function MessageFeed({ onEvidence }: { onEvidence: () => void }) {
         <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-2"><span className="text-sm font-semibold">Rishikesh Joshi</span><span className="text-xs text-[var(--text-muted)]">Today, 09:41</span><span className="text-[10px] text-[var(--text-muted)]">Edited</span></div><p className="mt-1 text-sm leading-6">Yes. The relevant finding is on page 8 of the signed order. I have linked the exact paragraph here.</p><EvidenceCard evidence={defaultEvidence} onOpen={onEvidence} /></div>
       </div>
       <div className="flex items-center gap-3"><span className="h-px flex-1 bg-[var(--border-subtle)]" /><span className="rounded-full bg-[var(--accent-muted)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">2 new notes</span><span className="h-px flex-1 bg-[var(--border-subtle)]" /></div>
-      <div className="flex gap-3">
+      <div id="note-18" tabIndex={-1} className={cn('flex gap-3 rounded-[var(--radius-sm)] outline-none', focusedMessage === 'note-18' && 'ring-2 ring-[var(--accent-ring)] ring-offset-2 ring-offset-[var(--bg)]')}>
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-overlay)] text-xs font-semibold">MS</span>
-        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-2"><span className="text-sm font-semibold">Meera Shah</span><span className="text-xs text-[var(--text-muted)]">Today, 10:17</span></div><p className="mt-1 text-sm leading-6">I created a follow-up for the invoice verification. It should be completed before we finalise the grounds.</p><div className="mt-2 flex max-w-xl items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] p-3"><CheckCircle2 className="size-5 shrink-0 text-[var(--success)]" /><div className="min-w-0"><div className="text-sm font-semibold">Verify 11 residual invoices</div><div className="text-xs text-[var(--text-muted)]">Assigned to Rishikesh · Due 27 Aug</div></div><Badge variant="warning" className="ml-auto">Open</Badge></div></div>
+        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-2"><span className="text-sm font-semibold">Meera Shah</span><span className="text-xs text-[var(--text-muted)]">Today, 10:17</span></div><p className="mt-1 text-sm leading-6">I created a follow-up for the invoice verification. It should be completed before we finalise the grounds.</p><button type="button" onClick={onOpenTask} className="mt-2 flex min-h-11 w-full max-w-xl items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-left outline-none hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"><CheckCircle2 className="size-5 shrink-0 text-[var(--success)]" /><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Verify 11 residual invoices</span><span className="block text-xs text-[var(--text-muted)]">Assigned to Rishikesh · Due 27 Aug</span></span><Badge variant="warning" fixedWidth="md">Open</Badge></button></div>
       </div>
     </div>
   )
@@ -213,14 +213,29 @@ function NotesWorkspace() {
   const [selected, setSelected] = useState('hearing')
   const [mobileThread, setMobileThread] = useState(false)
   const [evidenceOpen, setEvidenceOpen] = useState(false)
+  const [focusedMessage, setFocusedMessage] = useState<string | null>(null)
   const selectedThread = useMemo(() => threads.find((thread) => thread.id === selected) ?? threads[0], [selected])
   const selectThread = (id: string) => { setSelected(id); setMobileThread(true) }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const thread = params.get('thread')
+    const message = params.get('message')
+    requestAnimationFrame(() => {
+      if (thread && threads.some((item) => item.id === thread)) { setSelected(thread); setMobileThread(true) }
+      if (message) setFocusedMessage(message)
+      requestAnimationFrame(() => {
+        const target = message ? document.getElementById(message) : null
+        target?.scrollIntoView({ block: 'center' })
+        target?.focus({ preventScroll: true })
+      })
+    })
+  }, [])
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden border-t border-[var(--border-subtle)] lg:mt-[54px] lg:rounded-t-[var(--radius-md)] lg:border lg:border-b-0">
       <div className={cn('h-full w-full lg:block lg:w-auto', mobileThread && 'hidden lg:block')}><ThreadList selected={selected} onSelect={selectThread} /></div>
       <section className={cn('min-w-0 flex-1 flex-col bg-[var(--bg)]', mobileThread ? 'flex' : 'hidden lg:flex')}>
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface)] px-3 lg:px-4"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileThread(false)} aria-label="Back to note threads"><ArrowLeft className="size-5" /></Button><div className="min-w-0"><h2 className="truncate text-sm font-semibold">{selectedThread.title}</h2><p className="truncate text-xs text-[var(--text-muted)]">4 participants · Matter team</p></div><Button variant="outline" size="sm" className="ml-auto hidden sm:inline-flex"><Users className="size-4" />Participants</Button><Button variant="ghost" size="icon" aria-label="More thread actions"><MoreHorizontal className="size-5" /></Button></div>
-        <div className="min-h-0 flex-1 overflow-y-auto"><MessageFeed onEvidence={() => setEvidenceOpen(true)} /></div><Composer />
+        <div className="min-h-0 flex-1 overflow-y-auto"><MessageFeed onEvidence={() => setEvidenceOpen(true)} focusedMessage={focusedMessage} onOpenTask={() => window.location.assign('/dev/tasks-workspace-concept?task=task-482&tab=details')} /></div><Composer />
       </section>
       {evidenceOpen && <SourcePanel evidence={defaultEvidence} onClose={() => setEvidenceOpen(false)} />}
     </div>

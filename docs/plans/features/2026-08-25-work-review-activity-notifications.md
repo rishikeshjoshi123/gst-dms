@@ -192,14 +192,14 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - **2026-09-01 — Step 3, live Task-create Activity adapter:** migration `00096` extends the private Activity registry and locator validation with typed Task subjects/targets, then additively redefines the live note command. An action-item note now atomically writes one Task, one immutable `task.created` event, and one projector outbox row; its command-bound opaque Activity idempotency material prevents replay across tenant, actor, or Task. Ordinary notes remain Task- and Task-Activity-free. Activity remains private/service-append-only and no reader, projector worker, Task transition, My Work, or notification consumer is adopted.
 - **2026-09-01 — Step 3, organisation-timezone Task writer correction:** migration `00098` adds the private, revisioned organisation operational-timezone setting (default `Asia/Kolkata`) and its Owner/Admin command. The existing live Matter Notes action-item command now reads that organisation setting when it creates a due-dated Task; creator and assignee personal timezones cannot change the stored Task timezone. Active membership is checked before idempotent receipt lookup, so suspended or removed actors cannot replay an earlier command to disclose its Task. Local reset, Docker fixture, removed-user replay probe, same-key concurrency harness, generated types, TypeScript, migration checks, and independent QA passed. This is a live writer correction and prerequisite only; it does not add a Task reader, transition, UI, reminders, My Work, or an organisation settings surface.
 
-**Canonical next action:** obtain visual approval for the fixture-only dedicated
-Tasks workspace concept at `/dev/tasks-workspace-concept`, then implement the
+**Canonical next action:** the revised fixture-only dedicated Tasks workspace
+concept at `/dev/tasks-workspace-concept` is visually approved. Implement the
 smallest coherent Task transition and secured reader closure. Task-only current
 state is approved: notes are immutable origins with a live read-only Task
 summary, while the Tasks workspace is the sole place for Task state/actions.
 Use organisation—not personal—timezone semantics and do not claim My Work,
-Activity reader, or broader Work-plan completion from the existing write
-adapters.
+Activity reader, Task comments, mention delivery, or broader Work-plan
+completion from the existing write adapters.
 
 **Approved compatibility decision (2026-09-01):** Task is the sole live
 authority for completion, reopening, reassignment, and due-date changes. No
