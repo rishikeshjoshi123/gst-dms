@@ -27,3 +27,12 @@ test('the typed placement helper has no browser authorisation wrapper or AI payl
   assert.match(placement, /supabase\.rpc\('place_document_processing_relationships', args\)/)
   assert.doesNotMatch(placement, /createClient|getCurrentOrgId|raw_metadata|AIDocumentResult/)
 })
+
+test('processDocument writes the fenced page artifact from native/OCR acquisition, never Gemini output', () => {
+  const source = readFileSync(new URL('./jobs.ts', import.meta.url), 'utf8')
+  const documentWorker = source.slice(source.indexOf('export const processDocument'), source.indexOf('// Versioned embedding backfill'))
+
+  assert.match(documentWorker, /acquireDocumentPageText\(fileBuffer, Number\(started\.page_count\)\)/)
+  assert.match(documentWorker, /pageAcquisition\.kind === 'complete' \? pageAcquisition\.pages/)
+  assert.doesNotMatch(documentWorker, /modelOutcome\.result\.page_text|modelOutcome\.result\.ocr_words/)
+})

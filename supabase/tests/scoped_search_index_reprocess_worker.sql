@@ -98,7 +98,7 @@ BEGIN
   SELECT * INTO written FROM public.write_current_document_page_text_artifact(
     '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
     '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
-    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null}]'::jsonb
+    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null,"acquisition_method":"native_pdf","quality_policy_version":"native-pdf-quality-v1","quality_reasons":[],"detected_languages":[],"ocr_processor_identifier":null,"ocr_processor_version":null}]'::jsonb
   );
   SELECT * INTO invalid FROM public.write_current_document_page_text_artifact(
     '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
@@ -108,7 +108,7 @@ BEGIN
   SELECT * INTO rewritten FROM public.write_current_document_page_text_artifact(
     '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
     '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
-    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null}]'::jsonb
+    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null,"acquisition_method":"native_pdf","quality_policy_version":"native-pdf-quality-v1","quality_reasons":[],"detected_languages":[],"ocr_processor_identifier":null,"ocr_processor_version":null}]'::jsonb
   );
   IF written.code <> 'written' OR invalid.code <> 'not_indexable' OR rewritten.code <> 'written' THEN
     RAISE EXCEPTION 'page artifact running-lease authority or malformed terminalization failed';
@@ -116,11 +116,101 @@ BEGIN
 END $page_artifact_authority$;
 RESET ROLE;
 
+DO $page_artifact_provenance$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.document_page_text_pages AS page
+    JOIN public.document_page_text_artifacts AS artifact ON artifact.id=page.artifact_id
+    WHERE artifact.document_id='55500000-0000-0000-0000-000000000001'
+      AND artifact.document_version_id='55600000-0000-0000-0000-000000000001'
+      AND page.acquisition_method='native_pdf'
+      AND page.quality_policy_version='native-pdf-quality-v1'
+      AND page.quality_reasons='{}'::text[]
+      AND page.detected_languages='{}'::text[]
+      AND page.ocr_processor_identifier IS NULL
+      AND page.ocr_processor_version IS NULL
+  ) THEN
+    RAISE EXCEPTION 'page artifact acquisition provenance was not retained';
+  END IF;
+END $page_artifact_provenance$;
+
 UPDATE public.source_analysis_runs
 SET analysis_state='validated',state='succeeded',completed_at=now()
 WHERE id='56600000-0000-0000-0000-000000000001';
 SELECT public.materialize_document_version_analysis(
   '55600000-0000-0000-0000-000000000001','56600000-0000-0000-0000-000000000001','fixture_page_text_binding','55100000-0000-0000-0000-000000000001'
+);
+
+-- Pre-00115 artifacts acquire the migration-safe `legacy` default. They
+-- retain private lineage, but must never become a live downstream source.
+UPDATE public.document_page_text_pages
+SET acquisition_method='legacy',
+    quality_policy_version=NULL,
+    quality_reasons='{}'::text[],
+    detected_languages='{}'::text[],
+    ocr_processor_identifier=NULL,
+    ocr_processor_version=NULL
+WHERE artifact_id=(
+  SELECT id FROM public.document_page_text_artifacts
+  WHERE document_id='55500000-0000-0000-0000-000000000001'
+    AND document_version_id='55600000-0000-0000-0000-000000000001'
+    AND state='ready'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','55100000-0000-0000-0000-000000000001',true);
+DO $legacy_page_source_request$
+DECLARE result record;
+BEGIN
+  SELECT * INTO result FROM public.request_document_reprocess(
+    '55500000-0000-0000-0000-000000000001','search_index',
+    '55700000-0000-0000-0000-000000000002',8
+  );
+  IF result.code<>'queued' THEN RAISE EXCEPTION 'legacy page-source search reprocess was not queued'; END IF;
+  PERFORM set_config('test.legacy_page_source_event',result.outbox_event_id::text,true);
+END $legacy_page_source_request$;
+RESET ROLE;
+
+UPDATE public.outbox_events
+SET delivery_state='leased',lease_token='55800000-0000-0000-0000-000000000002',
+  lease_expires_at=now()+interval '2 minutes',delivered_at=NULL,failed_at=NULL
+WHERE id=current_setting('test.legacy_page_source_event')::uuid;
+
+SET LOCAL ROLE service_role;
+DO $legacy_page_source_is_excluded$
+DECLARE claim record; page_input record; write_result record;
+BEGIN
+  SELECT * INTO claim FROM public.claim_document_search_index_reprocess_work(
+    current_setting('test.legacy_page_source_event')::uuid,'legacy-page-source-test',
+    '55000000-0000-0000-0000-000000000001','55800000-0000-0000-0000-000000000002'
+  );
+  IF claim.code<>'claimed' THEN RAISE EXCEPTION 'legacy page-source work was not claimed'; END IF;
+  SELECT * INTO page_input FROM public.get_document_search_page_text_reprocess_input(claim.processing_run_id,claim.lease_token);
+  IF page_input.code<>'not_indexable' OR page_input.pages IS NOT NULL THEN
+    RAISE EXCEPTION 'legacy Gemini page source remained eligible for reindex';
+  END IF;
+  SELECT * INTO write_result FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,'[]'::jsonb
+  );
+  IF write_result.code<>'not_indexable' OR write_result.changed_chunk_count<>0 THEN
+    RAISE EXCEPTION 'legacy Gemini page source was not terminalized as unavailable';
+  END IF;
+END $legacy_page_source_is_excluded$;
+RESET ROLE;
+
+UPDATE public.document_page_text_pages
+SET acquisition_method='native_pdf',
+    quality_policy_version='native-pdf-quality-v1',
+    quality_reasons='{}'::text[],
+    detected_languages='{}'::text[],
+    ocr_processor_identifier=NULL,
+    ocr_processor_version=NULL
+WHERE artifact_id=(
+  SELECT id FROM public.document_page_text_artifacts
+  WHERE document_id='55500000-0000-0000-0000-000000000001'
+    AND document_version_id='55600000-0000-0000-0000-000000000001'
+    AND state='ready'
 );
 
 SET LOCAL ROLE authenticated;

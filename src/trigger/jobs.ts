@@ -21,6 +21,7 @@ import { placeProcessingDocumentRelationships } from '@/lib/documents/matter-rel
 import {
   VERTEX_DOCUMENT_MODEL,
 } from '@/lib/ai/vertex'
+import { acquireDocumentPageText } from '@/lib/documents/page-acquisition'
 
 const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
 const EXTRACTION_SCHEMA_VERSION = 'document-extraction-v2'
@@ -242,6 +243,16 @@ export const processDocument = task({
     } else if (started?.code === 'claimed'
       && typeof started.source_analysis_run_id === 'string'
       && typeof started.source_analysis_lease_token === 'string') {
+      // Page content is a separate acquisition boundary. Native PDF text and
+      // geometry are attempted first for every page; Document AI runs only for
+      // native pages rejected by the deterministic quality policy. An
+      // unavailable OCR environment deliberately yields a not-indexable
+      // artifact rather than fabricated text or a Gemini transcript.
+      const pageAcquisition = await acquireDocumentPageText(fileBuffer, Number(started.page_count))
+      if (pageAcquisition.kind === 'not_indexable') {
+        console.warn(`[Document page acquisition] ${pageAcquisition.reason}`)
+      }
+
       const startedAt = Date.now()
       const modelOutcome = await analyzeDocumentWithOutcome(fileBuffer)
       const latencyMs = Date.now() - startedAt
@@ -272,7 +283,7 @@ export const processDocument = task({
           sourceAnalysisRunId: started.source_analysis_run_id,
           sourceAnalysisLeaseToken: started.source_analysis_lease_token,
           documentVersionId: payload.documentVersionId,
-          pageText: modelOutcome.result.page_text ?? [],
+          pageText: pageAcquisition.kind === 'complete' ? pageAcquisition.pages as unknown as Json : [],
         })
         if (pageText?.code !== 'written' && pageText?.code !== 'not_indexable') {
           throw new Error('Document page-text artifact completion was not accepted')

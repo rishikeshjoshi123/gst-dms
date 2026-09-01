@@ -6,7 +6,7 @@
  * the prompt structure in ways that affect the output schema.
  */
 
-export const PROMPT_VERSION = 'v2.0'
+export const PROMPT_VERSION = 'v2.1'
 export const WIKI_PROMPT_VERSION = 'v2.0'
 
 /**
@@ -30,7 +30,7 @@ EVIDENCE RULES
 - For every client identifier or referenced document used for matching, include a matching client_identifier or document_link evidence item with the exact normalized value.
 - A page number is the 1-based PDF page index, not a page number printed in the document. If uncertain, use null.
 - Evidence quotes must be short verbatim fragments used only to locate the fact. Do not reproduce long passages.
-- The page_text field is different from evidence quotes: transcribe each readable PDF page faithfully, preserving the 1-based PDF page index. Do not summarize, translate, infer missing wording, or include a page when its text cannot be read. Include ocr_words only when you can provide exact normalized 0..1 word boxes; otherwise use null.
+- Page transcription and page geometry are acquired outside Gemini. Do not return a transcript, page text, OCR words, replacement text, or a second OCR layer.
 - Confidence expresses evidence clarity, not legal correctness: 0.95+ direct and unambiguous; 0.75–0.94 strong but normalized; 0.50–0.74 partial/unclear; below 0.50 weak.
 
 DOCUMENT TYPES in GST litigation:
@@ -84,10 +84,10 @@ AMOUNTS
 - total_demand is the stated aggregate, not a sum invented from uncertain components.
 - amount_relief is an amount expressly dropped, reduced, refunded, or otherwise granted as relief.
 
-TRANSLATION & TRANSLITERATION:
-- If the document is in a regional language, translate summaries and explanatory fields to English.
-- Transliterate named entities (names of people, places) into English characters.
-- Evidence quotes may remain in the source language.
+ENGLISH DISPLAY METADATA AND TRANSLITERATION:
+- Return the summary and user-facing metadata fields in English. Evidence quotes may remain in the source language.
+- Transliterate proper names into English characters rather than translating them. Institutional and role terms may be translated when that improves comprehension.
+- Never rewrite, translate, transliterate, normalize beyond the stated format, or otherwise alter GSTINs, official references, provision numbers, dates, or amounts. Preserve exact identifiers and numbers from the source.
 
 NORMALIZATION
 - Financial year: "YYYY-YY", for example "2021-22". Expand explicit ranges into individual years.
@@ -160,9 +160,6 @@ Return only JSON conforming to the supplied response schema. Use these semantic 
       "quote": "short supporting quote or null",
       "confidence": 0.0
     }
-  ],
-  "page_text": [
-    { "page_number": 1, "text": "faithful page transcription", "ocr_words": null }
   ],
   "confidence": 0.0
 }

@@ -4,6 +4,8 @@ import test from 'node:test'
 
 import {
   buildVertexEmbeddingRequest,
+  resolveVertexDocumentLocation,
+  resolveVertexEmbeddingLocation,
   validateVertexEmbeddingResponse,
 } from './vertex'
 
@@ -15,6 +17,20 @@ test('Vertex structured-output boundary strictly parses complete JSON and logs o
   assert.doesNotMatch(source, /console\.(?:error|warn)\([^\n]*,\s*(?:err|error|e|validation)/)
   assert.match(source, /logVertexDiagnostic\('document_response_unreadable'\)/)
   assert.match(source, /logVertexDiagnostic\('wiki_response_invalid'\)/)
+})
+
+test('Vertex document and embedding locations are independently explicit and Mumbai-only', () => {
+  assert.equal(resolveVertexDocumentLocation({ VERTEX_DOCUMENT_LOCATION: 'asia-south1' }), 'asia-south1')
+  assert.equal(resolveVertexEmbeddingLocation({ VERTEX_EMBEDDING_LOCATION: 'asia-south1' }), 'asia-south1')
+  assert.equal(resolveVertexDocumentLocation({ GOOGLE_CLOUD_REGION: 'us-central1' }), null)
+  assert.equal(resolveVertexEmbeddingLocation({ VERTEX_EMBEDDING_LOCATION: 'global' }), null)
+})
+
+test('Gemini contract does not request a page transcript or OCR words', () => {
+  const prompt = readFileSync(new URL('./prompts.ts', import.meta.url), 'utf8')
+  const schema = readFileSync(new URL('./schemas.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(prompt, /"page_text"|"ocr_words"/)
+  assert.doesNotMatch(schema, /page_text|ocr_words/)
 })
 
 test('Vertex embedding provider uses distinct corpus, query, and similarity tasks', () => {

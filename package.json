@@ -16,6 +16,7 @@
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_REF > src/lib/supabase/database.types.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
     "@google-cloud/vertexai": "^1.12.0",
     "@radix-ui/react-avatar": "^1.2.0",
     "@radix-ui/react-dialog": "^1.1.17",

@@ -1135,34 +1135,52 @@ export type Database = {
       }
       document_page_text_pages: {
         Row: {
+          acquisition_method: string
           artifact_id: string
           created_at: string
+          detected_languages: string[]
           id: string
+          ocr_processor_identifier: string | null
+          ocr_processor_version: string | null
           ocr_words: Json | null
           org_id: string
           page_content_hash: string
           page_number: number
           page_text: string
+          quality_policy_version: string | null
+          quality_reasons: string[]
         }
         Insert: {
+          acquisition_method?: string
           artifact_id: string
           created_at?: string
+          detected_languages?: string[]
           id?: string
+          ocr_processor_identifier?: string | null
+          ocr_processor_version?: string | null
           ocr_words?: Json | null
           org_id: string
           page_content_hash: string
           page_number: number
           page_text: string
+          quality_policy_version?: string | null
+          quality_reasons?: string[]
         }
         Update: {
+          acquisition_method?: string
           artifact_id?: string
           created_at?: string
+          detected_languages?: string[]
           id?: string
+          ocr_processor_identifier?: string | null
+          ocr_processor_version?: string | null
           ocr_words?: Json | null
           org_id?: string
           page_content_hash?: string
           page_number?: number
           page_text?: string
+          quality_policy_version?: string | null
+          quality_reasons?: string[]
         }
         Relationships: [
           {
@@ -7069,6 +7087,7 @@ export type Database = {
       }
       claim_document_processing_work_for_dispatch: {
         Args: {
+          p_delivery_lease_token: string
           p_event_id: string
           p_expected_org_id: string
           p_trigger_run_id: string
@@ -7414,6 +7433,10 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      document_page_text_artifact_has_approved_acquisition: {
+        Args: { p_artifact_id: string; p_expected_page_count: number }
+        Returns: boolean
       }
       document_page_text_ocr_words_are_safe: {
         Args: { p_words: Json }

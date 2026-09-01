@@ -37,6 +37,26 @@ export type DocumentAnalysisOutcome =
 
 let _vertexAI: VertexAI | null = null
 
+export const INDIA_VERTEX_LOCATION = 'asia-south1'
+type Environment = Record<string, string | undefined>
+
+function configuredLocation(value: string | undefined): string | null {
+  const location = value?.trim()
+  return location || null
+}
+
+export function resolveVertexDocumentLocation(environment: Environment = process.env): typeof INDIA_VERTEX_LOCATION | null {
+  return configuredLocation(environment.VERTEX_DOCUMENT_LOCATION) === INDIA_VERTEX_LOCATION
+    ? INDIA_VERTEX_LOCATION
+    : null
+}
+
+export function resolveVertexEmbeddingLocation(environment: Environment = process.env): typeof INDIA_VERTEX_LOCATION | null {
+  return configuredLocation(environment.VERTEX_EMBEDDING_LOCATION) === INDIA_VERTEX_LOCATION
+    ? INDIA_VERTEX_LOCATION
+    : null
+}
+
 function getVertexAI(): VertexAI {
   if (_vertexAI) return _vertexAI
 
@@ -47,7 +67,10 @@ function getVertexAI(): VertexAI {
 
   const credentials = JSON.parse(credentialsJson)
   const project = process.env.GOOGLE_CLOUD_PROJECT ?? credentials.project_id
-  const location = process.env.GOOGLE_CLOUD_REGION ?? 'us-central1'
+  const location = resolveVertexDocumentLocation()
+  if (!location) {
+    throw new Error('VERTEX_DOCUMENT_LOCATION must be asia-south1')
+  }
 
   _vertexAI = new VertexAI({
     project,
@@ -352,7 +375,8 @@ export const vertexEmbeddingProvider: EmbeddingProvider = {
 
     const credentials = JSON.parse(credentialsJson)
     const project = process.env.GOOGLE_CLOUD_PROJECT ?? credentials.project_id
-    const location = process.env.GOOGLE_CLOUD_REGION ?? 'us-central1'
+    const location = resolveVertexEmbeddingLocation()
+    if (!location) throw new Error('VERTEX_EMBEDDING_LOCATION must be asia-south1')
 
     const auth = new GoogleAuth({
       credentials,

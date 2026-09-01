@@ -76,6 +76,16 @@ test('rejects unsupported fields and invalid financial years', () => {
   assert.equal(result.success, false)
 })
 
+test('rejects a Gemini transcript or OCR geometry field', () => {
+  for (const forbiddenField of ['page_text', 'ocr_words']) {
+    const result = aiDocumentPayloadSchema.safeParse({
+      ...validDocumentPayload,
+      [forbiddenField]: [],
+    })
+    assert.equal(result.success, false)
+  }
+})
+
 test('rejects malformed scalar values instead of silently normalizing model output', () => {
   const result = aiDocumentPayloadSchema.safeParse({
     ...validDocumentPayload,

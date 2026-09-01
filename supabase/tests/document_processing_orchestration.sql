@@ -181,28 +181,45 @@ BEGIN
 END $legacy_processing_fence_persists$;
 
 -- The dispatcher compares a Trigger payload organisation with the durable
--- event before it creates any processing lease. Child work receives the event
--- organisation returned by this database boundary, never a caller's value.
+-- event before it creates any processing lease. It also requires the active
+-- outbox delivery lease, so a stale or substituted Trigger envelope cannot
+-- claim the durable work. Child work receives the event organisation returned
+-- by this database boundary, never a caller's value.
+DO $dispatch_delivery_lease_setup$
+BEGIN
+  UPDATE public.outbox_events
+  SET delivery_state='leased',
+      lease_token='39000000-0000-0000-0000-000000000010',
+      lease_expires_at=now()+interval '2 minutes',
+      delivered_at=NULL,
+      failed_at=NULL
+  WHERE id=current_setting('test.intended_processing_event')::uuid;
+END $dispatch_delivery_lease_setup$;
 SET LOCAL ROLE service_role;
 DO $dispatch_claim_organisation_guard$
 DECLARE r record;
   event_id uuid:=current_setting('test.intended_processing_event')::uuid;
   trusted_org uuid:='39000000-0000-0000-0000-000000000001';
   forged_org uuid:='39000000-0000-0000-0000-000000000099';
+  delivery_lease uuid:='39000000-0000-0000-0000-000000000010';
 BEGIN
- SELECT * INTO r FROM public.claim_document_processing_work_for_dispatch(event_id,'trusted-dispatch-guard',trusted_org);
+ SELECT * INTO r FROM public.claim_document_processing_work_for_dispatch(event_id,'trusted-dispatch-guard',trusted_org,delivery_lease);
  IF r.code<>'recovery_required' OR r.org_id IS DISTINCT FROM trusted_org THEN
    RAISE EXCEPTION 'dispatcher claim did not return the durable organisation';
  END IF;
- SELECT * INTO r FROM public.claim_document_processing_work_for_dispatch(event_id,'forged-dispatch-guard',forged_org);
+ SELECT * INTO r FROM public.claim_document_processing_work_for_dispatch(event_id,'forged-dispatch-guard',forged_org,delivery_lease);
  IF r.code<>'organisation_mismatch' OR r.org_id IS DISTINCT FROM trusted_org THEN
    RAISE EXCEPTION 'forged dispatcher organisation was not rejected';
+ END IF;
+ SELECT * INTO r FROM public.claim_document_processing_work_for_dispatch(event_id,'forged-delivery-lease',trusted_org,'39000000-0000-0000-0000-000000000011');
+ IF r.code<>'delivery_lease_invalid' OR r.org_id IS DISTINCT FROM trusted_org THEN
+   RAISE EXCEPTION 'stale dispatcher delivery lease was not rejected';
  END IF;
 END $dispatch_claim_organisation_guard$;
 RESET ROLE;
 
 DO $surface$
 BEGIN
- IF has_table_privilege('service_role','public.source_analysis_runs','UPDATE') OR has_table_privilege('service_role','public.document_processing_runs','INSERT') OR has_function_privilege('authenticated','public.claim_document_validation_work(uuid)','EXECUTE') OR has_function_privilege('authenticated','public.claim_document_processing_work_for_dispatch(uuid,text,uuid)','EXECUTE') OR has_function_privilege('authenticated','public.auto_assign_intended_matter_intake(uuid,uuid)','EXECUTE') OR has_function_privilege('authenticated','public.reconcile_document_processing_work(integer)','EXECUTE') OR has_function_privilege('authenticated','public.record_document_asset_storage_deleted(uuid)','EXECUTE') OR NOT has_function_privilege('service_role','public.claim_document_processing_work_for_dispatch(uuid,text,uuid)','EXECUTE') OR NOT has_function_privilege('service_role','public.reconcile_document_processing_work(integer)','EXECUTE') OR NOT has_function_privilege('authenticated','public.get_document_version_read_grant(uuid)','EXECUTE') OR NOT (SELECT relforcerowsecurity FROM pg_class WHERE oid='public.source_analysis_runs'::regclass) OR pg_get_viewdef('public.document_processing_orchestration_diagnostics'::regclass) ~* '(object|path|payload|content|filename|token)' THEN RAISE EXCEPTION 'processing orchestration surface'; END IF;
+ IF has_table_privilege('service_role','public.source_analysis_runs','UPDATE') OR has_table_privilege('service_role','public.document_processing_runs','INSERT') OR has_function_privilege('authenticated','public.claim_document_validation_work(uuid)','EXECUTE') OR to_regprocedure('public.claim_document_processing_work_for_dispatch(uuid,text,uuid)') IS NOT NULL OR has_function_privilege('authenticated','public.claim_document_processing_work_for_dispatch(uuid,text,uuid,uuid)','EXECUTE') OR has_function_privilege('authenticated','public.auto_assign_intended_matter_intake(uuid,uuid)','EXECUTE') OR has_function_privilege('authenticated','public.reconcile_document_processing_work(integer)','EXECUTE') OR has_function_privilege('authenticated','public.record_document_asset_storage_deleted(uuid)','EXECUTE') OR NOT has_function_privilege('service_role','public.claim_document_processing_work_for_dispatch(uuid,text,uuid,uuid)','EXECUTE') OR NOT has_function_privilege('service_role','public.reconcile_document_processing_work(integer)','EXECUTE') OR NOT has_function_privilege('authenticated','public.get_document_version_read_grant(uuid)','EXECUTE') OR NOT (SELECT relforcerowsecurity FROM pg_class WHERE oid='public.source_analysis_runs'::regclass) OR pg_get_viewdef('public.document_processing_orchestration_diagnostics'::regclass) ~* '(object|path|payload|content|filename|token)' THEN RAISE EXCEPTION 'processing orchestration surface'; END IF;
 END $surface$;
 ROLLBACK;
