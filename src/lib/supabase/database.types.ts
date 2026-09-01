@@ -2375,6 +2375,9 @@ export type Database = {
       organisation_memberships: {
         Row: {
           created_at: string
+          departure_notice_accepted_at: string | null
+          departure_notice_days: number | null
+          departure_notice_policy_version: number | null
           generation: number
           id: string
           invited_through_id: string | null
@@ -2395,6 +2398,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          departure_notice_accepted_at?: string | null
+          departure_notice_days?: number | null
+          departure_notice_policy_version?: number | null
           generation: number
           id?: string
           invited_through_id?: string | null
@@ -2415,6 +2421,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          departure_notice_accepted_at?: string | null
+          departure_notice_days?: number | null
+          departure_notice_policy_version?: number | null
           generation?: number
           id?: string
           invited_through_id?: string | null
@@ -2446,6 +2455,8 @@ export type Database = {
       organisation_operational_settings: {
         Row: {
           created_at: string
+          departure_notice_days: number
+          departure_notice_policy_version: number
           org_id: string
           revision: number
           timezone: string
@@ -2454,6 +2465,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          departure_notice_days?: number
+          departure_notice_policy_version?: number
           org_id: string
           revision?: number
           timezone?: string
@@ -2462,6 +2475,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          departure_notice_days?: number
+          departure_notice_policy_version?: number
           org_id?: string
           revision?: number
           timezone?: string

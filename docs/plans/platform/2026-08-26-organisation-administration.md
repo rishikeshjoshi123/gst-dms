@@ -189,6 +189,12 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 
 ## Implementation Plan
 
+### Implemented foundation: prospective departure-policy snapshots
+
+- Migration `00112_organisation_departure_notice_snapshots` makes the private operational departure policy live with validated `30` or `60` days (default `30`) and an independent policy version. Every post-migration canonical membership generation receives an atomic, immutable days/version/accepted-at snapshot through the retained `org_members` compatibility bridge; the bridge remains the actual creation, invitation-acceptance, and rejoin writer boundary.
+- Pre-migration membership generations retain an explicit all-NULL compatibility snapshot. This preserves the absence of a historical accepted policy instead of fabricating one; later departure-case work must define any required treatment of that legacy state.
+- No departure-policy setter is introduced yet. There is no current safe Organisation Operations caller, so Owner/Admin authority, idempotency, and compare-and-swap requirements remain a prerequisite of the future settings command rather than an unused RPC.
+
 1. **Introduce profile and membership foundations.** Add expanded portable professional profiles, surrogate membership IDs/generations, explicit membership state, membership notice snapshots, organisation owner membership, capability definitions, constraints, timestamps, tenant-safe member projections, and self-only contribution projection contracts.
 2. **Backfill ownership and profiles.** Convert each creator's current Admin membership into the explicit Owner; seed profiles from safe auth metadata through a trusted job; report missing creators, duplicate memberships, invalid roles, and organisations without exactly one eligible Owner.
 3. **Replace membership RLS.** Add active-membership/capability helpers, remove self-insert and broad Admin mutation policies, and cover suspension/removed state in every tenant helper. Keep the single active/suspended organisation constraint for the pilot.
