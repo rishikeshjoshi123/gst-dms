@@ -39,6 +39,32 @@ the rest of the approved portfolio.
   visual approval here, then implement the smallest secure Review
   producer/consumer closure.
 
+### ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01 — Departure and Team impact workflow
+
+- **Date/domain/plan:** 2026-09-01 · Organisation Administration ·
+  Organisation Administration, Team Access, and Personal Settings.
+- **Decision needed:** approve the material Team/member-inspector and
+  self-service departure-impact direction before replacing the current legacy
+  remove-member action with the approved typed departure/administrative
+  removal commands.
+- **Why the approved contract does not settle it:** the plan specifies impact
+  projections, explicit dispositions, role/Owner constraints, and mobile
+  behavior, but the existing Settings member removal UI has no reviewed
+  departure/confirmation concept.
+- **Recommended direction:** create a compact fixture-only concept with a
+  Team list/detail workspace, Owner/Admin departure queue, explicit impact
+  summary and reassignment/disposition confirmation, plus a separate
+  self-service countdown/withdrawal flow. It must not expose another member's
+  reason/dependency details to ordinary members.
+- **Alternatives/consequences:** retaining the old direct removal flow would
+  bypass the approved impact/confirmation contract; delaying this UI does not
+  block independent approved backend foundations or other portfolio domains.
+- **Concept:** `/dev/organisation-departure-team-concept` (fixture-only;
+  no live membership mutation).
+- **Exact resume action:** review and approve that concept, record the decision
+  here, then replace the legacy live removal caller with the smallest secure
+  departure/administrative-removal closure.
+
 ### PLAT-BACKUP-DESTINATION-2026-09-01 — Independent backup destination and key authority
 
 - **Date/domain/plan:** 2026-09-01 · Platform Operations · Platform Operations.
