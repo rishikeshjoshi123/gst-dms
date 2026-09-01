@@ -183,6 +183,29 @@ The goals are to make these functions safe, auditable, and operationally useful 
   service-only grant, server-derived identity, terminal replay fence, pricing,
   and privacy contracts from the current migration and tests.
 
+### Completed: private provider-usage daily rollup consumer (2026-09-01)
+
+- Migration `00107` adds private, force-RLS UTC daily provider-usage rollups
+  and billable-unit rollups. A deferred `provider_usage_events` insert trigger
+  is the sole writer: it runs after immutable line items exist, atomically
+  aggregates exact quantities and integer micro-USD snapshots by opaque
+  organisation/provider/model/operation/quality/day grain, and leaves unknown
+  cost as `NULL`, never zero. The projection stores no document, user, path,
+  content, or provider-payload dimension.
+- The live caller is the existing service-only document-extraction accounting
+  command from `processDocument`; accepted ledger replays do not insert a new
+  event and therefore make no second rollup contribution. Per-grain advisory
+  locking and overflow fences make concurrent updates fail closed rather than
+  lose or corrupt accounting. Tables and trigger functions deny direct
+  application and service-role access; no browser reader or new RPC grant was
+  introduced.
+- Disposable local reset, focused SQL and two-session concurrency fixtures,
+  focused static tests, TypeScript, targeted lint, generated-type assertions,
+  migration uniqueness, diff checks, and fresh independent adversarial QA
+  passed. The QA reviewer could not independently reach Docker, but verified
+  the privacy, privilege, trigger, replay, UTC, quality, and generated-type
+  contracts read-only; the owner-run database fixtures passed.
+
 1. Establish the approved Organisation Administration identity/RBAC foundation, then the Document Record and File Lifecycle foundation. Preserve owning-domain durable outbox/run records and safe state before adding the platform projections.
 2. Add platform trust/config/accounting/audit/alert schema, enum/check constraints, append-only permissions, RLS, capability RPCs, safe projections, revision/idempotency support, and explicit retention jobs. Bootstrap the first Owner with the controlled runbook and audit it.
 3. Build platform authentication/authorisation: isolated route/layout, active-operator lookup, AAL2 enforcement, 10-minute privileged intent, non-disclosing denial, account launcher, Owner lifecycle invariant, and service-role boundary narrowing.

@@ -3337,6 +3337,106 @@ export type Database = {
           },
         ]
       }
+      provider_usage_daily_rollup_line_items: {
+        Row: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd: number | null
+          costed_quantity: number
+          created_at: string
+          id: string
+          provider_quantity: number
+          provider_usage_daily_rollup_id: string
+          uncosted_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd?: number | null
+          costed_quantity: number
+          created_at?: string
+          id?: string
+          provider_quantity: number
+          provider_usage_daily_rollup_id: string
+          uncosted_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          billable_unit?: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd?: number | null
+          costed_quantity?: number
+          created_at?: string
+          id?: string
+          provider_quantity?: number
+          provider_usage_daily_rollup_id?: string
+          uncosted_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_daily_rollup_l_provider_usage_daily_rollup__fkey"
+            columns: ["provider_usage_daily_rollup_id"]
+            isOneToOne: false
+            referencedRelation: "provider_usage_daily_rollups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_usage_daily_rollups: {
+        Row: {
+          cost_micro_usd: number | null
+          costed_event_count: number
+          created_at: string
+          event_count: number
+          id: string
+          model_key: string
+          operation_family: string
+          org_id: string
+          provider_key: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
+          uncosted_event_count: number
+          updated_at: string
+          usage_day: string
+        }
+        Insert: {
+          cost_micro_usd?: number | null
+          costed_event_count: number
+          created_at?: string
+          event_count: number
+          id?: string
+          model_key: string
+          operation_family: string
+          org_id: string
+          provider_key: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
+          uncosted_event_count: number
+          updated_at?: string
+          usage_day: string
+        }
+        Update: {
+          cost_micro_usd?: number | null
+          costed_event_count?: number
+          created_at?: string
+          event_count?: number
+          id?: string
+          model_key?: string
+          operation_family?: string
+          org_id?: string
+          provider_key?: string
+          quality?: Database["public"]["Enums"]["provider_usage_quality"]
+          uncosted_event_count?: number
+          updated_at?: string
+          usage_day?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_daily_rollups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_usage_events: {
         Row: {
           catalogue_version_id: string | null
