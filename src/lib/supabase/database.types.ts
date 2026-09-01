@@ -4954,6 +4954,294 @@ export type Database = {
           },
         ]
       }
+      task_comment_command_receipts: {
+        Row: {
+          actor_user_id: string
+          comment_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          sequence: number
+          task_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          comment_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          sequence: number
+          task_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          comment_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          sequence?: number
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_command_receipts_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_command_receipts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_followers: {
+        Row: {
+          created_at: string
+          follow_source: string
+          muted: boolean
+          org_id: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          follow_source: string
+          muted?: boolean
+          org_id: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          follow_source?: string
+          muted?: boolean
+          org_id?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_followers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_followers_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "task_comment_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_mentions: {
+        Row: {
+          comment_id: string
+          created_at: string
+          created_by_user_id: string
+          mentioned_user_id: string
+          org_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          created_by_user_id: string
+          mentioned_user_id: string
+          org_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          created_by_user_id?: string
+          mentioned_user_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_mentions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_mentions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_read_cursors: {
+        Row: {
+          observed_at: string
+          observed_sequence: number
+          org_id: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          observed_at?: string
+          observed_sequence?: number
+          org_id: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          observed_at?: string
+          observed_sequence?: number
+          org_id?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_read_cursors_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_read_cursors_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "task_comment_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_threads: {
+        Row: {
+          created_at: string
+          id: string
+          next_sequence: number
+          org_id: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          next_sequence?: number
+          org_id: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          next_sequence?: number
+          org_id?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_threads_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_threads_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          author_user_id: string
+          body: string
+          created_at: string
+          id: string
+          org_id: string
+          reply_to_comment_id: string | null
+          sequence: number
+          task_id: string
+          thread_id: string
+        }
+        Insert: {
+          author_user_id: string
+          body: string
+          created_at?: string
+          id?: string
+          org_id: string
+          reply_to_comment_id?: string | null
+          sequence: number
+          task_id: string
+          thread_id: string
+        }
+        Update: {
+          author_user_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          reply_to_comment_id?: string | null
+          sequence?: number
+          task_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_reply_to_comment_id_fkey"
+            columns: ["reply_to_comment_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "task_comment_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_legacy_note_backfill_diagnostics: {
         Row: {
           disposition: string
@@ -7299,6 +7587,29 @@ export type Database = {
           source_object_key: string
         }[]
       }
+      get_task_comment_thread: {
+        Args: { p_task_id: string }
+        Returns: {
+          latest_sequence: number
+          observed_sequence: number
+          thread_id: string
+          unread_count: number
+        }[]
+      }
+      get_task_comments: {
+        Args: { p_after_sequence?: number; p_limit?: number; p_task_id: string }
+        Returns: {
+          author_user_id: string
+          body: string
+          comment_id: string
+          created_at: string
+          mentioned_user_ids: string[]
+          reply_to_comment_id: string | null
+          reply_to_sequence: number | null
+          sequence: number
+          thread_id: string
+        }[]
+      }
       get_task_detail: {
         Args: { p_task_id: string }
         Returns: {
@@ -7714,6 +8025,22 @@ export type Database = {
           p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
         }
         Returns: string
+      }
+      post_task_comment: {
+        Args: {
+          p_body: string
+          p_idempotency_key: string
+          p_mentioned_user_ids?: string[]
+          p_reply_to_comment_id?: string
+          p_task_id: string
+        }
+        Returns: {
+          code: string
+          comment_id: string
+          replayed: boolean
+          sequence: number
+          thread_id: string
+        }[]
       }
       prepare_trash_purge_database: {
         Args: { p_job_id: string; p_lease_token: string }
@@ -8223,6 +8550,10 @@ export type Database = {
       }
       staged_document_source_purge_is_eligible: {
         Args: { p_legacy_staged_document_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      task_comment_context_is_available: {
+        Args: { p_org_id: string; p_task_id: string }
         Returns: boolean
       }
       transition_organisation_invite: {

@@ -13,6 +13,7 @@ import {
   FileText,
   Gavel,
   ListTodo,
+  MessageSquare,
   MoreHorizontal,
   PlayCircle,
   RefreshCw,
@@ -55,23 +56,29 @@ import {
   getTaskTransitionHistory,
   transitionTask,
   type TaskCommand,
+  type TaskComment,
+  type TaskCommentThread,
   type TaskDetail,
   type TaskListItem,
   type TaskTransition,
   type TaskWorkspaceContext,
 } from '@/lib/actions/tasks'
 import { cn } from '@/lib/utils'
+import { TaskCommentsPanel } from './TaskCommentsPanel'
 import {
   filterTasks,
   isTaskId,
+  isTaskWorkspaceTab,
   notesOriginHref,
   primaryTaskCommand,
-  taskDetailsHref,
+  taskHref,
   taskDetailReadState,
   taskStatusLabels,
   taskStatusVariants,
   type TaskAssignmentFilter,
+  type TaskDetailReadState,
   type TaskStatusFilter,
+  type TaskWorkspaceTab,
 } from './task-model'
 
 type EditDialog = 'assignee' | 'due' | null
@@ -322,9 +329,7 @@ function DetailBody({ detail, history, context }: { detail: TaskDetail; history:
   const document = detail.document_id ? context.documents[detail.document_id] : null
   return (
     <div className="p-4">
-      <div className="flex min-w-0 items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--accent)]"><ListTodo className="size-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><h2 className="break-words text-base font-semibold leading-6">{detail.title}</h2><p className="mt-0.5 break-words text-xs text-[var(--text-muted)]">{matter || client || 'Organisation task'}</p></div></div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 pl-12"><StatusBadge status={detail.status} /><PriorityText priority={detail.priority} /></div>
-      <dl className="mt-4 grid grid-cols-1 gap-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3 min-[380px]:grid-cols-2"><DetailItem label="Assignee"><span className={cn(!detail.assignee_user_id && 'text-[var(--warning)]')}>{personLabel(context, detail.assignee_user_id)}</span></DetailItem><DetailItem label="Due">{formatDue(detail)}</DetailItem><DetailItem label="Created by">{personLabel(context, detail.creator_user_id)}</DetailItem><DetailItem label="Updated">{formatDateTime(detail.updated_at)}</DetailItem></dl>
+      <dl className="grid grid-cols-1 gap-4 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3 min-[380px]:grid-cols-2"><DetailItem label="Assignee"><span className={cn(!detail.assignee_user_id && 'text-[var(--warning)]')}>{personLabel(context, detail.assignee_user_id)}</span></DetailItem><DetailItem label="Due">{formatDue(detail)}</DetailItem><DetailItem label="Created by">{personLabel(context, detail.creator_user_id)}</DetailItem><DetailItem label="Updated">{formatDateTime(detail.updated_at)}</DetailItem></dl>
       <section className="mt-5" aria-labelledby="task-description-heading"><h3 id="task-description-heading" className="text-sm font-semibold">Description</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--text-secondary)]">{detail.description || 'No description provided.'}</p></section>
       {detail.status === 'suspended' && <div className="mt-4 flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-sm leading-6"><AlertTriangle className="mt-1 size-4 shrink-0 text-[var(--warning)]" aria-hidden="true" /><span>This task is suspended and read-only.</span></div>}
       <section className="mt-5" aria-labelledby="task-context-heading"><h3 id="task-context-heading" className="text-sm font-semibold">Related work</h3><div className="mt-2 divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">{client && <ContextRow icon={Users} label="Client" value={client} />}{matter && <ContextRow icon={Gavel} label="Matter" value={matter} />}{document && <ContextRow icon={FileText} label="Document" value={document} />}{!client && !matter && !document && <p className="py-3 text-sm text-[var(--text-muted)]">No related record is available.</p>}</div></section>
@@ -376,11 +381,144 @@ function EditTaskDialog({ type, detail, context, pending, onClose, onSubmit, onC
   )
 }
 
+function TaskDetailPane({
+  detailReadState,
+  detail,
+  history,
+  context,
+  tab,
+  unreadCount,
+  detailState,
+  transitionPending,
+  initialCommentsLoaded,
+  initialCommentThread,
+  initialComments,
+  initialCommentsReaderError,
+  onBack,
+  onTab,
+  onUnreadCountChange,
+  onCommand,
+  onEdit,
+}: {
+  detailReadState: TaskDetailReadState
+  detail: TaskDetail | null
+  history: TaskTransition[]
+  context: TaskWorkspaceContext
+  tab: TaskWorkspaceTab
+  unreadCount: number
+  detailState: React.ReactNode
+  transitionPending: boolean
+  initialCommentsLoaded: boolean
+  initialCommentThread: TaskCommentThread | null
+  initialComments: TaskComment[]
+  initialCommentsReaderError: boolean
+  onBack: () => void
+  onTab: (tab: TaskWorkspaceTab) => void
+  onUnreadCountChange: (count: number) => void
+  onCommand: (command: TaskCommand) => void
+  onEdit: (dialog: EditDialog) => void
+}) {
+  const tabRefs = useRef<Record<TaskWorkspaceTab, HTMLButtonElement | null>>({ details: null, comments: null })
+  const changeTabFromKeyboard = (next: TaskWorkspaceTab) => {
+    onTab(next)
+    requestAnimationFrame(() => tabRefs.current[next]?.focus())
+  }
+
+  if (detailReadState !== 'ready' || !detail) {
+    return (
+      <section aria-label="Task details" className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
+        <div className="flex min-h-12 shrink-0 items-center border-b border-[var(--border-subtle)] px-2">
+          <Button variant="ghost" size="sm" onClick={onBack} className="xl:hidden"><ArrowLeft className="size-4" aria-hidden="true" />Back to tasks</Button>
+          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Close task details" className="ml-auto hidden xl:inline-flex"><X className="size-4" aria-hidden="true" /></Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{detailState}</div>
+      </section>
+    )
+  }
+
+  const related = relatedLabel(detail, context)
+  return (
+    <section aria-label={`Task workspace for ${detail.title}`} className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--surface)]">
+      <div className="flex min-h-12 shrink-0 items-center border-b border-[var(--border-subtle)] px-2 xl:hidden">
+        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="size-4" aria-hidden="true" />Back to tasks</Button>
+        {!context.canManage && <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]"><ShieldCheck className="size-3.5" aria-hidden="true" />Read only</span>}
+      </div>
+      <header className="shrink-0 border-b border-[var(--border-subtle)] px-4 py-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--primary)]"><ListTodo className="size-4" aria-hidden="true" /></span>
+          <div className="min-w-0 flex-1"><h2 className="break-words text-base font-semibold leading-6">{detail.title}</h2><p className="mt-0.5 break-words text-xs text-[var(--text-muted)]">{related}</p></div>
+          <Button variant="ghost" size="icon" className="-mr-2 -mt-1 hidden xl:inline-flex" onClick={onBack} aria-label="Close task details"><X className="size-4" aria-hidden="true" /></Button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-12"><StatusBadge status={detail.status} /><PriorityText priority={detail.priority} /></div>
+        {(detail.status === 'completed' || detail.status === 'cancelled') && <p className="mt-2 pl-12 text-xs text-[var(--text-muted)]">This terminal task remains commentable; adding context does not reopen it.</p>}
+      </header>
+      <div className="flex min-h-11 shrink-0 items-stretch border-b border-[var(--border-subtle)] px-2" role="tablist" aria-label="Task sections">
+        {(['details', 'comments'] as TaskWorkspaceTab[]).map((item) => {
+          const selected = tab === item
+          const label = item === 'details' ? 'Task details' : 'Comments'
+          const Icon = item === 'details' ? ListTodo : MessageSquare
+          const next = item === 'details' ? 'comments' : 'details'
+          return (
+            <button
+              ref={(node) => { tabRefs.current[item] = node }}
+              id={`task-${item}-tab`}
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`task-${item}-panel`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onTab(item)}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  changeTabFromKeyboard(next)
+                } else if (event.key === 'Home') {
+                  event.preventDefault()
+                  changeTabFromKeyboard('details')
+                } else if (event.key === 'End') {
+                  event.preventDefault()
+                  changeTabFromKeyboard('comments')
+                }
+              }}
+              className={cn('relative flex min-h-11 items-center gap-2 px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]', selected ? 'text-[var(--text-primary)] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-[var(--primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]')}
+            >
+              <Icon className="size-4" aria-hidden="true" />{label}
+              {item === 'comments' && unreadCount > 0 && <span className="size-2 rounded-[var(--radius-full)] bg-[var(--primary)]" aria-label={`${unreadCount} unread comments`} />}
+            </button>
+          )
+        })}
+        <span className="ml-auto hidden items-center text-xs text-[var(--text-muted)] sm:flex">Task-scoped conversation</span>
+      </div>
+      <div id="task-details-panel" role="tabpanel" aria-labelledby="task-details-tab" hidden={tab !== 'details'} className={cn('min-h-0 flex-1 flex-col', tab === 'details' && 'flex')}>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" tabIndex={0}><DetailBody detail={detail} history={history} context={context} /></div>
+        {detail.status !== 'suspended' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions detail={detail} canManage={context.canManage} pending={transitionPending} onCommand={onCommand} onEdit={onEdit} /></div>}
+      </div>
+      <TaskCommentsPanel
+        key={detail.task_id}
+        task={detail}
+        context={context}
+        active={tab === 'comments'}
+        initialLoaded={initialCommentsLoaded}
+        initialThread={initialCommentThread}
+        initialComments={initialComments}
+        initialReaderError={initialCommentsReaderError}
+        onUnreadCountChange={onUnreadCountChange}
+      />
+    </section>
+  )
+}
+
 export function TasksWorkspace({
   initialTasks,
   initialSelectedId,
   initialDetail,
   initialHistory,
+  initialTab,
+  initialCommentThread,
+  initialComments,
+  initialCommentsLoaded,
+  initialCommentsReaderError,
   initialListReaderError,
   initialDetailReaderError,
   context,
@@ -389,6 +527,11 @@ export function TasksWorkspace({
   initialSelectedId: string | null
   initialDetail: TaskDetail | null
   initialHistory: TaskTransition[]
+  initialTab: TaskWorkspaceTab
+  initialCommentThread: TaskCommentThread | null
+  initialComments: TaskComment[]
+  initialCommentsLoaded: boolean
+  initialCommentsReaderError: boolean
   initialListReaderError: boolean
   initialDetailReaderError: boolean
   context: TaskWorkspaceContext
@@ -397,6 +540,8 @@ export function TasksWorkspace({
   const [selectedId, setSelectedId] = useState(initialSelectedId)
   const [detail, setDetail] = useState(initialDetail)
   const [history, setHistory] = useState(initialHistory)
+  const [tab, setTab] = useState(initialTab)
+  const [commentsUnreadCount, setCommentsUnreadCount] = useState(initialCommentThread?.unread_count ?? 0)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailReaderError, setDetailReaderError] = useState(initialDetailReaderError)
   const [query, setQuery] = useState('')
@@ -408,11 +553,13 @@ export function TasksWorkspace({
   const requestVersion = useRef(0)
   const attemptRef = useRef<{ fingerprint: string; key: string } | null>(null)
 
-  const loadDetail = useCallback(async (taskId: string, updateUrl = true) => {
+  const loadDetail = useCallback(async (taskId: string, updateUrl = true, nextTab: TaskWorkspaceTab = 'details') => {
     const version = ++requestVersion.current
     setSelectedId(taskId)
+    setTab(nextTab)
+    setCommentsUnreadCount(0)
     setDetailReaderError(false)
-    if (updateUrl) window.history.pushState(null, '', taskDetailsHref(taskId))
+    if (updateUrl) window.history.pushState(null, '', taskHref(taskId, nextTab))
     if (!isTaskId(taskId)) {
       setDetailLoading(false)
       setDetail(null)
@@ -442,19 +589,32 @@ export function TasksWorkspace({
     setSelectedId(null)
     setDetail(null)
     setHistory([])
+    setTab('details')
+    setCommentsUnreadCount(0)
     setDetailReaderError(false)
     if (updateUrl) window.history.pushState(null, '', '/tasks')
   }, [])
 
   useEffect(() => {
     const onPopState = () => {
-      const taskId = new URLSearchParams(window.location.search).get('task')
-      if (taskId) void loadDetail(taskId, false)
+      const params = new URLSearchParams(window.location.search)
+      const taskId = params.get('task')
+      const requestedTab = params.get('tab')
+      const nextTab = isTaskWorkspaceTab(requestedTab) ? requestedTab : 'details'
+      if (taskId) void loadDetail(taskId, false, nextTab)
       else closeDetail(false)
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [closeDetail, loadDetail])
+
+  const changeTab = useCallback((nextTab: TaskWorkspaceTab) => {
+    if (!selectedId || nextTab === tab) return
+    setTab(nextTab)
+    window.history.pushState(null, '', taskHref(selectedId, nextTab))
+  }, [selectedId, tab])
+
+  const updateUnreadCount = useCallback((count: number) => setCommentsUnreadCount(count), [])
 
   const labels = useMemo(() => tasks.map((task) => relatedLabel(task, context)), [context, tasks])
   const visibleTasks = useMemo(() => filterTasks(tasks, {
@@ -471,9 +631,7 @@ export function TasksWorkspace({
       ? <StateMessage title="Task details unavailable" body="Task details could not be loaded. Try again." error action={<Button onClick={() => selectedId && void loadDetail(selectedId, false)}><RefreshCw className="size-4" aria-hidden="true" />Retry</Button>} />
       : detailReadState === 'unavailable'
         ? <StateMessage title="Task unavailable" body="This task does not exist or is not available to your account." error />
-        : detail
-          ? <DetailBody detail={detail} history={history} context={context} />
-          : null
+        : null
 
   const runCommand = (command: TaskCommand, values: { assigneeUserId?: string; dueDate?: string } = {}) => {
     if (!detail || isTransitionPending || !context.canManage) return
@@ -531,17 +689,33 @@ export function TasksWorkspace({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
       <BreadcrumbSetter breadcrumbs={[{ label: 'Tasks' }]} />
       <div className={cn(selectedId && 'hidden xl:block')}><QueueToolbar query={query} status={statusFilter} assignment={assignmentFilter} count={visibleTasks.length} onQuery={setQuery} onStatus={setStatusFilter} onAssignment={setAssignmentFilter} /></div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="hidden h-full min-h-0 xl:flex">
-          <section aria-label="Task list" className="min-w-0 flex-1 overflow-y-auto overscroll-contain">
-            {!visibleTasks.length ? <StateMessage title={tasks.length ? 'No matching tasks' : 'No tasks yet'} body={tasks.length ? 'Clear the search or broaden the filters.' : 'Tasks created from Notes will appear here.'} /> : <TaskTableView tasks={visibleTasks} selectedId={selectedId} context={context} onSelect={(id) => void loadDetail(id)} />}
-          </section>
-          {selectedId && <aside aria-label="Task details" className="flex h-full min-h-0 w-[min(42%,30rem)] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)]"><div className="flex h-14 shrink-0 items-center border-b border-[var(--border-subtle)] px-3"><div className="flex min-w-0 items-center gap-2 text-sm font-medium"><ListTodo className="size-4" aria-hidden="true" />Task details</div><Button variant="ghost" size="icon" className="ml-auto" onClick={() => closeDetail()} aria-label="Close task details"><X className="size-4" /></Button></div><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{detailState}</div>{detailReadState === 'ready' && detail && detail.status !== 'suspended' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions detail={detail} canManage={context.canManage} pending={isTransitionPending} onCommand={runCommand} onEdit={setEditDialog} /></div>}</aside>}
-        </div>
-
-        <div className="h-full min-h-0 xl:hidden">
-          {selectedId ? <section aria-label="Task details" className="flex h-full min-h-0 flex-col"><div className="flex h-12 shrink-0 items-center border-b border-[var(--border-subtle)] px-2"><Button variant="ghost" size="sm" onClick={() => closeDetail()}><ArrowLeft className="size-4" aria-hidden="true" />Back to tasks</Button>{!context.canManage && <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]"><ShieldCheck className="size-3.5" aria-hidden="true" />Read only</span>}</div><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{detailState}</div>{detailReadState === 'ready' && detail && detail.status !== 'suspended' && <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--surface)] p-3"><TaskActions detail={detail} canManage={context.canManage} pending={isTransitionPending} onCommand={runCommand} onEdit={setEditDialog} /></div>}</section> : <section aria-label="Task list" className="h-full min-h-0 overflow-y-auto overscroll-contain">{!visibleTasks.length ? <StateMessage title={tasks.length ? 'No matching tasks' : 'No tasks yet'} body={tasks.length ? 'Clear the search or broaden the filters.' : 'Tasks created from Notes will appear here.'} /> : <MobileTaskList tasks={visibleTasks} context={context} onSelect={(id) => void loadDetail(id)} />}</section>}
-        </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <section aria-label="Task list" className={cn('h-full min-w-0 flex-1 overflow-y-auto overscroll-contain', selectedId && 'hidden xl:block')}>
+          {!visibleTasks.length ? <StateMessage title={tasks.length ? 'No matching tasks' : 'No tasks yet'} body={tasks.length ? 'Clear the search or broaden the filters.' : 'Tasks created from Notes will appear here.'} /> : <><div className="hidden xl:block"><TaskTableView tasks={visibleTasks} selectedId={selectedId} context={context} onSelect={(id) => void loadDetail(id)} /></div><div className="xl:hidden"><MobileTaskList tasks={visibleTasks} context={context} onSelect={(id) => void loadDetail(id)} /></div></>}
+        </section>
+        {selectedId && (
+          <aside aria-label="Selected task" className="h-full min-h-0 w-full shrink-0 bg-[var(--surface)] xl:w-[min(46%,34rem)] xl:border-l xl:border-[var(--border)]">
+            <TaskDetailPane
+              detailReadState={detailReadState}
+              detail={detail}
+              history={history}
+              context={context}
+              tab={tab}
+              unreadCount={commentsUnreadCount}
+              detailState={detailState}
+              transitionPending={isTransitionPending}
+              initialCommentsLoaded={Boolean(initialSelectedId && detail?.task_id === initialSelectedId && initialCommentsLoaded)}
+              initialCommentThread={detail?.task_id === initialSelectedId ? initialCommentThread : null}
+              initialComments={detail?.task_id === initialSelectedId ? initialComments : []}
+              initialCommentsReaderError={Boolean(detail?.task_id === initialSelectedId && initialCommentsReaderError)}
+              onBack={() => closeDetail()}
+              onTab={changeTab}
+              onUnreadCountChange={updateUnreadCount}
+              onCommand={runCommand}
+              onEdit={setEditDialog}
+            />
+          </aside>
+        )}
       </div>
       <p className="sr-only" aria-live="polite">{announcement}</p>
       <EditTaskDialog key={`${editDialog}-${detail?.revision ?? 'none'}`} type={editDialog} detail={detail} context={context} pending={isTransitionPending} onClose={() => setEditDialog(null)} onSubmit={(values) => runCommand(editDialog === 'assignee' ? 'set_assignee' : 'set_due_date', values)} onClear={() => runCommand('clear_due_date')} />

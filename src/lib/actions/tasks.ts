@@ -18,6 +18,8 @@ export type TaskCommand =
 export type TaskListItem = Database['public']['Functions']['get_my_tasks']['Returns'][number]
 export type TaskDetail = Database['public']['Functions']['get_task_detail']['Returns'][number]
 export type TaskTransition = Database['public']['Functions']['get_task_transition_history']['Returns'][number]
+export type TaskCommentThread = Database['public']['Functions']['get_task_comment_thread']['Returns'][number]
+export type TaskComment = Database['public']['Functions']['get_task_comments']['Returns'][number]
 
 export class TaskReaderError extends Error {
   readonly code = 'task_reader_unavailable'
@@ -68,6 +70,80 @@ export async function getTaskTransitionHistory(taskId: string) {
     throw new TaskReaderError()
   }
   return data ?? []
+}
+
+/** Task Comments remain a task-scoped RPC projection; browser callers never
+ * access the private comment tables directly. */
+export async function getTaskCommentThread(taskId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_task_comment_thread', { p_task_id: taskId })
+  if (error) {
+    console.error('getTaskCommentThread error:', error)
+    throw new TaskReaderError()
+  }
+  return data?.[0] ?? null
+}
+
+export async function getTaskComments(input: {
+  taskId: string
+  afterSequence?: number
+  limit?: number
+}): Promise<TaskComment[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_task_comments', {
+    p_task_id: input.taskId,
+    p_after_sequence: input.afterSequence ?? 0,
+    p_limit: input.limit ?? 200,
+  })
+  if (error) {
+    console.error('getTaskComments error:', error)
+    throw new TaskReaderError()
+  }
+  return data ?? []
+}
+
+export async function postTaskComment(input: {
+  taskId: string
+  body: string
+  replyToCommentId?: string | null
+  mentionedUserIds?: string[]
+  idempotencyKey?: string
+}) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('post_task_comment', {
+    p_task_id: input.taskId,
+    p_body: input.body,
+    p_idempotency_key: input.idempotencyKey ?? randomUUID(),
+    p_reply_to_comment_id: input.replyToCommentId ?? undefined,
+    p_mentioned_user_ids: input.mentionedUserIds ?? undefined,
+  })
+  const result = data?.[0]
+  if (error || !result || result.code !== 'ok' || !result.thread_id || !result.comment_id || result.sequence === null) {
+    const messages: Record<string, string> = {
+      context_unavailable: 'This task is unavailable because its source context is no longer active.',
+      idempotency_conflict: 'This submission key was already used for another comment.',
+      invalid_mentions: 'Choose active team members who can access this task.',
+      invalid_reply: 'That comment is no longer available to reply to.',
+      invalid_request: 'This comment is invalid.',
+      not_allowed: 'You do not have permission to comment on this task.',
+      not_found: 'This task is no longer available.',
+    }
+    return {
+      error: messages[result?.code ?? ''] ?? 'Unable to post this comment.',
+      code: result?.code ?? 'request_failed',
+    }
+  }
+
+  revalidatePath('/tasks')
+  return {
+    success: true,
+    comment: {
+      threadId: result.thread_id,
+      commentId: result.comment_id,
+      sequence: result.sequence,
+      replayed: result.replayed,
+    },
+  }
 }
 
 /**

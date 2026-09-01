@@ -18,6 +18,27 @@ the rest of the approved portfolio.
 
 ## Open
 
+### WORK-REVIEW-CONCEPT-2026-09-01 — Review workspace direction
+
+- **Date/domain/plan:** 2026-09-01 · Work · Work Orchestration, Review,
+  Activity, Notifications, and Today.
+- **Decision needed:** approve the material production direction for the
+  dedicated Review queue and decision pane, including its evidence-first
+  desktop layout and mobile list-to-detail flow.
+- **Why the approved contract does not settle it:** the plan defines Review
+  state, evidence, permissions, and interaction requirements, but the
+  production workspace has no reviewed `/dev` concept.
+- **Recommended direction:** create a compact fixture-only Review concept with
+  stable queue filters, an evidence/decision detail pane, explicit primary
+  decisions, and the approved mobile drill-in; it must not reproduce the
+  legacy Dashboard/Review four-table query.
+- **Alternatives/consequences:** implementing a live Review workspace without
+  visual review crosses the approved material UI boundary; delaying it does
+  not block the independently approved Organisation Administration tranche.
+- **Exact resume action:** build `/dev/review-workspace-concept`, record its
+  visual approval here, then implement the smallest secure Review
+  producer/consumer closure.
+
 ### PLAT-BACKUP-DESTINATION-2026-09-01 — Independent backup destination and key authority
 
 - **Date/domain/plan:** 2026-09-01 · Platform Operations · Platform Operations.
@@ -89,6 +110,19 @@ the rest of the approved portfolio.
   fences.
 
 ## Resolved
+
+### 2026-09-01 — Task comments workspace direction
+
+- **Plan:** Work Orchestration, Review, Activity, Notifications, and Today.
+- **Decision:** approved the `/dev/task-comments-concept` direction: a
+  task-scoped conversation in the peer **Comments** tab; an independent Notes
+  origin link (not copied messages); chronological Notes-style presentation;
+  accessible mentions and one-message replies; a fixed composer with a visible
+  **Send** action; and the approved desktop/mobile drill-in behavior.
+- **Outcome:** implement the secured first comment-thread consumer slice. It
+  must keep terminal tasks commentable, make suspended Tasks read-only, and
+  defer notification delivery, My Work, Activity reader/projector, nested
+  tasks, and broader legacy cleanup.
 
 ### 2026-09-01 — Task RPC organisation-selection authority
 

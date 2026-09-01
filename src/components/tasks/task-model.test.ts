@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { filterTasks, isTaskId, notesOriginHref, primaryTaskCommand, taskDetailReadState, taskDetailsHref } from './task-model'
+import {
+  filterTasks,
+  isTaskId,
+  isTaskWorkspaceTab,
+  mentionedUserIdsInBody,
+  notesOriginHref,
+  primaryTaskCommand,
+  taskDetailReadState,
+  taskDetailsHref,
+  taskHref,
+} from './task-model'
 import type { TaskDetail, TaskListItem } from '@/lib/actions/tasks'
 
 function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
@@ -40,9 +50,24 @@ test('active and assignment filters use current Task projection fields', () => {
 
 test('Task and Notes deep links encode opaque identifiers', () => {
   assert.equal(taskDetailsHref('task id'), '/tasks?task=task%20id&tab=details')
+  assert.equal(taskHref('task id', 'comments'), '/tasks?task=task%20id&tab=comments')
   assert.equal(notesOriginHref('note/id'), '/notes?note=note%2Fid')
   assert.equal(isTaskId('00000000-0000-4000-8000-000000000001'), true)
   assert.equal(isTaskId('forged-task-id'), false)
+})
+
+test('Task tabs and selected mentions remain explicit URL and recipient state', () => {
+  assert.equal(isTaskWorkspaceTab('details'), true)
+  assert.equal(isTaskWorkspaceTab('comments'), true)
+  assert.equal(isTaskWorkspaceTab('history'), false)
+  assert.deepEqual(mentionedUserIdsInBody('Please check @Meera Shah and @Meera Shah.', [
+    { id: 'meera', label: 'Meera Shah' },
+    { id: 'ananya', label: 'Ananya Kapoor' },
+    { id: 'meera', label: 'Meera Shah' },
+  ]), ['meera'])
+  assert.deepEqual(mentionedUserIdsInBody('The label was removed.', [
+    { id: 'meera', label: 'Meera Shah' },
+  ]), [])
 })
 
 test('only supported current-state commands are offered as primary actions', () => {

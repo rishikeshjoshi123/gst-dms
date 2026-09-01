@@ -15,6 +15,9 @@ export const planVisualReferences = {
   'docs/plans/features/2026-08-25-notes-and-case-brief.md': [
     { afterHeading: 'Brief presentation', specimenId: 'notes-brief-layout' },
   ],
+  'docs/plans/features/2026-08-25-work-review-activity-notifications.md': [
+    { afterHeading: 'Tasks', specimenId: 'task-comments-layout' },
+  ],
 };
 
 // The portfolio's dependency order, adapted into a complete reading sequence.

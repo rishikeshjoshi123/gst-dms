@@ -2,6 +2,7 @@ import type { TaskDetail, TaskListItem, TaskStatus } from '@/lib/actions/tasks'
 
 export type TaskStatusFilter = 'active' | 'all' | TaskStatus
 export type TaskAssignmentFilter = 'all' | 'mine' | 'unassigned'
+export type TaskWorkspaceTab = 'details' | 'comments'
 
 export type TaskDetailReadState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error'
 
@@ -64,8 +65,12 @@ export function filterTasks(
   })
 }
 
+export function taskHref(taskId: string, tab: TaskWorkspaceTab = 'details') {
+  return `/tasks?task=${encodeURIComponent(taskId)}&tab=${tab}`
+}
+
 export function taskDetailsHref(taskId: string) {
-  return `/tasks?task=${encodeURIComponent(taskId)}&tab=details`
+  return taskHref(taskId, 'details')
 }
 
 export function notesOriginHref(noteId: string) {
@@ -77,4 +82,17 @@ export function primaryTaskCommand(status: TaskStatus) {
   if (status === 'in_progress') return { command: 'complete' as const, label: 'Complete task' }
   if (status === 'completed' || status === 'cancelled') return { command: 'reopen' as const, label: 'Reopen task' }
   return null
+}
+
+export function isTaskWorkspaceTab(value: string | null | undefined): value is TaskWorkspaceTab {
+  return value === 'details' || value === 'comments'
+}
+
+export function mentionedUserIdsInBody(
+  body: string,
+  selectedMentions: Array<{ id: string; label: string }>,
+) {
+  return [...new Set(selectedMentions
+    .filter((mention) => body.includes(`@${mention.label}`))
+    .map((mention) => mention.id))]
 }
