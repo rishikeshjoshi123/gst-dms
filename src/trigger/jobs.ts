@@ -11,6 +11,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 import { analyzeDocumentWithOutcome, vertexEmbeddingProvider } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
+import {
+  logDocumentExtractionUsageWriteOutcome,
+  recordCompletedDocumentExtractionProviderUsage,
+} from '@/lib/platform/provider-usage'
 import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
 import { placeProcessingDocumentRelationships } from '@/lib/documents/matter-relationship-effective-metadata'
@@ -71,6 +75,20 @@ async function finishProvenanceExtraction(
   const { data, error } = await supabase.rpc('finish_document_processing_ai_extraction', args)
   if (error) throw new Error('Document provenance RPC unavailable')
   return data?.[0] ?? null
+}
+
+async function reconcileDocumentExtractionProviderUsage(
+  supabase: SupabaseClient<Database>,
+  sourceAnalysisRunId: string,
+) {
+  // The ledger writer is repeat-safe. Reconciliation runs after every path
+  // that observes an eligible terminal source run so a crash after provenance
+  // commit cannot permanently skip accounting.
+  const usageWriteCode = await recordCompletedDocumentExtractionProviderUsage(
+    supabase,
+    sourceAnalysisRunId,
+  )
+  logDocumentExtractionUsageWriteOutcome(usageWriteCode)
 }
 
 export interface ProcessDocumentPayload {
@@ -192,7 +210,8 @@ export const processDocument = task({
       p_declared_uploaded_by: uploadedBy,
     })
 
-    if (started?.code === 'already_validated') {
+    if (started?.code === 'already_validated' && typeof started.source_analysis_run_id === 'string') {
+      await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
       const placement = await placeValidatedDocumentRelationships(supabase, {
         docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
       })
@@ -239,11 +258,21 @@ export const processDocument = task({
       if (completed?.code !== 'validated' && completed?.code !== 'review_required') {
         throw new Error('Document provenance completion was not accepted')
       }
+      // Usage accounting is intentionally after the accepted provenance write.
+      // The service-only writer derives organisation, model, token units and
+      // idempotency from the durable source run; accounting failure can never
+      // alter the already-accepted legal-domain outcome.
+      await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
       if (completed.code === 'review_required') return { status: 'needs_review', docId }
       const placement = await placeValidatedDocumentRelationships(supabase, {
         docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
       })
       return { status: placement?.code === 'placed' || placement?.code === 'no_effective_references' ? 'placed' : 'needs_review', docId }
+    } else if (started?.code === 'already_terminal' && typeof started.source_analysis_run_id === 'string') {
+      // A replay of a review-required terminal run must reconcile its durable
+      // accounting entry without invoking Vertex or changing the Review state.
+      await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
+      return { status: 'needs_review', docId }
     } else {
       // Any existing in-flight or terminal run is intentionally not retried
       // here: a new task must never create a second model invocation.

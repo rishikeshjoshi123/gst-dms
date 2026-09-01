@@ -7493,6 +7493,16 @@ export type Database = {
           code: string
         }[]
       }
+      record_completed_document_extraction_provider_usage: {
+        Args: { p_source_analysis_run_id: string }
+        Returns: {
+          code: string
+          cost_micro_usd: number | null
+          pricing_version_id: string | null
+          provider_usage_event_id: string | null
+          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
+        }[]
+      }
       record_organisation_invite_delivery: {
         Args: {
           p_error_code?: string

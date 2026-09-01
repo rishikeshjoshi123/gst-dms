@@ -159,6 +159,30 @@ The goals are to make these functions safe, auditable, and operationally useful 
 - Pricing rate collections now finalise as immutable snapshots before use: later rate additions are rejected, and provider-unit contracts reject extra or crossed units. The ledger is idempotency/fingerprint fenced and private; direct table access is denied to application roles. Legacy `ai_usage_logs`, pricing actions, workers, routes, and UI remain unchanged.
 - Fresh local reset, both pricing/ledger rollback fixtures, contract/finalisation/replay/cross-subject/privacy/privilege checks, generated-type parity, TypeScript, migration checks, driver inspection, and fresh independent QA/recheck passed. This is a prerequisite contract only, not a live usage-writer, reader, rollup, or console migration.
 
+### Completed: live document-extraction provider-usage writer (2026-09-01)
+
+- Migration `00106` adds one service-only accounting command for a completed
+  provenance-bound `source_analysis_run`. It accepts only that opaque run ID,
+  then derives organisation, provider/model, exact input/output token units,
+  occurrence time, runtime configuration, and deterministic correlation and
+  idempotency identifiers from the durable run and its matching succeeded
+  attempt. The append-only `00104` ledger remains the sole cost/pricing
+  authority; missing units/configuration become safe unpriced observability,
+  never a zero-cost entry or a legal-domain failure.
+- The live `processDocument` worker reconciles that command after every
+  accepted terminal provenance result, including `already_validated` and
+  review-terminal replays after an accounting interruption. It never reruns
+  Vertex, changes the accepted provenance state, or repeats review placement
+  solely for accounting. Legacy embedding-reindex and Case Wiki
+  `ai_usage_logs` writers remain deliberately unchanged because they lack this
+  approved durable ledger subject.
+- Focused replay/order tests, TypeScript, targeted lint, migration uniqueness,
+  typed nullable-RPC assertions, diff checks, local ledger fixtures and fresh
+  independent QA/recheck passed. The fresh recheck could not rerun Docker SQL
+  fixtures because local Docker access was unavailable; it verified the
+  service-only grant, server-derived identity, terminal replay fence, pricing,
+  and privacy contracts from the current migration and tests.
+
 1. Establish the approved Organisation Administration identity/RBAC foundation, then the Document Record and File Lifecycle foundation. Preserve owning-domain durable outbox/run records and safe state before adding the platform projections.
 2. Add platform trust/config/accounting/audit/alert schema, enum/check constraints, append-only permissions, RLS, capability RPCs, safe projections, revision/idempotency support, and explicit retention jobs. Bootstrap the first Owner with the controlled runbook and audit it.
 3. Build platform authentication/authorisation: isolated route/layout, active-operator lookup, AAL2 enforcement, 10-minute privileged intent, non-disclosing denial, account launcher, Owner lifecycle invariant, and service-role boundary narrowing.
