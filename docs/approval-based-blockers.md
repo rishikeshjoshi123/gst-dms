@@ -18,6 +18,33 @@ the rest of the approved portfolio.
 
 ## Open
 
+### PLAT-BACKUP-DESTINATION-2026-09-01 — Independent backup destination and key authority
+
+- **Date/domain/plan:** 2026-09-01 · Platform Operations · Platform Operations.
+- **Decision/authority needed:** provide or authorise a non-production,
+  independently controlled object-storage destination and encryption-key
+  authority for the approved backup/restore gate, together with a scoped local
+  test credential or equivalent isolated test harness.
+- **Why the approved contract does not settle it:** the plan requires an
+  encrypted independent-destination copy outside the primary failure domain,
+  but the repository contains no destination, key ownership, retention-lock
+  policy, or credential. Those cannot be invented safely in source code.
+- **Recommended direction:** use a dedicated, separately administered
+  S3-compatible backup account/project and managed encryption key, with a
+  least-privilege backup writer, separate restore reader, immutable 30-daily
+  and 12-monthly retention policy, and no application/auth/provider secrets in
+  backup data.
+- **Alternatives/consequences:** an isolated managed backup service is
+  acceptable only if it can prove complete object-byte copies, manifests and
+  independent restore; reusing the primary storage account fails the approved
+  independent-failure-domain requirement; a local-only mock can validate code
+  but cannot close the pilot backup gate.
+- **Contract:** [Platform Operations backup, recovery, and rollout gate](./plans/platform/2026-08-27-platform-operations.md#backup-recovery-and-rollout-gate).
+- **Exact resume action:** implement the approved backup-set writer, manifest
+  verifier, retention/freshness evidence, and isolated restore drill against
+  the authorised destination; then run the complete object-byte and database
+  recovery acceptance fixtures.
+
 ### 2026-09-01 — Document Hub and Workbench concept
 
 - **Plan:** Document Hub, Ingestion, Placement, Relationships, and Workbench.
@@ -62,6 +89,28 @@ the rest of the approved portfolio.
   fences.
 
 ## Resolved
+
+### 2026-09-01 — Task RPC organisation-selection authority
+
+- **Plan:** Work Orchestration, Review, Activity, Notifications, and Today;
+  Organisation Administration, Team Access, and Personal Settings.
+- **Decision:** ordinary users may have exactly one active or suspended
+  organisation membership until a separately approved multi-organisation
+  design replaces the invariant. Organisation creation, invitation acceptance,
+  and rejoining must serialize and enforce that invariant in the database.
+  Removed membership generations do not block joining elsewhere; suspended
+  membership does.
+- **Authority:** tenant RPCs derive the organisation from `auth.uid()` and the
+  caller's exactly one active membership. They do not use the workspace cookie,
+  accept a browser organisation authority, choose the newest membership, or
+  introduce a selected-organisation context. Zero active membership is a
+  normal no-access outcome. An impossible duplicate fails closed, produces safe
+  operational diagnostics, and requires a privileged repair runbook rather
+  than presenting the user with a workspace-selection stalemate.
+- **Outcome:** resume the secured Task reader/transition closure and replace the
+  multi-organisation fixture with exactly-one-current-membership, concurrent
+  join denial, removed-history/rejoin, suspension denial, zero-membership, and
+  invariant-corruption coverage.
 
 ### 2026-09-01 — Dedicated Tasks workspace concept
 

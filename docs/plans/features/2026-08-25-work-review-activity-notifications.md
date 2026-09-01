@@ -161,7 +161,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 ### Permissions and lifecycle integration
 
-- RLS and domain commands derive organisation/user scope from authenticated identity. Caller-supplied assignee, subject, event, and locator IDs are revalidated against membership and resource access.
+- RLS and domain commands derive organisation/user scope from authenticated identity and the ordinary user's exactly one active organisation membership. They do not select a newest membership or trust a browser organisation ID, cookie, or selected-workspace record. Caller-supplied assignee, subject, event, and locator IDs are revalidated against that membership and resource access.
 - Viewer can read permitted Activity and receive informational mentions/deadline notifications, but cannot create/complete tasks, be assigned actionable tasks/Review, or resolve Review.
 - Associate can manage operational tasks and resolve permitted extraction, relationship, placement, and deadline Review. Owner/Admin has organisation triage, reassignment, configuration, and privileged decision capabilities. Financial/internal-cost and destructive permissions remain with their owning plans.
 - Future matter-level access automatically limits Activity, My Work, Review, notifications, counts, and locators. No projection reveals inaccessible existence or counts.
@@ -176,7 +176,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 3. **Introduce Tasks.** Add task tables/state transitions, commands, assignment validation, due semantics, exact Notes-origin links, task comment threads/messages/mentions/read cursors, Activity/outbox emission, member-removal handling, and note-task migration adapters. Build the two-tab Task detail pane by reusing shared Notes conversation primitives without sharing Notes thread ownership or enabling nested task creation.
 4. **Introduce Review.** Add items/evidence/decisions, typed resolvers, dedupe/revision logic, transitions, and producers for AI, duplicates, placement, relationships, deadlines, financials, Case Brief, import, restore, and recovery.
 5. **Rebuild notification generation/delivery.** Add intents, personal notifications, channel deliveries, preferences, schedules, quiet hours, digests, retry/dedupe, target validation, read/archive state, and retention. Stop routine-processing producers.
-6. **Create secured read models.** Implement RLS-safe RPCs/views for My Work, Today, queue/badge counts, overdue/upcoming work, Admin attention, recent views, and Activity filters. Derive scope from `auth.uid()` and paginate server-side.
+6. **Create secured read models.** Implement RLS-safe RPCs/views for My Work, Today, queue/badge counts, overdue/upcoming work, Admin attention, recent views, and Activity filters. Derive scope from `auth.uid()` plus exactly one active membership, fail closed on invariant corruption, and paginate server-side.
 7. **Build Activity surfaces.** Add `/activity`, matter Activity, shared rows/details, stable snapshots, typed changes, filters, deep links, and Trash-aware rendering.
 8. **Build My Work and Review.** Replace Review's four-table query, move note action items to My Work, keep ordinary staged placement in Document Hub, and implement desktop/mobile list-detail workflows.
 9. **Build Notifications and preferences.** Replace broken routing/System tabs, add action/reason/read/archive states, realtime insertion without scroll jumps, and Settings controls.
@@ -208,6 +208,23 @@ due-date, and resolution fields must not remain as stale current-state UI. The
 secured reader/transition slice will provide the Notes summary and dedicated
 Tasks workspace, followed by idempotent one-to-one legacy backfill. The decision
 is recorded in [Approval-based blockers](../../approval-based-blockers.md#resolved).
+
+**Approved organisation-authority decision (2026-09-01):** ordinary users have
+exactly one active or suspended organisation membership until a later explicit
+multi-organisation plan. Organisation creation, invitation acceptance, and
+rejoining share a serialized database uniqueness invariant, so normal product
+flows cannot create two current memberships; a removed historical generation
+does not block joining elsewhere, while suspension does. Task and all other
+tenant RPCs derive their organisation from `auth.uid()` and exactly one active
+membership, never from the HTTP-only workspace cookie, a caller-supplied
+organisation ID, newest-membership fallback, or a new selected-workspace
+context. Zero active memberships returns the appropriate no-access state; an
+impossible duplicate fails closed, raises safe operational diagnostics, and is
+repaired only through a privileged runbook. Resume the Task secured
+reader/transition closure and replace its multi-organisation fixture with
+single-membership, concurrent-join denial, removed-rejoin, suspension-denial,
+and invariant-corruption fixtures. The resolved decision is recorded in
+[Approval-based blockers](../../approval-based-blockers.md#2026-09-01--task-rpc-organisation-selection-authority).
 
 ## Interfaces and Data Changes
 
@@ -291,6 +308,7 @@ Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComme
 - Preferences, weekly schedule/timezone, included families, deadline corrections, lead-time dedupe, quiet hours, digest filtering, email retry/failure, revoked access, member removal, and Trash suspension behave deterministically.
 - The optional AI overview cannot add a fact absent from the deterministic digest fixture, exposes source traceability, is clearly labelled, fails open to the deterministic email, records AI usage, and remains disabled until its separate evaluation gate passes.
 - Viewer cannot be assigned actionable Tasks/Review or invoke mutations; Associate/Admin/Owner capabilities hold through UI, RPCs, direct IDs, and cross-tenant attempts.
+- Task readers and transitions derive tenant authority from exactly one active membership and reject browser-submitted organisation authority. Fixtures cover zero membership, suspended/removed membership, removed-history plus one current membership, concurrent second-join denial, and impossible duplicate-current membership without disclosing either organisation or creating a user-facing workspace stalemate.
 - Today includes overdue verified deadlines/tasks, uses the approved deterministic groups, excludes vanity totals and routine processing, and filters inaccessible/trashed items.
 - My Work, Review, notification badges/pages, and Today show consistent counts from the same secured source state. Queries are server-paginated and never derive totals from capped client arrays.
 - Activity filters/URLs work at organisation and matter scope. Realtime preserves focus/list position and offers a new-items affordance.

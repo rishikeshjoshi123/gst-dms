@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useEffect, useState, useMemo, useRef, useTransition } from 'react'
 import { toast } from 'sonner'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import {
-  Search, Pin, Trash2, CheckCircle2, Circle, FileText,
+  Search, Pin, Trash2, FileText,
   Check, Edit2, MessageSquarePlus, CornerDownRight, ExternalLink,
   StickyNote, Filter, X, ChevronLeft
 } from 'lucide-react'
@@ -12,6 +12,7 @@ import { updateNote, deleteNote, createNote } from '@/lib/actions/notes'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
+import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
 
 const TEMPLATE_META = {
   general: {
@@ -62,6 +63,7 @@ export function NotesClientView({
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const [replyContent, setReplyContent] = useState('')
   const [isPending, startTransition] = useTransition()
+  const didApplyDeepLink = useRef(false)
 
   const allParentNotes = useMemo(() => notes.filter(n => !n.parent_note_id), [notes])
   const childNotesByParent = useMemo(() => {
@@ -82,8 +84,7 @@ export function NotesClientView({
       if (filterMatter && note.matter_id !== filterMatter) return false
       if (filterType && note.template_type !== filterType) return false
       if (filterActionItems === 'notes_only' && note.is_action_item) return false
-      if (filterActionItems === 'pending_tasks' && (!note.is_action_item || note.action_item_resolved)) return false
-      if (filterActionItems === 'resolved_tasks' && (!note.is_action_item || !note.action_item_resolved)) return false
+      if (filterActionItems === 'action_items' && !note.is_action_item) return false
       return true
     })
   }, [allParentNotes, searchQuery, filterMatter, filterType, filterActionItems])
@@ -103,14 +104,6 @@ export function NotesClientView({
       })
     })
     toast.success(newPinned ? 'Note pinned' : 'Note unpinned')
-  }
-
-  const handleToggleResolve = async (note: any) => {
-    const newResolved = !note.action_item_resolved
-    const res = await updateNote(note.id, { action_item_resolved: newResolved })
-    if (res.error) { toast.error(res.error); return }
-    setNotes(prev => prev.map(n => n.id === note.id ? { ...n, action_item_resolved: newResolved } : n))
-    toast.success(newResolved ? 'Task resolved' : 'Task reopened')
   }
 
   const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
@@ -161,6 +154,19 @@ export function NotesClientView({
     [selectedThreadId, childNotesByParent]
   )
 
+  useEffect(() => {
+    if (didApplyDeepLink.current) return
+    const noteId = new URLSearchParams(window.location.search).get('note')
+    if (!noteId) {
+      didApplyDeepLink.current = true
+      return
+    }
+    if (!notes.some((note) => note.id === noteId && !note.parent_note_id)) return
+    didApplyDeepLink.current = true
+    const frame = requestAnimationFrame(() => setSelectedThreadId(noteId))
+    return () => cancelAnimationFrame(frame)
+  }, [notes])
+
   function ThreadCard({ note }: { note: any }) {
     const isSelected = selectedThreadId === note.id
     const replyCount = (childNotesByParent.get(note.id) || []).length
@@ -189,13 +195,8 @@ export function NotesClientView({
               {meta.label}
             </span>
             {note.is_action_item && (
-              <span className={cn(
-                'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[var(--radius-sm)]',
-                note.action_item_resolved
-                  ? 'bg-[var(--success-muted)] text-[var(--success)]'
-                  : 'bg-[var(--warning-muted)] text-[var(--warning)]'
-              )}>
-                {note.action_item_resolved ? '✓ Done' : 'Task'}
+              <span className="rounded-[var(--radius-sm)] bg-[var(--accent-muted)] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--primary)]">
+                Task origin
               </span>
             )}
           </div>
@@ -290,8 +291,7 @@ export function NotesClientView({
           >
             <option value="all">All Notes</option>
             <option value="notes_only">Notes Only</option>
-            <option value="pending_tasks">Pending Tasks</option>
-            <option value="resolved_tasks">Resolved Tasks</option>
+            <option value="action_items">Task Origins</option>
           </select>
         </div>
       </div>
@@ -484,38 +484,11 @@ export function NotesClientView({
                       </div>
                     )}
 
-                    {/* Action item */}
                     {selectedThread.is_action_item && (
-                      <div className={cn(
-                        'mt-3 p-3 rounded-[var(--radius-md)] border flex flex-col gap-2',
-                        selectedThread.action_item_resolved
-                          ? 'bg-[var(--success-muted)] border-[color-mix(in_srgb,var(--success)_20%,transparent)]'
-                          : 'bg-[var(--warning-muted)] border-[color-mix(in_srgb,var(--warning)_20%,transparent)]'
-                      )}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
-                          <button
-                            onClick={() => handleToggleResolve(selectedThread)}
-                            className={cn(
-                              'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-[var(--radius-sm)] transition-colors',
-                              selectedThread.action_item_resolved
-                                ? 'text-[var(--success)] bg-[var(--success-muted)]'
-                                : 'text-[var(--warning)] bg-[var(--warning-muted)]'
-                            )}
-                          >
-                            {selectedThread.action_item_resolved
-                              ? <><CheckCircle2 size={13} /> Resolved</>
-                              : <><Circle size={13} /> Mark Resolved</>
-                            }
-                          </button>
-                        </div>
-                        {(selectedThread.action_item_assignee || selectedThread.action_item_due_date) && (
-                          <div className="flex gap-4 text-xs text-[var(--text-muted)]">
-                            {selectedThread.action_item_assignee && <span>Assignee: <strong className="text-[var(--text-primary)]">{selectedThread.action_item_assignee}</strong></span>}
-                            {selectedThread.action_item_due_date && <span>Due: <strong className="text-[var(--text-primary)]">{new Date(selectedThread.action_item_due_date).toLocaleDateString()}</strong></span>}
-                          </div>
-                        )}
-                      </div>
+                      <NoteTaskSummary
+                        summary={selectedThread.task_summary}
+                        assigneeLabel={users.find((user) => user.id === selectedThread.task_summary?.assignee_user_id)?.email}
+                      />
                     )}
                   </div>
                 </div>

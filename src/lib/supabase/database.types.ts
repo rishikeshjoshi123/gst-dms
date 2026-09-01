@@ -4954,6 +4954,129 @@ export type Database = {
           },
         ]
       }
+      task_transition_history: {
+        Row: {
+          actor_user_id: string
+          command: string
+          from_assignee_user_id: string | null
+          from_due_date: string | null
+          from_due_timezone: string | null
+          from_status: Database["public"]["Enums"]["task_status"]
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          org_id: string
+          revision: number
+          task_id: string
+          to_assignee_user_id: string | null
+          to_due_date: string | null
+          to_due_timezone: string | null
+          to_status: Database["public"]["Enums"]["task_status"]
+        }
+        Insert: {
+          actor_user_id: string
+          command: string
+          from_assignee_user_id?: string | null
+          from_due_date?: string | null
+          from_due_timezone?: string | null
+          from_status: Database["public"]["Enums"]["task_status"]
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          org_id: string
+          revision: number
+          task_id: string
+          to_assignee_user_id?: string | null
+          to_due_date?: string | null
+          to_due_timezone?: string | null
+          to_status: Database["public"]["Enums"]["task_status"]
+        }
+        Update: {
+          actor_user_id?: string
+          command?: string
+          from_assignee_user_id?: string | null
+          from_due_date?: string | null
+          from_due_timezone?: string | null
+          from_status?: Database["public"]["Enums"]["task_status"]
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          org_id?: string
+          revision?: number
+          task_id?: string
+          to_assignee_user_id?: string | null
+          to_due_date?: string | null
+          to_due_timezone?: string | null
+          to_status?: Database["public"]["Enums"]["task_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_transition_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_transition_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_transition_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+          result_status: Database["public"]["Enums"]["task_status"]
+          task_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+          result_status: Database["public"]["Enums"]["task_status"]
+          task_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_revision?: number
+          result_status?: Database["public"]["Enums"]["task_status"]
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_transition_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_transition_receipts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_user_id: string | null
@@ -6178,7 +6301,7 @@ export type Database = {
         }
         Returns: {
           code: string
-          operator_id: string | null
+          operator_id: string
         }[]
       }
       claim_document_asset_storage_deletion_work: {
@@ -6408,7 +6531,7 @@ export type Database = {
         }
         Returns: {
           code: string
-          receipt_id: string | null
+          receipt_id: string
         }[]
       }
       create_metadata_only_document: {
@@ -6442,9 +6565,9 @@ export type Database = {
         }
         Returns: {
           code: string
-          note_id: string
+          note_id: string | null
           replayed: boolean
-          task_id: string
+          task_id: string | null
         }[]
       }
       create_organisation_invite: {
@@ -6461,6 +6584,13 @@ export type Database = {
           org_name: string
           retry_after: string
           token_version: number
+        }[]
+      }
+      create_organisation: {
+        Args: { p_idempotency_key?: string; p_name: string }
+        Returns: {
+          code: string
+          org_id: string
         }[]
       }
       create_staged_document_source_purge_blocker: {
@@ -6583,7 +6713,7 @@ export type Database = {
         Args: { p_pricing_version_id: string }
         Returns: {
           code: string
-          pricing_version_id: string | null
+          pricing_version_id: string
         }[]
       }
       finish_document_asset_storage_deletion_work: {
@@ -6923,6 +7053,16 @@ export type Database = {
           state: Database["public"]["Enums"]["organisation_membership_state"]
         }[]
       }
+      get_task_workspace_members: {
+        Args: never
+        Returns: {
+          can_be_assigned: boolean
+          can_manage: boolean
+          current_user_id: string
+          display_name: string
+          member_user_id: string
+        }[]
+      }
       get_my_organisation_operational_settings: {
         Args: never
         Returns: {
@@ -6945,9 +7085,33 @@ export type Database = {
         Returns: {
           capabilities: string[]
           code: string
-          generation: number | null
-          operator_id: string | null
-          role: Database["public"]["Enums"]["platform_operator_role"] | null
+          generation: number
+          operator_id: string
+          role: Database["public"]["Enums"]["platform_operator_role"]
+        }[]
+      }
+      get_my_tasks: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_statuses?: Database["public"]["Enums"]["task_status"][]
+        }
+        Returns: {
+          assignee_user_id: string | null
+          client_id: string | null
+          created_at: string
+          document_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          matter_id: string | null
+          origin_available: boolean
+          priority: Database["public"]["Enums"]["task_priority"]
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          task_id: string
+          title: string
+          updated_at: string
         }[]
       }
       get_my_team_members: {
@@ -6963,6 +7127,19 @@ export type Database = {
           revision: number
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_membership_state"]
+        }[]
+      }
+      get_note_task_summaries: {
+        Args: { p_note_ids?: string[] }
+        Returns: {
+          assignee_user_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          note_id: string
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          task_id: string
         }[]
       }
       get_organisation_invites: {
@@ -7056,6 +7233,50 @@ export type Database = {
           expected_sha256: string
           source_bucket_id: string
           source_object_key: string
+        }[]
+      }
+      get_task_detail: {
+        Args: { p_task_id: string }
+        Returns: {
+          assignee_user_id: string | null
+          client_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          creator_user_id: string
+          description: string | null
+          document_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          matter_id: string | null
+          origin_available: boolean
+          origin_note_id: string | null
+          priority: Database["public"]["Enums"]["task_priority"]
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          status_changed_at: string
+          task_id: string
+          title: string
+          updated_at: string
+        }[]
+      }
+      get_task_transition_history: {
+        Args: { p_task_id: string }
+        Returns: {
+          actor_user_id: string
+          command: string
+          from_assignee_user_id: string | null
+          from_due_date: string | null
+          from_due_timezone: string | null
+          from_status: Database["public"]["Enums"]["task_status"]
+          occurred_at: string
+          revision: number
+          to_assignee_user_id: string | null
+          to_due_date: string | null
+          to_due_timezone: string | null
+          to_status: Database["public"]["Enums"]["task_status"]
+          transition_id: string
         }[]
       }
       get_trash_purge_impact: {
@@ -7239,9 +7460,9 @@ export type Database = {
         }
         Returns: {
           code: string
-          expires_at: string | null
-          intent_id: string | null
-          nonce: string | null
+          expires_at: string
+          intent_id: string
+          nonce: string
         }[]
       }
       lease_activity_projector_events: {
@@ -7340,7 +7561,7 @@ export type Database = {
           p_document_version_id: string
           p_source_analysis_run_id: string
         }
-        Returns: string | null
+        Returns: string
       }
       materialize_source_field_candidate: {
         Args: {
@@ -7418,7 +7639,7 @@ export type Database = {
         Args: {
           p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]
         }
-        Returns: string | null
+        Returns: string
       }
       prepare_trash_purge_database: {
         Args: { p_job_id: string; p_lease_token: string }
@@ -7639,10 +7860,10 @@ export type Database = {
         }
         Returns: {
           code: string
-          cost_micro_usd: number | null
-          pricing_version_id: string | null
-          provider_usage_event_id: string | null
-          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
+          cost_micro_usd: number
+          pricing_version_id: string
+          provider_usage_event_id: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
         }[]
       }
       record_staged_document_backfill_verification: {
@@ -7836,7 +8057,7 @@ export type Database = {
         }
         Returns: {
           code: string
-          pricing_version_id: string | null
+          pricing_version_id: string
         }[]
       }
       restore_trash_operation: {
@@ -7938,6 +8159,23 @@ export type Database = {
           code: string
         }[]
       }
+      transition_task: {
+        Args: {
+          p_assignee_user_id?: string
+          p_command: string
+          p_due_date?: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_task_id: string
+        }
+        Returns: {
+          code: string
+          replayed: boolean
+          revision: number | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          task_id: string | null
+        }[]
+      }
       trash_purge_active_blockers: {
         Args: { p_operation_id: string; p_org_id: string }
         Returns: {
@@ -8028,11 +8266,11 @@ export type Database = {
           p_subject_type: Database["public"]["Enums"]["platform_alert_subject_type"]
         }
         Returns: {
-          alert_id: string | null
+          alert_id: string
           code: string
-          occurrence_id: string | null
-          revision: number | null
-          state: Database["public"]["Enums"]["platform_alert_state"] | null
+          occurrence_id: string
+          revision: number
+          state: Database["public"]["Enums"]["platform_alert_state"]
         }[]
       }
       validate_document_intake_asset: {

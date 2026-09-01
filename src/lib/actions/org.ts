@@ -62,17 +62,20 @@ export async function createOrganisation(formData: FormData) {
   const { data: { user }, error: userErr } = await supabase.auth.getUser()
   if (userErr || !user) return { error: 'Not authenticated.' }
 
-  const { data: org, error: orgErr } = await supabase
-    .from('organisations')
-    .insert({ name, created_by: user.id })
-    .select('id')
-    .single()
+  const { data, error } = await supabase.rpc('create_organisation', {
+    p_name: name,
+    p_idempotency_key: randomUUID(),
+  })
+  const result = data?.[0]
 
-  if (orgErr || !org) {
+  if (error || !result || result.code !== 'ok' || !result.org_id) {
+    if (result?.code === 'not_available') {
+      return { error: 'This account already has an active or suspended organisation membership.' }
+    }
     return { error: 'Unable to create an organisation at this time.' }
   }
 
-  await setCurrentOrg(org.id)
+  await setCurrentOrg(result.org_id)
   redirect('/dashboard')
 }
 

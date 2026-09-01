@@ -1,10 +1,10 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@/lib/supabase/database.types'
+import { batchTaskSummaryNoteIds } from '@/lib/notes/task-summary-batching'
 
 export async function getNotes(filters: {
   matterId?: string
@@ -14,8 +14,6 @@ export async function getNotes(filters: {
   search?: string
 } = {}) {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return []
 
   let query = supabase
     .from('case_notes')
@@ -24,7 +22,6 @@ export async function getNotes(filters: {
       matters!inner(id, title),
       documents(id, storage_path, reference_number)
     `)
-    .eq('org_id', orgId)
     .is('deleted_at', null)
     .eq('matters.record_state', 'active')
     .is('matters.deleted_at', null)
@@ -62,12 +59,33 @@ export async function getNotes(filters: {
       .from('documents')
       .select('id')
       .in('id', documentIds)
-      .eq('org_id', orgId)
       .eq('record_state', 'active')
       .is('deleted_at', null)
     const activeDocumentIds = new Set((activeDocuments ?? []).map((document) => document.id))
     readableNotes = readableNotes.filter((note) => !note.document_id || activeDocumentIds.has(note.document_id))
   }
+
+  // Action-item note fields are immutable legacy origin data. Current Task
+  // state is supplied only by the authenticated Task projection.
+  const actionItemNoteIds = readableNotes.filter((note) => note.is_action_item).map((note) => note.id)
+  const taskSummaryByNoteId = new Map<string, Database['public']['Functions']['get_note_task_summaries']['Returns'][number]>()
+  for (const noteIdBatch of batchTaskSummaryNoteIds(actionItemNoteIds)) {
+    const { data: taskSummaries, error: taskSummaryError } = await supabase.rpc(
+      'get_note_task_summaries',
+      { p_note_ids: noteIdBatch },
+    )
+    if (taskSummaryError) {
+      console.error('getNotes Task summaries error:', taskSummaryError)
+      continue
+    }
+    for (const summary of taskSummaries ?? []) {
+      taskSummaryByNoteId.set(summary.note_id, summary)
+    }
+  }
+  const notesWithTaskSummaries = readableNotes.map((note) => ({
+    ...note,
+    task_summary: taskSummaryByNoteId.get(note.id) ?? null,
+  }))
 
   // Fetch auth users to resolve emails
   try {
@@ -75,7 +93,7 @@ export async function getNotes(filters: {
     const { data: { users: authUsers }, error: authError } = await serviceClient.auth.admin.listUsers()
     if (!authError && authUsers) {
       const userMap = new Map(authUsers.map(u => [u.id, u.email]))
-      return readableNotes.map(note => ({
+      return notesWithTaskSummaries.map(note => ({
         ...note,
         author: {
           id: note.author_id,
@@ -87,7 +105,7 @@ export async function getNotes(filters: {
     console.error('Failed to fetch auth users list:', err)
   }
 
-  return readableNotes.map(note => ({
+  return notesWithTaskSummaries.map(note => ({
     ...note,
     author: {
       id: note.author_id,
@@ -111,8 +129,6 @@ export async function createNote(data: {
   idempotencyKey?: string
 }) {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation' }
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
@@ -151,7 +167,6 @@ export async function createNote(data: {
     .from('case_notes')
     .select()
     .eq('id', result.note_id)
-    .eq('org_id', orgId)
     .single()
   if (error || !note) {
     console.error('createNote readback error:', error)
@@ -166,6 +181,9 @@ export async function createNote(data: {
 
   const noteWithAuthor = {
     ...note,
+    task_summary: data.isActionItem && result.task_id
+      ? (await supabase.rpc('get_note_task_summaries', { p_note_ids: [note.id] })).data?.[0] ?? null
+      : null,
     author: {
       id: user.id,
       email: user.email ?? `User (${user.id.slice(0, 8)})`
@@ -178,20 +196,14 @@ export async function createNote(data: {
 export async function updateNote(noteId: string, updates: {
   content?: string
   is_pinned?: boolean
-  action_item_resolved?: boolean
-  action_item_assignee?: string | null
-  action_item_due_date?: string | null
   template_type?: 'hearing_note' | 'client_instruction' | 'research_note' | 'general'
 }) {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation' }
 
   const { data: existingNote } = await supabase
     .from('case_notes')
-    .select('matter_id, document_id')
+    .select('org_id, matter_id, document_id')
     .eq('id', noteId)
-    .eq('org_id', orgId)
     .is('deleted_at', null)
     .maybeSingle()
   if (!existingNote) return { error: 'Note not found.' }
@@ -199,7 +211,7 @@ export async function updateNote(noteId: string, updates: {
     .from('matters')
     .select('id')
     .eq('id', existingNote.matter_id)
-    .eq('org_id', orgId)
+    .eq('org_id', existingNote.org_id)
     .eq('record_state', 'active')
     .is('deleted_at', null)
     .maybeSingle()
@@ -212,7 +224,7 @@ export async function updateNote(noteId: string, updates: {
       updated_at: new Date().toISOString()
     })
     .eq('id', noteId)
-    .eq('org_id', orgId)
+    .eq('org_id', existingNote.org_id)
     .is('deleted_at', null)
 
   if (error) {
@@ -233,8 +245,6 @@ export async function updateNote(noteId: string, updates: {
 
 export async function deleteNote(noteId: string) {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation' }
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
@@ -243,9 +253,8 @@ export async function deleteNote(noteId: string) {
 
   const { data: existingNote } = await supabase
     .from('case_notes')
-    .select('matter_id, document_id')
+    .select('org_id, matter_id, document_id')
     .eq('id', noteId)
-    .eq('org_id', orgId)
     .is('deleted_at', null)
     .maybeSingle()
   if (!existingNote) return { error: 'Note not found.' }
@@ -253,7 +262,7 @@ export async function deleteNote(noteId: string) {
     .from('matters')
     .select('id')
     .eq('id', existingNote.matter_id)
-    .eq('org_id', orgId)
+    .eq('org_id', existingNote.org_id)
     .eq('record_state', 'active')
     .is('deleted_at', null)
     .maybeSingle()
@@ -264,7 +273,7 @@ export async function deleteNote(noteId: string) {
     .from('case_notes')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', noteId)
-    .eq('org_id', orgId)
+    .eq('org_id', existingNote.org_id)
     .is('deleted_at', null)
 
   if (error) {

@@ -224,7 +224,7 @@ BEGIN
   END IF;
   INSERT INTO public.tasks(id,org_id,client_id,matter_id,title,origin_kind,origin_note_id,origin_snapshot,creator_user_id,status_changed_by)
   VALUES ('95400000-0000-0000-0000-000000000002','95100000-0000-0000-0000-000000000001','95200000-0000-0000-0000-000000000001','95300000-0000-0000-0000-000000000001','Other task','case_note',gen_random_uuid(),'Other task', '95000000-0000-0000-0000-000000000001','95000000-0000-0000-0000-000000000001');
-  UPDATE public.case_notes SET content='Edited note',action_item_resolved=true,deleted_at=now() WHERE id=note_id;
+  UPDATE public.case_notes SET content='Edited note',deleted_at=now() WHERE id=note_id;
   IF NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=task_id AND task.status='open'
     AND task.origin_snapshot='Prepare the hearing bundle' AND task.lifecycle_state='active') THEN
     RAISE EXCEPTION 'note edit/delete or legacy completion toggle silently changed its Task';

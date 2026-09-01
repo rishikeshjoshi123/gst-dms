@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
-import { Plus, Search, Pin, Trash2, CheckCircle2, Circle, Calendar, User, FileText, Check, X, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink, ArrowLeft } from 'lucide-react'
+import { Plus, Search, Pin, Trash2, FileText, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
 
 const TEMPLATE_LABELS = {
   general: 'General',
@@ -80,8 +81,8 @@ export function MatterNotesTab({
     return allParentNotes.filter(note => {
       if (searchQuery && !note.content.toLowerCase().includes(searchQuery.toLowerCase())) return false
       if (filterType && note.template_type !== filterType) return false
-      if (filterActionItems === 'pending_tasks' && (!note.is_action_item || note.action_item_resolved)) return false
-      if (filterActionItems === 'resolved_tasks' && (!note.is_action_item || !note.action_item_resolved)) return false
+      if (filterActionItems === 'notes_only' && note.is_action_item) return false
+      if (filterActionItems === 'action_items' && !note.is_action_item) return false
       return true
     })
   }, [allParentNotes, searchQuery, filterType, filterActionItems])
@@ -149,18 +150,6 @@ export function MatterNotesTab({
     } else {
       setNotes(prev => prev.map(n => n.id === note.id ? { ...n, is_pinned: newPinned } : n))
       toast.success(newPinned ? 'Note pinned' : 'Note unpinned')
-    }
-  }
-
-  const handleToggleResolve = async (note: any) => {
-    if (readOnly) return
-    const newResolved = !note.action_item_resolved
-    const res = await updateNote(note.id, { action_item_resolved: newResolved })
-    if (res.error) {
-      toast.error(res.error)
-    } else {
-      setNotes(prev => prev.map(n => n.id === note.id ? { ...n, action_item_resolved: newResolved } : n))
-      toast.success(newResolved ? 'Task resolved' : 'Task reopened')
     }
   }
 
@@ -245,9 +234,9 @@ export function MatterNotesTab({
             {Object.entries(TEMPLATE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <select value={filterActionItems} onChange={(e) => setFilterActionItems(e.target.value)} className="p-1.5 text-sm bg-[var(--surface)] text-[var(--text-primary)] border border-[var(--border-strong)] rounded-md focus:outline-none focus:ring-1 focus:ring-[var(--primary)]">
-            <option value="all">All Notes & Tasks</option>
-            <option value="pending_tasks">Pending Tasks</option>
-            <option value="resolved_tasks">Completed Tasks</option>
+            <option value="all">All Notes</option>
+            <option value="notes_only">Notes Only</option>
+            <option value="action_items">Task Origins</option>
           </select>
         </div>
         {!readOnly && <Button onClick={() => setIsCreateOpen(true)} size="sm" className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-sm shrink-0">
@@ -382,20 +371,11 @@ export function MatterNotesTab({
                         </div>
                       )}
 
-                      {/* Action item block */}
                       {selectedThread.is_action_item && (
-                        <div className={`mt-2.5 p-2.5 rounded-[var(--radius-md)] border flex flex-col gap-2 ${selectedThread.action_item_resolved ? 'bg-[var(--success-muted)] border-[color-mix(in_srgb,var(--success)_24%,transparent)]' : 'bg-[var(--warning-muted)] border-[color-mix(in_srgb,var(--warning)_30%,transparent)]'}`}>
-                           <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Action Item</span>
-                              {readOnly ? <span className="text-[11px] font-medium text-[var(--text-secondary)]">{selectedThread.action_item_resolved ? 'Resolved' : 'Open'}</span> : <button onClick={() => handleToggleResolve(selectedThread)} className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-sm)] transition-colors ${selectedThread.action_item_resolved ? 'text-[var(--success)] bg-[var(--success-muted)]' : 'text-[var(--warning)] bg-[var(--warning-muted)]'}`}>
-                                {selectedThread.action_item_resolved ? <><CheckCircle2 size={12}/> Resolved</> : <><Circle size={12} /> Mark Resolved</>}
-                              </button>}
-                           </div>
-                           <div className="flex gap-4 text-[11px]">
-                              {selectedThread.action_item_assignee && <span>Assignee: <strong>{selectedThread.action_item_assignee}</strong></span>}
-                              {selectedThread.action_item_due_date && <span>Due: <strong>{new Date(selectedThread.action_item_due_date).toLocaleDateString()}</strong></span>}
-                           </div>
-                        </div>
+                        <NoteTaskSummary
+                          summary={selectedThread.task_summary}
+                          assigneeLabel={users.find((user) => user.id === selectedThread.task_summary?.assignee_user_id)?.email}
+                        />
                       )}
                     </div>
                   </div>

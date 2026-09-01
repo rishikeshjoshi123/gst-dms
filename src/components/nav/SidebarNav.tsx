@@ -12,6 +12,7 @@ import {
   StickyNote,
   Activity,
   Trash2,
+  ListTodo,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/inbox',     icon: InboxIcon,       label: 'Document Hub' },
   { href: '/clients',   icon: Users,           label: 'Clients' },
   { href: '/matters',   icon: FolderOpen,      label: 'Matters' },
+  { href: '/tasks',     icon: ListTodo,        label: 'Tasks' },
   { href: '/notes',     icon: StickyNote,      label: 'Notes' },
 ]
 
