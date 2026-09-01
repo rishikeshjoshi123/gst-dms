@@ -4096,6 +4096,96 @@ export type Database = {
           },
         ]
       }
+      search_document_structured_facts: {
+        Row: {
+          amount_paise: number | null
+          created_at: string
+          document_id: string
+          document_version_id: string
+          fact_family: string
+          field_path: string
+          id: string
+          normalized_text: string | null
+          org_id: string
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          updated_at: string
+          value_date: string | null
+          winning_document_field_candidate_id: string
+          winning_document_field_decision_id: string | null
+        }
+        Insert: {
+          amount_paise?: number | null
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          fact_family: string
+          field_path: string
+          id?: string
+          normalized_text?: string | null
+          org_id: string
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          updated_at?: string
+          value_date?: string | null
+          winning_document_field_candidate_id: string
+          winning_document_field_decision_id?: string | null
+        }
+        Update: {
+          amount_paise?: number | null
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          fact_family?: string
+          field_path?: string
+          id?: string
+          normalized_text?: string | null
+          org_id?: string
+          resolution?: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key?: string
+          updated_at?: string
+          value_date?: string | null
+          winning_document_field_candidate_id?: string
+          winning_document_field_decision_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_document_structured_facts_candidate_org_fkey"
+            columns: ["org_id", "winning_document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_structured_facts_decision_org_fkey"
+            columns: ["org_id", "winning_document_field_decision_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_decisions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_structured_facts_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_structured_facts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "search_document_structured_facts_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       search_index_runs: {
         Row: {
           attempt_count: number
@@ -5208,7 +5298,7 @@ export type Database = {
           created_at: string
           id: string
           idempotency_key: string
-          note_id: string | null
+          note_id: string
           org_id: string
           request_fingerprint: string
           task_id: string | null
@@ -5260,7 +5350,7 @@ export type Database = {
           org_id: string
           request_fingerprint: string
           sequence: number
-          task_id: string | null
+          task_id: string
         }
         Insert: {
           actor_user_id: string
@@ -7215,9 +7305,9 @@ export type Database = {
         }
         Returns: {
           code: string
-          note_id: string | null
+          note_id: string
           replayed: boolean
-          task_id: string | null
+          task_id: string
         }[]
       }
       create_organisation: {
@@ -7517,6 +7607,21 @@ export type Database = {
           code: string
         }[]
       }
+      finish_search_index_reprocess_pre_facts: {
+        Args: {
+          p_embedding?: string
+          p_embedding_model?: string
+          p_embedding_version?: string
+          p_input_tokens?: number
+          p_lease_token: string
+          p_outcome: string
+          p_processing_run_id: string
+          p_projection_fingerprint?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       finish_trash_purge_attempt: {
         Args: { p_job_id: string; p_lease_token: string }
         Returns: {
@@ -7765,14 +7870,14 @@ export type Database = {
           p_statuses?: Database["public"]["Enums"]["task_status"][]
         }
         Returns: {
-          assignee_user_id: string | null
-          client_id: string | null
+          assignee_user_id: string
+          client_id: string
           created_at: string
-          document_id: string | null
-          due_date: string | null
-          due_time: string | null
-          due_timezone: string | null
-          matter_id: string | null
+          document_id: string
+          due_date: string
+          due_time: string
+          due_timezone: string
+          matter_id: string
           origin_available: boolean
           priority: Database["public"]["Enums"]["task_priority"]
           revision: number
@@ -7800,10 +7905,10 @@ export type Database = {
       get_note_task_summaries: {
         Args: { p_note_ids?: string[] }
         Returns: {
-          assignee_user_id: string | null
-          due_date: string | null
-          due_time: string | null
-          due_timezone: string | null
+          assignee_user_id: string
+          due_date: string
+          due_time: string
+          due_timezone: string
           note_id: string
           revision: number
           status: Database["public"]["Enums"]["task_status"]
@@ -7920,8 +8025,8 @@ export type Database = {
           comment_id: string
           created_at: string
           mentioned_user_ids: string[]
-          reply_to_comment_id: string | null
-          reply_to_sequence: number | null
+          reply_to_comment_id: string
+          reply_to_sequence: number
           sequence: number
           thread_id: string
         }[]
@@ -7929,20 +8034,20 @@ export type Database = {
       get_task_detail: {
         Args: { p_task_id: string }
         Returns: {
-          assignee_user_id: string | null
-          client_id: string | null
-          completed_at: string | null
-          completed_by: string | null
+          assignee_user_id: string
+          client_id: string
+          completed_at: string
+          completed_by: string
           created_at: string
           creator_user_id: string
-          description: string | null
-          document_id: string | null
-          due_date: string | null
-          due_time: string | null
-          due_timezone: string | null
-          matter_id: string | null
+          description: string
+          document_id: string
+          due_date: string
+          due_time: string
+          due_timezone: string
+          matter_id: string
           origin_available: boolean
-          origin_note_id: string | null
+          origin_note_id: string
           priority: Database["public"]["Enums"]["task_priority"]
           revision: number
           status: Database["public"]["Enums"]["task_status"]
@@ -7957,15 +8062,15 @@ export type Database = {
         Returns: {
           actor_user_id: string
           command: string
-          from_assignee_user_id: string | null
-          from_due_date: string | null
-          from_due_timezone: string | null
+          from_assignee_user_id: string
+          from_due_date: string
+          from_due_timezone: string
           from_status: Database["public"]["Enums"]["task_status"]
           occurred_at: string
           revision: number
-          to_assignee_user_id: string | null
-          to_due_date: string | null
-          to_due_timezone: string | null
+          to_assignee_user_id: string
+          to_due_date: string
+          to_due_timezone: string
           to_status: Database["public"]["Enums"]["task_status"]
           transition_id: string
         }[]
@@ -8121,6 +8226,10 @@ export type Database = {
           p_document_version_id: string
           p_org_id: string
         }
+        Returns: undefined
+      }
+      invalidate_current_document_structured_search_facts: {
+        Args: { p_document_id: string; p_org_id: string }
         Returns: undefined
       }
       invalidate_effective_metadata_search_embedding: {
@@ -8471,6 +8580,22 @@ export type Database = {
           summary: string
         }[]
       }
+      read_current_document_structured_search_facts: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          amount_paise: number
+          document_id: string
+          document_version_id: string
+          fact_family: string
+          field_path: string
+          normalized_text: string
+          resolution: Database["public"]["Enums"]["document_effective_metadata_resolution"]
+          semantic_candidate_key: string
+          value_date: string
+          winning_document_field_candidate_id: string
+          winning_document_field_decision_id: string
+        }[]
+      }
       read_current_matter_relationship_projection: {
         Args: { p_matter_id: string; p_org_id: string }
         Returns: {
@@ -8479,6 +8604,19 @@ export type Database = {
           document_version_id: string
           reference_number: string
           referenced_document_numbers: string[]
+        }[]
+      }
+      read_current_search_projection_pre_facts: {
+        Args: { p_document_ids: string[]; p_org_id: string }
+        Returns: {
+          doc_type: string
+          document_id: string
+          document_version_id: string
+          financial_years: string[]
+          issued_by: string
+          projection_fingerprint: string
+          reference_number: string
+          summary: string
         }[]
       }
       recompute_document_effective_metadata: {
@@ -8503,10 +8641,10 @@ export type Database = {
         Args: { p_source_analysis_run_id: string }
         Returns: {
           code: string
-          cost_micro_usd: number | null
-          pricing_version_id: string | null
-          provider_usage_event_id: string | null
-          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
+          cost_micro_usd: number
+          pricing_version_id: string
+          provider_usage_event_id: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
         }[]
       }
       record_current_document_inspector_correction: {
@@ -8807,6 +8945,17 @@ export type Database = {
           operation_id: string
         }[]
       }
+      search_index_completion_input_is_valid: {
+        Args: {
+          p_embedding: string
+          p_embedding_model: string
+          p_embedding_version: string
+          p_input_tokens: number
+          p_outcome: string
+          p_projection_fingerprint: string
+        }
+        Returns: boolean
+      }
       search_index_reprocess_retry_delay_seconds: {
         Args: { p_attempt_number: number; p_processing_run_id: string }
         Returns: number
@@ -8896,9 +9045,9 @@ export type Database = {
         Returns: {
           code: string
           replayed: boolean
-          revision: number | null
-          status: Database["public"]["Enums"]["task_status"] | null
-          task_id: string | null
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          task_id: string
         }[]
       }
       trash_purge_active_blockers: {
@@ -8962,6 +9111,21 @@ export type Database = {
         }[]
       }
       upsert_current_document_metadata_search_storage: {
+        Args: {
+          p_attempt_count?: number
+          p_document_id: string
+          p_document_version_id: string
+          p_org_id: string
+          p_processing_run_id?: string
+          p_projection_fingerprint: string
+          p_safe_error_code?: string
+          p_state?: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      upsert_document_metadata_search_storage_legacy_b: {
         Args: {
           p_attempt_count?: number
           p_document_id: string
@@ -9087,6 +9251,16 @@ export type Database = {
         }
         Returns: {
           changed_chunk_count: number
+          code: string
+        }[]
+      }
+      write_current_document_structured_search_facts: {
+        Args: {
+          p_lease_token: string
+          p_processing_run_id: string
+          p_projection_fingerprint: string
+        }
+        Returns: {
           code: string
         }[]
       }
