@@ -4954,6 +4954,45 @@ export type Database = {
           },
         ]
       }
+      task_legacy_note_backfill_diagnostics: {
+        Row: {
+          disposition: string
+          recorded_at: string
+          source_note_id: string
+          source_org_id: string
+          task_id: string | null
+        }
+        Insert: {
+          disposition: string
+          recorded_at?: string
+          source_note_id: string
+          source_org_id: string
+          task_id?: string | null
+        }
+        Update: {
+          disposition?: string
+          recorded_at?: string
+          source_note_id?: string
+          source_org_id?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_legacy_note_backfill_diagnostics_source_org_id_fkey"
+            columns: ["source_org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_legacy_note_backfill_diagnostics_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_transition_history: {
         Row: {
           actor_user_id: string
@@ -6136,6 +6175,26 @@ export type Database = {
         }
         Relationships: []
       }
+      task_legacy_note_backfill_reports: {
+        Row: {
+          disposed_count: number | null
+          excluded_count: number | null
+          existing_task_count: number | null
+          migrated_count: number | null
+          org_id: string | null
+          pending_count: number | null
+          source_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_notes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_organisation_invite: {
@@ -6259,6 +6318,13 @@ export type Database = {
           conflict_count: number
           seeded_count: number
           skipped_count: number
+        }[]
+      }
+      backfill_legacy_note_action_items: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          disposition: string
+          result_count: number
         }[]
       }
       begin_document_processing_ai_extraction: {
@@ -6570,6 +6636,13 @@ export type Database = {
           task_id: string | null
         }[]
       }
+      create_organisation: {
+        Args: { p_idempotency_key?: string; p_name: string }
+        Returns: {
+          code: string
+          org_id: string
+        }[]
+      }
       create_organisation_invite: {
         Args: {
           p_email: string
@@ -6586,13 +6659,6 @@ export type Database = {
           token_version: number
         }[]
       }
-      create_organisation: {
-        Args: { p_idempotency_key?: string; p_name: string }
-        Returns: {
-          code: string
-          org_id: string
-        }[]
-      }
       create_staged_document_source_purge_blocker: {
         Args: {
           p_blocker_kind?: Database["public"]["Enums"]["staged_document_source_purge_blocker_kind"]
@@ -6603,6 +6669,14 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      current_active_tenant_membership: {
+        Args: never
+        Returns: {
+          membership_id: string
+          org_id: string
+          role: Database["public"]["Enums"]["org_member_role"]
         }[]
       }
       current_relationship_reference_exists_in_other_matter: {
@@ -7053,16 +7127,6 @@ export type Database = {
           state: Database["public"]["Enums"]["organisation_membership_state"]
         }[]
       }
-      get_task_workspace_members: {
-        Args: never
-        Returns: {
-          can_be_assigned: boolean
-          can_manage: boolean
-          current_user_id: string
-          display_name: string
-          member_user_id: string
-        }[]
-      }
       get_my_organisation_operational_settings: {
         Args: never
         Returns: {
@@ -7277,6 +7341,16 @@ export type Database = {
           to_due_timezone: string | null
           to_status: Database["public"]["Enums"]["task_status"]
           transition_id: string
+        }[]
+      }
+      get_task_workspace_members: {
+        Args: never
+        Returns: {
+          can_be_assigned: boolean
+          can_manage: boolean
+          current_user_id: string
+          display_name: string
+          member_user_id: string
         }[]
       }
       get_trash_purge_impact: {
@@ -7662,6 +7736,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      provider_usage_deterministic_uuid: {
+        Args: { p_identifier: string; p_namespace: string }
+        Returns: string
+      }
       provider_usage_line_items_are_valid: {
         Args: { p_line_items: Json }
         Returns: boolean
@@ -7778,6 +7856,16 @@ export type Database = {
           validation_requeued: number
         }[]
       }
+      record_completed_document_extraction_provider_usage: {
+        Args: { p_source_analysis_run_id: string }
+        Returns: {
+          code: string
+          cost_micro_usd: number | null
+          pricing_version_id: string | null
+          provider_usage_event_id: string | null
+          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
+        }[]
+      }
       record_current_document_inspector_correction: {
         Args: {
           p_actor_user_id: string
@@ -7812,16 +7900,6 @@ export type Database = {
         Args: { p_observed_bytes: number; p_session: string }
         Returns: {
           code: string
-        }[]
-      }
-      record_completed_document_extraction_provider_usage: {
-        Args: { p_source_analysis_run_id: string }
-        Returns: {
-          code: string
-          cost_micro_usd: number | null
-          pricing_version_id: string | null
-          provider_usage_event_id: string | null
-          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
         }[]
       }
       record_organisation_invite_delivery: {
