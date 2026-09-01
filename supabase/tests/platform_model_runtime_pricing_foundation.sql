@@ -103,7 +103,7 @@ END;
 $test$;
 
 DO $test$
-DECLARE verified_catalogue_id uuid; incomplete_price_id uuid; result record; conflict_result record;
+DECLARE verified_catalogue_id uuid; incomplete_price_id uuid; result record; finalization_result record; conflict_result record; rejected boolean;
 BEGIN
   PERFORM set_config('casechain.platform_configuration.write', 'trusted_configuration', true);
   INSERT INTO public.model_catalogue_versions (
@@ -118,16 +118,31 @@ BEGIN
   ) RETURNING id INTO incomplete_price_id;
   INSERT INTO public.provider_pricing_rate_items (pricing_version_id, billable_unit, unit_quantity, micro_usd_amount)
   VALUES (incomplete_price_id, 'input_token', 1000000, 1);
+  SELECT * INTO finalization_result FROM public.finalize_provider_pricing_version(incomplete_price_id);
+  IF finalization_result.code <> 'invalid_rate_contract' OR finalization_result.pricing_version_id <> incomplete_price_id THEN
+    RAISE EXCEPTION 'incomplete pricing version was finalized';
+  END IF;
   SELECT * INTO result FROM public.resolve_verified_provider_pricing_version('fixture', 'verified-model', '2026-01-02T00:00:00Z');
   IF result.code <> 'unpriced' OR result.pricing_version_id IS NOT NULL THEN
     RAISE EXCEPTION 'priced input/output contract with a missing output rate did not fail closed';
   END IF;
   INSERT INTO public.provider_pricing_rate_items (pricing_version_id, billable_unit, unit_quantity, micro_usd_amount)
   VALUES (incomplete_price_id, 'output_token', 1000000, 1);
+  SELECT * INTO finalization_result FROM public.finalize_provider_pricing_version(incomplete_price_id);
+  IF finalization_result.code <> 'finalized' OR finalization_result.pricing_version_id <> incomplete_price_id THEN
+    RAISE EXCEPTION 'complete pricing version was not finalized before resolution';
+  END IF;
   SELECT * INTO result FROM public.resolve_verified_provider_pricing_version('fixture', 'verified-model', '2026-01-02T00:00:00Z');
   IF result.code <> 'priced' OR result.pricing_version_id <> incomplete_price_id THEN
     RAISE EXCEPTION 'complete input/output pricing contract did not resolve exactly once';
   END IF;
+  rejected := false;
+  BEGIN
+    INSERT INTO public.provider_pricing_rate_items (pricing_version_id, billable_unit, unit_quantity, micro_usd_amount)
+    VALUES (incomplete_price_id, 'cached_input_token', 1000000, 1);
+  EXCEPTION WHEN raise_exception THEN rejected := SQLERRM = 'provider pricing rate snapshot is finalized';
+  END;
+  IF NOT rejected THEN RAISE EXCEPTION 'resolved pricing version accepted a later rate item'; END IF;
 
   INSERT INTO public.model_catalogue_versions (
     provider_key, model_key, revision, state, origin, reason_code, effective_from

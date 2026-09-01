@@ -3217,6 +3217,32 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_pricing_rate_finalizations: {
+        Row: {
+          created_at: string
+          finalized_at: string
+          pricing_version_id: string
+        }
+        Insert: {
+          created_at?: string
+          finalized_at?: string
+          pricing_version_id: string
+        }
+        Update: {
+          created_at?: string
+          finalized_at?: string
+          pricing_version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_pricing_rate_finalizations_pricing_version_id_fkey"
+            columns: ["pricing_version_id"]
+            isOneToOne: true
+            referencedRelation: "provider_pricing_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_pricing_rate_items: {
         Row: {
           billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
@@ -3308,6 +3334,140 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "model_catalogue_versions"
             referencedColumns: ["id", "provider_key", "model_key"]
+          },
+        ]
+      }
+      provider_usage_events: {
+        Row: {
+          catalogue_version_id: string | null
+          correlation_id: string
+          cost_micro_usd: number | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          model_key: string
+          occurred_at: string
+          operation_family: string
+          org_id: string
+          pricing_version_id: string | null
+          provider_key: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
+          request_fingerprint: string
+          runtime_config_version_id: string | null
+          subject_id: string
+          subject_type: Database["public"]["Enums"]["provider_usage_subject_type"]
+        }
+        Insert: {
+          catalogue_version_id?: string | null
+          correlation_id: string
+          cost_micro_usd?: number | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          model_key: string
+          occurred_at: string
+          operation_family: string
+          org_id: string
+          pricing_version_id?: string | null
+          provider_key: string
+          quality: Database["public"]["Enums"]["provider_usage_quality"]
+          request_fingerprint: string
+          runtime_config_version_id?: string | null
+          subject_id: string
+          subject_type: Database["public"]["Enums"]["provider_usage_subject_type"]
+        }
+        Update: {
+          catalogue_version_id?: string | null
+          correlation_id?: string
+          cost_micro_usd?: number | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          model_key?: string
+          occurred_at?: string
+          operation_family?: string
+          org_id?: string
+          pricing_version_id?: string | null
+          provider_key?: string
+          quality?: Database["public"]["Enums"]["provider_usage_quality"]
+          request_fingerprint?: string
+          runtime_config_version_id?: string | null
+          subject_id?: string
+          subject_type?: Database["public"]["Enums"]["provider_usage_subject_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_catalogue_version_fkey"
+            columns: ["catalogue_version_id"]
+            isOneToOne: false
+            referencedRelation: "model_catalogue_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_pricing_version_id_fkey"
+            columns: ["pricing_version_id"]
+            isOneToOne: false
+            referencedRelation: "provider_pricing_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_runtime_config_version_fkey"
+            columns: ["runtime_config_version_id"]
+            isOneToOne: false
+            referencedRelation: "runtime_config_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_usage_line_items: {
+        Row: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd: number | null
+          created_at: string
+          id: string
+          pricing_rate_item_id: string | null
+          provider_quantity: number
+          provider_usage_event_id: string
+        }
+        Insert: {
+          billable_unit: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd?: number | null
+          created_at?: string
+          id?: string
+          pricing_rate_item_id?: string | null
+          provider_quantity: number
+          provider_usage_event_id: string
+        }
+        Update: {
+          billable_unit?: Database["public"]["Enums"]["provider_billable_unit"]
+          cost_micro_usd?: number | null
+          created_at?: string
+          id?: string
+          pricing_rate_item_id?: string | null
+          provider_quantity?: number
+          provider_usage_event_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_line_items_pricing_rate_item_id_fkey"
+            columns: ["pricing_rate_item_id"]
+            isOneToOne: false
+            referencedRelation: "provider_pricing_rate_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_line_items_provider_usage_event_id_fkey"
+            columns: ["provider_usage_event_id"]
+            isOneToOne: false
+            referencedRelation: "provider_usage_events"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6319,6 +6479,13 @@ export type Database = {
           upload_session_id: string
         }[]
       }
+      finalize_provider_pricing_version: {
+        Args: { p_pricing_version_id: string }
+        Returns: {
+          code: string
+          pricing_version_id: string | null
+        }[]
+      }
       finish_document_asset_storage_deletion_work: {
         Args: { p_asset_id: string; p_lease_token: string; p_outcome: string }
         Returns: {
@@ -7167,6 +7334,24 @@ export type Database = {
           projected_count: number
         }[]
       }
+      provider_pricing_rate_items_match_contract: {
+        Args: {
+          p_pricing_contract: Database["public"]["Enums"]["provider_pricing_contract"]
+          p_pricing_version_id: string
+        }
+        Returns: boolean
+      }
+      provider_usage_line_items_are_valid: {
+        Args: { p_line_items: Json }
+        Returns: boolean
+      }
+      provider_usage_line_items_match_pricing_contract: {
+        Args: {
+          p_line_items: Json
+          p_pricing_contract: Database["public"]["Enums"]["provider_pricing_contract"]
+        }
+        Returns: boolean
+      }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
       read_current_document_assignment_projection: {
         Args: { p_document_ids: string[]; p_org_id: string }
@@ -7327,6 +7512,28 @@ export type Database = {
           p_reason_code: string
         }
         Returns: undefined
+      }
+      record_provider_usage_event: {
+        Args: {
+          p_correlation_id: string
+          p_idempotency_key: string
+          p_line_items: Json
+          p_model_key: string
+          p_occurred_at: string
+          p_operation_family: string
+          p_org_id: string
+          p_provider_key: string
+          p_runtime_config_version_id: string
+          p_subject_id: string
+          p_subject_type: Database["public"]["Enums"]["provider_usage_subject_type"]
+        }
+        Returns: {
+          code: string
+          cost_micro_usd: number | null
+          pricing_version_id: string | null
+          provider_usage_event_id: string | null
+          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
+        }[]
       }
       record_staged_document_backfill_verification: {
         Args: {
@@ -7996,6 +8203,10 @@ export type Database = {
         | "input_tokens"
         | "input_characters"
       provider_pricing_state: "priced" | "legacy_seed_pending_verification"
+      provider_usage_quality: "priced" | "unpriced" | "legacy_unverified"
+      provider_usage_subject_type:
+        | "source_analysis_run"
+        | "document_processing_run"
       resource_hold_scope: "resource" | "subtree"
       resource_hold_state: "active" | "released"
       resource_record_state: "active" | "trashed" | "purging" | "purged"
@@ -8516,6 +8727,11 @@ export const Constants = {
         "input_characters",
       ],
       provider_pricing_state: ["priced", "legacy_seed_pending_verification"],
+      provider_usage_quality: ["priced", "unpriced", "legacy_unverified"],
+      provider_usage_subject_type: [
+        "source_analysis_run",
+        "document_processing_run",
+      ],
       resource_hold_scope: ["resource", "subtree"],
       resource_hold_state: ["active", "released"],
       resource_record_state: ["active", "trashed", "purging", "purged"],
