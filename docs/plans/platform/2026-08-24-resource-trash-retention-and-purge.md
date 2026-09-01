@@ -134,13 +134,13 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-Complete the authenticated local-browser verification for the governed permanent-delete WIP. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy. Continue the approved Work foundation from its completed catalogue inventory after the browser gate.
+No further Trash action is currently queued. Continue the approved Work foundation from its completed catalogue inventory when its selected-organisation authority blocker is resolved. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy.
 
-### WIP: governed root permanent deletion (pending authenticated browser QA)
+### Completed: governed root permanent deletion (2026-09-01)
 
 - Checkpoint `906b986` implements the approved root-operation impact, confirmation, durable worker, retry/reconciliation, shared-asset, blocker, tombstone, and operational-status contract. Fresh local migration replay through `00092`, rollback and multi-session adversarial fixtures, DB lint, generated types, TypeScript, focused tests, scoped lint, migration checks, and fresh independent QA/rechecks passed.
 - Migration `00099` repairs the two subsequently found permanent-delete data-layer blockers: the governed worker may unlink only a terminal provenance run's supersession edge while it owns the exact current live purge lease, and no direct service or browser role can delete a supporting-document blocker. Ordinary terminal provenance writes remain immutable; supporting-document deletes/truncates are force-RLS/ACL/trigger fenced and the relevant link actions are `RESTRICT`. Local migration upgrade, complete rollback fixture, concurrency harness, TypeScript, migration checks, driver inspection, and fresh independent QA passed.
-- The only unfinished gate is authenticated local-browser interaction using a generated disposable Owner fixture. It is recorded as a plain-language Open entry in `docs/approval-based-blockers.md`; no plan-completion claim is made until that action is verified.
+- Authenticated local-browser verification used a disposable Owner fixture: a trashed Client showed its complete impact, recent-authentication and typed confirmation accepted the irreversible command, and the server action queued exactly one durable purge job. The local worker then claimed, prepared, and finished that job; the operation is `purged`, the job is `completed`, the Client is a redacted `purged` shell, a tombstone exists, and the authenticated `/trash` workspace is empty. The browser action was confirmed at action time; it is not an approval blocker.
 
 ### Completed: physical parent-delete/cascade hardening prerequisite (2026-08-31)
 
