@@ -196,10 +196,13 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - **2026-09-01 — Step 3, live Task Comments closure:** migration `00111` makes the approved peer Comments tab in the existing Tasks workspace a secured live consumer. Private task-scoped thread, comment, mention, follower, read-cursor, and receipt state is reachable only through authenticated Task RPCs; the command derives exactly one active membership, validates tenant/resource/role/active mentions/single-thread reply lineage, serializes Task membership and hierarchy-Trash changes, and writes one idempotent `task.comment_posted` Activity/outbox event without notification delivery. Completed/cancelled Tasks remain commentable; Viewer, suspended, removed, and inaccessible/trashed contexts fail closed. The `/tasks?task=<id>&tab=comments` caller supplies chronological feed, single reply, active-member mention selection, read-only/empty/error/long-content states, and a fixed visible Send composer without copying Notes messages. Local reset, authority/RLS/replay fixtures, first-thread/membership/Trash concurrency harnesses, generated types, TypeScript, focused lint/model tests, migration checks, and fresh independent QA recheck passed. Cursor observation and notification delivery remain intentionally deferred.
 
 **Canonical next action:** Review is the next Work-plan capability, but its
-dedicated queue/decision workspace crosses a material visual boundary. Build
-the fixture-only `/dev/review-workspace-concept` described in
+dedicated queue/decision workspace crosses a material visual boundary. Review
+and approve the fixture-only `/dev/review-workspace-concept` described in
 [Approval-based blockers](../../approval-based-blockers.md#work-review-concept-2026-09-01--review-workspace-direction)
-and submit it for approval before a live Review producer/consumer tranche.
+before a live Review producer/consumer tranche. The concept is a no-live-data
+fixture that shows the evidence-first queue, explicit typed decisions,
+role/financial boundary, lifecycle states, and mobile drill-in; it adds no
+Review authority.
 The independently approved Organisation Administration departure/projection
 tranche may proceed in parallel. Task-only current state remains authoritative;
 do not claim notification delivery, My Work, Activity reader/projector, Review,

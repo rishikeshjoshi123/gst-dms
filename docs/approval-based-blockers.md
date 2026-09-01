@@ -28,16 +28,18 @@ the rest of the approved portfolio.
 - **Why the approved contract does not settle it:** the plan defines Review
   state, evidence, permissions, and interaction requirements, but the
   production workspace has no reviewed `/dev` concept.
-- **Recommended direction:** create a compact fixture-only Review concept with
-  stable queue filters, an evidence/decision detail pane, explicit primary
-  decisions, and the approved mobile drill-in; it must not reproduce the
-  legacy Dashboard/Review four-table query.
+- **Recommended direction:** approve the compact fixture-only Review concept
+  with stable queue filters, an evidence/decision detail pane, explicit
+  primary decisions, and the approved mobile drill-in; it does not reproduce
+  the legacy Dashboard/Review four-table query.
 - **Alternatives/consequences:** implementing a live Review workspace without
   visual review crosses the approved material UI boundary; delaying it does
   not block the independently approved Organisation Administration tranche.
-- **Exact resume action:** build `/dev/review-workspace-concept`, record its
-  visual approval here, then implement the smallest secure Review
-  producer/consumer closure.
+- **Concept:** `/dev/review-workspace-concept` (fixture-only; no live reader,
+  producer, command, notification, or Dashboard query).
+- **Exact resume action:** review and approve that concept, record the visual
+  decision here, then implement the smallest secure Review producer/consumer
+  closure.
 
 ### ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01 — Departure and Team impact workflow
 
