@@ -79,6 +79,18 @@ const deadlineSchema = z.object({
   confidence: z.number().min(0).max(1),
 }).strict()
 
+const pageTextSchema = z.object({
+  page_number: z.number().int().positive(),
+  text: z.string().trim().min(1).max(8000),
+  ocr_words: z.array(z.object({
+    text: z.string().trim().min(1).max(256),
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    width: z.number().min(0).max(1),
+    height: z.number().min(0).max(1),
+  }).strict()).max(2000).nullable(),
+}).strict()
+
 export const aiDocumentPayloadSchema = z.object({
   doc_type: z.enum(DOCUMENT_TYPES).nullable(),
   document_title: nullableText,
@@ -115,10 +127,19 @@ export const aiDocumentPayloadSchema = z.object({
   parties_named: z.array(z.string().trim().min(1)).max(100),
   legal_references: z.array(legalReferenceSchema).max(100),
   evidence: z.array(evidenceSchema).max(200),
+  // This is a bounded, source-grounded transcription, not retained provider
+  // output. The durable writer requires a complete page set before it can
+  // become a Search source.
+  page_text: z.array(pageTextSchema).max(200).default([]),
   confidence: z.number().min(0).max(1),
 }).strict()
 
-export type AIDocumentPayload = z.infer<typeof aiDocumentPayloadSchema>
+// Page transcription was added after the established extraction fixture
+// contract. Runtime validation supplies its default, while older trusted
+// fixtures remain metadata-only until reprocessed.
+export type AIDocumentPayload = Omit<z.infer<typeof aiDocumentPayloadSchema>, 'page_text'> & {
+  page_text?: z.infer<typeof pageTextSchema>[]
+}
 
 export type AIUsage = {
   promptTokens: number
@@ -169,6 +190,7 @@ export const documentResponseSchema: ResponseSchema = {
     'parties_named',
     'legal_references',
     'evidence',
+    'page_text',
     'confidence',
   ],
   properties: {
@@ -285,6 +307,29 @@ export const documentResponseSchema: ResponseSchema = {
           page_number: { type: SchemaType.INTEGER, nullable: true },
           quote: nullableStringResponse('Short text supporting the extracted value.'),
           confidence: { type: SchemaType.NUMBER },
+        },
+      },
+    },
+    page_text: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        required: ['page_number', 'text', 'ocr_words'],
+        properties: {
+          page_number: { type: SchemaType.INTEGER },
+          text: { type: SchemaType.STRING },
+          ocr_words: {
+            type: SchemaType.ARRAY,
+            nullable: true,
+            items: {
+              type: SchemaType.OBJECT,
+              required: ['text', 'x', 'y', 'width', 'height'],
+              properties: {
+                text: { type: SchemaType.STRING }, x: { type: SchemaType.NUMBER },
+                y: { type: SchemaType.NUMBER }, width: { type: SchemaType.NUMBER }, height: { type: SchemaType.NUMBER },
+              },
+            },
+          },
         },
       },
     },

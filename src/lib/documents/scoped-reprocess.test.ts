@@ -4,6 +4,7 @@ import test from 'node:test'
 
 import {
   hasCurrentSearchIndexEmbedding,
+  buildSearchPageChunks,
   isScopedSearchIndexClaim,
   runScopedSearchIndexReprocessWorker,
   serializeSearchIndexEmbedding,
@@ -37,6 +38,8 @@ function workerClient(calls: Array<{ name: string; args: Record<string, unknown>
     rpc: async (name, args) => {
       calls.push({ name, args })
       if (name === 'get_document_search_index_reprocess_input') return { data: [input], error: null }
+      if (name === 'get_document_search_page_text_reprocess_input') return { data: [{ code: 'not_indexable', pages: null, existing_content_hashes: null }], error: null }
+      if (name === 'write_current_document_search_page_chunks') return { data: [{ code: 'not_indexable', changed_chunk_count: 0 }], error: null }
       if (name === 'finish_document_search_index_reprocess_work') return { data: [{ code: args.p_outcome }], error: null }
       return { data: [], error: { message: 'unexpected rpc' } }
     },
@@ -71,6 +74,18 @@ test('accepts only an identifier-only search-index lease claim', () => {
   assert.equal(isScopedSearchIndexClaim({ ...claim, object_key: 'secret.pdf' }), false)
 })
 
+test('uses PostgreSQL-compatible Unicode character locators for page chunks', () => {
+  const chunks = buildSearchPageChunks({
+    code: 'ready',
+    pages: [{ page_number: 1, text: 'A😀B passage' }],
+    existing_content_hashes: [],
+  })
+  assert.equal(chunks?.length, 1)
+  assert.equal(chunks?.[0].char_start, 0)
+  // A, 😀, B, space, passage: PostgreSQL char_length is 11, while UTF-16 is 12.
+  assert.equal(chunks?.[0].char_end, 11)
+})
+
 test('uses the effective event projection, including multiple financial years and a cleared scalar', async () => {
   const calls: Array<{ name: string; args: Record<string, unknown> }> = []
   let embeddedText = ''
@@ -101,15 +116,17 @@ test('loads only a leased typed summary and completes the index through the fenc
   assert.deepEqual(outcome, { outcome: 'indexed' })
   assert.deepEqual(calls.map((call) => call.name), [
     'get_document_search_index_reprocess_input',
+    'get_document_search_page_text_reprocess_input',
+    'write_current_document_search_page_chunks',
     'finish_document_search_index_reprocess_work',
   ])
   assert.deepEqual(calls[0].args, {
     p_processing_run_id: claim.processing_run_id,
     p_lease_token: claim.lease_token,
   })
-  assert.equal(calls[1].args.p_outcome, 'indexed')
-  assert.equal(calls[1].args.p_projection_fingerprint, 'a'.repeat(64))
-  assert.match(String(calls[1].args.p_embedding), /^\[(?:0\.1,){767}0\.1\]$/)
+  assert.equal(calls[3].args.p_outcome, 'indexed')
+  assert.equal(calls[3].args.p_projection_fingerprint, 'a'.repeat(64))
+  assert.match(String(calls[3].args.p_embedding), /^\[(?:0\.1,){767}0\.1\]$/)
 })
 
 test('does not retry malformed or truncated embedding output and records only a safe failure', async () => {

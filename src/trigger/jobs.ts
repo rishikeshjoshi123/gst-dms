@@ -8,24 +8,18 @@
 
 import { task } from '@trigger.dev/sdk/v3'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/lib/supabase/database.types'
-import { analyzeDocumentWithOutcome, vertexEmbeddingProvider } from '@/lib/ai/vertex'
+import type { Database, Json } from '@/lib/supabase/database.types'
+import { analyzeDocumentWithOutcome } from '@/lib/ai/vertex'
 import { logUsage } from '@/lib/actions/usage'
 import {
   logDocumentExtractionUsageWriteOutcome,
   recordCompletedDocumentExtractionProviderUsage,
 } from '@/lib/platform/provider-usage'
-import { buildEmbeddingText, PROMPT_VERSION } from '@/lib/ai/prompts'
+import { PROMPT_VERSION } from '@/lib/ai/prompts'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
 import { placeProcessingDocumentRelationships } from '@/lib/documents/matter-relationship-effective-metadata'
 import {
-  hasCurrentSearchIndexEmbedding,
-  serializeSearchIndexEmbedding,
-} from '@/lib/documents/scoped-reprocess'
-
-import {
   VERTEX_DOCUMENT_MODEL,
-  VERTEX_EMBEDDING_VERSION,
 } from '@/lib/ai/vertex'
 
 const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
@@ -37,6 +31,8 @@ type BeginProvenanceArgs = Database['public']['Functions']['begin_document_proce
 type BeginProvenanceRow = Database['public']['Functions']['begin_document_processing_ai_extraction']['Returns'][number]
 type FinishProvenanceArgs = Database['public']['Functions']['finish_document_processing_ai_extraction']['Args']
 type FinishProvenanceRow = Database['public']['Functions']['finish_document_processing_ai_extraction']['Returns'][number]
+
+type PageTextArtifactRow = { code: string }
 
 async function placeValidatedDocumentRelationships(
   supabase: SupabaseClient<Database>,
@@ -89,6 +85,33 @@ async function reconcileDocumentExtractionProviderUsage(
     sourceAnalysisRunId,
   )
   logDocumentExtractionUsageWriteOutcome(usageWriteCode)
+}
+
+async function writeCurrentDocumentPageTextArtifact(
+  supabase: SupabaseClient<Database>,
+  args: {
+    processingRunId: string
+    processingLeaseToken: string
+    sourceAnalysisRunId: string
+    sourceAnalysisLeaseToken: string
+    documentVersionId: string
+    pageText: Json
+  },
+) {
+  // The database derives tenant/document lineage and accepts the bounded
+  // transcription only from the live extraction/full leases. It becomes
+  // searchable only after that source run is validated and bound; it never
+  // receives a storage locator or raw provider response.
+  const { data, error } = await supabase.rpc('write_current_document_page_text_artifact', {
+    p_processing_run_id: args.processingRunId,
+    p_processing_lease_token: args.processingLeaseToken,
+    p_source_analysis_run_id: args.sourceAnalysisRunId,
+    p_source_analysis_lease_token: args.sourceAnalysisLeaseToken,
+    p_document_version_id: args.documentVersionId,
+    p_pages: args.pageText,
+  })
+  if (error) throw new Error('Document page-text artifact RPC unavailable')
+  return (data?.[0] ?? null) as PageTextArtifactRow | null
 }
 
 export interface ProcessDocumentPayload {
@@ -242,6 +265,19 @@ export const processDocument = task({
       }
 
       const materialization = provenanceMaterializationFromAnalysis(modelOutcome.result, Number(started.page_count))
+      if (!materialization.terminalReviewRequired) {
+        const pageText = await writeCurrentDocumentPageTextArtifact(supabase, {
+          processingRunId: payload.processingRunId,
+          processingLeaseToken: payload.processingLeaseToken,
+          sourceAnalysisRunId: started.source_analysis_run_id,
+          sourceAnalysisLeaseToken: started.source_analysis_lease_token,
+          documentVersionId: payload.documentVersionId,
+          pageText: modelOutcome.result.page_text ?? [],
+        })
+        if (pageText?.code !== 'written' && pageText?.code !== 'not_indexable') {
+          throw new Error('Document page-text artifact completion was not accepted')
+        }
+      }
       const completed = await finishProvenanceExtraction(supabase, {
         p_processing_run_id: payload.processingRunId,
         p_processing_lease_token: payload.processingLeaseToken,
@@ -301,7 +337,7 @@ export const reindexMatterEmbeddings = task({
     factor: 2,
   },
   run: async (payload: ReindexMatterEmbeddingsPayload) => {
-    const { matterId, orgId, triggeredBy } = payload
+    const { matterId, orgId } = payload
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
 
@@ -316,93 +352,40 @@ export const reindexMatterEmbeddings = task({
       return { status: 'skipped', reason: 'matter_or_client_unavailable' }
     }
 
-    const clientName = (matter.clients as { name: string }).name
     const { data: documents, error } = await supabase
       .from('documents')
-      .select('id, embedding_model, embedding_version, embedding_document_version_id')
+      .select('id')
       .eq('matter_id', matterId)
       .eq('org_id', orgId)
       .is('deleted_at', null)
 
     if (error) throw error
 
-    const documentIds = (documents ?? []).map((document) => document.id)
-    const { data: projectionRows, error: projectionError } = documentIds.length > 0
-      ? await supabase.rpc('read_current_document_search_index_projection', {
-          p_org_id: orgId,
-          p_document_ids: documentIds,
-        })
-      : { data: [], error: null }
-    if (projectionError) {
-      throw new Error('Current Search metadata projection is unavailable')
-    }
-    const projectionByDocument = new Map((projectionRows ?? []).map((projection) => [projection.document_id, projection]))
-
     let indexed = 0
-    let skipped = 0
     let failed = 0
 
     for (const document of documents ?? []) {
-      const projection = projectionByDocument.get(document.id)
-      if (!projection) {
-        failed += 1
-        continue
-      }
-      if (hasCurrentSearchIndexEmbedding(document, projection.document_version_id)) {
-        skipped += 1
-        continue
-      }
-      const embeddingText = buildEmbeddingText({
-        doc_type: projection.doc_type,
-        reference_number: projection.reference_number,
-        summary: projection.summary,
-        financial_years: projection.financial_years,
-        issued_by: projection.issued_by,
-        client_name: clientName,
-      })
-
-      const result = await vertexEmbeddingProvider.embed({ input: embeddingText, purpose: 'corpus' })
-      const embedding = result && serializeSearchIndexEmbedding(result)
-      if (!embedding || !result) {
-        failed += 1
-        continue
-      }
-
       const { data: writeRows, error: writeError } = await supabase
-        .rpc('write_current_document_search_index_embedding', {
+        .rpc('enqueue_current_document_search_reindex', {
           p_org_id: orgId,
           p_document_id: document.id,
-          p_document_version_id: projection.document_version_id,
-          p_embedding: embedding,
-          p_embedding_model: result.model,
-          p_embedding_version: result.version,
-          p_input_tokens: result.inputTokens,
-          p_projection_fingerprint: projection.projection_fingerprint,
+          p_request_key: `${matterId}:${document.id}`,
         })
 
-      if (writeError || writeRows?.[0]?.code !== 'indexed') {
+      if (writeError || writeRows?.[0]?.code !== 'queued') {
         failed += 1
         continue
       }
-
-      await logUsage(supabase, {
-        orgId,
-        userId: triggeredBy,
-        docId: document.id,
-        operationType: 'embedding_reindex',
-        modelName: result.model,
-        inputTokens: result.inputTokens,
-        outputTokens: 0,
-      })
       indexed += 1
     }
 
     return {
       status: failed > 0 ? 'partial' : 'complete',
       matterId,
-      embeddingVersion: VERTEX_EMBEDDING_VERSION,
+      // Durable outbox + leased worker are now the sole writers. This task
+      // deliberately never receives page text, vectors, or provider output.
+      mode: 'queued_scoped_search_index',
       indexed,
-      skipped,
       failed,
     }
   },

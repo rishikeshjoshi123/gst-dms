@@ -1052,6 +1052,128 @@ export type Database = {
           },
         ]
       }
+      document_page_text_artifacts: {
+        Row: {
+          content_fingerprint: string | null
+          created_at: string
+          document_id: string
+          document_version_id: string
+          id: string
+          org_id: string
+          page_count: number
+          processing_run_id: string
+          safe_error_code: string | null
+          source_analysis_run_id: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          content_fingerprint?: string | null
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          id?: string
+          org_id: string
+          page_count: number
+          processing_run_id: string
+          safe_error_code?: string | null
+          source_analysis_run_id: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          content_fingerprint?: string | null
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          id?: string
+          org_id?: string
+          page_count?: number
+          processing_run_id?: string
+          safe_error_code?: string | null
+          source_analysis_run_id?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_page_text_artifacts_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_page_text_artifacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_page_text_artifacts_processing_run_id_fkey"
+            columns: ["processing_run_id"]
+            isOneToOne: false
+            referencedRelation: "document_processing_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_page_text_artifacts_source_analysis_run_id_fkey"
+            columns: ["source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_page_text_artifacts_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_page_text_pages: {
+        Row: {
+          artifact_id: string
+          created_at: string
+          id: string
+          ocr_words: Json | null
+          org_id: string
+          page_content_hash: string
+          page_number: number
+          page_text: string
+        }
+        Insert: {
+          artifact_id: string
+          created_at?: string
+          id?: string
+          ocr_words?: Json | null
+          org_id: string
+          page_content_hash: string
+          page_number: number
+          page_text: string
+        }
+        Update: {
+          artifact_id?: string
+          created_at?: string
+          id?: string
+          ocr_words?: Json | null
+          org_id?: string
+          page_content_hash?: string
+          page_number?: number
+          page_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_page_text_pages_artifact_org_fkey"
+            columns: ["org_id", "artifact_id"]
+            isOneToOne: false
+            referencedRelation: "document_page_text_artifacts"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_processing_recovery_cases: {
         Row: {
           created_at: string
@@ -3815,6 +3937,165 @@ export type Database = {
           },
         ]
       }
+      search_document_chunk_runs: {
+        Row: {
+          artifact_id: string | null
+          changed_chunk_count: number
+          created_at: string
+          document_id: string
+          document_version_id: string
+          id: string
+          org_id: string
+          processing_run_id: string
+          safe_error_code: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          artifact_id?: string | null
+          changed_chunk_count?: number
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          id?: string
+          org_id: string
+          processing_run_id: string
+          safe_error_code?: string | null
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          artifact_id?: string | null
+          changed_chunk_count?: number
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          id?: string
+          org_id?: string
+          processing_run_id?: string
+          safe_error_code?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_document_chunk_runs_artifact_org_fkey"
+            columns: ["org_id", "artifact_id"]
+            isOneToOne: false
+            referencedRelation: "document_page_text_artifacts"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_chunk_runs_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_chunk_runs_processing_run_id_fkey"
+            columns: ["processing_run_id"]
+            isOneToOne: true
+            referencedRelation: "document_processing_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "search_document_chunk_runs_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      search_document_chunks: {
+        Row: {
+          artifact_id: string
+          char_end: number
+          char_start: number
+          content: string
+          content_hash: string
+          created_at: string
+          document_id: string
+          document_version_id: string
+          embedding: string | null
+          embedding_model: string | null
+          embedding_version: string | null
+          id: string
+          input_tokens: number | null
+          ordinal: number
+          org_id: string
+          page_end: number
+          page_start: number
+          search_vector: unknown
+          updated_at: string
+        }
+        Insert: {
+          artifact_id: string
+          char_end: number
+          char_start: number
+          content: string
+          content_hash: string
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          embedding?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
+          id?: string
+          input_tokens?: number | null
+          ordinal: number
+          org_id: string
+          page_end: number
+          page_start: number
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Update: {
+          artifact_id?: string
+          char_end?: number
+          char_start?: number
+          content?: string
+          content_hash?: string
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          embedding?: string | null
+          embedding_model?: string | null
+          embedding_version?: string | null
+          id?: string
+          input_tokens?: number | null
+          ordinal?: number
+          org_id?: string
+          page_end?: number
+          page_start?: number
+          search_vector?: unknown
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_document_chunks_artifact_org_fkey"
+            columns: ["org_id", "artifact_id"]
+            isOneToOne: false
+            referencedRelation: "document_page_text_artifacts"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_chunks_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_chunks_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       search_index_runs: {
         Row: {
           attempt_count: number
@@ -4927,7 +5208,7 @@ export type Database = {
           created_at: string
           id: string
           idempotency_key: string
-          note_id: string
+          note_id: string | null
           org_id: string
           request_fingerprint: string
           task_id: string | null
@@ -4979,7 +5260,7 @@ export type Database = {
           org_id: string
           request_fingerprint: string
           sequence: number
-          task_id: string
+          task_id: string | null
         }
         Insert: {
           actor_user_id: string
@@ -7044,6 +7325,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      document_page_text_ocr_words_are_safe: {
+        Args: { p_words: Json }
+        Returns: boolean
+      }
       document_platform_retained_asset_bytes: { Args: never; Returns: number }
       document_retained_asset_bytes: {
         Args: { p_org_id: string }
@@ -7058,6 +7343,14 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      enqueue_current_document_search_reindex: {
+        Args: { p_document_id: string; p_org_id: string; p_request_key: string }
+        Returns: {
+          code: string
+          outbox_event_id: string
+          processing_run_id: string
+        }[]
       }
       enqueue_due_trash_purges: {
         Args: { p_batch_size?: number }
@@ -7296,6 +7589,14 @@ export type Database = {
           issued_by: string
           reference_number: string
           summary: string
+        }[]
+      }
+      get_document_search_page_text_reprocess_input: {
+        Args: { p_lease_token: string; p_processing_run_id: string }
+        Returns: {
+          code: string
+          existing_content_hashes: Json
+          pages: Json
         }[]
       }
       get_document_version_read_grant: {
@@ -8721,6 +9022,19 @@ export type Database = {
           valid: boolean
         }[]
       }
+      write_current_document_page_text_artifact: {
+        Args: {
+          p_document_version_id: string
+          p_pages: Json
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       write_current_document_search_index_embedding: {
         Args: {
           p_document_id: string
@@ -8762,6 +9076,17 @@ export type Database = {
           p_org_id: string
         }
         Returns: {
+          code: string
+        }[]
+      }
+      write_current_document_search_page_chunks: {
+        Args: {
+          p_chunks: Json
+          p_lease_token: string
+          p_processing_run_id: string
+        }
+        Returns: {
+          changed_chunk_count: number
           code: string
         }[]
       }

@@ -11,6 +11,10 @@ DECLARE
   document_id uuid:='55500000-0000-0000-0000-000000000001';
   version_id uuid:='55600000-0000-0000-0000-000000000001';
   source_run_id uuid:='56400000-0000-0000-0000-000000000001';
+  extraction_run_id uuid:='56500000-0000-0000-0000-000000000001';
+  extraction_source_run_id uuid:='56600000-0000-0000-0000-000000000001';
+  replacement_extraction_run_id uuid:='56900000-0000-0000-0000-000000000001';
+  replacement_source_run_id uuid:='57000000-0000-0000-0000-000000000001';
   reference_candidate_id uuid;
   issued_by_candidate_id uuid;
   financial_year_candidate_id uuid;
@@ -27,6 +31,38 @@ BEGIN
   INSERT INTO public.document_versions(id,org_id,document_id,asset_id,version_number,original_filename,page_count,validation_state,state,validated_at,promoted_at)
   VALUES(version_id,org_id,document_id,asset_id,1,'target.pdf',1,'valid','current',now(),now());
   UPDATE public.documents SET current_version_id=version_id WHERE id=document_id;
+  INSERT INTO public.document_processing_runs(
+    id,org_id,document_id,document_version_id,scope,idempotency_key,state,stage,
+    started_at,lease_token,lease_expires_at,heartbeat_at
+  ) VALUES (
+    extraction_run_id,org_id,document_id,version_id,'full','fixture-page-text-extraction','running','extracting',
+    now(),'56700000-0000-0000-0000-000000000001',now()+interval '5 minutes',now()
+  );
+  INSERT INTO public.source_analysis_runs(
+    id,org_id,asset_id,request_key,idempotency_key,analysis_kind,analysis_state,state,
+    started_at,lease_token,lease_expires_at,provider,model_identifier,
+    model_config_version,prompt_version,schema_version,catalogue_version,normalizer_version
+  ) VALUES (
+    extraction_source_run_id,org_id,asset_id,'fixture-page-text-extraction','ai_extraction.'||extraction_run_id::text,
+    'ai_extraction','running','running',now(),'56800000-0000-0000-0000-000000000001',now()+interval '5 minutes',
+    'vertex-ai','gemini-2.5-flash','fixture-model','fixture-prompt','fixture-schema','fixture-catalogue','fixture-normalizer'
+  );
+  INSERT INTO public.document_processing_runs(
+    id,org_id,document_id,document_version_id,scope,idempotency_key,state,stage,
+    started_at,lease_token,lease_expires_at,heartbeat_at
+  ) VALUES (
+    replacement_extraction_run_id,org_id,document_id,version_id,'full','fixture-page-text-replacement','running','extracting',
+    now(),'57100000-0000-0000-0000-000000000001',now()+interval '5 minutes',now()
+  );
+  INSERT INTO public.source_analysis_runs(
+    id,org_id,asset_id,request_key,idempotency_key,analysis_kind,analysis_state,state,
+    started_at,lease_token,lease_expires_at,provider,model_identifier,
+    model_config_version,prompt_version,schema_version,catalogue_version,normalizer_version
+  ) VALUES (
+    replacement_source_run_id,org_id,asset_id,'fixture-page-text-replacement','ai_extraction.'||replacement_extraction_run_id::text,
+    'ai_extraction','running','running',now(),'57200000-0000-0000-0000-000000000001',now()+interval '5 minutes',
+    'vertex-ai','gemini-2.5-flash','fixture-model','fixture-prompt','fixture-schema','fixture-catalogue','fixture-normalizer'
+  );
   INSERT INTO public.source_analysis_runs(
     id,org_id,asset_id,request_key,idempotency_key,analysis_kind,analysis_state,state,
     started_at,completed_at,lease_token,lease_expires_at,provider,model_identifier,
@@ -55,6 +91,38 @@ BEGIN
   PERFORM public.record_document_field_decision(financial_year_candidate_id,'corrected','"2023-24"'::jsonb,'Fixture financial-year correction',owner,'search-projection-financial-year-corrected');
 END $setup$;
 
+SET LOCAL ROLE service_role;
+DO $page_artifact_authority$
+DECLARE written record; invalid record; rewritten record;
+BEGIN
+  SELECT * INTO written FROM public.write_current_document_page_text_artifact(
+    '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
+    '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
+    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null}]'::jsonb
+  );
+  SELECT * INTO invalid FROM public.write_current_document_page_text_artifact(
+    '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
+    '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
+    '55600000-0000-0000-0000-000000000001','[{"page_number":"not-an-integer"}]'::jsonb
+  );
+  SELECT * INTO rewritten FROM public.write_current_document_page_text_artifact(
+    '56500000-0000-0000-0000-000000000001','56700000-0000-0000-0000-000000000001',
+    '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
+    '55600000-0000-0000-0000-000000000001','[{"page_number":1,"text":"First source. Second source.","ocr_words":null}]'::jsonb
+  );
+  IF written.code <> 'written' OR invalid.code <> 'not_indexable' OR rewritten.code <> 'written' THEN
+    RAISE EXCEPTION 'page artifact running-lease authority or malformed terminalization failed';
+  END IF;
+END $page_artifact_authority$;
+RESET ROLE;
+
+UPDATE public.source_analysis_runs
+SET analysis_state='validated',state='succeeded',completed_at=now()
+WHERE id='56600000-0000-0000-0000-000000000001';
+SELECT public.materialize_document_version_analysis(
+  '55600000-0000-0000-0000-000000000001','56600000-0000-0000-0000-000000000001','fixture_page_text_binding','55100000-0000-0000-0000-000000000001'
+);
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','55100000-0000-0000-0000-000000000001',true);
 DO $request$
@@ -62,7 +130,7 @@ DECLARE result record;
 BEGIN
   SELECT * INTO result FROM public.request_document_reprocess(
     '55500000-0000-0000-0000-000000000001','search_index',
-    '55700000-0000-0000-0000-000000000001',6
+    '55700000-0000-0000-0000-000000000001',8
   );
   IF result.code<>'queued' THEN RAISE EXCEPTION 'search-index reprocess was not queued'; END IF;
   PERFORM set_config('test.search_worker_event',result.outbox_event_id::text,true);
@@ -79,7 +147,9 @@ END $delivery_lease$;
 
 SET LOCAL ROLE service_role;
 DO $claim_and_finish$
-DECLARE claim record; input_row record; finish_row record; replay record;
+DECLARE claim record; input_row record; page_input record; forged_chunk record; bad_locator_chunk record;
+  wrong_model_chunk record; duplicate_chunk record; second_only record; inserted_first record; removed_first record;
+  invalid_artifact record; misused_artifact record; finish_row record; replay record;
 BEGIN
   SELECT * INTO claim FROM public.claim_document_search_index_reprocess_work(
     current_setting('test.search_worker_event')::uuid,'scoped-search-test',
@@ -99,6 +169,100 @@ BEGIN
      OR input_row.projection_fingerprint !~ '^[a-f0-9]{64}$' THEN
     RAISE EXCEPTION 'search-index worker input did not use the shared effective projection';
   END IF;
+  SELECT * INTO page_input FROM public.get_document_search_page_text_reprocess_input(claim.processing_run_id,claim.lease_token);
+  SELECT * INTO misused_artifact FROM public.write_current_document_page_text_artifact(
+    claim.processing_run_id,claim.lease_token,
+    '56600000-0000-0000-0000-000000000001','56800000-0000-0000-0000-000000000001',
+    claim.document_version_id,'[{"page_number":1,"text":"First source. Second source."}]'::jsonb
+  );
+  -- Hashes and locators alone cannot author source text. Both attacks use a
+  -- valid vector envelope but must be rejected before any chunk write.
+  SELECT * INTO forged_chunk FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(jsonb_build_object(
+      'ordinal',1,'page_number',1,'char_start',0,'char_end',13,
+      'content','Invented source text must not index',
+      'content_hash',encode(extensions.digest(convert_to('Invented source text must not index','utf8'),'sha256'),'hex'),
+      'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001',
+      'embedding_version','gemini-embedding-001-768-v1','input_tokens',7
+    ))
+  );
+  SELECT * INTO bad_locator_chunk FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(jsonb_build_object(
+      'ordinal',1,'page_number',1,'char_start',0,'char_end',14,
+      'content','First source.',
+      'content_hash',encode(extensions.digest(convert_to('First source.','utf8'),'sha256'),'hex'),
+      'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001',
+      'embedding_version','gemini-embedding-001-768-v1','input_tokens',7
+    ))
+  );
+  SELECT * INTO wrong_model_chunk FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(jsonb_build_object(
+      'ordinal',1,'page_number',1,'char_start',14,'char_end',28,
+      'content','Second source.',
+      'content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex'),
+      'embedding','['||repeat('0,',767)||'0]','embedding_model','another-model',
+      'embedding_version','gemini-embedding-001-768-v1','input_tokens',7
+    ))
+  );
+  SELECT * INTO duplicate_chunk FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(
+      jsonb_build_object('ordinal',1,'page_number',1,'char_start',14,'char_end',28,
+        'content','Second source.','content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex'),
+        'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001','embedding_version','gemini-embedding-001-768-v1','input_tokens',7),
+      jsonb_build_object('ordinal',1,'page_number',1,'char_start',14,'char_end',28,
+        'content','Second source.','content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex'),
+        'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001','embedding_version','gemini-embedding-001-768-v1','input_tokens',7)
+    )
+  );
+  -- Write only the later locator first. Adding an earlier chunk must retain
+  -- this vector by source identity, rather than accidentally reusing ordinal 1.
+  SELECT * INTO second_only FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(jsonb_build_object(
+      'ordinal',1,'page_number',1,'char_start',14,'char_end',28,
+      'content','Second source.','content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex'),
+      'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001',
+      'embedding_version','gemini-embedding-001-768-v1','input_tokens',7
+    ))
+  );
+  SELECT * INTO inserted_first FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(
+      jsonb_build_object('ordinal',1,'page_number',1,'char_start',0,'char_end',13,
+        'content','First source.','content_hash',encode(extensions.digest(convert_to('First source.','utf8'),'sha256'),'hex'),
+        'embedding','['||repeat('0,',767)||'0]','embedding_model','gemini-embedding-001','embedding_version','gemini-embedding-001-768-v1','input_tokens',7),
+      jsonb_build_object('ordinal',2,'page_number',1,'char_start',14,'char_end',28,
+        'content','Second source.','content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex')
+      )
+    )
+  );
+  SELECT * INTO removed_first FROM public.write_current_document_search_page_chunks(
+    claim.processing_run_id,claim.lease_token,
+    jsonb_build_array(jsonb_build_object(
+      'ordinal',1,'page_number',1,'char_start',14,'char_end',28,
+      'content','Second source.','content_hash',encode(extensions.digest(convert_to('Second source.','utf8'),'sha256'),'hex')
+    ))
+  );
+  IF page_input.code <> 'ready' OR misused_artifact.code <> 'processing_lease_invalid'
+     OR forged_chunk.code <> 'invalid_request' OR bad_locator_chunk.code <> 'invalid_request'
+     OR wrong_model_chunk.code <> 'invalid_request' OR duplicate_chunk.code <> 'invalid_request'
+     OR second_only.code <> 'indexed' OR second_only.changed_chunk_count <> 1
+     OR inserted_first.code <> 'indexed' OR inserted_first.changed_chunk_count <> 1
+     OR removed_first.code <> 'indexed' OR removed_first.changed_chunk_count <> 0 THEN
+    RAISE EXCEPTION 'page chunk source identity/fencing failed';
+  END IF;
+  -- An OCR-limited replacement of the same current version must retract
+  -- retained pages and every derived chunk, not leave a stale ready artifact.
+  SELECT * INTO invalid_artifact FROM public.write_current_document_page_text_artifact(
+    '56900000-0000-0000-0000-000000000001','57100000-0000-0000-0000-000000000001',
+    '57000000-0000-0000-0000-000000000001','57200000-0000-0000-0000-000000000001',
+    claim.document_version_id,'[]'::jsonb
+  );
+  IF invalid_artifact.code <> 'not_indexable' THEN RAISE EXCEPTION 'invalid page artifact was not terminalized'; END IF;
   SELECT * INTO finish_row FROM public.finish_document_search_index_reprocess_work(
     claim.processing_run_id,claim.lease_token,'indexed',
     ('['||repeat('0,',767)||'0]')::vector,
@@ -114,6 +278,20 @@ BEGIN
 END $claim_and_finish$;
 RESET ROLE;
 
+DO $page_artifact_retraction_inspection$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.document_page_text_pages AS page
+    JOIN public.document_page_text_artifacts AS artifact ON artifact.id=page.artifact_id
+    WHERE artifact.document_id='55500000-0000-0000-0000-000000000001'
+  ) OR EXISTS (
+    SELECT 1 FROM public.search_document_chunks WHERE document_id='55500000-0000-0000-0000-000000000001'
+  ) OR (SELECT state FROM public.document_page_text_artifacts
+        WHERE document_id='55500000-0000-0000-0000-000000000001') <> 'not_indexable' THEN
+    RAISE EXCEPTION 'invalid page artifact retained stale pages or chunks';
+  END IF;
+END $page_artifact_retraction_inspection$;
+
 -- The worker may already hold a bounded input while a later effective
 -- metadata recompute changes the same current version. Its old fingerprint
 -- must not write a stale vector; the invalidation trigger keeps a successor
@@ -125,7 +303,7 @@ DECLARE result record;
 BEGIN
   SELECT * INTO result FROM public.request_document_reprocess(
     '55500000-0000-0000-0000-000000000001','search_index',
-    '55700000-0000-0000-0000-000000000003',6
+    '55700000-0000-0000-0000-000000000003',8
   );
   IF result.code <> 'queued' THEN
     RAISE EXCEPTION 'stale-projection Search reprocess was not queued';
@@ -266,7 +444,7 @@ DECLARE result record;
 BEGIN
   SELECT * INTO result FROM public.request_document_reprocess(
     '55500000-0000-0000-0000-000000000001','search_index',
-    '55700000-0000-0000-0000-000000000002',6
+    '55700000-0000-0000-0000-000000000002',8
   );
   PERFORM set_config('test.search_retry_run',result.processing_run_id::text,true);
   PERFORM set_config('test.search_retry_event',result.outbox_event_id::text,true);
@@ -431,13 +609,56 @@ BEGIN
   END IF;
 END $leased_legacy_scope_inspection$;
 
+-- A matter-level request key is not enough once a document is replaced: its
+-- idempotency identity must include the exact immutable current version.
+SET LOCAL ROLE service_role;
+DO $replacement_version_enqueue$
+DECLARE before_replace record; after_replace record;
+BEGIN
+  SELECT * INTO before_replace FROM public.enqueue_current_document_search_reindex(
+    '55000000-0000-0000-0000-000000000001','55500000-0000-0000-0000-000000000001','fixture-replacement-version'
+  );
+  INSERT INTO public.file_assets(
+    id,org_id,bucket_id,object_key,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by
+  ) VALUES (
+    '57400000-0000-0000-0000-000000000001','55000000-0000-0000-0000-000000000001','documents',
+    'orgs/55000000-0000-0000-0000-000000000001/assets/57400000-0000-0000-0000-000000000001/original.pdf',
+    11,'application/pdf','available',now(),1,'55100000-0000-0000-0000-000000000001'
+  );
+  UPDATE public.document_versions SET state='superseded',superseded_at=now()
+    WHERE id='55600000-0000-0000-0000-000000000001';
+  INSERT INTO public.document_versions(
+    id,org_id,document_id,asset_id,version_number,original_filename,page_count,validation_state,state,validated_at,promoted_at
+  ) VALUES (
+    '57300000-0000-0000-0000-000000000001','55000000-0000-0000-0000-000000000001',
+    '55500000-0000-0000-0000-000000000001','57400000-0000-0000-0000-000000000001',2,'target-v2.pdf',1,
+    'valid','current',now(),now()
+  );
+  UPDATE public.documents SET current_version_id='57300000-0000-0000-0000-000000000001'
+    WHERE id='55500000-0000-0000-0000-000000000001';
+  SELECT * INTO after_replace FROM public.enqueue_current_document_search_reindex(
+    '55000000-0000-0000-0000-000000000001','55500000-0000-0000-0000-000000000001','fixture-replacement-version'
+  );
+  IF before_replace.code <> 'queued' OR after_replace.code <> 'queued'
+     OR before_replace.processing_run_id = after_replace.processing_run_id
+     OR before_replace.outbox_event_id = after_replace.outbox_event_id THEN
+    RAISE EXCEPTION 'replacement version reused an old matter reindex run or event';
+  END IF;
+END $replacement_version_enqueue$;
+RESET ROLE;
+
 DO $surface$
 BEGIN
   IF has_function_privilege('anon','public.claim_document_search_index_reprocess_work(uuid,text,uuid,uuid)','EXECUTE')
      OR has_function_privilege('authenticated','public.claim_document_search_index_reprocess_work(uuid,text,uuid,uuid)','EXECUTE')
      OR NOT has_function_privilege('service_role','public.claim_document_search_index_reprocess_work(uuid,text,uuid,uuid)','EXECUTE')
      OR has_function_privilege('authenticated','public.finish_document_search_index_reprocess_work(uuid,uuid,text,vector,text,text,integer,text)','EXECUTE')
-     OR NOT has_function_privilege('service_role','public.finish_document_search_index_reprocess_work(uuid,uuid,text,vector,text,text,integer,text)','EXECUTE') THEN
+     OR NOT has_function_privilege('service_role','public.finish_document_search_index_reprocess_work(uuid,uuid,text,vector,text,text,integer,text)','EXECUTE')
+     OR has_table_privilege('authenticated','public.document_page_text_artifacts','SELECT')
+     OR has_table_privilege('service_role','public.document_page_text_pages','INSERT')
+     OR has_table_privilege('authenticated','public.search_document_chunks','SELECT')
+     OR has_function_privilege('authenticated','public.write_current_document_page_text_artifact(uuid,uuid,uuid,uuid,uuid,jsonb)','EXECUTE')
+     OR NOT has_function_privilege('service_role','public.write_current_document_search_page_chunks(uuid,uuid,jsonb)','EXECUTE') THEN
     RAISE EXCEPTION 'scoped search worker grant surface';
   END IF;
 END $surface$;

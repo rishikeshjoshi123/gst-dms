@@ -1,5 +1,6 @@
 import { VERTEX_EMBEDDING_DIMENSIONS, VERTEX_EMBEDDING_MODEL, VERTEX_EMBEDDING_VERSION, vertexEmbeddingProvider, type EmbeddingProvider, type EmbeddingResult } from '@/lib/ai/vertex'
 import { buildEmbeddingText } from '@/lib/ai/prompts'
+import { createHash } from 'node:crypto'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 
@@ -24,6 +25,34 @@ type SearchIndexInput = {
   financial_years: string[] | null
   issued_by: string | null
   projection_fingerprint: string | null
+}
+
+type PageTextInput = {
+  code: string
+  pages: Array<{ page_number: number; text: string }> | null
+  existing_content_hashes: Array<{
+    page_number: number
+    char_start: number
+    char_end: number
+    content_hash: string
+  }> | null
+}
+
+type PageChunk = {
+  ordinal: number
+  page_number: number
+  char_start: number
+  char_end: number
+  content: string
+  content_hash: string
+  embedding?: string
+  embedding_model?: string
+  embedding_version?: string
+  input_tokens?: number
+}
+
+function sourceIdentity(chunk: Pick<PageChunk, 'page_number' | 'char_start' | 'char_end' | 'content_hash'>) {
+  return `${chunk.page_number}:${chunk.char_start}:${chunk.char_end}:${chunk.content_hash}`
 }
 
 export type ScopedSearchIndexWorkerOutcome = 'indexed' | 'not_indexable' | 'failed'
@@ -115,6 +144,48 @@ async function finish(
   return rpc<{ code: string }>(client, 'finish_document_search_index_reprocess_work', args)
 }
 
+export function buildSearchPageChunks(input: PageTextInput): PageChunk[] | null {
+  if (!Array.isArray(input.pages) || input.pages.length === 0
+    || !input.pages.every((page) => Number.isInteger(page.page_number) && page.page_number > 0
+      && typeof page.text === 'string' && page.text.length > 0 && page.text.length <= 8000)) return null
+  const chunks: PageChunk[] = []
+  let ordinal = 0
+  for (const page of [...input.pages].sort((a, b) => a.page_number - b.page_number)) {
+    // PostgreSQL's substring/char_length anchors Unicode characters rather
+    // than JavaScript UTF-16 units. Keep the locators exactly comparable to
+    // the private retained source, including documents with astral symbols.
+    const characters = Array.from(page.text)
+    for (let start = 0; start < characters.length; start += 2800) {
+      const rawContent = characters.slice(start, start + 3200).join('')
+      const content = rawContent.trim()
+      if (!content) continue
+      const leadingWhitespace = Array.from(rawContent).findIndex((character) => !/\s/.test(character))
+      const contentStart = start + Math.max(leadingWhitespace, 0)
+      chunks.push({
+        ordinal: ++ordinal,
+        page_number: page.page_number,
+        char_start: contentStart,
+        char_end: contentStart + Array.from(content).length,
+        content,
+        content_hash: createHash('sha256').update(content, 'utf8').digest('hex'),
+      })
+    }
+  }
+  return chunks.length > 0 && chunks.length <= 20000 ? chunks : null
+}
+
+async function writePageChunks(
+  client: ScopedReprocessRpcClient,
+  claim: ScopedSearchIndexClaim,
+  chunks: PageChunk[],
+) {
+  return rpc<{ code: string }>(client, 'write_current_document_search_page_chunks', {
+    p_processing_run_id: claim.processing_run_id,
+    p_lease_token: claim.lease_token,
+    p_chunks: chunks,
+  })
+}
+
 /**
  * Rebuild the transitional metadata-summary vector for the exact leased
  * document version. No PDF, object path, raw metadata, provider response, or
@@ -133,6 +204,48 @@ export async function runScopedSearchIndexReprocessWorker(
     if (!input || input.code !== 'ready' || !isProjectionFingerprint(input.projection_fingerprint)) {
       await finish(client, claim, 'failed')
       return { outcome: 'failed' }
+    }
+
+    // Passage text is separately retained source evidence. A missing or
+    // incomplete artifact terminalizes the chunk family without falling back
+    // to the metadata summary or AI evidence quotes.
+    const pageInput = await rpc<PageTextInput>(client, 'get_document_search_page_text_reprocess_input', {
+      p_processing_run_id: claim.processing_run_id,
+      p_lease_token: claim.lease_token,
+    })
+    const chunks = pageInput?.code === 'ready' ? buildSearchPageChunks(pageInput) : null
+    if (!chunks) {
+      const pageWrite = await writePageChunks(client, claim, [])
+      if (pageWrite?.code !== 'not_indexable') {
+        await finish(client, claim, 'failed')
+        return { outcome: 'failed' }
+      }
+    } else {
+      const knownSourceIdentities = new Set(Array.isArray(pageInput?.existing_content_hashes)
+        ? pageInput.existing_content_hashes
+          .filter((entry) => Number.isInteger(entry?.page_number) && Number.isInteger(entry?.char_start)
+            && Number.isInteger(entry?.char_end) && entry.char_start >= 0 && entry.char_end > entry.char_start
+            && typeof entry?.content_hash === 'string' && /^[a-f0-9]{64}$/.test(entry.content_hash))
+          .map(sourceIdentity)
+        : [])
+      for (const chunk of chunks) {
+        if (knownSourceIdentities.has(sourceIdentity(chunk))) continue
+        const embedding = await embed.embed({ input: chunk.content, purpose: 'corpus' })
+        const vector = embedding && serializeSearchIndexEmbedding(embedding)
+        if (!embedding || !vector) {
+          await finish(client, claim, 'failed')
+          return { outcome: 'failed' }
+        }
+        chunk.embedding = vector
+        chunk.embedding_model = embedding.model
+        chunk.embedding_version = embedding.version
+        chunk.input_tokens = embedding.inputTokens
+      }
+      const pageWrite = await writePageChunks(client, claim, chunks)
+      if (pageWrite?.code !== 'indexed') {
+        await finish(client, claim, 'failed')
+        return { outcome: 'failed' }
+      }
     }
 
     const text = buildEmbeddingText({

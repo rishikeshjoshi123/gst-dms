@@ -14,12 +14,13 @@ test('live Search query caller uses query embeddings and preserves lexical fallb
   assert.match(search, /let vectorMatches: SearchDocumentRow\[\] = \[\]/)
 })
 
-test('leased worker and matter reindex use corpus embeddings and fail without writing invalid responses', () => {
+test('the leased worker embeds corpus passages while matter reindex only queues the fenced authority', () => {
   const worker = source('../documents/scoped-reprocess.ts')
   const jobs = source('../../trigger/jobs.ts')
 
   assert.match(worker, /embed\.embed\(\{ input: text, purpose: 'corpus' \}\)/)
   assert.match(worker, /if \(!embedding \|\| !serializeSearchIndexEmbedding\(embedding\)\)/)
-  assert.match(jobs, /vertexEmbeddingProvider\.embed\(\{ input: embeddingText, purpose: 'corpus' \}\)/)
-  assert.match(jobs, /if \(!embedding \|\| !result\)/)
+  assert.match(jobs, /enqueue_current_document_search_reindex/)
+  assert.doesNotMatch(jobs, /write_current_document_search_index_embedding/)
+  assert.doesNotMatch(jobs, /vertexEmbeddingProvider\.embed\(\{ input: embeddingText, purpose: 'corpus' \}\)/)
 })

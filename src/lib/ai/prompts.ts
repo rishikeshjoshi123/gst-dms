@@ -30,6 +30,7 @@ EVIDENCE RULES
 - For every client identifier or referenced document used for matching, include a matching client_identifier or document_link evidence item with the exact normalized value.
 - A page number is the 1-based PDF page index, not a page number printed in the document. If uncertain, use null.
 - Evidence quotes must be short verbatim fragments used only to locate the fact. Do not reproduce long passages.
+- The page_text field is different from evidence quotes: transcribe each readable PDF page faithfully, preserving the 1-based PDF page index. Do not summarize, translate, infer missing wording, or include a page when its text cannot be read. Include ocr_words only when you can provide exact normalized 0..1 word boxes; otherwise use null.
 - Confidence expresses evidence clarity, not legal correctness: 0.95+ direct and unambiguous; 0.75–0.94 strong but normalized; 0.50–0.74 partial/unclear; below 0.50 weak.
 
 DOCUMENT TYPES in GST litigation:
@@ -159,6 +160,9 @@ Return only JSON conforming to the supplied response schema. Use these semantic 
       "quote": "short supporting quote or null",
       "confidence": 0.0
     }
+  ],
+  "page_text": [
+    { "page_number": 1, "text": "faithful page transcription", "ocr_words": null }
   ],
   "confidence": 0.0
 }
