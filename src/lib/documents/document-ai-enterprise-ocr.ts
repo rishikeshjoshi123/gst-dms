@@ -2,6 +2,7 @@ import { GoogleAuth } from 'google-auth-library'
 import { PDFDocument } from 'pdf-lib'
 
 import type { PageWordAnchor } from './native-pdf-pages'
+import type { CanonicalTableCell } from './source-verifier'
 
 export const DOCUMENT_AI_REQUIRED_LOCATION = 'asia-south1'
 type Environment = Record<string, string | undefined>
@@ -17,6 +18,7 @@ export type DocumentAiOcrConfiguration = {
 export type DocumentAiOcrPage = {
   text: string
   words: PageWordAnchor[]
+  tableCells: CanonicalTableCell[]
   detectedLanguages: string[]
   processorId: string
   processorVersion: string | null
@@ -33,6 +35,10 @@ type DocumentAiResponse = {
     pages?: Array<{
       detectedLanguages?: Array<{ languageCode?: string }>
       tokens?: Array<{ layout?: Layout }>
+      tables?: Array<{
+        headerRows?: Array<{ cells?: Array<{ layout?: Layout; rowSpan?: number; colSpan?: number }> }>
+        bodyRows?: Array<{ cells?: Array<{ layout?: Layout; rowSpan?: number; colSpan?: number }> }>
+      }>
     }>
   }
 }
@@ -83,19 +89,61 @@ function bounded(value: number): number {
   return Math.max(0, Math.min(1, Number(value.toFixed(6))))
 }
 
+function layoutGeometry(layout: Layout | undefined) {
+  const vertices = layout?.boundingPoly?.normalizedVertices ?? []
+  const xValues = vertices.map((vertex) => vertex.x).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const yValues = vertices.map((vertex) => vertex.y).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  if (xValues.length === 0 || yValues.length === 0) return null
+  const minX = bounded(Math.min(...xValues)); const maxX = bounded(Math.max(...xValues))
+  const minY = bounded(Math.min(...yValues)); const maxY = bounded(Math.max(...yValues))
+  return maxX > minX && maxY > minY ? { x: minX, y: minY, width: bounded(maxX - minX), height: bounded(maxY - minY) } : null
+}
+
 function wordsFromResponse(text: string, page: DocumentAiProviderPage): PageWordAnchor[] {
   return (page.tokens ?? []).flatMap((token) => {
     const word = anchoredText(text, token.layout?.textAnchor).trim()
-    const vertices = token.layout?.boundingPoly?.normalizedVertices ?? []
-    if (!word || vertices.length === 0 || word.length > 256) return []
-    const xValues = vertices.map((vertex) => vertex.x).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-    const yValues = vertices.map((vertex) => vertex.y).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-    if (xValues.length === 0 || yValues.length === 0) return []
-    const minX = bounded(Math.min(...xValues)); const maxX = bounded(Math.max(...xValues))
-    const minY = bounded(Math.min(...yValues)); const maxY = bounded(Math.max(...yValues))
-    if (maxX <= minX || maxY <= minY) return []
-    return [{ text: word, x: minX, y: minY, width: maxX - minX, height: maxY - minY }]
+    const geometry = layoutGeometry(token.layout)
+    if (!word || word.length > 256 || !geometry) return []
+    return [{ text: word, ...geometry }]
   })
+}
+
+function canonicalText(value: string): string {
+  return value.replace(/[\t\n\r\f\v]+/gu, ' ').trim()
+}
+
+function boundedSpan(value: number | undefined): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 100 ? value : 1
+}
+
+/** Retains only cell-level facts that have stable text, structural position, and a box. */
+export function tableCellsFromResponse(text: string, page: DocumentAiProviderPage): CanonicalTableCell[] {
+  const cells: CanonicalTableCell[] = []
+  let readingOrder = 0
+  for (const [tableIndex, table] of (page.tables ?? []).entries()) {
+    let rowIndex = 0
+    for (const row of [...(table.headerRows ?? []), ...(table.bodyRows ?? [])]) {
+      let columnIndex = 0
+      for (const cell of row.cells ?? []) {
+        const value = canonicalText(anchoredText(text, cell.layout?.textAnchor))
+        const geometry = layoutGeometry(cell.layout)
+        const rowSpan = boundedSpan(cell.rowSpan); const columnSpan = boundedSpan(cell.colSpan)
+        if (value && value.length <= 1000 && geometry) {
+          cells.push({
+            table_index: tableIndex, row_index: rowIndex, column_index: columnIndex,
+            row_span: rowSpan, column_span: columnSpan, reading_order: readingOrder,
+            text: value, ...geometry,
+          })
+        }
+        columnIndex += columnSpan
+        readingOrder += 1
+      }
+      rowIndex += 1
+    }
+  }
+  // A partial cap could turn an unrepresented repeated cell into a false
+  // unique match. Keep no table anchors for an over-limit provider page.
+  return cells.length <= 500 ? cells : []
 }
 
 async function selectedPdf(pdfBytes: Buffer, pageNumber: number): Promise<Buffer> {
@@ -132,7 +180,7 @@ export async function ocrDocumentAiEnterprisePages(
         headers: { Authorization: `Bearer ${accessToken.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rawDocument: { content: (await selectedPdf(pdfBytes, pageNumber)).toString('base64'), mimeType: 'application/pdf' },
-          processOptions: { ocrConfig: { enableNativePdfParsing: false, enableImageQualityScores: true } },
+          processOptions: { ocrConfig: { enableNativePdfParsing: false } },
         }),
       })
       if (!response.ok) return null
@@ -142,12 +190,13 @@ export async function ocrDocumentAiEnterprisePages(
       // The pre-existing artifact contract excludes control characters. Keep
       // the OCR words and their anchors exact, while representing provider
       // line layout as ordinary spaces in its one-line search text field.
-      const text = providerText.replace(/[\t\n\r\f\v]+/gu, ' ').trim()
+      const text = canonicalText(providerText)
       if (!page || !text || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(text) || text.length > 8000) return null
       const words = wordsFromResponse(providerText, page)
       result.set(pageNumber, {
         text,
         words: words.length > 2000 ? [] : words,
+        tableCells: tableCellsFromResponse(providerText, page),
         detectedLanguages: [...new Set((page.detectedLanguages ?? [])
           .map((language) => language.languageCode?.trim())
           .filter((language): language is string => Boolean(language)))],

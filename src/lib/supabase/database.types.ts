@@ -1149,6 +1149,7 @@ export type Database = {
           page_text: string
           quality_policy_version: string | null
           quality_reasons: string[]
+          table_cells: Json
         }
         Insert: {
           acquisition_method?: string
@@ -1165,6 +1166,7 @@ export type Database = {
           page_text: string
           quality_policy_version?: string | null
           quality_reasons?: string[]
+          table_cells?: Json
         }
         Update: {
           acquisition_method?: string
@@ -1181,6 +1183,7 @@ export type Database = {
           page_text?: string
           quality_policy_version?: string | null
           quality_reasons?: string[]
+          table_cells?: Json
         }
         Relationships: [
           {
@@ -4691,6 +4694,7 @@ export type Database = {
           validation_error_codes: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          verified_source_anchor: Json | null
         }
         Insert: {
           asset_id: string
@@ -4709,6 +4713,7 @@ export type Database = {
           validation_error_codes?: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          verified_source_anchor?: Json | null
         }
         Update: {
           asset_id?: string
@@ -4727,6 +4732,7 @@ export type Database = {
           validation_error_codes?: string[] | null
           validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          verified_source_anchor?: Json | null
         }
         Relationships: [
           {
@@ -7442,6 +7448,10 @@ export type Database = {
         Args: { p_words: Json }
         Returns: boolean
       }
+      document_page_text_table_cells_are_safe: {
+        Args: { p_cells: Json }
+        Returns: boolean
+      }
       document_platform_retained_asset_bytes: { Args: never; Returns: number }
       document_retained_asset_bytes: {
         Args: { p_org_id: string }
@@ -8298,6 +8308,10 @@ export type Database = {
           nonce: string
         }[]
       }
+      jsonb_object_has_exact_keys: {
+        Args: { p_keys: string[]; p_value: Json }
+        Returns: boolean
+      }
       lease_activity_projector_events: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -8409,6 +8423,23 @@ export type Database = {
           p_validation_error_codes?: string[]
           p_validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Returns: string
+      }
+      materialize_verified_source_field_candidate: {
+        Args: {
+          p_confidence: number
+          p_evidence_regions: Json
+          p_field_path: string
+          p_normalized_value: Json
+          p_page_number: number
+          p_quotation: string
+          p_semantic_candidate_key: string
+          p_source_analysis_run_id: string
+          p_validation_error_codes: string[]
+          p_validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+          p_verified_source_anchor: Json
         }
         Returns: string
       }
@@ -8997,6 +9028,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      source_field_candidate_normalized_source_text: {
+        Args: { p_value: string }
+        Returns: string
+      }
       source_field_candidate_normalized_value_is_valid: {
         Args: {
           p_value: Json
@@ -9008,8 +9043,28 @@ export type Database = {
         Args: { p_regions: Json }
         Returns: boolean
       }
+      source_field_candidate_source_date: {
+        Args: { p_value: string }
+        Returns: string
+      }
       source_field_candidate_validation_errors_are_safe: {
         Args: { p_errors: string[] }
+        Returns: boolean
+      }
+      source_field_candidate_value_match_count: {
+        Args: {
+          p_normalized_value: Json
+          p_source_text: string
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Returns: number
+      }
+      source_field_candidate_value_resolves_in_text: {
+        Args: {
+          p_normalized_value: Json
+          p_source_text: string
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
         Returns: boolean
       }
       staged_document_backfill_source_is_valid: {

@@ -275,15 +275,18 @@ export const processDocument = task({
         return { status: 'needs_review', docId }
       }
 
-      const materialization = provenanceMaterializationFromAnalysis(modelOutcome.result, Number(started.page_count))
-      if (!materialization.terminalReviewRequired) {
+      const canonicalPages = pageAcquisition.kind === 'complete' ? pageAcquisition.pages : []
+      // Verification is against the same acquired page payload that the
+      // fenced writer persists, never Gemini's self-reported evidence.
+      const materialization = provenanceMaterializationFromAnalysis(modelOutcome.result, Number(started.page_count), canonicalPages)
+      if (pageAcquisition.kind === 'complete') {
         const pageText = await writeCurrentDocumentPageTextArtifact(supabase, {
           processingRunId: payload.processingRunId,
           processingLeaseToken: payload.processingLeaseToken,
           sourceAnalysisRunId: started.source_analysis_run_id,
           sourceAnalysisLeaseToken: started.source_analysis_lease_token,
           documentVersionId: payload.documentVersionId,
-          pageText: pageAcquisition.kind === 'complete' ? pageAcquisition.pages as unknown as Json : [],
+          pageText: canonicalPages as unknown as Json,
         })
         if (pageText?.code !== 'written' && pageText?.code !== 'not_indexable') {
           throw new Error('Document page-text artifact completion was not accepted')

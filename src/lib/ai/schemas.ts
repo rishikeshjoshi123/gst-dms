@@ -1,4 +1,4 @@
-import { SchemaType, type ResponseSchema } from '@google-cloud/vertexai'
+import { Type, type Schema } from '@google/genai'
 import { z } from 'zod'
 
 export const DOCUMENT_TYPES = [
@@ -141,13 +141,13 @@ export type AIWikiPayload = z.infer<typeof aiWikiPayloadSchema>
 export type AIWikiResult = AIWikiPayload & { usage?: AIUsage }
 
 const nullableStringResponse = (description: string) => ({
-  type: SchemaType.STRING,
+  type: Type.STRING,
   nullable: true,
   description,
 })
 
-export const documentResponseSchema: ResponseSchema = {
-  type: SchemaType.OBJECT,
+export const documentResponseSchema: Schema = {
+  type: Type.OBJECT,
   required: [
     'doc_type',
     'document_title',
@@ -172,99 +172,99 @@ export const documentResponseSchema: ResponseSchema = {
     'confidence',
   ],
   properties: {
-    doc_type: { type: SchemaType.STRING, enum: [...DOCUMENT_TYPES], nullable: true },
+    doc_type: { type: Type.STRING, enum: [...DOCUMENT_TYPES], nullable: true },
     document_title: nullableStringResponse('Formal title or heading of the document.'),
-    document_class: { type: SchemaType.STRING, enum: ['proceeding', 'supporting'] },
+    document_class: { type: Type.STRING, enum: ['proceeding', 'supporting'] },
     document_category: {
-      type: SchemaType.STRING,
+      type: Type.STRING,
       enum: ['invoice', 'client_document', 'explanation', 'evidence', 'other'],
       nullable: true,
     },
     reference_number: nullableStringResponse('Full official reference number of this document.'),
     gstin: nullableStringResponse('Validated 15-character GSTIN.'),
     client_identifiers: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       nullable: true,
-      items: { type: SchemaType.STRING },
+      items: { type: Type.STRING },
     },
     client_name: nullableStringResponse('Taxpayer or client legal name.'),
     doc_date: nullableStringResponse('Document date in YYYY-MM-DD format.'),
-    financial_years: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+    financial_years: { type: Type.ARRAY, items: { type: Type.STRING } },
     tax_period: nullableStringResponse('Human-readable tax period.'),
-    direction: { type: SchemaType.STRING, enum: ['incoming', 'outgoing'], nullable: true },
+    direction: { type: Type.STRING, enum: ['incoming', 'outgoing'], nullable: true },
     issued_by: nullableStringResponse('Issuing authority, court, taxpayer, or advocate.'),
     summary: {
-      type: SchemaType.STRING,
+      type: Type.STRING,
       description: 'Neutral factual summary that distinguishes allegations, submissions, and findings.',
     },
     chaining_attributes: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       required: ['references_documents', 'gstin', 'financial_years', 'matter_ref', 'link_type'],
       properties: {
-        references_documents: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        references_documents: { type: Type.ARRAY, items: { type: Type.STRING } },
         gstin: nullableStringResponse('GSTIN appearing in relationship context.'),
-        financial_years: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        financial_years: { type: Type.ARRAY, items: { type: Type.STRING } },
         matter_ref: nullableStringResponse('Matter or proceeding description used as a backward reference.'),
         link_type: {
-          type: SchemaType.STRING,
+          type: Type.STRING,
           enum: ['responds_to', 'arises_from', 'challenges', 'summarizes'],
           nullable: true,
         },
       },
     },
     deadlines: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: {
-        type: SchemaType.OBJECT,
+        type: Type.OBJECT,
         required: ['type', 'due_date', 'description', 'source_page', 'source_quote', 'confidence'],
         properties: {
           type: {
-            type: SchemaType.STRING,
+            type: Type.STRING,
             enum: ['appeal_window', 'pre_deposit', 'hearing_date', 'reply_deadline', 'stay_application', 'other'],
           },
-          due_date: { type: SchemaType.STRING },
-          description: { type: SchemaType.STRING },
-          source_page: { type: SchemaType.INTEGER, nullable: true },
+          due_date: { type: Type.STRING },
+          description: { type: Type.STRING },
+          source_page: { type: Type.INTEGER, nullable: true },
           source_quote: nullableStringResponse('Short supporting quotation.'),
-          confidence: { type: SchemaType.NUMBER },
+          confidence: { type: Type.NUMBER },
         },
       },
     },
     extracted_amounts: {
-      type: SchemaType.OBJECT,
+      type: Type.OBJECT,
       required: ['tax', 'interest', 'penalty', 'fee', 'pre_deposit', 'total_demand', 'amount_in_dispute', 'amount_relief'],
       properties: Object.fromEntries(
         ['tax', 'interest', 'penalty', 'fee', 'pre_deposit', 'total_demand', 'amount_in_dispute', 'amount_relief']
-          .map((key) => [key, { type: SchemaType.NUMBER, nullable: true }]),
+          .map((key) => [key, { type: Type.NUMBER, nullable: true }]),
       ),
     },
-    parties_named: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+    parties_named: { type: Type.ARRAY, items: { type: Type.STRING } },
     legal_references: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: {
-        type: SchemaType.OBJECT,
+        type: Type.OBJECT,
         required: ['act', 'provision_type', 'provision_number', 'context', 'page_number', 'confidence'],
         properties: {
           act: nullableStringResponse('Name of the Act or rules.'),
           provision_type: {
-            type: SchemaType.STRING,
+            type: Type.STRING,
             enum: ['section', 'rule', 'notification', 'circular', 'instruction', 'other'],
           },
-          provision_number: { type: SchemaType.STRING },
+          provision_number: { type: Type.STRING },
           context: nullableStringResponse('How the provision is used in the document.'),
-          page_number: { type: SchemaType.INTEGER, nullable: true },
-          confidence: { type: SchemaType.NUMBER },
+          page_number: { type: Type.INTEGER, nullable: true },
+          confidence: { type: Type.NUMBER },
         },
       },
     },
     evidence: {
-      type: SchemaType.ARRAY,
+      type: Type.ARRAY,
       items: {
-        type: SchemaType.OBJECT,
+        type: Type.OBJECT,
         required: ['field', 'value', 'page_number', 'quote', 'confidence'],
         properties: {
           field: {
-            type: SchemaType.STRING,
+            type: Type.STRING,
             enum: [
               'document_type',
               'reference_number',
@@ -281,23 +281,23 @@ export const documentResponseSchema: ResponseSchema = {
               'legal_reference',
             ],
           },
-          value: { type: SchemaType.STRING },
-          page_number: { type: SchemaType.INTEGER, nullable: true },
+          value: { type: Type.STRING },
+          page_number: { type: Type.INTEGER, nullable: true },
           quote: nullableStringResponse('Short text supporting the extracted value.'),
-          confidence: { type: SchemaType.NUMBER },
+          confidence: { type: Type.NUMBER },
         },
       },
     },
-    confidence: { type: SchemaType.NUMBER },
+    confidence: { type: Type.NUMBER },
   },
 }
 
-export const wikiResponseSchema: ResponseSchema = {
-  type: SchemaType.OBJECT,
+export const wikiResponseSchema: Schema = {
+  type: Type.OBJECT,
   required: ['executive_summary', 'key_arguments', 'outstanding_tasks'],
   properties: {
-    executive_summary: { type: SchemaType.STRING },
-    key_arguments: { type: SchemaType.STRING },
-    outstanding_tasks: { type: SchemaType.STRING },
+    executive_summary: { type: Type.STRING },
+    key_arguments: { type: Type.STRING },
+    outstanding_tasks: { type: Type.STRING },
   },
 }

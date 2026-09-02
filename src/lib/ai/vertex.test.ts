@@ -19,6 +19,29 @@ test('Vertex structured-output boundary strictly parses complete JSON and logs o
   assert.match(source, /logVertexDiagnostic\('wiki_response_invalid'\)/)
 })
 
+test('Gemini SDK owns both structured document and legacy wiki generation contracts', () => {
+  const source = readFileSync(new URL('./vertex.ts', import.meta.url), 'utf8')
+  const document = source.slice(source.indexOf('export async function analyzeDocumentWithOutcome'), source.indexOf('/**\n * Transitional compatibility wrapper'))
+  const wiki = source.slice(source.indexOf('export async function generateWikiSummary'), source.indexOf('// ── Embeddings'))
+
+  for (const boundary of [document, wiki]) {
+    assert.match(boundary, /gemini\.models\.generateContent\(/)
+    assert.match(boundary, /responseMimeType: 'application\/json'/)
+    assert.match(boundary, /responseSchema:/)
+    assert.match(boundary, /response\.text\?\.trim\(\)/)
+    assert.match(boundary, /extractJsonObject\(rawText\)/)
+    assert.match(boundary, /safeParse\(/)
+    assert.match(boundary, /usageFromResponse\(response\.usageMetadata\)/)
+  }
+
+  assert.match(wiki, /contents: buildWikiPrompt\(matterContext\)/)
+  assert.match(wiki, /responseSchema: wikiResponseSchema/)
+  assert.match(wiki, /temperature: 0\.1/)
+  assert.match(wiki, /maxOutputTokens: 6144/)
+  assert.doesNotMatch(wiki, /getVertexAI\(|preview\.getGenerativeModel|response\.response\.candidates/)
+  assert.doesNotMatch(source, /@google-cloud\/vertexai|\bVertexAI\b/)
+})
+
 test('Vertex document and embedding locations are independently explicit and Mumbai-only', () => {
   assert.equal(resolveVertexDocumentLocation({ VERTEX_DOCUMENT_LOCATION: 'asia-south1' }), 'asia-south1')
   assert.equal(resolveVertexEmbeddingLocation({ VERTEX_EMBEDDING_LOCATION: 'asia-south1' }), 'asia-south1')

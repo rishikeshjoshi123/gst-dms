@@ -8,11 +8,13 @@ import {
   NATIVE_PAGE_QUALITY_POLICY_VERSION,
   type PageWordAnchor,
 } from './native-pdf-pages'
+import type { CanonicalTableCell } from './source-verifier'
 
 export type AcquiredPageText = {
   page_number: number
   text: string
   ocr_words: PageWordAnchor[] | null
+  table_cells: CanonicalTableCell[]
   acquisition_method: 'native_pdf' | 'document_ai_ocr'
   quality_policy_version: typeof NATIVE_PAGE_QUALITY_POLICY_VERSION
   quality_reasons: string[]
@@ -46,6 +48,7 @@ export async function acquireDocumentPageText(
         page_number: page.pageNumber,
         text: page.text,
         ocr_words: page.words,
+        table_cells: [],
         acquisition_method: 'native_pdf',
         quality_policy_version: NATIVE_PAGE_QUALITY_POLICY_VERSION,
         quality_reasons: quality.reasons,
@@ -64,7 +67,7 @@ export async function acquireDocumentPageText(
   const pages = nativeQuality.map(({ page, quality }): AcquiredPageText | null => {
     if (quality.accepted) {
       return {
-        page_number: page.pageNumber, text: page.text, ocr_words: page.words,
+        page_number: page.pageNumber, text: page.text, ocr_words: page.words, table_cells: [],
         acquisition_method: 'native_pdf', quality_policy_version: NATIVE_PAGE_QUALITY_POLICY_VERSION,
         quality_reasons: quality.reasons, detected_languages: [],
         ocr_processor_identifier: null, ocr_processor_version: null,
@@ -73,7 +76,7 @@ export async function acquireDocumentPageText(
     const ocr = ocrPages.get(page.pageNumber)
     if (!ocr) return null
     return {
-      page_number: page.pageNumber, text: ocr.text, ocr_words: ocr.words.length > 0 ? ocr.words : null,
+      page_number: page.pageNumber, text: ocr.text, ocr_words: ocr.words.length > 0 ? ocr.words : null, table_cells: ocr.tableCells,
       acquisition_method: 'document_ai_ocr', quality_policy_version: NATIVE_PAGE_QUALITY_POLICY_VERSION,
       quality_reasons: quality.reasons, detected_languages: ocr.detectedLanguages,
       ocr_processor_identifier: ocr.processorId, ocr_processor_version: ocr.processorVersion,

@@ -1,4 +1,5 @@
 import type { AIDocumentPayload } from '@/lib/ai/schemas'
+import { verifyCanonicalSource, type CanonicalPage } from './source-verifier'
 
 export type ProvenanceCandidate = {
   semantic_candidate_key: string
@@ -7,7 +8,14 @@ export type ProvenanceCandidate = {
   normalized_value: string | boolean
   page_number: number
   quotation: string
-  evidence_regions: null
+  verified_source_anchor: {
+    char_start: number
+    char_end: number
+    token_start: number | null
+    token_end: number | null
+    table_cell: { table_index: number; row_index: number; column_index: number } | null
+  } | null
+  evidence_regions: Array<{ x: number; y: number; width: number; height: number }> | null
   confidence: number
   validation_state: 'eligible' | 'provisional' | 'conflicting' | 'invalid'
   validation_error_codes: string[] | null
@@ -45,8 +53,9 @@ function addEvidenceCandidate(
   path: string,
   valueType: ProvenanceCandidate['value_type'],
   pageCount: number,
+  pages: CanonicalPage[] | undefined,
 ) {
-  if (expectedValue === null || evidence.value !== expectedValue) return
+  if (expectedValue === null) return
   const pageNumber = evidence.page_number
   const quotation = evidence.quote
   if (pageNumber === null || quotation === null) {
@@ -63,7 +72,22 @@ function addEvidenceCandidate(
     return
   }
 
-  const validation_state = candidateState(evidence.confidence)
+  const critical = valueType === 'date' || valueType === 'decimal' || key.includes('gstin') || key.includes('identifier') || key.includes('reference') || key.includes('deadline') || key.includes('matter') || key.includes('client')
+  // `client_identifier` deliberately holds heterogeneous identifiers (PAN,
+  // TAN, CIN, registrations, and client-specific references). Only the
+  // explicit GSTIN field receives GSTIN syntax/checksum verification; generic
+  // identifiers remain source-bound without being misclassified as tax IDs.
+  const identifier = key === 'document.gstin' ? 'gstin' : undefined
+  // Critical candidates must always resolve against a canonical page. An
+  // unavailable acquisition is the same fail-closed field exception as a
+  // missing page, never an eligible candidate that would abort SQL completion.
+  const verification = critical
+    ? verifyCanonicalSource(pages?.find((page) => page.page_number === pageNumber), quotation, expectedValue, valueType === 'code' ? 'code' : valueType === 'date' ? 'date' : valueType === 'decimal' ? 'decimal' : 'text', identifier)
+    : null
+  const validation_state = verification && !verification.ok ? 'invalid' : candidateState(evidence.confidence)
+  const validation_error_codes = verification && !verification.ok
+    ? [verification.code]
+    : candidateErrorCodes(validation_state)
   output.push({
     semantic_candidate_key: key,
     field_path: path,
@@ -71,12 +95,19 @@ function addEvidenceCandidate(
     normalized_value: expectedValue,
     page_number: pageNumber,
     quotation,
-    evidence_regions: null,
+    verified_source_anchor: verification?.ok ? {
+      char_start: verification.evidence.char_start,
+      char_end: verification.evidence.char_end,
+      token_start: verification.evidence.token_start,
+      token_end: verification.evidence.token_end,
+      table_cell: verification.evidence.table_cell,
+    } : null,
+    evidence_regions: verification?.ok && verification.evidence.regions.length ? verification.evidence.regions : null,
     confidence: evidence.confidence,
     validation_state,
-    validation_error_codes: candidateErrorCodes(validation_state),
+    validation_error_codes,
   })
-  if (validation_state !== 'eligible') reviewCodes.add(validation_state === 'invalid' ? 'low_confidence' : 'provisional_evidence')
+  if (validation_state !== 'eligible') reviewCodes.add(validation_state === 'invalid' ? (verification && !verification.ok ? verification.code : 'low_confidence') : 'provisional_evidence')
 }
 
 function decimalFromNumber(value: number) {
@@ -101,6 +132,7 @@ function evidenceFor(
 export function provenanceMaterializationFromAnalysis(
   analysis: AIDocumentPayload,
   pageCount: number,
+  pages?: CanonicalPage[],
 ): ProvenanceMaterialization {
   const candidates: ProvenanceCandidate[] = []
   const reviewCodes = new Set<string>()
@@ -125,7 +157,7 @@ export function provenanceMaterializationFromAnalysis(
   for (const field of scalarFields) {
     const evidence = field.value === null ? undefined : evidenceFor(analysis.evidence, field.evidenceField, field.value)
     if (field.value !== null && !evidence) reviewCodes.add('missing_evidence')
-    if (evidence) addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, field.value, field.key, field.path, field.type, pageCount)
+    if (evidence) addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, field.value, field.key, field.path, field.type, pageCount, pages)
   }
 
   for (const [index, financialYear] of analysis.financial_years.entries()) {
@@ -144,6 +176,7 @@ export function provenanceMaterializationFromAnalysis(
       'document.financial_year',
       'code',
       pageCount,
+      pages,
     )
   }
 
@@ -163,6 +196,7 @@ export function provenanceMaterializationFromAnalysis(
       'document.client_identifier',
       'code',
       pageCount,
+      pages,
     )
   }
 
@@ -182,6 +216,7 @@ export function provenanceMaterializationFromAnalysis(
       'document.referenced_document_number',
       'text',
       pageCount,
+      pages,
     )
   }
 
@@ -194,20 +229,10 @@ export function provenanceMaterializationFromAnalysis(
       terminalReviewCodes.add('candidate_evidence_unsafe')
       continue
     }
-    const validation_state = candidateState(deadline.confidence)
-    candidates.push({
-      semantic_candidate_key: `deadline:${index}`,
-      field_path: 'deadline.due_date',
-      value_type: 'date',
-      normalized_value: deadline.due_date,
-      page_number: deadline.source_page,
-      quotation: deadline.source_quote,
-      evidence_regions: null,
-      confidence: deadline.confidence,
-      validation_state,
-      validation_error_codes: candidateErrorCodes(validation_state),
-    })
-    if (validation_state !== 'eligible') reviewCodes.add(validation_state === 'invalid' ? 'low_confidence' : 'provisional_evidence')
+    addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, {
+      field: 'deadline', value: deadline.due_date, page_number: deadline.source_page,
+      quote: deadline.source_quote, confidence: deadline.confidence,
+    }, deadline.due_date, `deadline:${index}`, 'deadline.due_date', 'date', pageCount, pages)
   }
 
   for (const [name, value] of Object.entries(analysis.extracted_amounts)) {
@@ -218,7 +243,7 @@ export function provenanceMaterializationFromAnalysis(
       reviewCodes.add('missing_evidence')
       continue
     }
-    addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, normalized, `amount:${name}`, `financial.${name}`, 'decimal', pageCount)
+    addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, normalized, `amount:${name}`, `financial.${name}`, 'decimal', pageCount, pages)
   }
 
   for (const [index, reference] of analysis.legal_references.entries()) {
@@ -237,6 +262,7 @@ export function provenanceMaterializationFromAnalysis(
       'legal_reference.provision_number',
       'code',
       pageCount,
+      pages,
     )
   }
 

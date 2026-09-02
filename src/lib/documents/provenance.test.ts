@@ -29,7 +29,7 @@ test('materializes only evidence-bound scalar candidates and preserves provision
   ])
   assert.equal(result.candidates.at(-1)?.validation_state, 'provisional')
   assert.equal(result.reviewRequired, true)
-  assert.deepEqual(result.reviewCodes, ['provisional_evidence'])
+  assert.deepEqual(result.reviewCodes, ['provisional_evidence', 'source_page_missing'])
 })
 
 test('missing page or quotation never becomes a candidate and opens a safe review exception', () => {
@@ -41,20 +41,50 @@ test('missing page or quotation never becomes a candidate and opens a safe revie
   assert.equal(result.reviewCodes.includes('missing_evidence'), true)
 })
 
-test('materializes evidence-bound client identifiers and document references for assignment', () => {
+test('marks critical facts invalid when canonical page acquisition is unavailable', () => {
   const result = provenanceMaterializationFromAnalysis({
     ...analysis,
-    client_identifiers: ['ABCDE1234F'],
-    chaining_attributes: { ...analysis.chaining_attributes, references_documents: ['OIO/2024/123'] },
+    doc_date: null,
+    financial_years: [],
+    evidence: analysis.evidence.filter((item) => item.field === 'document_type' || item.field === 'reference_number'),
+  }, 2)
+  const reference = result.candidates.find((candidate) => candidate.semantic_candidate_key === 'document.reference_number')
+
+  assert.deepEqual(reference && {
+    validation_state: reference.validation_state,
+    validation_error_codes: reference.validation_error_codes,
+    verified_source_anchor: reference.verified_source_anchor,
+    evidence_regions: reference.evidence_regions,
+  }, {
+    validation_state: 'invalid',
+    validation_error_codes: ['source_page_missing'],
+    verified_source_anchor: null,
+    evidence_regions: null,
+  })
+  assert.equal(result.reviewCodes.includes('source_page_missing'), true)
+})
+
+test('materializes source-verified generic client identifiers without treating them as GSTIN or PAN', () => {
+  const result = provenanceMaterializationFromAnalysis({
+    ...analysis,
+    client_identifiers: ['CLIENT-REG-42'],
+    chaining_attributes: { ...analysis.chaining_attributes, references_documents: [] },
     evidence: [
       ...analysis.evidence,
-      { field: 'client_identifier', value: 'ABCDE1234F', page_number: 1, quote: 'PAN ABCDE1234F', confidence: 0.95 },
-      { field: 'document_link', value: 'OIO/2024/123', page_number: 1, quote: 'Order OIO/2024/123', confidence: 0.96 },
+      { field: 'client_identifier', value: 'CLIENT-REG-42', page_number: 1, quote: 'Client registration CLIENT-REG-42', confidence: 0.95 },
     ],
-  }, 2)
+  }, 2, [{ page_number: 1, text: 'Client registration CLIENT-REG-42', ocr_words: null }])
 
-  assert.equal(result.candidates.some((candidate) => candidate.field_path === 'document.client_identifier'), true)
-  assert.equal(result.candidates.some((candidate) => candidate.field_path === 'document.referenced_document_number'), true)
+  const identifier = result.candidates.find((candidate) => candidate.field_path === 'document.client_identifier')
+  assert.deepEqual(identifier && {
+    validation_state: identifier.validation_state,
+    validation_error_codes: identifier.validation_error_codes,
+    verified_source_anchor: identifier.verified_source_anchor,
+  }, {
+    validation_state: 'eligible',
+    validation_error_codes: null,
+    verified_source_anchor: { char_start: 0, char_end: 33, token_start: null, token_end: null, table_cell: null },
+  })
 })
 
 test('routes page-bound evidence outside the immutable asset boundary to terminal Review', () => {

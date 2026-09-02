@@ -9,7 +9,7 @@
  *   - Cloud Storage API (storage.googleapis.com) — for PDF access
  */
 
-import { VertexAI, type GenerateContentRequest } from '@google-cloud/vertexai'
+import { GoogleGenAI } from '@google/genai'
 import { GoogleAuth } from 'google-auth-library'
 import {
   PROMPT_VERSION,
@@ -35,7 +35,7 @@ export type DocumentAnalysisOutcome =
 
 // ── Lazy-initialized clients ────────────────────────────────────────────────
 
-let _vertexAI: VertexAI | null = null
+let _gemini: GoogleGenAI | null = null
 
 export const INDIA_VERTEX_LOCATION = 'asia-south1'
 type Environment = Record<string, string | undefined>
@@ -57,31 +57,15 @@ export function resolveVertexEmbeddingLocation(environment: Environment = proces
     : null
 }
 
-function getVertexAI(): VertexAI {
-  if (_vertexAI) return _vertexAI
-
+function getGemini(): GoogleGenAI {
+  if (_gemini) return _gemini
   const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
-  if (!credentialsJson) {
-    throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is not set')
-  }
-
+  if (!credentialsJson) throw new Error('GOOGLE_APPLICATION_CREDENTIALS_JSON is not set')
   const credentials = JSON.parse(credentialsJson)
-  const project = process.env.GOOGLE_CLOUD_PROJECT ?? credentials.project_id
   const location = resolveVertexDocumentLocation()
-  if (!location) {
-    throw new Error('VERTEX_DOCUMENT_LOCATION must be asia-south1')
-  }
-
-  _vertexAI = new VertexAI({
-    project,
-    location,
-    googleAuthOptions: {
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    },
-  })
-
-  return _vertexAI
+  if (!location) throw new Error('VERTEX_DOCUMENT_LOCATION must be asia-south1')
+  _gemini = new GoogleGenAI({ vertexai: true, project: process.env.GOOGLE_CLOUD_PROJECT ?? credentials.project_id, location, googleAuthOptions: { credentials, scopes: ['https://www.googleapis.com/auth/cloud-platform'] } })
+  return _gemini
 }
 
 export const VERTEX_DOCUMENT_MODEL = 'gemini-2.5-flash'
@@ -126,46 +110,23 @@ export async function analyzeDocumentWithOutcome(
   pdfBuffer: Buffer
 ): Promise<DocumentAnalysisOutcome> {
   try {
-    const vertex = getVertexAI()
-    const model = vertex.preview.getGenerativeModel({
+    const gemini = getGemini()
+    const response = await gemini.models.generateContent({
       model: VERTEX_DOCUMENT_MODEL,
-      generationConfig: {
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'application/pdf', data: pdfBuffer.toString('base64') } }, { text: buildAnalysisPrompt() }] }],
+      config: {
         responseMimeType: 'application/json',
         responseSchema: documentResponseSchema,
         temperature: 0,
         maxOutputTokens: 8192,
       },
     })
-
-    const base64Pdf = pdfBuffer.toString('base64')
-
-    const request: GenerateContentRequest = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: 'application/pdf',
-                data: base64Pdf,
-              },
-            },
-            {
-              text: buildAnalysisPrompt(),
-            },
-          ],
-        },
-      ],
-    }
-
-    const response = await model.generateContent(request)
-    const candidate = response.response.candidates?.[0]
-    if (!candidate?.content?.parts?.[0]?.text) {
+    const rawText = response.text?.trim()
+    if (!rawText) {
       logVertexDiagnostic('document_response_invalid')
       return { kind: 'invalid_model_output' }
     }
 
-    const rawText = candidate.content.parts[0].text.trim()
 
     try {
       const validation = aiDocumentPayloadSchema.safeParse(extractJsonObject(rawText))
@@ -179,7 +140,7 @@ export async function analyzeDocumentWithOutcome(
         result: {
           ...validation.data,
           prompt_version: PROMPT_VERSION,
-          usage: usageFromResponse(response.response.usageMetadata),
+          usage: usageFromResponse(response.usageMetadata),
         },
       }
     } catch {
@@ -206,25 +167,23 @@ export async function generateWikiSummary(
   matterContext: string
 ): Promise<AIWikiResult | null> {
   try {
-    const vertex = getVertexAI()
-    const model = vertex.preview.getGenerativeModel({
+    const gemini = getGemini()
+    const response = await gemini.models.generateContent({
       model: VERTEX_DOCUMENT_MODEL,
-      generationConfig: {
+      contents: buildWikiPrompt(matterContext),
+      config: {
         responseMimeType: 'application/json',
         responseSchema: wikiResponseSchema,
         temperature: 0.1,
         maxOutputTokens: 6144,
       },
     })
-
-    const response = await model.generateContent(buildWikiPrompt(matterContext))
-    const candidate = response.response.candidates?.[0]
-    if (!candidate?.content?.parts?.[0]?.text) {
-      console.warn('[Vertex AI] Empty response from model for wiki')
+    const rawText = response.text?.trim()
+    if (!rawText) {
+      logVertexDiagnostic('wiki_response_invalid')
       return null
     }
 
-    const rawText = candidate.content.parts[0].text.trim()
     let parsed: unknown
     try {
       parsed = extractJsonObject(rawText)
@@ -240,7 +199,7 @@ export async function generateWikiSummary(
 
     return {
       ...validation.data,
-      usage: usageFromResponse(response.response.usageMetadata),
+      usage: usageFromResponse(response.usageMetadata),
     }
   } catch {
     logVertexDiagnostic('wiki_request_failed')
