@@ -170,7 +170,7 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
 
           {!isClosed && (
             <Link
-              href={`/inbox?matterId=${matter.id}`}
+              href={`/documents?matterId=${matter.id}`}
               className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[14px] font-semibold h-10 px-5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-accent)] shadow-sm transition-colors"
             >
               <Plus size={16} className="mr-2" />

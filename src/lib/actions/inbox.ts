@@ -117,7 +117,7 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
   // The command committed durable work before this fixed best-effort wake;
   // browser assignment data never reaches Trigger.
   scheduleDocumentOutboxWake()
-  revalidatePath('/inbox')
+  revalidatePath('/documents')
   revalidatePath('/', 'layout')
   revalidatePath(`/matters/${matterId}`)
   return { success: true as const, documentId: result.document_id }
@@ -134,7 +134,7 @@ export async function discardCanonicalIntake(intakeId: string, idempotencyKey: s
     return { error: error?.message ?? 'This intake could not be discarded. Refresh the queue and try again.' }
   }
 
-  revalidatePath('/inbox')
+  revalidatePath('/documents')
   revalidatePath('/', 'layout')
   return { success: true as const }
 }

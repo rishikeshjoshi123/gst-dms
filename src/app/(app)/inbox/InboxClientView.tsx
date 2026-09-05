@@ -306,7 +306,7 @@ export function InboxClientView({
       matterIntakeDocuments.length === 0
     ) {
       setIntakeTab('global')
-      router.replace('/inbox')
+      router.replace('/documents')
     }
   }, [matterIntakeDocuments.length, preselectedMatterId, router])
 
@@ -372,7 +372,7 @@ export function InboxClientView({
       return
     }
     if (result.code === 'intake') {
-      router.push(`/inbox?intakeId=${encodeURIComponent(result.intakeId)}`)
+      router.push(`/documents?intakeId=${encodeURIComponent(result.intakeId)}`)
       return
     }
     if (result.code === 'restricted') {

@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/inbox',     icon: InboxIcon,       label: 'Document Hub' },
+  { href: '/documents', icon: InboxIcon,       label: 'Document Hub' },
   { href: '/clients',   icon: Users,           label: 'Clients' },
   { href: '/matters',   icon: FolderOpen,      label: 'Matters' },
   { href: '/tasks',     icon: ListTodo,        label: 'Tasks' },
@@ -53,7 +53,7 @@ export function SidebarNav({ inboxCount = 0, notifCount = 0, isMobile = false }:
           )}>
             {label}
           </span>
-          {href === '/inbox' && inboxCount > 0 && (
+          {href === '/documents' && inboxCount > 0 && (
             <span className={cn(
               "h-5 min-w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--sidebar-accent)] px-2 text-[10px] font-semibold text-[var(--sidebar-bg)] transition-opacity duration-150",
               isMobile

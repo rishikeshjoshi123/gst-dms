@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation'
 
 const fallbackLabels: Record<string, string> = {
   '/dashboard': 'Dashboard',
-  '/inbox': 'Document Hub',
+  '/documents': 'Document Hub',
   '/clients': 'Clients',
   '/matters': 'Matters',
   '/notes': 'Notes',

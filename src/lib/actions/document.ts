@@ -261,7 +261,7 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   // transaction. The fixed singleton wake is only a latency hint: the outbox
   // and scheduled recovery remain the authority if the gateway is unavailable.
   scheduleDocumentOutboxWake()
-  revalidatePath('/inbox')
+  revalidatePath('/documents')
   if (intendedMatterId) revalidatePath(`/matters/${intendedMatterId}`)
   return { success: true, intakeId: completion.intake_item_id }
 }
@@ -432,7 +432,7 @@ export async function reassignDocumentMatter(
 
   revalidatePath(`/matters/${oldMatterId}`)
   revalidatePath(`/matters/${newMatterId}`)
-  revalidatePath('/inbox')
+  revalidatePath('/documents')
   return { success: true }
 }
 
@@ -462,7 +462,7 @@ export async function dismissReviewFlag(documentId: string) {
   }
   if (!updatedDocument) return { error: 'Document not found or is read-only in Trash.' }
 
-  revalidatePath('/inbox')
+  revalidatePath('/documents')
   return { success: true }
 }
 
