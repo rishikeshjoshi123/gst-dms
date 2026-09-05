@@ -1,4 +1,4 @@
-import { InboxClientView } from '../inbox/InboxClientView'
+import { DocumentHubClientView } from './DocumentHubClientView'
 
 import { getStagedDocuments } from '@/lib/actions/inbox'
 import { getMatters } from '@/lib/actions/matter'
@@ -18,8 +18,7 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
   const matters = await getMatters()
 
   return (
-    <InboxClientView
-      key={intakeId ?? 'default'}
+    <DocumentHubClientView
       initialDocuments={documents}
       matters={matters}
       preselectedMatterId={matterId}

@@ -377,6 +377,13 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 ## Implementation Plan
 
+### Verified checkpoint: secured Document Hub queue → details → source (2026-09-05)
+
+- `/documents` now mounts the secured canonical Intake Workbench: full queue, URL-backed details, and explicit signed source mode with a stable desktop 60/40 source/sidebar split and mobile return flow.
+- It reuses canonical upload, signed URL, assignment, discard, duplicate-resolution, route, and idempotency contracts; no schema, RLS, RPC, or policy changed.
+- Focused developer checks, consolidated remediation, and fresh final read-only QA passed. Broad TypeScript/ESLint remain unavailable because of pre-existing broken dependency links.
+- Next action: add a shared version/source-locator consumer only when its secured loader contract is ready; do not create a page-local viewer policy.
+
 1. **Freeze fixtures and state catalogue.** Capture current global upload, matter upload, duplicate, manual/auto assignment, auto-create, reprocess, link/pending-link, move/copy, reclassify, viewer, quote, Trash, and failure behaviors. Add representative GST PDFs for exact/colliding references, multiple matters in one FY, multi-FY documents, scans, encrypted/malformed PDFs, conflicting GSTIN, missing targets, self-reference, and replacement versions.
 2. **Resolve cross-plan source analysis.** Amend AI provenance so immutable source analysis can be asset-scoped during Intake and bound to a document version at placement; retain document-specific effective candidates/decisions. Amend File Lifecycle events/tables accordingly before schema work.
 3. **Add the additive ingestion foundation.** Introduce/complete `file_assets`, `upload_sessions`, `intake_items`, `source_analysis_runs`, page/OCR artifacts, `document_versions`, analysis bindings, processing-stage runs, and outbox/dispatch state with RLS, lineage constraints, idempotency, reservations, and safe errors.

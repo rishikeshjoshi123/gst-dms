@@ -20,9 +20,23 @@ test('makes documents the queue owner and inbox a redirect-only compatibility ro
   const inboxPage = readFileSync(new URL('../app/(app)/inbox/page.tsx', import.meta.url), 'utf8')
 
   assert.match(documentsPage, /getStagedDocuments\(\)/)
-  assert.match(documentsPage, /<InboxClientView/)
+  assert.match(documentsPage, /<DocumentHubClientView/)
+  assert.doesNotMatch(documentsPage, /InboxClientView/)
   assert.match(inboxPage, /permanentRedirect\(documentHubPath\(await searchParams\)\)/)
   assert.doesNotMatch(inboxPage, /getStagedDocuments|InboxClientView/)
+})
+
+test('mounts the Document Hub queue, details, and source closure without changing the legacy inbox client', () => {
+  const documentHub = readFileSync(new URL('../app/(app)/documents/DocumentHubClientView.tsx', import.meta.url), 'utf8')
+
+  assert.match(documentHub, /canonicalIntakeActions/)
+  assert.match(documentHub, /getIntakeItemSignedUrl/)
+  assert.match(documentHub, /getCanonicalDuplicateResolution/)
+  assert.match(documentHub, /canonicalDocumentPath/)
+  assert.match(documentHub, /lg:w-3\/5 lg:flex-none/)
+  assert.match(documentHub, /lg:w-2\/5 lg:flex-none/)
+  assert.match(documentHub, /Back to documents/)
+  assert.match(documentHub, /Back to details/)
 })
 
 test('keeps production navigation and mutation refreshes on the canonical route', () => {
@@ -30,7 +44,7 @@ test('keeps production navigation and mutation refreshes on the canonical route'
     '../components/nav/SidebarNav.tsx',
     '../components/nav/BreadcrumbNav.tsx',
     '../components/matters/MatterDetailsTab.tsx',
-    '../app/(app)/inbox/InboxClientView.tsx',
+    '../app/(app)/documents/DocumentHubClientView.tsx',
     './actions/document.ts',
     './actions/inbox.ts',
   ].map(path => readFileSync(new URL(path, import.meta.url), 'utf8'))
@@ -41,7 +55,7 @@ test('keeps production navigation and mutation refreshes on the canonical route'
 
   assert.match(sources[0], /href: '\/documents'/)
   assert.match(sources[2], /href=\{`\/documents\?matterId=\$\{matter\.id\}`\}/)
-  assert.match(sources[3], /\/documents\?intakeId=/)
+  assert.match(sources[3], /documentHubPath\(\{ matterId: preselectedMatterId, intakeId \}\)/)
   assert.match(sources[4], /revalidatePath\('\/documents'\)/)
   assert.match(sources[5], /revalidatePath\('\/documents'\)/)
 })
