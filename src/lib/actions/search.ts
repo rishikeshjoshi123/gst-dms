@@ -5,6 +5,7 @@ import { getCurrentOrgId } from './org'
 import {
   vertexEmbeddingProvider,
 } from '@/lib/ai/vertex'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 export interface SearchResultItem {
   id: string
@@ -169,7 +170,7 @@ export async function searchAll(query: string, semantic: boolean = false): Promi
         id: doc.id,
         title: doc.display_title || doc.reference_number || cleanName || 'Document',
         subtitle: `Document${matterTitle ? ` • ${matterTitle}` : ''}${doc.reference_number ? ` (Ref: ${doc.reference_number})` : ''}`,
-        href: `/matters/${doc.matter_id}/documents/${doc.id}`,
+        href: canonicalDocumentPath(doc.id),
         type: 'document'
       })
     }

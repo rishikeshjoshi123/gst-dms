@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 const TEMPLATE_LABELS = {
   general: 'General',
@@ -213,6 +214,10 @@ export function MatterNotesTab({
 
   const selectedThread = useMemo(() => notes.find(n => n.id === selectedThreadId), [notes, selectedThreadId])
   const selectedThreadReplies = useMemo(() => selectedThreadId ? (childNotesByParent.get(selectedThreadId) || []) : [], [selectedThreadId, childNotesByParent])
+  const selectedThreadDocumentMatterId = useMemo(
+    () => documents.find(document => document.id === selectedThread?.document_id)?.matter_id,
+    [documents, selectedThread?.document_id],
+  )
 
   return (
       <div className="flex flex-col h-[700px] border border-[var(--border-strong)] rounded-[var(--radius-md)] overflow-hidden mt-4 bg-[var(--surface)] shadow-sm animate-fade-in">
@@ -313,7 +318,7 @@ export function MatterNotesTab({
                   </button>
                   <h3 className="text-sm font-bold text-[var(--text-primary)]">Thread</h3>
                   {selectedThread.documents && (
-                    <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}`} className="flex items-center gap-1 text-[11px] text-[--primary] hover:underline font-mono">
+                    <a href={canonicalDocumentPath(selectedThread.document_id, readOnly ? { matterId: selectedThreadDocumentMatterId } : {})} className="flex items-center gap-1 text-[11px] text-[--primary] hover:underline font-mono">
                       <ExternalLink size={10} /> {selectedThread.documents.reference_number || selectedThread.documents.display_title || selectedThread.documents.effective_filename || 'Document'}
                     </a>
                   )}
@@ -336,7 +341,7 @@ export function MatterNotesTab({
                     <div className="ml-4 p-3 bg-[var(--warning-muted)] border-l-4 border-[var(--warning)] rounded-r-[var(--radius-md)] shadow-sm">
                       <div className="flex items-center justify-between mb-1">
                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--warning)]">Quote from Page {selectedThread.page_number}</span>
-                         <a href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}#page=${selectedThread.page_number}`} className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)]"><ExternalLink size={12} /></a>
+                         <a href={`${canonicalDocumentPath(selectedThread.document_id, readOnly ? { matterId: selectedThreadDocumentMatterId } : {})}#page=${selectedThread.page_number}`} className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)]"><ExternalLink size={12} /></a>
                       </div>
                       <p className="text-sm italic text-[color-mix(in_srgb,var(--warning)_90%,transparent)] leading-relaxed">"{selectedThread.quote}"</p>
                     </div>

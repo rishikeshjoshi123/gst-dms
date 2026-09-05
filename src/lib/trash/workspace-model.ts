@@ -1,5 +1,6 @@
 import type { TrashRestorePreflight } from './restore-model'
 import type { TrashPurgeImpact } from './purge-model'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 export type TrashResourceType = 'client' | 'matter' | 'document'
 export type TrashResourceFilter = 'all' | TrashResourceType
@@ -82,7 +83,7 @@ export function canonicalTrashResourcePath(
 ) {
   if (resourceType === 'client') return `/clients/${resourceId}`
   if (resourceType === 'matter') return `/matters/${resourceId}`
-  return matterId ? `/matters/${matterId}/documents/${resourceId}` : ''
+  return matterId ? canonicalDocumentPath(resourceId, { matterId }) : ''
 }
 
 export function shapeTrashWorkspaceRows(

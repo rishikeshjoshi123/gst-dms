@@ -84,7 +84,7 @@ test('keeps a cleared current candidate available for correction without display
 test('keeps the protected projection reader on the server and wires both live inspector callers', () => {
   const readerSource = readFileSync(new URL('./inspector-effective-metadata.ts', import.meta.url), 'utf8')
   const detailSource = readFileSync(new URL('../../components/matters/TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
-  const documentPageSource = readFileSync(new URL('../../app/(app)/matters/[id]/documents/[docId]/page.tsx', import.meta.url), 'utf8')
+  const documentPageSource = readFileSync(new URL('../../app/(app)/documents/[docId]/page.tsx', import.meta.url), 'utf8')
   const matterPageSource = readFileSync(new URL('../../app/(app)/matters/[id]/page.tsx', import.meta.url), 'utf8')
 
   assert.match(readerSource, /import 'server-only'/)

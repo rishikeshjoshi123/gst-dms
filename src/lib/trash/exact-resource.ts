@@ -76,6 +76,18 @@ export type ExactResourceRead<Record> =
   | { state: 'trash'; context: ExactResourceTrashContext; data: ExactResourceTrashData<Record> }
   | null
 
+export type CanonicalAssignedDocumentRead =
+  | { state: 'active'; record: DocumentRow & { matters?: Pick<TrashMatterRecord, 'id' | 'title'> | null } }
+  | {
+    state: 'trash'
+    // The authenticated projection verified this route-lineage constraint. It
+    // is never an authorization grant on its own.
+    expectedMatterId: string
+    context: ExactResourceTrashContext
+    data: ExactResourceTrashData<TrashDocumentRecord>
+  }
+  | null
+
 function toTrashContext(row: TrashProjectionRow): ExactResourceTrashContext {
   return {
     state: 'trash',
@@ -188,22 +200,39 @@ export async function getExactMatter(id: string) {
   return trash ? { state: 'trash' as const, ...trash } : null
 }
 
-export async function getExactDocument(matterId: string, documentId: string) {
+/**
+ * Read one assigned document under the current organisation. Active documents
+ * resolve by canonical ID; a Trash document requires an already-known exact
+ * matter lineage for both the projection and version signed-read grant.
+ */
+export async function getCanonicalAssignedDocument(
+  documentId: string,
+  expectedMatterId?: string,
+): Promise<CanonicalAssignedDocumentRead> {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return null
 
-  const { data } = await supabase
+  let query = supabase
     .from('documents')
     .select('*, matters(id, title)')
     .eq('id', documentId)
-    .eq('matter_id', matterId)
     .eq('org_id', orgId)
     .eq('record_state', 'active')
     .is('deleted_at', null)
-    .maybeSingle()
+
+  if (expectedMatterId) query = query.eq('matter_id', expectedMatterId)
+  const { data } = await query.maybeSingle()
 
   if (data) return { state: 'active' as const, record: data }
-  const trash = await getTrashProjection<TrashDocumentRecord>('document', documentId, matterId)
-  return trash ? { state: 'trash' as const, ...trash } : null
+
+  // A document ID must not become an unconstrained Trash lookup.
+  if (!expectedMatterId) return null
+  const trash = await getTrashProjection<TrashDocumentRecord>('document', documentId, expectedMatterId)
+  return trash ? { state: 'trash' as const, expectedMatterId, ...trash } : null
+}
+
+/** Legacy nested-matter reader. Keep its exact document/matter behavior. */
+export async function getExactDocument(matterId: string, documentId: string) {
+  return getCanonicalAssignedDocument(documentId, matterId)
 }

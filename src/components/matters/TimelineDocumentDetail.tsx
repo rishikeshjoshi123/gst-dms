@@ -18,6 +18,7 @@ import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 function EffectiveMetadataField({ label, value, type = 'text', correction }: {
   label: string
@@ -266,7 +267,7 @@ export function TimelineDocumentDetail({
   const financialYearValue = inspectorMetadata.financialYears.join(', ') || null
   const financialYearNeedsReview = inspectorMetadata.financialYears.length > 1
     || (inspectorMetadata.financialYears.length === 1 && !financialYearCorrection)
-  const viewUrl = `/matters/${doc.matter_id}/documents/${doc.id}`
+  const viewUrl = canonicalDocumentPath(doc.id, readOnly ? { matterId: doc.matter_id } : {})
   const headerDocType = inspectorMetadata.state === 'available' ? inspectorMetadata.docType : null
   const headerDocDate = inspectorMetadata.state === 'available' ? inspectorMetadata.documentDate : null
   const documentLabel = selectedDocumentIdentity(doc, inspectorMetadata)
@@ -475,7 +476,7 @@ export function TimelineDocumentDetail({
                         </div>
                       </div>
                       <a 
-                        href={`/matters/${ldoc.matter_id}/documents/${ldoc.id}`}
+                        href={canonicalDocumentPath(ldoc.id, readOnly ? { matterId: ldoc.matter_id } : {})}
                         target="_blank"
                         rel="noreferrer"
                         className="p-2 text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-[var(--radius-sm)] transition-colors"

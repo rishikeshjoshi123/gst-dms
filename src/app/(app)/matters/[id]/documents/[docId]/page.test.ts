@@ -1,19 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
-
-test('standalone inspector supplies selected and linked document projection IDs without duplicates', () => {
-  assert.deepEqual(
-    documentInspectorIds('selected', [{ id: 'selected' }, { id: 'linked-corrected' }, { id: 'linked-cleared' }]),
-    ['selected', 'linked-corrected', 'linked-cleared'],
-  )
-})
-
-test('standalone route passes the expanded projection map to linked inspector rows', () => {
+test('legacy matter document route redirects with only its known exact matter lineage', () => {
   const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /const inspectorIds = documentInspectorIds\(doc\.id, allDocuments\)/)
-  assert.match(source, /getDocumentInspectorMetadata\(inspectorIds\)/)
-  assert.match(source, /inspectorMetadataByDocumentId=\{inspectorMetadata\}/)
+  assert.match(source, /permanentRedirect\(canonicalDocumentPath\(docId, \{ matterId: id \}\)\)/)
+  assert.doesNotMatch(source, /searchParams|return|redirect_uri|callback/)
 })

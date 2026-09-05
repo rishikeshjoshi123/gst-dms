@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@/lib/supabase/database.types'
 import { batchTaskSummaryNoteIds } from '@/lib/notes/task-summary-batching'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 export async function getNotes(filters: {
   matterId?: string
@@ -20,7 +21,7 @@ export async function getNotes(filters: {
     .select(`
       *,
       matters!inner(id, title),
-      documents(id, storage_path, reference_number)
+      documents(id, storage_path, reference_number, matter_id)
     `)
     .is('deleted_at', null)
     .eq('matters.record_state', 'active')
@@ -176,7 +177,7 @@ export async function createNote(data: {
   revalidatePath('/notes')
   revalidatePath(`/matters/${data.matterId}`)
   if (data.documentId) {
-    revalidatePath(`/matters/${data.matterId}/documents/${data.documentId}`)
+    revalidatePath(canonicalDocumentPath(data.documentId))
   }
 
   const noteWithAuthor = {
@@ -236,7 +237,7 @@ export async function updateNote(noteId: string, updates: {
   if (existingNote) {
     revalidatePath(`/matters/${existingNote.matter_id}`)
     if (existingNote.document_id) {
-      revalidatePath(`/matters/${existingNote.matter_id}/documents/${existingNote.document_id}`)
+      revalidatePath(canonicalDocumentPath(existingNote.document_id))
     }
   }
 
@@ -285,7 +286,7 @@ export async function deleteNote(noteId: string) {
   if (existingNote) {
     revalidatePath(`/matters/${existingNote.matter_id}`)
     if (existingNote.document_id) {
-      revalidatePath(`/matters/${existingNote.matter_id}/documents/${existingNote.document_id}`)
+      revalidatePath(canonicalDocumentPath(existingNote.document_id))
     }
   }
 

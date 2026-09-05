@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { createClient } from '@/lib/supabase/server'
 import type { TrashResourceType } from '@/lib/trash/workspace-model'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 export type RestoreTrashResult = {
   success: boolean
@@ -24,10 +25,10 @@ function restoreError(code: string) {
   return 'This Trash group could not be restored. Please try again.'
 }
 
-function rootPath(type: TrashResourceType, resourceId: string, matterId: string | null) {
+function rootPath(type: TrashResourceType, resourceId: string) {
   if (type === 'client') return `/clients/${resourceId}`
   if (type === 'matter') return `/matters/${resourceId}`
-  return matterId ? `/matters/${matterId}/documents/${resourceId}` : null
+  return canonicalDocumentPath(resourceId)
 }
 
 export async function restoreTrashOperationAction(
@@ -67,7 +68,7 @@ export async function restoreTrashOperationAction(
   revalidatePath('/matters')
   revalidatePath('/documents')
   revalidatePath('/search')
-  const canonicalPath = rootPath(result.root_resource_type, result.root_resource_id, result.root_matter_id)
+  const canonicalPath = rootPath(result.root_resource_type, result.root_resource_id)
   if (canonicalPath) revalidatePath(canonicalPath)
   if (result.root_client_id) revalidatePath(`/clients/${result.root_client_id}`)
   if (result.root_matter_id) revalidatePath(`/matters/${result.root_matter_id}`)

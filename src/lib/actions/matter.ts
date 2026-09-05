@@ -6,6 +6,7 @@ import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -187,7 +188,7 @@ export async function updateMatterDetails(
 
   // If financial year was updated, synchronize documents with 'Unknown FY' or missing FY
   if (payload.financialYear && payload.financialYear !== 'Unknown FY') {
-    await supabase
+    const { data: updatedDocuments } = await supabase
       .from('documents')
       .update({ financial_year: payload.financialYear })
       .eq('matter_id', matterId)
@@ -195,6 +196,11 @@ export async function updateMatterDetails(
       .eq('record_state', 'active')
       .is('deleted_at', null)
       .or(`financial_year.eq.Unknown FY,financial_year.is.null`)
+      .select('id')
+
+    for (const document of updatedDocuments ?? []) {
+      revalidatePath(canonicalDocumentPath(document.id))
+    }
   }
 
   revalidatePath('/matters'); revalidatePath('/dashboard')

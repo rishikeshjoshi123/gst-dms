@@ -1,6 +1,9 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
+
 import { createClient } from '@/lib/supabase/server'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import {
   isReprocessDocumentId,
@@ -38,6 +41,7 @@ export async function reprocessDocument(
     // This is only a best-effort latency hint. The durable outbox and its
     // scheduled dispatcher remain authoritative if Trigger is unavailable.
     scheduleDocumentOutboxWake()
+    revalidatePath(canonicalDocumentPath(documentId))
     return { success: true, status: result.code === 'queued' ? 'queued' : 'already_queued' }
   }
   if (result.code === 'not_available') return { error: 'This document version is no longer available for reprocessing.' }

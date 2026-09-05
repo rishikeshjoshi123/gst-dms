@@ -22,6 +22,7 @@ import { UploadModal } from './UploadModal'
 import { DocumentViewerModal } from './DocumentViewerModal'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 function uniqueDocumentsById<T extends { id: string }>(documents: T[]) {
   return Array.from(new Map(documents.map(document => [document.id, document])).values())
@@ -364,7 +365,7 @@ export function InboxClientView({
     if (!activeDoc) return
     const result = await getCanonicalDuplicateResolution(activeDoc.id)
     if (result.code === 'ok') {
-      router.push(`/matters/${result.matterId}/documents/${result.documentId}`)
+      router.push(canonicalDocumentPath(result.documentId))
       return
     }
     if (result.code === 'in_trash') {

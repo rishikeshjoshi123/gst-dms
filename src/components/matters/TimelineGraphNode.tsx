@@ -7,6 +7,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 // Color palette per document type
 // Each entry: [accent hex, light bg (light mode), dark bg (dark mode), text color class]
@@ -209,7 +210,7 @@ export const TimelineGraphNode = memo(({ data, isConnectable }: any) => {
             </h4>
           </div>
           <a 
-            href={`/matters/${doc.matter_id}/documents/${doc.id}`}
+            href={canonicalDocumentPath(doc.id, readOnly ? { matterId: doc.matter_id } : {})}
             onClick={(e) => e.stopPropagation()}
             className="inline-flex shrink-0 items-center justify-center rounded-md text-[10px] font-semibold uppercase tracking-wider h-5 px-2 gap-1 bg-[--bg-muted] text-[--text-secondary] hover:bg-[--border-strong] hover:text-[--text-primary] transition-colors ml-2"
           >

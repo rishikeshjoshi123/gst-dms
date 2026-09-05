@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 import { AIDocumentResult } from '@/lib/ai/vertex'
 import { appendActivity } from '@/lib/activity'
+import { revalidatePath } from 'next/cache'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import {
   currentRelationshipReferenceExistsInOtherMatter,
   fuzzyCurrentMatterRelationshipReference,
@@ -116,10 +118,12 @@ export async function placeDocument(
     if (crossMatch) {
       // DO NOT LINK! Flag for manual review.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from('documents').update({
+      const { data: reviewedDocument } = await (supabase as any).from('documents').update({
         status: 'needs_review',
         review_reason: `Referenced document found in a different matter — manual review required before linking.`
-      }).eq('id', docId) 
+      }).eq('id', docId).select('id').maybeSingle()
+
+      if (reviewedDocument?.id) revalidatePath(canonicalDocumentPath(reviewedDocument.id))
       
       await queueNotification(supabase, orgId, uploadedBy, docId, null, 'cross_matter', refToFind)
       continue
@@ -321,10 +325,11 @@ export async function reevaluateMatterLinks(supabase: SupabaseClient<Database>, 
 
         if (await currentRelationshipReferenceExistsInOtherMatter(orgId, matterId, reference)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from('documents').update({
+          const { data: reviewedDocument } = await (supabase as any).from('documents').update({
             status: 'needs_review',
             review_reason: 'Referenced document found in a different matter — manual review required before linking.',
-          }).eq('id', document.documentId)
+          }).eq('id', document.documentId).select('id').maybeSingle()
+          if (reviewedDocument?.id) revalidatePath(canonicalDocumentPath(reviewedDocument.id))
           await queueNotification(supabase, orgId, userId, document.documentId, null, 'cross_matter', reference)
           continue
         }

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { replacementValue, type EditableFieldPath } from '@/lib/documents/inspector-field-correction'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 export type { EditableFieldPath } from '@/lib/documents/inspector-field-correction'
 
 export type InspectorFieldCorrection = {
@@ -51,6 +52,6 @@ export async function correctInspectorField(input: InspectorFieldCorrection) {
   if (error) return { error: 'Unable to record this correction. Please try again.' }
 
   revalidatePath(`/matters/${visibleDocument.matter_id}`)
-  revalidatePath(`/matters/${visibleDocument.matter_id}/documents/${visibleDocument.id}`)
+  revalidatePath(canonicalDocumentPath(visibleDocument.id))
   return { success: true }
 }

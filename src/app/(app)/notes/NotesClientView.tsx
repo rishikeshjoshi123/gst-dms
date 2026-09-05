@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 const TEMPLATE_META = {
   general: {
@@ -389,7 +390,7 @@ export function NotesClientView({
                     )}
                     {selectedThread.documents && (
                       <a
-                        href={`/matters/${selectedThread.matter_id}/documents/${selectedThread.document_id}`}
+                        href={canonicalDocumentPath(selectedThread.document_id)}
                         className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-mono"
                       >
                         <ExternalLink size={11} /> {selectedThread.documents.reference_number || 'Doc'}

@@ -10,6 +10,7 @@ import { MatterNotesTab } from './MatterNotesTab'
 import { MatterDetailsTab } from './MatterDetailsTab'
 import Link from 'next/link'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 export function MatterTabs({
   matter,
@@ -254,7 +255,7 @@ export function MatterTabs({
                 {localSupporting.map(doc => {
                   const fileName = doc.display_title || doc.effective_filename || 'Untitled document'
                   return (
-                  <Link href={`/matters/${doc.matter_id}/documents/${doc.id}`} key={doc.id} className="flex flex-col p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
+                  <Link href={canonicalDocumentPath(doc.id, readOnly ? { matterId: doc.matter_id } : {})} key={doc.id} className="flex flex-col p-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex flex-col gap-1 min-w-0">
                         <span className="font-medium text-[var(--text-primary)] text-sm truncate" title={fileName}>

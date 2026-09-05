@@ -15,6 +15,7 @@ import {
   RETIRED_STAGED_NOTIFICATION_COPY,
 } from '@/lib/notifications/staged-retirement'
 import Link from 'next/link'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 const TYPE_CONFIG: Record<string, {
   label: string
@@ -110,7 +111,7 @@ export function NotificationsClientView({ initialNotifications }: { initialNotif
   const getEntityHref = (n: any): string | null => {
     if (isRetiredStagedNotification(n)) return null
     if (!n.entity_id) return null
-    if (n.entity_type === 'document') return `/matters` // ideally /matters/:id
+    if (n.entity_type === 'document') return canonicalDocumentPath(n.entity_id)
     if (n.entity_type === 'matter') return `/matters/${n.entity_id}`
     if (n.entity_type === 'case_note') return `/notes`
     return null

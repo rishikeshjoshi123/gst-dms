@@ -23,7 +23,7 @@ test('exact-resource reader uses the authenticated Trash projection and document
 
   assert.match(source, /import 'server-only'/)
   assert.match(source, /get_exact_trashed_resource_projection/)
-  assert.match(source, /\.eq\('matter_id', matterId\)[\s\S]*\.eq\('org_id', orgId\)/)
+  assert.match(source, /getCanonicalAssignedDocument\(documentId, matterId\)/)
   assert.match(source, /p_expected_matter_id: expectedMatterId/)
   assert.match(source, /if \(error \|\| !projection/)
   assert.match(source, /canRestore: row\.can_restore/)
@@ -31,6 +31,20 @@ test('exact-resource reader uses the authenticated Trash projection and document
   assert.match(source, /operationState: row\.operation_state/)
   assert.match(source, /purgeScheduledAt: row\.purge_scheduled_at/)
   assert.doesNotMatch(source, /createServiceClient/)
+})
+
+test('canonical assigned-document reader scopes active reads to the current org and never discovers Trash without exact lineage', async () => {
+  const source = await readFile(path.join(root, 'src/lib/trash/exact-resource.ts'), 'utf8')
+  const reader = exportedFunction(source, 'getCanonicalAssignedDocument')
+  const legacyReader = exportedFunction(source, 'getExactDocument')
+
+  assert.match(reader, /\.eq\('id', documentId\)[\s\S]*\.eq\('org_id', orgId\)[\s\S]*\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
+  assert.match(reader, /if \(expectedMatterId\) query = query\.eq\('matter_id', expectedMatterId\)/)
+  assert.match(reader, /if \(!expectedMatterId\) return null/)
+  assert.match(reader, /getTrashProjection<TrashDocumentRecord>\('document', documentId, expectedMatterId\)/)
+  assert.match(reader, /state: 'trash' as const, expectedMatterId, \.\.\.trash/)
+  assert.match(legacyReader, /return getCanonicalAssignedDocument\(documentId, matterId\)/)
+  assert.doesNotMatch(reader, /createServiceClient|p_org_id|orgId:/)
 })
 
 test('active collection and search readers require typed active state and legacy compatibility', async () => {
@@ -61,7 +75,7 @@ test('canonical exact routes reuse their familiar compositions in Trash read-onl
   const pages = await Promise.all([
     readFile(path.join(root, 'src/app/(app)/clients/[id]/page.tsx'), 'utf8'),
     readFile(path.join(root, 'src/app/(app)/matters/[id]/page.tsx'), 'utf8'),
-    readFile(path.join(root, 'src/app/(app)/matters/[id]/documents/[docId]/page.tsx'), 'utf8'),
+    readFile(path.join(root, 'src/app/(app)/documents/[docId]/page.tsx'), 'utf8'),
   ])
 
   for (const page of pages) {

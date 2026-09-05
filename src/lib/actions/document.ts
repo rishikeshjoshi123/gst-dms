@@ -13,6 +13,7 @@ import {
   uploadFailureResult,
   uploadIdempotencyKey,
 } from '@/lib/document-upload'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -307,6 +308,7 @@ export async function reassignDocumentMatter(
   if (doc.matter_id === newMatterId) return { error: 'Document is already in this matter.' }
 
   const oldMatterId = doc.matter_id
+  const affectedLinkedDocumentIds = new Set<string>()
 
   // Verify new matter belongs to this org
   const { data: newMatter } = await supabase
@@ -320,6 +322,7 @@ export async function reassignDocumentMatter(
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
+  let copiedDocumentId: string | null = null
   if (mode === 'copy') {
     if (!doc.storage_path) {
       return { error: 'This document has no file attached, so it cannot be copied yet.' }
@@ -371,6 +374,7 @@ export async function reassignDocumentMatter(
       console.error('Copy document error:', insertError)
       return { error: insertError?.message ?? 'Failed to copy document' }
     }
+    copiedDocumentId = newDoc.id
     // Log reversible activity
     await appendActivity({
         org_id: orgId,
@@ -387,6 +391,14 @@ export async function reassignDocumentMatter(
       })
   } else {
     // 1. Delete existing document_links (built in wrong matter's scope)
+    const { data: affectedLinks } = await supabase
+      .from('document_links')
+      .select('from_doc_id, to_doc_id')
+      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+    for (const link of affectedLinks ?? []) {
+      affectedLinkedDocumentIds.add(link.from_doc_id)
+      if (link.to_doc_id) affectedLinkedDocumentIds.add(link.to_doc_id)
+    }
     await supabase
       .from('document_links')
       .delete()
@@ -433,6 +445,11 @@ export async function reassignDocumentMatter(
   revalidatePath(`/matters/${oldMatterId}`)
   revalidatePath(`/matters/${newMatterId}`)
   revalidatePath('/documents')
+  revalidatePath(canonicalDocumentPath(documentId))
+  for (const affectedDocumentId of affectedLinkedDocumentIds) {
+    revalidatePath(canonicalDocumentPath(affectedDocumentId))
+  }
+  if (copiedDocumentId) revalidatePath(canonicalDocumentPath(copiedDocumentId))
   return { success: true }
 }
 
@@ -463,6 +480,7 @@ export async function dismissReviewFlag(documentId: string) {
   if (!updatedDocument) return { error: 'Document not found or is read-only in Trash.' }
 
   revalidatePath('/documents')
+  revalidatePath(canonicalDocumentPath(documentId))
   return { success: true }
 }
 
@@ -488,8 +506,18 @@ export async function setDocumentClass(
 
   if (!doc) return { error: 'Document not found.' }
 
+  const affectedLinkedDocumentIds = new Set<string>()
+
   // If demoting from proceeding → supporting: delete its chains
   if (doc.document_class === 'proceeding' && newClass === 'supporting') {
+    const { data: affectedLinks } = await supabase
+      .from('document_links')
+      .select('from_doc_id, to_doc_id')
+      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+    for (const link of affectedLinks ?? []) {
+      affectedLinkedDocumentIds.add(link.from_doc_id)
+      if (link.to_doc_id) affectedLinkedDocumentIds.add(link.to_doc_id)
+    }
     await supabase
       .from('document_links')
       .delete()
@@ -512,6 +540,10 @@ export async function setDocumentClass(
   }
 
   revalidatePath(`/matters/${doc.matter_id}`)
+  revalidatePath(canonicalDocumentPath(documentId))
+  for (const affectedDocumentId of affectedLinkedDocumentIds) {
+    revalidatePath(canonicalDocumentPath(affectedDocumentId))
+  }
   return { success: true }
 }
 
@@ -655,10 +687,10 @@ export async function updateDocumentMetadata(docId: string, metadataKey: string,
 
   if (error) return { error: error.message }
 
-  const { revalidatePath } = require('next/cache')
   if (doc.matter_id) {
     revalidatePath(`/matters/${doc.matter_id}`)
   }
+  revalidatePath(canonicalDocumentPath(docId))
   
   return { success: true }
 }
@@ -734,6 +766,8 @@ export async function createManualLink(
   if (matterId) {
     revalidatePath(`/matters/${matterId}`)
   }
+  revalidatePath(canonicalDocumentPath(fromDocId))
+  revalidatePath(canonicalDocumentPath(toDocId))
 
   return { success: true }
 }
@@ -796,6 +830,8 @@ export async function deleteDocumentLink(linkId: string) {
   if (docData?.matter_id) {
     revalidatePath(`/matters/${docData.matter_id}`)
   }
+  revalidatePath(canonicalDocumentPath(link.from_doc_id))
+  revalidatePath(canonicalDocumentPath(link.to_doc_id))
 
   return { success: true }
 }
@@ -819,6 +855,7 @@ export async function deleteDocument(documentId: string, idempotencyKey = `trash
   if (result.code === 'trashed' || result.code === 'already_trashed') {
     scheduleDocumentOutboxWake()
     revalidatePath('/matters')
+    revalidatePath(canonicalDocumentPath(documentId))
     return { success: true, operationId: result.operation_id, status: result.code }
   }
   if (result.code === 'not_allowed') return { error: 'You do not have permission to move this document to Trash.' }

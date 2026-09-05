@@ -57,7 +57,7 @@ test('workspace shaping collapses projection rows and attaches only selected des
 
   assert.equal(result.operations.length, 1)
   assert.equal(result.selectedOperation?.includedItems.length, 1)
-  assert.equal(result.selectedOperation?.includedItems[0]?.canonicalPath, `/matters/${rootRow.root_matter_id}/documents/${childRow.member_resource_id}`)
+  assert.equal(result.selectedOperation?.includedItems[0]?.canonicalPath, `/documents/${childRow.member_resource_id}?matterId=${rootRow.root_matter_id}`)
   assert.equal(result.totalStorageBytes, 4096)
   assert.equal(describeIncludedItems(result.operations[0]!), '1 document')
 })
@@ -65,7 +65,7 @@ test('workspace shaping collapses projection rows and attaches only selected des
 test('canonical paths use the existing Client, Matter, and Document route shapes', () => {
   assert.equal(canonicalTrashResourcePath('client', 'client-id', null), '/clients/client-id')
   assert.equal(canonicalTrashResourcePath('matter', 'matter-id', null), '/matters/matter-id')
-  assert.equal(canonicalTrashResourcePath('document', 'document-id', 'matter-id'), '/matters/matter-id/documents/document-id')
+  assert.equal(canonicalTrashResourcePath('document', 'document-id', 'matter-id'), '/documents/document-id?matterId=matter-id')
   assert.equal(canonicalTrashResourcePath('document', 'document-id', null), '')
 })
 
