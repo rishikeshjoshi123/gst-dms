@@ -62,6 +62,27 @@ export default function DesignSystemPage() {
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">PDF viewer source location</h2>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">A server-derived one-based page opens the shared viewer. It clamps to the PDF’s actual page count after loading; the compact toolbar remains outside the scrollable source body.</p>
+          </div>
+          <Badge variant="outline">Static reference</Badge>
+        </div>
+        <div className="mt-4 max-w-xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]" aria-label="PDF viewer toolbar reference">
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Previous page</span>
+            <span className="min-w-28 px-2 text-center font-medium text-[var(--text-primary)]">Page 12 of 24</span>
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Next page</span>
+            <span className="h-6 w-px bg-[var(--border)]" aria-hidden="true" />
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom out</span>
+            <span className="px-2 font-medium text-[var(--text-primary)]">100%</span>
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom in</span>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">Illustrative toolbar only — not an interactive PDF. Compact production controls retain accessible names and the shared effective 44px target.</p>
+        </div>
+      </section>
+      <section className="border-t border-[var(--border)] py-6">
         <h2 className="text-base font-semibold">Binary settings</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">Switches keep one shared focus, motion, disabled, and effective touch-target contract.</p>
         <SwitchSpecimen />

@@ -14,6 +14,7 @@ import {
   uploadIdempotencyKey,
 } from '@/lib/document-upload'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -576,6 +577,42 @@ export async function getDocumentVersionSignedUrl(documentVersionId: string) {
   }
 
   return { url: data.signedUrl }
+}
+
+/**
+ * Resolve a version only after proving that it belongs to the exact canonical
+ * document route the current user may read. This is the browser-facing source
+ * locator boundary; the version-only signer above must remain reusable for
+ * trusted server callers and is not sufficient for URL-supplied version IDs.
+ */
+export async function getCanonicalDocumentVersionSignedUrl(
+  documentId: string,
+  documentVersionId: string,
+  expectedMatterId?: string,
+) {
+  const exactDocument = await getCanonicalAssignedDocument(documentId, expectedMatterId)
+  if (!exactDocument) return { error: 'This document version is not available.' }
+
+  const document = exactDocument.state === 'trash'
+    ? exactDocument.data.record
+    : exactDocument.record
+
+  // This service lookup is deliberately limited to the stable relationship
+  // identifier. It happens only after the authenticated canonical reader has
+  // established the document route; it never reads or returns a storage path.
+  const service = createServiceClient()
+  const { data: version, error } = await service
+    .from('document_versions')
+    .select('id')
+    .eq('id', documentVersionId)
+    .eq('document_id', document.id)
+    .maybeSingle()
+
+  if (error || !version) return { error: 'This document version is not available.' }
+
+  return exactDocument.state === 'trash'
+    ? getTrashedDocumentVersionSignedUrl(exactDocument.expectedMatterId, documentId, documentVersionId)
+    : getDocumentVersionSignedUrl(documentVersionId)
 }
 
 /**

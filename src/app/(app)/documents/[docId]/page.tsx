@@ -7,10 +7,10 @@ import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
 import { PdfViewer } from '@/components/ui/pdf-viewer'
 import {
-  getDocumentVersionSignedUrl,
+  getCanonicalDocumentVersionSignedUrl,
   getDocumentsByMatter,
-  getTrashedDocumentVersionSignedUrl,
 } from '@/lib/actions/document'
+import { parseCanonicalDocumentUrlState } from '@/lib/canonical-document-route'
 import { getNotes } from '@/lib/actions/notes'
 import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
@@ -24,9 +24,8 @@ type CanonicalDocumentPageProps = {
 
 export default async function CanonicalDocumentPage({ params, searchParams }: CanonicalDocumentPageProps) {
   const [{ docId }, query] = await Promise.all([params, searchParams])
-  const expectedMatterId = typeof query.matterId === 'string' && query.matterId.length > 0
-    ? query.matterId
-    : undefined
+  const sourceLocator = parseCanonicalDocumentUrlState(query)
+  const expectedMatterId = sourceLocator.matterId
   const exactDocument = await getCanonicalAssignedDocument(docId, expectedMatterId)
   if (!exactDocument) notFound()
 
@@ -34,10 +33,13 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
   const doc = isTrashReadOnly ? exactDocument.data.record : exactDocument.record
   const matterId = doc.matter_id
 
-  const signedDocument = doc.current_version_id
-    ? isTrashReadOnly
-      ? await getTrashedDocumentVersionSignedUrl(exactDocument.expectedMatterId, docId, doc.current_version_id)
-      : await getDocumentVersionSignedUrl(doc.current_version_id)
+  const selectedVersionId = sourceLocator.versionId ?? doc.current_version_id
+  const signedDocument = selectedVersionId
+    ? await getCanonicalDocumentVersionSignedUrl(
+      docId,
+      selectedVersionId,
+      isTrashReadOnly ? exactDocument.expectedMatterId : undefined,
+    )
     : null
   const notes = isTrashReadOnly ? exactDocument.data.notes : await getNotes({ documentId: docId })
   const allDocsData = isTrashReadOnly ? null : await getDocumentsByMatter(matterId)
@@ -90,7 +92,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
               </div>
             </div>
           ) : signedDocument?.url ? (
-            <PdfViewer url={signedDocument.url} />
+            <PdfViewer url={signedDocument.url} initialPage={sourceLocator.page ?? 1} />
           ) : (
             <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
               <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-muted)]">

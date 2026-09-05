@@ -31,6 +31,14 @@ Icon-only buttons are permitted only when all of the following are true:
 
 Primary actions, destructive actions, workflow transitions, unusual legal operations, and ambiguous icons always use visible text. Native `title` text alone is not an adequate tooltip or explanation. In dense repeated rows, group secondary actions in a clearly labelled menu instead of presenting a strip of unexplained icons.
 
+## PDF viewer source location
+
+Use [`pdf-viewer.tsx`](../../src/components/ui/pdf-viewer.tsx) for an authorised PDF source. The canonical server reader derives the source locator and passes its one-based PDF page as `initialPage`; browser callers never supply a storage path or permission value.
+
+- The viewer may render the requested page before it knows the PDF page count, then clamps it to the real bounds after loading. An omitted or rejected locator starts at page 1.
+- Keep the compact page and zoom toolbar outside the PDF body scroller. Previous/next and zoom controls are shared icon buttons with accessible names and the shared effective 44px touch target.
+- A viewer reference should describe page location and toolbar behaviour without simulating a document or creating a second source-viewer implementation.
+
 ## Badge
 
 Use [`badge.tsx`](../../src/components/ui/badge.tsx) for status and compact classification.

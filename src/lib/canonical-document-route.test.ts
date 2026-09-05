@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { canonicalDocumentPath } from './canonical-document-route'
+import { canonicalDocumentPath, parseCanonicalDocumentUrlState } from './canonical-document-route'
 
 test('builds the canonical active document route without matter lineage', () => {
   assert.equal(canonicalDocumentPath('document-id'), '/documents/document-id')
@@ -16,6 +16,35 @@ test('preserves only explicit scalar matter context for exact Trash lineage', ()
   )
   assert.equal(canonicalDocumentPath('document-id', { matterId: ['matter-a', 'matter-b'] }), '/documents/document-id')
   assert.equal(canonicalDocumentPath('document-id', { matterId: '' }), '/documents/document-id')
+})
+
+test('allowlists one scalar immutable version and one positive safe PDF page', () => {
+  const version = '00000000-0000-4000-8000-000000000001'
+  assert.deepEqual(
+    parseCanonicalDocumentUrlState({ matterId: 'matter', version, page: '42' }),
+    { matterId: 'matter', versionId: version, page: 42 },
+  )
+  assert.equal(
+    canonicalDocumentPath('document-id', { matterId: 'matter', version, page: '42' }),
+    `/documents/document-id?matterId=matter&version=${version}&page=42`,
+  )
+})
+
+test('drops malformed, repeated, foreign, and unsafe source-locator query values', () => {
+  assert.deepEqual(parseCanonicalDocumentUrlState({
+    matterId: ['matter-a', 'matter-b'],
+    version: ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'],
+    page: ['2', '3'],
+  }), {})
+
+  for (const page of ['0', '-1', '1.5', ' 1', '9007199254740992']) {
+    assert.deepEqual(parseCanonicalDocumentUrlState({ version: 'foreign-value', page }), {})
+  }
+})
+
+test('uses page one when the source locator omits or rejects a page', () => {
+  assert.equal(parseCanonicalDocumentUrlState({}).page ?? 1, 1)
+  assert.equal(parseCanonicalDocumentUrlState({ page: '0' }).page ?? 1, 1)
 })
 
 test('active document callers use the canonical route while Trash keeps lineage compatibility', () => {
@@ -68,4 +97,20 @@ test('matter read-only compositions preserve each document Trash lineage without
     canonicalDocumentPath('trashed-document', { matterId: 'its-own-matter' }),
     '/documents/trashed-document?matterId=its-own-matter',
   )
+})
+
+test('canonical document reader proves URL versions against the exact document before signing', () => {
+  const page = readFileSync(new URL('../app/(app)/documents/[docId]/page.tsx', import.meta.url), 'utf8')
+  const actions = readFileSync(new URL('./actions/document.ts', import.meta.url), 'utf8')
+  const viewer = readFileSync(new URL('../components/ui/pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(page, /parseCanonicalDocumentUrlState\(query\)/)
+  assert.match(page, /getCanonicalDocumentVersionSignedUrl\([\s\S]*selectedVersionId/)
+  assert.match(page, /<PdfViewer url=\{signedDocument\.url\} initialPage=\{sourceLocator\.page \?\? 1\}/)
+  assert.match(actions, /getCanonicalAssignedDocument\(documentId, expectedMatterId\)/)
+  assert.match(actions, /\.eq\('id', documentVersionId\)[\s\S]*\.eq\('document_id', document\.id\)/)
+  assert.match(actions, /getTrashedDocumentVersionSignedUrl\(exactDocument\.expectedMatterId, documentId, documentVersionId\)/)
+  assert.match(viewer, /initialPage\?: number/)
+  assert.match(viewer, /setPageNumber\(clampPage\(initialPage, numPages\)\)/)
+  assert.match(viewer, /aria-label="Previous page"/)
 })

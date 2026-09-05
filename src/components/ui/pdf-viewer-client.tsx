@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -13,9 +13,20 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-export function PdfViewer({ url }: { url: string }) {
+type PdfViewerProps = {
+  url: string
+  /** One-based source-locator page. It is clamped when the PDF reports its length. */
+  initialPage?: number
+}
+
+function clampPage(page: number, numPages?: number) {
+  const lowerBounded = Math.max(1, page)
+  return numPages ? Math.min(numPages, lowerBounded) : lowerBounded
+}
+
+export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>();
-  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [pageNumber, setPageNumber] = useState<number>(() => clampPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
 
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
@@ -30,6 +41,12 @@ export function PdfViewer({ url }: { url: string }) {
     window.addEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
     return () => window.removeEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
   }, []);
+
+  // A source locator may arrive before the PDF page count. Preserve its
+  // requested page until load, then clamp it to the real document bounds.
+  useEffect(() => {
+    setPageNumber(clampPage(initialPage, numPages));
+  }, [initialPage, numPages]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages);
@@ -67,25 +84,25 @@ export function PdfViewer({ url }: { url: string }) {
     <div className="flex flex-col items-center w-full h-full bg-[var(--bg-surface)]">
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 mb-4 bg-white border border-[var(--border)] shadow-sm rounded-lg sticky top-0 z-10 w-fit">
-        <Button variant="ghost" size="icon" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+        <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
           <ChevronLeft size={16} />
         </Button>
         <span className="text-sm font-medium text-[var(--text-primary)] min-w-[100px] text-center">
           Page {pageNumber} of {numPages || '--'}
         </span>
-        <Button variant="ghost" size="icon" onClick={() => setPageNumber(p => Math.min(numPages || 1, p + 1))} disabled={pageNumber >= (numPages || 1)}>
+        <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" onClick={() => setPageNumber(p => Math.min(numPages || 1, p + 1))} disabled={pageNumber >= (numPages || 1)}>
           <ChevronRight size={16} />
         </Button>
 
         <div className="w-px h-6 bg-[var(--border)] mx-2" />
 
-        <Button variant="ghost" size="icon" onClick={() => setScale(s => Math.max(0.5, s - 0.2))}>
+        <Button variant="ghost" size="icon" aria-label="Zoom out" title="Zoom out" onClick={() => setScale(s => Math.max(0.5, s - 0.2))}>
           <ZoomOut size={16} />
         </Button>
         <span className="text-sm font-medium w-12 text-center text-[var(--text-primary)]">
           {Math.round(scale * 100)}%
         </span>
-        <Button variant="ghost" size="icon" onClick={() => setScale(s => Math.min(3, s + 0.2))}>
+        <Button variant="ghost" size="icon" aria-label="Zoom in" title="Zoom in" onClick={() => setScale(s => Math.min(3, s + 0.2))}>
           <ZoomIn size={16} />
         </Button>
       </div>
