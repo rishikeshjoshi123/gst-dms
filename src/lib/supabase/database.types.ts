@@ -2080,6 +2080,75 @@ export type Database = {
           },
         ]
       }
+      membership_departure_cases: {
+        Row: {
+          created_at: string
+          effective_date: string | null
+          handover_note: string | null
+          id: string
+          membership_id: string
+          notice_accepted_at: string | null
+          notice_days: number | null
+          notice_policy_version: number | null
+          notice_snapshot_state: Database["public"]["Enums"]["membership_departure_notice_snapshot_state"]
+          org_id: string
+          reason: string | null
+          revision: number
+          state: Database["public"]["Enums"]["membership_departure_case_state"]
+          submitted_by_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          effective_date?: string | null
+          handover_note?: string | null
+          id?: string
+          membership_id: string
+          notice_accepted_at?: string | null
+          notice_days?: number | null
+          notice_policy_version?: number | null
+          notice_snapshot_state: Database["public"]["Enums"]["membership_departure_notice_snapshot_state"]
+          org_id: string
+          reason?: string | null
+          revision?: number
+          state?: Database["public"]["Enums"]["membership_departure_case_state"]
+          submitted_by_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          effective_date?: string | null
+          handover_note?: string | null
+          id?: string
+          membership_id?: string
+          notice_accepted_at?: string | null
+          notice_days?: number | null
+          notice_policy_version?: number | null
+          notice_snapshot_state?: Database["public"]["Enums"]["membership_departure_notice_snapshot_state"]
+          org_id?: string
+          reason?: string | null
+          revision?: number
+          state?: Database["public"]["Enums"]["membership_departure_case_state"]
+          submitted_by_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_departure_cases_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_departure_cases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       model_catalogue_versions: {
         Row: {
           created_at: string
@@ -9483,6 +9552,15 @@ export type Database = {
         | "processing_failed"
         | "staged_doc_ready"
         | "wiki_ai_suggestion"
+      membership_departure_case_state:
+        | "active"
+        | "withdrawn"
+        | "offboarding_started"
+        | "completed"
+        | "failed_pending_cleanup"
+      membership_departure_notice_snapshot_state:
+        | "accepted"
+        | "legacy_unavailable"
       org_member_role: "admin" | "associate" | "viewer"
       organisation_invite_state:
         | "pending"

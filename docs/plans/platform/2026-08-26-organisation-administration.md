@@ -195,6 +195,12 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - Pre-migration membership generations retain an explicit all-NULL compatibility snapshot. This preserves the absence of a historical accepted policy instead of fabricating one; later departure-case work must define any required treatment of that legacy state.
 - No departure-policy setter is introduced yet. There is no current safe Organisation Operations caller, so Owner/Admin authority, idempotency, and compare-and-swap requirements remain a prerequisite of the future settings command rather than an unused RPC.
 
+### Implemented foundation: private departure-case history
+
+- Migration `00122_membership_departure_cases_foundation` adds private, FORCE-RLS departure-case storage bound at insert to one canonical membership generation and that member's accepted notice snapshot. It accepts only a complete validated 30/60 snapshot or an explicit all-NULL `legacy_unavailable` state, keeps the case facts immutable (including its ID), serializes state/revision changes, and prevents a second coordinator-open case for the same membership.
+- There is intentionally no browser grant, RPC, coordinator, Team/My settings UI, or legacy member-removal connection. Direct authenticated reads/writes are denied. The focused disposable-database fixture and independent read-only QA passed on 2026-09-05.
+- Before any update-capable departure command is introduced, harden `organisation_memberships` identity so its `org_id`/`user_id` lineage cannot drift after the insert-time departure-case fence (or replace that fence with an equivalent durable composite identity constraint). Then resume the approved typed departure/early-release command closure; do not infer its UI or legacy-removal policy while `ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01` remains open.
+
 **Current approval boundary:** the existing legacy Settings member-removal
 control has no approved impact/disposition workflow and must not be connected to
 the typed departure or administrative-removal commands. The fixture-only Team
