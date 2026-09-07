@@ -1,5 +1,5 @@
 import { after } from 'next/server'
-import { tasks } from '@trigger.dev/sdk/v3'
+import { tasks } from '@trigger.dev/sdk'
 
 const options = { debounce: { key: 'trash-purge-dispatch', delay: '2s', maxDelay: '15s' } } as const
 export const trashPurgeDispatcherTaskId = 'dispatch-trash-permanent-delete'

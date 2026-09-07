@@ -1,5 +1,5 @@
 import { after } from 'next/server'
-import { tasks } from '@trigger.dev/sdk/v3'
+import { tasks } from '@trigger.dev/sdk'
 
 export type DocumentOutboxWakePayload = Readonly<Record<never, never>>
 

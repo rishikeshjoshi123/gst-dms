@@ -6,7 +6,7 @@
  * independently owned; they must not inherit an unfenced model payload.
  */
 
-import { task } from '@trigger.dev/sdk/v3'
+import { task } from '@trigger.dev/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/supabase/database.types'
 import { analyzeDocumentWithOutcome } from '@/lib/ai/vertex'

@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
-import { tasks } from '@trigger.dev/sdk/v3'
+import { tasks } from '@trigger.dev/sdk'
 
 async function matterBelongsToActiveOrg(
   supabase: Awaited<ReturnType<typeof createClient>>,
