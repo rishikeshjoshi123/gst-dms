@@ -11,7 +11,7 @@ States: `planned`, `building`, `review`, `integrated`, `deployed`, `deferred`. M
 | ID | Outcome and current gap | Canonical owner | State | Dependencies / acceptance required | Review coverage |
 | --- | --- | --- | --- | --- | --- |
 | D01 | Reproducible application build and type/CI checks. [D01-T01](delivery-evidence/D01-T01.md) restores nullable-RPC refinement; [D01-T02](delivery-evidence/D01-T02.md) clears the app/worker build boundary; [D01-T03](delivery-evidence/D01-T03.md) pins npm/Node 24 and the Trigger runtime. | [Delivery workflow](plans/operations/2026-09-08-agent-delivery-workflow.md), [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md) | review | Verify pre-deployment database replay, record lint baseline, and obtain independent QA. Remote Trigger preview/rehearsal remains a release gate. | 4, 15; CI/runtime |
-| D02 | Viewer and note-author boundaries hold across live commands and direct database access; all member displays use the safe directory. | [Organisation](plans/platform/2026-08-26-organisation-administration.md), [Notes](plans/features/2026-08-25-notes-and-case-brief.md) | planned | Test Viewer, author/non-author Associate, Admin, suspended/removed member and cross-tenant paths, including client mutations and note deletion. | 2, 3; directory privacy |
+| D02 | Viewer and note-author boundaries hold across live commands and direct database access; all member displays use the safe directory. [D02-T01](delivery-evidence/D02-T01.md) replaces service-role note deletion with an audited authenticated command and direct-path guard. | [Organisation](plans/platform/2026-08-26-organisation-administration.md), [Notes](plans/features/2026-08-25-notes-and-case-brief.md) | review | Independent QA and clean replay remain; add live moderation-reason UX, client-mutation authorization, safe-directory migration, and removed-member coverage. | 2, 3; directory privacy |
 | D03 | Pilot scope is explicit and enforced, including development-only usage, signup, Wiki generation, and retention. | [Pilot](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md), [Platform](plans/platform/2026-08-27-platform-operations.md) | planned | Development Usage restriction can proceed independently. Production retention activation requires PILOT-RETENTION-SCOPE-2026-09-08; exact release matrix and remote acceptance remain unverified. | 1; release-policy gaps |
 | D04 | Global and matter uploads transfer directly to private Storage with bounded in-session resumption, visible progress and safe finalization. Current bytes traverse Server Actions. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D01/D02 boundaries; prove deployed 25 MiB upload, interrupted transfer, expired authorization, cancel/finalize race, duplicate and retry without repeated effects. | 5; resumable-upload discussion |
 | D05 | Attach the first PDF to a metadata-only record while preserving record ID, notes, relationships and human metadata. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D04; one explicit destination, no automatic metadata merge, conflict Review, concurrent first-attachment denial/idempotency. Replacement UI remains deferred. | PDF identity discussion |
@@ -33,7 +33,7 @@ Not yet performed. Keep only the latest scan's code/document state, coverage lin
 
 ## Active tranche card
 
-None active while D01-T03 is recorded and local database readiness is inspected.
+None active while D02-T01 is recorded and the next approved tranche is selected through discovery.
 
 ## Known baseline failures
 
@@ -42,13 +42,13 @@ Historical evidence only; reconcile the newer handoff before execution. Keep unr
 | ID | Evidence and last known result | Owner / next recheck |
 | --- | --- | --- |
 | B02 | Same historical snapshot: broad ESLint reported existing debt. This is not a blanket waiver for changed-file lint or new diagnostics. | D01 baseline owner unassigned; recheck affected files/configuration and at the release gate. |
-| B03 | September 7 review did not run current SQL acceptance because Docker was unavailable. This is missing environment evidence, not a passed database gate or a product decision. | D01 setup; applicable schema/RLS tranches and D13 must obtain current local acceptance evidence. |
+| B03 | Local Docker/Supabase is healthy and current through `00123`; rollback-only Task and provider-usage SQL pass. A clean reset still fails before replay because Supabase CLI 2.111.0 cannot inspect the service (`LegacyDbBootstrapError`). | D01 setup; diagnose CLI/Docker compatibility or rebuild the disposable stack before claiming clean replay. Additive tranches may use explicit local apply plus rollback fixtures and must disclose the limit. |
 
 Recheck when affected code/environment changes or release acceptance requires it. A baseline label never excuses a new regression.
 
 ## Verification receipts
 
-[D01-T01](delivery-evidence/D01-T01.md), [D01-T02](delivery-evidence/D01-T02.md), and [D01-T03](delivery-evidence/D01-T03.md) record the type-generation, build-boundary, and Node/Trigger runtime repairs. Independent QA and remaining database/release gates keep D01 in review.
+[D01-T01](delivery-evidence/D01-T01.md), [D01-T02](delivery-evidence/D01-T02.md), and [D01-T03](delivery-evidence/D01-T03.md) record the type-generation, build-boundary, and Node/Trigger runtime repairs. [D02-T01](delivery-evidence/D02-T01.md) records the secured note-removal boundary. Independent QA and remaining acceptance/release gates keep D01 and D02 in review.
 
 ## Resume
 
