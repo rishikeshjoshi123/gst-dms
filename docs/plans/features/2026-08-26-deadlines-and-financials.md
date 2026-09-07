@@ -2,7 +2,7 @@
 title: Verified Deadlines and Matter Financials
 status: approved
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -48,6 +48,11 @@ Success means:
 Out of scope are automatic legal advice, AI-calculated limitation dates, tax-return/accounting reconciliation, bank/payment execution, invoicing, time billing, trust accounting, currency conversion, client portal access, and arbitrary AI-generated charts.
 
 ## Decisions
+
+### Truthful existing attention and reminder behavior
+
+- [D11](../../delivery-ledger.md): enabled attention readers include unresolved overdue dates; an upcoming-only date filter cannot hide them. Keep provisional/verified status explicit and respect the owning timezone and lifecycle rules.
+- The existing `deadline-reminders` placeholder is not a delivery implementation. Until canonical verification, recipients, preferences, dedupe, retry and delivery acceptance are complete, UI and release material must not promise reminders. Fixing overdue visibility does not activate the full deadline/reminder domain.
 
 ### Domain boundaries
 
@@ -221,6 +226,8 @@ Every tenant row carries `org_id`; composite constraints or trusted functions en
 - Typed errors cover inaccessible source/Matter/member, invalid date/timezone, stale revision, invalid transition, unresolved/provisional consequence, duplicate semantic candidate, incompatible financial comparison, unknown component/tax head, arithmetic mismatch, and Trash/read-only state.
 
 ## Testing and Acceptance Criteria
+
+- An unresolved yesterday-due item remains visible in attention; satisfied/cancelled items do not. Verify date-only boundaries in the owning timezone. No enabled interface claims reminder delivery solely because a placeholder worker reports success.
 
 ### Automated coverage
 

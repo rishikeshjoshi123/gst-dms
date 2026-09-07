@@ -2,7 +2,7 @@
 title: Document Record and File Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-08-29
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -17,6 +17,15 @@ related:
 
 # Document Record and File Lifecycle
 
+## Reading guide
+
+Use the [shared reading rules](../../README.md#reading-a-large-plan). Read the scope/security links first, then relevant operations and their interfaces/acceptance. Expand dependencies when needed; recorded checkpoints require current-code reconciliation.
+
+- **Read first:** [Attachment scope](#first-release-attachment-and-deferred-replacement) · [Identity](#logical-document-identity) · [Access](#security-and-access).
+- **Files and upload:** [Direct upload](#direct-private-upload-and-bounded-resumption) · [Immutable sources](#immutable-file-assets-and-versions) · [PDF fidelity](#canonical-pdf-fidelity-and-optimization) · [Missing files](#missing-object-detection-and-source-rehydration).
+- **Commands and workers:** [Runtime and move/copy](#review-follow-through-runtime-and-movecopy) · [Durable processing](#processing-and-durable-work) · [Retirement](#legacy-staging-retirement) · [Deletion and restore](#deletion-restoration-and-retention).
+- **Checks and contracts:** [Interfaces](#interfaces-and-data-changes) · [Acceptance](#testing-and-acceptance-criteria) · [Assumptions](#assumptions) · [Open questions](#open-questions).
+
 ## Summary
 
 Separate the logical legal-document record from its physical PDF evidence. A document may exist with verified/imported metadata before a PDF is available, may later receive an immutable PDF version, and may receive replacement versions without breaking timeline identity, notes, citations, audit history, or search locators.
@@ -24,6 +33,8 @@ Separate the logical legal-document record from its physical PDF evidence. A doc
 Unify global and matter uploads behind one durable intake pipeline. Store every unique PDF once per organisation in a private, organisation-scoped asset path; assignment changes database relationships rather than copying files between staging and matter folders. Processing is driven by a transactional outbox and idempotent run records rather than a best-effort post-response trigger.
 
 ## Context and Goals
+
+The opening audit below describes the original implementation. Completed foundation records later in this plan are historical checkpoints; current delivery gaps and verification belong in [the ledger](../../delivery-ledger.md), especially D01 and D04–D10.
 
 The current `documents` row requires `matter_id` and `storage_path`, mixes logical identity, effective metadata, AI output, processing, review, and physical storage, and uses a single overloaded status. `staged_documents` and two storage buckets create a second partial document model. Assignment downloads and re-uploads a PDF into another bucket, while copying a document to another matter duplicates the binary. Reassignment deletes relationships and mutates deadlines without an atomic domain boundary. Supporting documents have both a deprecated table and a classification field on `documents`.
 
@@ -34,6 +45,28 @@ This plan does not decide whether the import product begins with a CaseChain-own
 The lifecycle must support direct matter upload, global intake, metadata-only record creation, later file attachment, safe replacement, exact duplicate handling, proceeding/supporting reclassification, recoverable deletion, conservative pilot quotas, and stable evidence locators.
 
 ## Decisions
+
+### First-release attachment and deferred replacement
+
+- SHA-256 identifies bytes, not legal-record identity. Different bytes do not automatically require a different logical record; similar metadata never automatically merges records. A separately issued legal document, including a separately issued correction, is filed as its own record with an explicit relationship where appropriate.
+- The pilot supports **Attach PDF** on a metadata-only record. Bind the existing document as explicit upload intent, reuse the Intake pipeline, preserve its ID/relationships/notes/human metadata, and turn extracted conflicts into Review. Revalidate capability, parent state, and absence of a current PDF atomically; simultaneous first attachments cannot become an accidental replacement.
+- PDF replacement and a version-management interface are deferred because the user expects this need to be rare. Existing immutable tables and historical locators remain; do not remove or rewrite stored history. All replacement statements below describe the later capability or compatibility invariants, not a pilot UI requirement.
+- The reason for retaining an earlier source is to reopen a quote or verify an extracted fact against the bytes actually used. This does not create a new indefinite-retention promise. Any later pruning policy must account for all surviving evidence/analysis/hold references under the Trash contract; it is not part of this tranche.
+
+### Direct private upload and bounded resumption
+
+- Server Actions carry reservation/finalization metadata only; PDF bytes go from the browser directly to private Supabase Storage. Reuse existing upload sessions, quotas, validation, Intake, outbox and duplicate authority rather than creating another pipeline.
+- Use the supported Supabase TUS client integration for byte progress and in-session interrupted-transfer recovery. Start with two concurrent file transfers and bounded automatic backoff; exhausted retries expose an explicit Retry action. No custom chunk server, service worker, cross-device transfer continuation, or background-upload promise is introduced.
+- The server authenticates and reserves the exact object before issuing its signed upload token with overwrite disabled. A token is not proof of PDF validity, declared size, remaining quota, or finalization authority. Apply configured Storage limits and authoritative server/worker size, hash and PDF validation before accepting the source; retain cleanup for rejected/expired uploads.
+- Finalization rechecks actor/session/destination and is idempotent. Loss of its response must reconcile the existing session, not allocate another logical document or repeat paid processing. Cancel, token renewal, expiry, already-uploaded objects and finalization races use that same authority. A cancellation must prevent later finalization even while an issued transfer token remains usable; safe orphan cleanup accounts for that lifetime.
+- Initial byte-resume state stays in memory, without persisting signed URLs/tokens or PDF contents in browser storage. After reload, durable completed-upload/processing state returns; an incomplete transfer may require file reselection and a fresh transfer authorization. The UI states this limitation. Refresh does not mean the browser retained the local File.
+- The application default is **25 MiB (26,214,400 bytes)**. Older `25 MB` wording means this application boundary. Provider bucket ceilings are separately configured and verified; Next body-limit configuration is not a hosting-limit bypass.
+- Verify current [Supabase resumable-upload guidance](https://supabase.com/docs/guides/storage/uploads/resumable-uploads) when implementing the thin client adapter, including supported chunk size and signed-token behavior. Library resumption handles the transport; CaseChain remains responsible for authorization, expiry and durable completion.
+
+### Review follow-through: runtime and move/copy
+
+- D01: application wake helpers enqueue the fixed dispatcher through a small SDK boundary; they must not import Trigger task implementations and their native PDF dependencies into the Next build. Verify a clean production build on the target runtime.
+- D10: retire legacy multi-step Move/Copy callers. Copy reuses the authorized immutable asset/version through the domain command; do not widen Storage policy to repair an incompatible path. Move applies placement, invalidated relationships and dependent deadline/projection consequences atomically. Failure injection must prove rollback rather than partial moves. Disable the unsafe command until its replacement is verified if it remains exposed.
 
 ### Logical document identity
 
@@ -66,15 +99,26 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 - Do not offer a Google-Photos-style `storage saver` mode for proceeding or supporting evidence. Storage pressure is handled through exact within-organisation deduplication, conservative upload/organisation/platform quotas, retention/purge policy, and later movement to a more suitable object-storage tier—not by silently degrading evidence.
 - Lossless structural optimization and lossy image optimization may be evaluated only as non-evidentiary derived renditions after canonical validation. The initial product does not persist a second optimized PDF in Supabase because retaining both usually increases total storage; a worker may create a temporary rendition for a bounded AI/viewer operation and delete it after use.
 - Native-text PDFs use their original text layer. Scanned pages are assessed individually; OCR/render inputs remain at least 200 DPI and ordinarily target 300 DPI. A lower-resolution or lossy rendition is never used when it reduces small-text, stamp, handwriting, signature, table, reference-number, amount, or date recognition.
+- Native text and geometry are acquired locally before paid OCR. Only absent, low-quality, broken-encoding, or suspicious mixed pages use the approved Google Document AI Enterprise `OCR_PROCESSOR` in Mumbai (`asia-south1`). Original-language native/OCR text remains the evidentiary page layer; Gemini legal extraction never becomes the transcript source.
+- Page acquisition, Gemini metadata extraction, and embeddings have separate provider/location configuration and version records. Gemini document extraction uses Mumbai and returns English display metadata/synopsis without a page transcript; embeddings consume original-language chunks and cannot silently inherit a US/global endpoint from another service.
 - Any future persistent rendition contract records source asset, purpose, transform/tool version, DPI, colour mode, compression parameters, byte size/hash, quality results, creation/expiry, and non-evidentiary status. It is regenerable, excluded from duplicate identity, and purged before the canonical asset.
 - Before enabling any optimization on production documents, evaluate a representative corpus of native-text, black-and-white scan, colour scan, mixed, signed/certified, form, annotation, and poor-quality PDFs. Compare byte savings, rendering, page geometry/count, native text, signatures/forms/annotations, page anchors, OCR, and extraction accuracy for GSTINs, references, sections, dates, and amounts. No corpus-wide percentage is assumed.
+
+### Missing-object detection and source rehydration
+
+- Database metadata, the logical document/version, and `file_assets.sha256` remain authoritative even when a private Storage object is unexpectedly missing. Signed access fails with an explicit source-unavailable state; it never silently marks the document deleted, removes metadata, or substitutes another tenant's bytes.
+- The single design-partner release does not promise an automatic object backup. The partner retains original PDFs, and the written pilot boundary explains that Supabase managed database backups do not include private Storage object bytes.
+- A later authorised rehydration command accepts a replacement upload for an existing missing asset, revalidates organisation and document access, calculates size/MIME/readability/SHA-256 server-side, and attaches bytes only when the hash exactly matches the expected asset. It restores the existing asset/version identity rather than creating a duplicate document, rerunning placement, or overwriting metadata.
+- Bulk rehydration may classify uploaded originals by server-verified hash and report matched, unmatched, duplicate, inaccessible, and still-missing counts. Client-computed hashes are hints only. Cross-organisation matching, disclosure, byte reuse, and repair are forbidden.
+- Rehydration requires surviving database metadata. It cannot reconstruct client/matter/document identity, notes, timelines, provenance, or hashes if no database backup survives; it is therefore a bounded Storage-loss repair path, not a substitute for the later independent backup gate.
 
 ### Intake and assignment
 
 - All PDF uploads begin as `intake_items`, including uploads initiated inside a matter. A matter upload sets `intended_matter_id`; global upload leaves it null.
 - Reserve an `upload_session` and asset ID before file transfer. The server issues a bounded signed upload contract for the exact organisation, asset key, MIME, and maximum size.
 - The intake state machine is `awaiting_upload → uploaded → validating → processing → ready → assigned`, with terminal `duplicate`, `failed`, `discarded`, and `expired` states. State transitions are enforced by domain commands/database functions rather than arbitrary client updates.
-- Direct matter intake may auto-assign after validation when the intended matter is still active and the uploader retains permission. It still uses the same durable pipeline and remains visible in the inline upload tray.
+- The organisation's initial placement policy defaults to `manual_suggestions`. A global upload with no user-declared destination remains unassigned for a human decision unless an Owner/Admin has explicitly enabled an approved automatic mode; missing, invalid, or unrecognised policy state fails closed to manual placement.
+- Direct matter intake may be assigned after validation when the intended matter is still active and the uploader retains permission. This is a user-directed placement established by the upload context, not evidence-inferred automatic assignment. It still uses the same durable pipeline and remains visible in the inline upload tray.
 - AI suggestions never become the user's declared intake context. `intended_matter_id` and suggested matches remain separate.
 - Global Intake may require page/OCR/extraction before a logical document or document version exists. Those immutable base artifacts are keyed to the organisation-owned `file_asset` through an append-only source-analysis run, then bound to the created `document_version` during assignment. Do not create a nullable-matter document merely to satisfy processing foreign keys, and do not call the extraction model again solely because placement occurred.
 - Assignment creates or links the logical document/version and updates the intake item atomically. It does not download, copy, move, or rename the asset.
@@ -140,12 +184,12 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 ### Storage quotas for the current pilot
 
 - Keep the Supabase bucket ceiling at 50 MB, but set the initial application default to **25 MB per PDF**. Platform operators may raise an organisation to 50 MB for a justified pilot case.
-- Set the initial organisation entitlement to **100 MB of unique stored assets**, including assigned, historical, trashed, and unassigned intake assets. Shared asset references are counted once.
-- Set a **750 MB platform storage guard** while running on Supabase Free, leaving headroom for system artifacts and operational recovery. Stop new uploads before the provider limit rather than relying on exact quota equality.
+- Set the single design-partner organisation entitlement to a reviewable **350 MiB of unique stored assets**, including assigned, historical, trashed, and unassigned intake assets. Shared asset references are counted once.
+- Run the production pilot on Supabase Pro. Replace the former Free-plan 750 MB platform guard with a configurable guard that preserves measured headroom below the deployed provider capacity. Stop new uploads before the guard rather than relying on exact provider-limit equality.
 - Warn authorised organisation users at 80% and 95%; reject reservation before upload at 100% or when the platform guard would be exceeded.
 - Reservations include the declared upload size for active sessions and expire after 24 hours. Final accounting uses server-observed bytes.
 - Quotas are entitlements stored in configuration, not constants embedded in upload UI. Future pricing may change entitlements without rewriting lifecycle logic.
-- Storage reporting separates active document assets, historical versions, Trash, and Intake while also showing deduplicated total bytes.
+- Storage reporting separates active document assets, historical versions, Trash, and Intake while also showing deduplicated total bytes. Daily aggregates preserve active unique byte-hours so future GB-month analysis does not depend on a month-end snapshot.
 
 ### Security and access
 
@@ -166,8 +210,9 @@ The lifecycle must support direct matter upload, global intake, metadata-only re
 8. **Consolidate legacy supporting documents.** Migrate `supporting_documents` rows into logical `documents` with `document_class = supporting`, versions, links, provenance, and legacy IDs/mapping. Verify counts and access before stopping reads from the old table.
 9. **Cut over consumers.** Change Workbench, Notes quotes, Search chunks, extraction, assignment, reprocess, deletion, and activity to use document/version/source-locator contracts. Keep a bounded adapter for legacy rows until coverage is complete.
 10. **Enable classification and reassignment workflows.** Add consequence previews, archival provenance, version-stable copy/move, and automatic scoped reevaluation. Remove destructive delete-and-recreate behavior.
-11. **Enable quotas and integrate Trash.** Add reservations, organisation/platform guards, usage projections, warnings, and expiration cleanup. Integrate document versions/assets with the approved Trash restore, retention, hold, and privileged purge orchestration.
-12. **Verify and contract.** Compare legacy/new counts, object reachability, hashes, RLS, current versions, signed access, and processing coverage. Stop dual writes, then remove `staged_documents`, legacy `supporting_documents`, raw-path signing, bucket-copy assignment, and finally obsolete `storage_path`/overloaded status columns in separate migrations.
+11. **Enable quotas and integrate Trash.** Add reservations, organisation/platform guards, usage projections, daily unique-byte aggregates, warnings, and expiration cleanup. Integrate document versions/assets with the approved Trash restore, retention, hold, and privileged purge orchestration.
+12. **Prepare bounded source rehydration.** Preserve explicit missing-object state and hash identity in the pilot. Implement authenticated single/bulk exact-hash rehydration only as a later recovery tranche with dry-run counts, tenant isolation, idempotency, and no duplicate logical records.
+13. **Verify and contract.** Compare legacy/new counts, object reachability, hashes, RLS, current versions, signed access, and processing coverage. Stop dual writes, then remove `staged_documents`, legacy `supporting_documents`, raw-path signing, bucket-copy assignment, and finally obsolete `storage_path`/overloaded status columns in separate migrations.
 
 ## Implementation Status
 
@@ -322,7 +367,7 @@ type ProcessingScope =
 - Upload reservation accepts intended context and declared file metadata and returns a bounded upload contract, not a general storage credential.
 - Finalization identifies the session/idempotency key; the server verifies the stored object rather than trusting client-reported hash/size.
 - Signed access accepts a document version or intake ID and resolves the private object after authorisation.
-- Attach/replace, assignment, copy/move, reclassification, trash/restore/purge, and reprocess are typed domain commands with audited consequence/result contracts.
+- Attach/replace, assignment, copy/move, reclassification, trash/restore/purge, reprocess, and later exact-hash missing-asset rehydration are typed domain commands with audited consequence/result contracts.
 
 ### Events
 
@@ -334,11 +379,17 @@ Event payloads contain IDs, state, safe reason codes, and source versions—not 
 
 ## Testing and Acceptance Criteria
 
+- D04/D05: global upload, matter upload and first attachment share the reserved pipeline; test a deployed 25 MiB upload, boundary rejection, interrupted transfer/resume, expired token, revoked user, response loss, cancel/finalize race and duplicate submission. One accepted source causes one intended lifecycle effect and no duplicate paid stage.
+- Same-metadata/different-byte fixtures cannot silently merge; first attachment preserves the target record and cannot replace a concurrent attachment. Replacement UI is absent in the pilot; existing historical links remain honest and readable where authorized.
+- D01/D10: clean app build excludes worker implementation imports; canonical copy needs no binary copy, and a failure during move cannot leave detached links or separately changed deadlines.
+
 - Creating a metadata-only document requires no fake path/vector and immediately supports matter timeline placement and verified structured fields.
 - Later PDF attachment preserves document ID and relationships; conflicts with existing imported metadata create review candidates instead of overwriting values.
 - Replacing a PDF preserves old version access and quotations. New citations use the new version; historical notes/search/activity resolve the old one.
 - Global and matter uploads use the same intake pipeline. Assignment performs no storage download/re-upload/move and is idempotent under double-click, retry, refresh, and repeated event delivery.
+- New-organisation and unset-policy fixtures default global Intake to manual placement. Only a persisted, current Owner/Admin choice can enable an approved automatic mode; forged client policy values and unknown stored values fail closed, while matter-context uploads retain their explicit user-declared destination.
 - Exact duplicate bytes are stored once per organisation and never deduplicated across organisations. Usage counts unique asset bytes once.
+- Missing-object tests preserve document/version/hash metadata and return an explicit unavailable state. Rehydration accepts only a server-verified exact hash for that organisation and existing missing asset, is idempotent, creates no new document/version or placement side effect, and cannot infer or recover metadata when the database record is absent.
 - Exact duplicate protection remains effective when the matching document, matter, or client is in Trash. Renaming the file, changing browser-reported MIME, or submitting a forged client hash cannot bypass server verification.
 - Cross-tenant tests deny asset reservation, finalization, intake assignment, signed access, version attachment, copy/move, classification, deletion, restoration, and direct table/storage access.
 - A caller cannot bypass the 25 MB application default or organisation/platform quota with false client size, concurrent reservations, chunked transfer, duplicate references, or an abandoned session.
@@ -358,7 +409,7 @@ Event payloads contain IDs, state, safe reason codes, and source versions—not 
 
 - PDF is the only accepted original file format in this phase.
 - Supabase private Storage remains the binary store, but database rows—not path parsing alone—are the source of access truth.
-- The deployment remains on Supabase Free during the controlled pilot, so the conservative quotas in this plan are intentional configuration defaults.
+- The production design-partner release uses Supabase Pro. Application entitlements and the platform guard remain conservative, versioned configuration independent of provider plan marketing limits.
 - Spreadsheet mapping and GST-portal acquisition are later capabilities; both will call the document/intake domain contracts defined here.
 - The separate Hierarchical Resource Trash plan is the authoritative retention, restoration, legal-hold, and purge contract.
 

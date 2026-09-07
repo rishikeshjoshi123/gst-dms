@@ -2,7 +2,7 @@
 title: Selective Realtime Delivery, Freshness, and Unread State
 status: approved
 created: 2026-08-25
-updated: 2026-08-27
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -40,6 +40,12 @@ The intended outcome is:
 - connection count, delivered events, payload bytes, joins/retries, refetches, and event-to-render latency are observable before rollout expands.
 
 ## Decisions
+
+### First consumer acceptance from the September review
+
+- [D06/D08](../../delivery-ledger.md) prioritize Hub processing/placement and Review claim/decision freshness before broad rollout. Use the private scoped transport and bounded reconciliation below; do not add periodic polling or a global connection solely for counters.
+- A successful empty fetch is authoritative and clears rows; a typed fetch error may retain the last successful snapshot with honest stale state. Selection/version changes fence pending PDF and inspector responses. Reconcile effective metadata with source/document changes, not only collection rows.
+- Test another session assigning/discarding the last item, stale claim resolution, reconnect, foreground return, access revocation and out-of-order selected-source responses. Transport delivery alone does not prove current application state.
 
 ### Realtime is selective and non-authoritative
 
@@ -100,6 +106,7 @@ type RealtimeInvalidationV1 = {
 - If the document has been hidden for five minutes, leave live channels and close the socket when no channel remains. On foreground return, fetch the active projection once, then reconnect if the visible route still qualifies.
 - Visible high-value surfaces may remain connected while no application events are flowing; the connection still occupies one concurrent connection and sends small protocol heartbeats. It is not replicated across each channel in the same tab.
 - Use the Supabase client's ordinary exponential reconnect for transient network/heartbeat loss. Do not add a second retry loop. Authentication, tenant-disabled, private-channel-policy, or quota refusal becomes a paused/manual state rather than an aggressive join loop.
+- Consequential collaboration state never depends on a Realtime connection. Document Hub claim acquire/renew/release and every final decision remain authenticated database/RPC commands; Realtime only invalidates the secured projection. When Realtime is paused or refused, a foreground Document Hub refetches its visible selected claim every 30 seconds with jitter and its queue every 60 seconds, plus once on focus and immediately before an action. Hidden pages stop polling. The final compare-and-swap command is authoritative even if every live hint and fallback poll was missed.
 - After any gap, a successful subscription performs one revision-aware reconciliation fetch before the UI returns to `Live`. A WebSocket subscription is not treated as replay or proof that no event was missed.
 - Feature flags can disable all Realtime, one event family, or one surface without disabling canonical mutations.
 

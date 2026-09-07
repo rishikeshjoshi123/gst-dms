@@ -10,6 +10,10 @@ related: []
 
 # Plan title
 
+## Reading guide
+
+For a long plan, link to its current scope/amendments, shared invariants, operation sections, interfaces and acceptance. Use anchors rather than copied summaries. Omit this section for a short plan; navigation does not replace the linked contracts.
+
 ## Summary
 
 State the intended outcome and the approach in a few sentences.
@@ -24,7 +28,7 @@ Record the decisions an implementer must follow, including important tradeoffs a
 
 ## Implementation Plan
 
-Describe the ordered, implementation-ready changes by subsystem or behavior.
+Describe ordered changes and dependencies by observable outcome. Keep current evidence in the delivery ledger/receipts and link it when needed; do not append task transcripts or repeated checkpoint logs. Label retained historical evidence and avoid presenting old next actions as current instructions.
 
 ## Interfaces and Data Changes
 
@@ -32,7 +36,7 @@ Document changes to public APIs, component contracts, types, schemas, events, co
 
 ## Testing and Acceptance Criteria
 
-List the automated checks, manual scenarios, edge cases, and observable completion criteria.
+List observable completion criteria, failure/security cases and required checks for each outcome. Distinguish local and deployment gates. Link shared contracts instead of duplicating definitions; do not replace necessary acceptance detail with a word-count target.
 
 ## Assumptions
 

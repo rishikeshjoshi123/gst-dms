@@ -1,0 +1,64 @@
+# CaseChain delivery ledger
+
+Updated: 2026-09-08. This is a working index, not proof or a completion percentage. Initial gaps come from the September 7 review and need current-code reconciliation. All initial owners are **unassigned**; tested, integration and deployment evidence is **not verified**.
+
+Follow the [delivery workflow](plans/operations/2026-09-08-agent-delivery-workflow.md). Keep this file near **1,500 words**: current outcome summaries, one active card, latest discovery and unresolved baseline failures. Store detailed receipts in [delivery evidence](delivery-evidence/README.md); load only relevant records. Compact at checkpoints, preserving unfinished work and missing checks. Fully closed rows may move out once their final receipt retains the outcome and canonical source.
+
+States: `planned`, `building`, `review`, `integrated`, `deployed`, `deferred`. Missing/invalidated acceptance stays in `review`. `integrated` requires local acceptance, required independent QA and the actual commit; deployment is separate. Partial tranches cannot complete their parent. Readiness depends on prerequisites and decisions, not the status label.
+
+## Ordered outcomes
+
+| ID | Outcome and current gap | Canonical owner | State | Dependencies / acceptance required | Review coverage |
+| --- | --- | --- | --- | --- | --- |
+| D01 | Reproducible application build and type/CI checks. Historical isolated build/type checks failed; current checkout needs reconciliation. | [Delivery workflow](plans/operations/2026-09-08-agent-delivery-workflow.md), [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md) | planned | Pin the actual runtime/package manager, isolate worker imports, regenerate types reproducibly, verify checks before database push/deploy; record remaining lint/tooling baseline. | 4, 15; CI/runtime |
+| D02 | Viewer and note-author boundaries hold across live commands and direct database access; all member displays use the safe directory. | [Organisation](plans/platform/2026-08-26-organisation-administration.md), [Notes](plans/features/2026-08-25-notes-and-case-brief.md) | planned | Test Viewer, author/non-author Associate, Admin, suspended/removed member and cross-tenant paths, including client mutations and note deletion. | 2, 3; directory privacy |
+| D03 | Pilot scope is explicit and enforced, including development-only usage, signup, Wiki generation, and retention. | [Pilot](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md), [Platform](plans/platform/2026-08-27-platform-operations.md) | planned | Development Usage restriction can proceed independently. Production retention activation requires PILOT-RETENTION-SCOPE-2026-09-08; exact release matrix and remote acceptance remain unverified. | 1; release-policy gaps |
+| D04 | Global and matter uploads transfer directly to private Storage with bounded in-session resumption, visible progress and safe finalization. Current bytes traverse Server Actions. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D01/D02 boundaries; prove deployed 25 MiB upload, interrupted transfer, expired authorization, cancel/finalize race, duplicate and retry without repeated effects. | 5; resumable-upload discussion |
+| D05 | Attach the first PDF to a metadata-only record while preserving record ID, notes, relationships and human metadata. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D04; one explicit destination, no automatic metadata merge, conflict Review, concurrent first-attachment denial/idempotency. Replacement UI remains deferred. | PDF identity discussion |
+| D06 | Hub and Workbench show the correct selected source, accept successful empty results, and remain usable on a phone. | [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md), [Realtime](plans/platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | planned | Distinguish empty/error; fence late signing responses; verify selected metadata freshness, 320/360px, dark mode, touch, keyboard and 200% zoom in actual consumers. Freshness wiring follows the approved selective transport. | 10, 11, 14; freshness |
+| D07 | Every enabled quotation/source link reopens the exact immutable PDF and presents honest current/historical metadata. | [Notes](plans/features/2026-08-25-notes-and-case-brief.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D06; version/page/access validation through producer, persistence and viewer. Preserve ambiguous legacy quotes as unverified locators; never guess a historical version. | 6 |
+| D08 | Review resolves a typed, evidenced exception; Tasks use their own current state everywhere. | [Work/Review](plans/features/2026-08-25-work-review-activity-notifications.md) | planned | Review UI requires WORK-REVIEW-CONCEPT-2026-09-01; typed decision/reason/CAS/replay acceptance. Legacy Task-state reader repair can proceed independently. | 7, 12 |
+| D09 | A client can have distinct matters in one financial year, with consistent creation, placement and Restore identity checks. | [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md), [Trash](plans/platform/2026-08-24-resource-trash-retention-and-purge.md) | planned | Audit/backfill and replacement identity safeguards before dropping uniqueness; accept legitimate same-year matters and deny actual collisions. | 8 |
+| D10 | Enabled Move/Copy uses atomic, version-aware, asset-reusing commands. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md) | planned | D02/D09 where affected; fault-injection proves no partial links/deadlines/placement changes. Disable unsafe legacy mutations until replacement passes; do not widen Storage access. | 9 |
+| D11 | Matter navigation and attention remain truthful and bounded as collections grow. | [Matter](plans/features/2026-08-25-matter-workspace-and-procedural-timeline.md), [Deadlines](plans/features/2026-08-26-deadlines-and-financials.md) | planned | Lazy active-section/selected-document reads, paginated collections and true counts, URL state, visible unresolved overdue dates; no reminder claim without delivery acceptance. | 13; performance and usability |
+| D12 | Matter-scoped cited retrieval meets the approved source-quality and usefulness gates. | [AI](plans/platform/2026-08-24-ai-extraction-and-model-lifecycle.md), [Search](plans/features/2026-08-24-universal-search-and-evidence-retrieval.md) | planned | AI-ACQUISITION-BENCHMARK-THRESHOLDS-2026-09-03; authorized labelled corpus, held-out relevance, exact citation, lexical fallback, and human correction effort. Offline target baseline is not live acceptance. | Search/AI evaluation |
+| D13 | The exact release completes the invite → upload → Review → placement → reopen journey in its deployment environment. | [Pilot](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md), [Platform](plans/platform/2026-08-27-platform-operations.md) | planned | Enabled outcomes above, release policy decisions, current CI/SQL/browser checks, approved remote setup and backup/object-loss boundary. No production release inferred from local commits. | Release/integration |
+| D14 | Explicitly deferred PDF replacement/version-management UI and the proposed demo. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Demo](plans/features/2026-09-03-interactive-demo-workspace.md) | deferred | Replacement UI needs a later user priority decision; the proposed demo needs its approval and production-foundation gates. This row does not classify every unlisted portfolio feature as deferred. | Scope control |
+
+Priorities do not override dependencies. When blocked, search all of `docs/` for approved ready work, including unlisted outcomes. A pilot release exclusion alone is not an implementation deferral. Check existing ledger/receipt IDs before adding a stable ID. Link each worked row to its relevant receipt and keep remaining acceptance visible.
+
+## Discovery checkpoint
+
+Not yet performed. Keep only the latest scan's code/document state, coverage links, next candidates, exclusions/resume conditions and changed evidence. A whole-goal blocked claim requires coverage of every canonical domain and relevant supporting documents; finding ready work allows earlier execution. Search evidence summaries and read relevant records selectively. Reuse unchanged findings.
+
+## Active tranche card
+
+None active. Replace this template with one compact card; save durable results to a receipt before replacing the card.
+
+- **Outcome / tranche / owner / base revision:** ledger ID, bounded increment, active task and actual starting code.
+- **Canonical decision / objective:** exact plan section and one-sentence user outcome.
+- **Live caller and legacy retirement:** route/action/worker path that uses the change; old reads/writes it must stop using. For a prerequisite, name the dependent consumer and why it cannot ship in this tranche.
+- **Owned scope and exclusions:** files/database objects/interfaces, dependencies and explicit non-goals.
+- **Acceptance and invariants:** observable success/failure behavior and the highest-risk applicable adversarial cases, such as forged tenant/role, duplicate command, stale writer, cleared/null/terminal state, or narrow-screen source selection.
+- **Developer gate / independent QA:** focused commands/scenarios, required test environment, decisive risk check and reviewer role.
+- **Remaining decision or environment dependency:** queue ID or concrete missing verification, plus safe next action.
+
+## Known baseline failures
+
+Historical evidence only; reconcile the newer handoff before execution. Keep unresolved failures here, and move resolved evidence into the relevant receipt.
+
+| ID | Evidence and last known result | Owner / next recheck |
+| --- | --- | --- |
+| B01 | Isolated September 7 snapshot based on `a762850` plus then-present edits: Next production build failed through worker/native imports; TypeScript/provider-usage contract checks failed. | D01; inspect current scripts/runtime and reconcile the handoff's later typecheck evidence before targeted repair. |
+| B02 | Same historical snapshot: broad ESLint reported existing debt. This is not a blanket waiver for changed-file lint or new diagnostics. | D01 baseline owner unassigned; recheck affected files/configuration and at the release gate. |
+| B03 | September 7 review did not run current SQL acceptance because Docker was unavailable. This is missing environment evidence, not a passed database gate or a product decision. | D01 setup; applicable schema/RLS tranches and D13 must obtain current local acceptance evidence. |
+
+Recheck when affected code/environment changes or release acceptance requires it. A baseline label never excuses a new regression.
+
+## Verification receipts
+
+None yet. Write compact records under `docs/delivery-evidence/` using its [receipt contract](delivery-evidence/README.md#writing), and link them from outcome rows. Do not append detailed history here. Verify relevant receipts against current code; reopen unsupported claims while preserving historical observations.
+
+## Resume
+
+Use [the reusable implementation prompt](implementation-prompt.md) to start or continue the durable goal. Read [the handoff](implementation-handoff.md) and [decision queue](approval-based-blockers.md), then verify the evidence relevant to the next ready outcome. Reproducibility and authorization remain the initial priorities when unresolved. A parked handoff or exhausted initial table triggers discovery across `docs/`; it does not end execution while other approved work is ready.

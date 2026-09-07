@@ -13,6 +13,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Do not store secrets, credentials, private reasoning, brainstorming notes, or transient task checklists in the plan archive.
 <!-- END:repository-plan-archive -->
 
+<!-- BEGIN:single-task-delivery -->
+# Implementation delivery
+
+- The implementation task owner reads `docs/plans/operations/2026-09-08-agent-delivery-workflow.md` and follows its startup, single-writer, verification, discovery and handoff rules. Bounded helpers follow their supplied scope and applicable contracts; they do not start portfolio goals or repeat coordinator startup. `docs/README.md` is a lookup map.
+- Invoking `docs/implementation-prompt.md` authorizes its durable goal in the current task and its bounded helpers/local work. Reviewing or editing the prompt does not launch implementation. Preserve the user's selected coordinator model and unrelated working-tree changes.
+- Treat ledger entries as claims requiring relevant code and verification evidence. Keep startup files compact, read receipts selectively, and preserve unfinished acceptance and actual approval gates.
+- Root instructions and `docs/design-system/` are the current UI contract; older decorative guidance in `.agents/AGENTS.md` does not override them.
+<!-- END:single-task-delivery -->
+
 <!-- BEGIN:casechain-design-system -->
 # CaseChain UI work
 

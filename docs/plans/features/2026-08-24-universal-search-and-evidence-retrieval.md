@@ -2,7 +2,7 @@
 title: CaseChain Universal Search and Evidence Retrieval
 status: in-progress
 created: 2026-08-24
-updated: 2026-09-01
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -36,9 +36,22 @@ Some organisations will initially import spreadsheet-maintained proceeding regis
 
 The system must find the best evidence quickly, preserve tenant isolation, explain why each result matched, and deep-link to the exact page or application record. It must not present vector similarity as a verified legal conclusion.
 
-Initial scope includes clients, matters, proceeding and supporting documents, document passages, notes, Case Brief sections, deadlines, and financial entries. Activity remains filterable through the Activity workspace and is not semantically embedded in the initial release. Generated answer or chat functionality is deferred until retrieval quality and citation coverage pass the evaluation gate in this plan.
+The design-partner release limits semantic indexing to meaningful page-aware chunks from current proceeding and supporting PDF versions. Clients, matters, document metadata, identifiers, dates, amounts, and other canonical facts use exact, lexical, or structured retrieval. Notes, chats, Case Brief blocks, Tasks, Activity, deadlines, financial narrative, and arbitrary database rows are not embedded in that release. Organisation-wide semantic expansion and generated answer/chat functionality are deferred until matter-scoped retrieval quality, citation coverage, cost, and observed user value pass the gates in this plan.
 
 ## Decisions
+
+### Delivery evidence and initial consumer order
+
+- [D12](../../delivery-ledger.md): establish dependable exact/lexical lookup, then the bounded cited Matter/current-document retrieval after the AI acquisition gate. Existing navigation links or transitional whole-document vectors do not demonstrate the planned passage-search experience.
+- Validate the implemented query/reader and Workbench locator with held-out representative cases, tenant/current-version/Trash denial and lexical fallback. An offline baseline simulating the target is not acceptance evidence for a live reader that does not consume it.
+- Report source coverage and correction/retrieval usefulness honestly; do not expose similarity as factual confidence or require users to choose retrieval algorithms. Do not expand the index or generated-answer scope to compensate for weak retrieval evidence.
+
+### Design-partner embedding boundary
+
+- Embeddings are a sensitive, regenerable retrieval index—not canonical facts, durable user memory, or a workspace-wide intelligence layer.
+- The first release embeds each changed, meaningful document chunk once for one active 768-dimensional model/chunking version. It does not create separate Matter/client/document-summary vectors or retain multiple production vector versions after a verified cutover/rollback window.
+- Semantic queries are matter-scoped by default and return cited document/page passages. Organisation and Client scopes may provide exact/lexical navigation in the first release but do not run corpus-wide vector retrieval until relevance, latency, index size, and tenant-isolation evidence justify it.
+- There are no agents, autonomous workflows, generated legal answers, Note/chat distillation, or system-wide memory in the first release. A later intelligence feature requires a separate approved plan and may consume only accessible cited retrieval results and verified structured facts.
 
 ### Product and interaction model
 
@@ -47,9 +60,9 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
 - Use two interaction depths:
   - A command palette for rapid entity navigation and exact identifier matches.
   - A full `/search` workspace for natural-language queries, grouped results, scopes, filters, saved searches, and pagination.
-- Support Organisation, Client, Matter, and Current document scopes. A scope is a relational filter over one shared index, not a separately generated embedding.
+- Preserve Organisation, Client, Matter, and Current document scopes in the query contract. In the first release, semantic passage retrieval is enabled only for Matter and Current document; broader scopes fall back to exact/lexical/structured results. A scope is always a relational filter over one shared index, not a separately generated embedding.
 - Run cheap entity/prefix suggestions while typing. Run query embedding and deep retrieval only on explicit submission or after selecting a suggested query; do not create a paid embedding on every keystroke.
-- Group results by Matters, Documents and passages, Notes, Case Brief, Deadlines, Financials, and Clients. Users can switch to a relevance-ranked combined view.
+- The first-release result groups are Matters, Documents/passages, and Clients. Notes, Case Brief, Deadlines, and Financials join the common result contract only in later verified tranches; their absence must not be presented as complete coverage.
 - Every result must show why it matched: exact identifier, matched passage, interpreted structured constraint, semantic similarity, or a combination. Similarity percentages are not user-facing confidence scores.
 - Document results show client, matter, document type/reference/date, a highlighted passage, and PDF page. Selecting one opens the shared Document Workbench at that page and highlights the cited passage or region.
 - Matter results are aggregated from matching matter fields, structured facts, and child content. They show the strongest supporting matches so users can understand why the matter was returned.
@@ -72,12 +85,13 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
 - Create each chunk embedding once and tag it with `org_id`, `client_id`, `matter_id`, `document_id`, document class, page range, content hash, and extraction/model versions. Client- and matter-level search aggregates tagged chunk results; it does not duplicate vectors.
 - Use `RETRIEVAL_DOCUMENT` for corpus chunks and `RETRIEVAL_QUERY` for search queries. Introduce an embedding provider interface with explicit task type, model, dimensions, token count, and truncation reporting.
 - Use Vertex AI `gemini-embedding-001` at 768 output dimensions for the initial rebuilt index, subject to the fixed offline relevance gate below. Store the model identifier and embedding version on every row so a future migration can run side-by-side. Disable silent truncation and split overlong input instead.
+- Embed the authoritative original-language native/OCR passage directly. The selected model is multilingual, so Hindi, English, and mixed-language chunks do not require a translated document-body copy. English entity aliases may be indexed as separate, provenance-bearing lexical/structured values, but they never replace the original source spelling or passage.
 - Keep document summaries searchable as fields, but do not let a summary vector stand in for passage indexing.
-- Scanned PDFs use OCR text and word/page coordinates. Pages without reliable text remain searchable by verified metadata and summary and are visibly labelled as having limited content search.
+- Page content comes from deterministic native-PDF text/geometry first and selective Google Document AI Enterprise OCR only for pages rejected by the versioned quality gate. Gemini legal extraction never supplies the Search transcript. Pages without reliable text remain searchable by verified metadata and English synopsis and are visibly labelled as having limited content search.
 - Treat a document record and its file attachment as separate concerns. Spreadsheet-imported records without a PDF participate in exact, full-text metadata, legal-reference, financial, date, and timeline search immediately and carry `content_availability = metadata_only`.
 - Do not generate a document-body embedding from sparse imported fields merely to make every row vector-searchable. If an import supplies a meaningful human-written abstract, index it as an `imported_abstract` chunk with explicit provenance; otherwise use structured and lexical retrieval only.
 - Attaching a PDF to an imported record preserves the document identity and timeline links, creates versioned page/OCR chunks, and upgrades search coverage without discarding the original imported values or provenance. Conflicts between imported and extracted fields enter Review rather than silently overwriting either source.
-- Notes and Case Brief blocks use the same search-item contract with their own source locators and access checks. Their embeddings are regenerated only when searchable content changes.
+- Notes and Case Brief blocks may later use the same search-item contract with their own source locators and access checks, but they are not embedded in the design-partner release. Enabling either family requires measured value, retention/privacy review, and changed-content-only regeneration.
 - Do not use the search embedding for duplicate detection. Exact duplicates use file/content hashes; near-duplicate review, if retained, uses a separately versioned representation and evaluation threshold.
 
 ### Ranking and quality
@@ -103,20 +117,20 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
 - Batch corpus embedding requests within provider limits and use content hashes to avoid recomputing unchanged chunks.
 - Generate at most one query embedding per submitted query. Use a short-lived in-process cache keyed by a cryptographic hash of normalised query plus embedding version; do not persist raw query text in the cache.
 - Track actual provider token/billable usage returned by the API; do not record character count as token count.
-- Provide per-organisation indexing counts, last successful indexing time, failure count, and embedding usage to platform operations without exposing indexed content.
+- Provide per-organisation indexing counts, active chunk/vector counts, estimated raw vector bytes, last successful indexing time, changed/rebuilt count, failure count, embedding usage, and retrieval outcome aggregates to platform operations without exposing indexed content or raw queries.
 - Search degrades gracefully: if query embedding fails, exact, full-text, and structured search still return results and the UI explains that conceptual matching was temporarily unavailable.
 
 ## Implementation Plan
 
 1. **Create a relevance and security baseline.** Build an anonymised fixture corpus and a versioned evaluation set containing exact identifiers, legal provisions, synonyms, numeric comparisons, date/FY filters, mixed Hindi/English phrasing where relevant, scanned pages, negative queries, and cross-tenant isolation cases. Record current search results before replacing it.
 2. **Separate embedding responsibilities.** Replace the current `generateEmbedding(text)` helper with a typed provider contract for corpus, query, similarity, and optional fact-verification tasks. Return model, dimensions, actual token count, truncation state, and billable usage. Stop using query/document embeddings interchangeably.
-3. **Introduce searchable content storage.** Add `search_items`, `search_chunks`, `search_legal_references`, `saved_searches`, and indexing-run/failure records with RLS, source foreign keys, deletion behavior, full-text vectors, source locators, content hashes, and embedding versions. Use HNSW cosine indexing for the rebuilt 768-dimensional chunk index; retain exact search when the corpus is too small to justify approximate search.
+3. **Introduce searchable content storage.** Add `search_items`, document-owned `search_chunks`, `search_legal_references`, and indexing-run/failure records with RLS, source foreign keys, deletion behavior, full-text vectors, source locators, content hashes, and embedding versions. Add `saved_searches` only with the later organisation-wide Search workspace. Use exact vector search while the measured corpus remains small; add/tune HNSW cosine indexing for the 768-dimensional chunk index only when query plans and corpus size justify its memory/write overhead.
 4. **Build page-aware extraction and chunking.** Chunk extracted/OCR text along document structure while retaining page and character/region anchors. Upsert only changed chunks. Index metadata-only imported records without fabricating document content, then add page chunks in place when a PDF is attached. Backfill existing active documents in resumable organisation batches with progress and retry controls.
 5. **Normalise structured facts.** Index document types, parties, GSTINs, financial years, legal provisions, deadlines, and amounts from the canonical structured domains. Define INR unit parsing and operator semantics. Do not query arbitrary `raw_metadata` paths directly from user input.
 6. **Implement the query interpreter.** Produce a Zod-validated `SearchIntent` containing free text, scope, entity types, exact identifiers, legal references, amount predicates, date/FY predicates, status/classification filters, and sort. Reject or ignore unsupported predicates with a visible explanation rather than guessing.
 7. **Implement secure hybrid search RPCs.** Run exact, full-text, vector, and structured candidate queries under caller RLS; fuse with reciprocal-rank fusion; aggregate passage matches into document and matter results; return source locators and machine-readable match reasons. Verify query plans with organisation/matter filters and tune HNSW iterative scanning only when supported by the deployed pgvector version and measured corpus size.
 8. **Replace the dashboard-only UI.** Add the shell search entry, command palette, and `/search` workspace using shared design-system inputs, filters, rows, status indicators, empty/error/loading states, and mobile drill-down. Keep one principal scroller on mobile and preserve filters in the URL.
-9. **Connect deep links.** Open clients and matters directly; open document passage results in `DocumentWorkbench` at the PDF page with a temporary highlight; open notes and Case Brief blocks at their thread/section anchors; open deadline and financial results in their matter sections.
+9. **Connect first-release deep links.** Open clients and matters directly and open document passage results in `DocumentWorkbench` at the immutable PDF version/page with a temporary highlight. Add Notes, Case Brief, deadline, and financial deep links only when those later search families are enabled.
 10. **Add operational controls.** Expose indexing state on documents, organisation backfill progress, safe reindex by source/version, failure retry, usage accounting, and provider outage degradation. Do not expose a manual rebuild control to ordinary users.
 11. **Run shadow evaluation and cut over.** Compare rebuilt results against the frozen evaluation set and current production-like queries without showing the new ranking to users. Cut over only after relevance, isolation, deep-link, and latency targets pass. Retire `documents.embedding` and the old match RPCs after rollback coverage expires.
 12. **Gate cited answers separately.** After search launch, evaluate a small cited-answer prototype over retrieved passages. Ship it only through a separate approved plan if every material answer statement can link to accessible evidence and abstention behavior passes testing.
@@ -164,18 +178,67 @@ Initial scope includes clients, matters, proceeding and supporting documents, do
   `processing_run_id` remains an internal nullable derived UUID without a
   foreign key; an organisation-aware delete-policy decision is deferred.
 
-**Approval boundary recorded 2026-09-01:** the current processing pipeline
-persists validated field candidates and quotations, but no retained,
-version-bound page text/OCR artifact. The legacy staged-intake `document_text`
-column has no live producer and cannot safely supply version/page citations.
-The Search chunk slice therefore waits for the material extraction-storage
-decision recorded in [`docs/approval-based-blockers.md`](../../approval-based-blockers.md).
+**Extraction-storage decision recorded 2026-09-01:** the current processing
+pipeline persists validated field candidates and quotations, but no retained,
+version-bound page text/OCR artifact. The approved source is one private,
+service-written artifact owned by document processing and bound to the current
+immutable PDF version. It retains page text and optional OCR word/region
+anchors, follows the source version's Trash/purge lifecycle, and is never read
+through a raw Storage path. The resolved decision is recorded in
+[`docs/approval-based-blockers.md`](../../approval-based-blockers.md#2026-09-01--search-page-text-source-and-first-release-embedding-scope).
 
-**Canonical next action after approval:** implement the page-aware document
-text/OCR changed-chunk writer against the approved private, version-bound
-extraction artifact. It must retain source version/page anchors and the same
-current-version, tenant, Trash, lease, and replay fences; do not add a query/UI
-consumer yet.
+**2026-09-01 — Step 4 storage/chunk foundation, producer correction required:** migration
+`00113` adds private, force-RLS, current-version-bound page-text artifacts,
+optional OCR anchors, page chunks, and chunk-run evidence. The existing leased
+`document.reprocess_requested.v1` worker writes the artifact only while it
+holds the matching extract/full processing and source-analysis leases; only a
+validated, version-bound current source may then supply exact code-point page
+locators to the chunk writer. Chunks validate their exact source substring,
+deduplicate by source identity rather than ordinal, retain only the approved
+Gemini model/version, and retract with malformed extraction, replacement, or
+source lifecycle. Matter reindex now enqueues the same version-keyed durable
+worker route rather than writing a parallel projection. Clean local migration
+replay, generated-type parity, focused TypeScript/lint/migration checks, the
+rollback authority/replay/replacement fixture, and fresh independent QA passed.
+No Search query, UI, generated answer, or additional content family was added.
+
+The database artifact/chunk, exact-locator, content-identity, lifecycle,
+tenant, lease, and replay foundations remain reusable. The implementation's
+Gemini-produced page transcript is superseded by the later approved
+native-first/selective-Document-AI decision and is not an approved Search
+source. Do not backfill or cut over chunks from that producer. The resolved
+provider/language/location contract is recorded in
+[`docs/approval-based-blockers.md`](../../approval-based-blockers.md#2026-09-01--page-acquisition-english-metadata-and-india-processing-boundary).
+
+**2026-09-01 — corrected native/OCR page producer:** migrations `00115` and
+`00116` preserve the private artifact/chunk foundation while replacing
+Gemini-transcribed pages with native PDF text/geometry and selective,
+Mumbai-only Enterprise OCR. Gemini now returns English structured metadata
+only. The live processing dispatch has one delivery-lease-fenced RPC contract;
+rotated anchors use transformed quadrilateral geometry; and legacy
+Gemini-derived artifacts/chunks are retracted and cannot re-enter downstream
+indexing. Clean local reset, source-lifecycle/lease/replay fixture, 20 focused
+tests, generated-type parity, and fresh adversarial QA passed. No backfill,
+Search query/UI, or remote OCR corpus run was performed.
+
+**2026-09-02 — diagnostic OCR evidence:** the authorised local run discovered
+311 PDFs, deduplicated them to 117 unique files, and evaluated 12 representative
+pages plus focused diagnostics. Hindi/English body OCR was strong and layout
+data was useful, but a handwritten `29.01.2025` was read as `29.01.2015` despite
+high aggregate confidence, and flattened output obscured table relationships.
+The run proves service/region viability, not Search quality. Preserve table
+cells/geometry and do not treat provider confidence as legal-fact validation.
+
+**Canonical next action:** expand this into a labelled 60–100-page benchmark
+covering native/scanned English, Hindi, mixed language, handwriting, tables,
+rotation, and poor scans. Measure routing precision/recall, character/word and
+critical-field exactness, table-cell/anchor correctness, latency, billed pages,
+and cost. In parallel, implement the AI plan's source-span/cell verifier and
+`@google/genai` migration. The exact Mumbai processor version
+`pretrained-ocr-v2.1.1-2025-01-31` is approved for the bounded pilot in the
+[approval record](../../approval-based-blockers.md#2026-09-03--mumbai-ocr-processor-promotion).
+Do not backfill or cut over Search until the benchmark passes; then resume the
+approved Search query contract.
 
 ## Interfaces and Data Changes
 
@@ -242,7 +305,7 @@ The old `documents.embedding`, `match_documents`, and `match_all_documents` cont
 - Return the correct `> INR 14 lakh` set for boundary values below, equal to, and above INR 1,400,000; cover lakh/lac/L and crore/Cr inputs and paise-safe comparisons.
 - Prove with automated cross-tenant tests that a user cannot infer inaccessible result counts, titles, snippets, filenames, saved searches, or vectors through RPC parameters, malformed filters, timing-oriented pagination, or direct table access.
 - Prove that listing, opening, and running an organisation-shared saved search re-authorizes the current caller and every current scope after access changes, without exposing its query/filter text or the existence of inaccessible scopes.
-- Verify current and future matter-level permissions across search items, chunks, notes, Case Brief blocks, deadlines, and financial entries.
+- Verify current matter/document permissions across first-release search items and chunks. Before enabling a later content family, add equivalent current-access tests for Notes, Case Brief blocks, deadlines, or financial entries; dormant schema capability is not permission evidence.
 - Every passage fixture deep-links to the correct document version and PDF page. When a text/region anchor exists, the expected passage is highlighted after zoom, rotation, and responsive layout changes.
 - Spreadsheet-imported records appear in exact and structured search before a PDF exists, are labelled `Metadata only`, do not claim passage matches, and gain page-level results after attachment without changing their document ID or timeline relationships.
 - Deleting, replacing, reassigning, or reclassifying a source removes stale results and rebuilds only affected index rows. Model-version migration supports side-by-side backfill and rollback without mixing incomparable vectors.
@@ -255,10 +318,10 @@ The old `documents.embedding`, `match_documents`, and `match_all_documents` cont
 ## Assumptions
 
 - All current organisation members can search the same tenant content they can already open; the schema and RLS design must still support future matter-level restrictions.
-- Document extraction or OCR can provide page-aware text for most proceeding documents. Metadata-only fallback remains available when it cannot.
+- Deterministic native extraction plus selective Enterprise OCR can provide page-aware original-language text for most proceeding documents. Metadata/English-synopsis fallback remains available when it cannot.
 - PostgreSQL full-text search and pgvector remain the primary search infrastructure for the first release; an external search service is not required at the expected initial scale.
-- English is the primary legal-document language, but the selected embedding model and evaluation set support multilingual queries and mixed-language content where CaseChain encounters it.
-- The full Search capability is part of the application overhaul, but generated legal answers are not implicitly approved by this plan.
+- English is the application and extracted-metadata display language. The authoritative passage remains in its source language; the selected embedding model and evaluation set support English queries over Hindi/English/mixed content, while exact entity search may use retained correctable English aliases.
+- The first release is cited matter/document retrieval, not the full organisation-wide Search vision. Generated legal answers, agents, and workspace memory are not implicitly approved by this plan.
 
 ## Open Questions
 

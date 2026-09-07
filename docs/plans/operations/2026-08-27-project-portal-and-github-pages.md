@@ -2,7 +2,7 @@
 title: Project Portal and GitHub Pages
 status: in-progress
 created: 2026-08-27
-updated: 2026-08-27
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -24,6 +24,7 @@ The portal must be fast, static, public only by deliberate choice, and independe
 
 ## Decisions
 
+- The [delivery workflow](./2026-09-08-agent-delivery-workflow.md) owns implementation tracking. Register newly archived plans in the reading order and public-reader/article catalogues so documentation additions do not break the portal. Generate plan-status counts from frontmatter; do not duplicate them in prose or interpret them as shipped capability.
 - A dependency-free Node.js build script reads `docs/plans/**/*.md`, then emits static HTML, CSS, and browser JavaScript into `project-portal/dist`.
 - Existing plan frontmatter is the canonical source for plan title, status, and update date. The portal intentionally focuses on the plan archive and does not present a detailed delivery snapshot on its dashboard.
 - The plan list follows the portfolio's dependency-based reading sequence so a public reader receives context before dependent domains. The portal build rejects an archived plan that has not been placed in this sequence.
@@ -39,7 +40,7 @@ The portal must be fast, static, public only by deliberate choice, and independe
 2. Build a responsive dashboard and plan reader directly from the archived Markdown files.
 3. Add a GitHub Pages Actions workflow triggered by plan, portal, status, or workflow changes on `dev`.
 4. Configure GitHub Pages to use GitHub Actions after the `dev` branch is pushed, then validate the deployed URL and small-screen presentation.
-5. Update the status snapshot whenever a verifiable implementation milestone changes; retain links to canonical plans rather than copying their decisions into the portal.
+5. Keep delivery evidence in `docs/delivery-ledger.md`; the legacy `docs/project-portal-status.json` is not a current authority and is not consumed by the dashboard. Any later public delivery summary is generated from an explicitly reviewed safe subset of the ledger. Keep private task handoffs, detailed acceptance logs and operational evidence out of public articles.
 
 ## Interfaces and Data Changes
 

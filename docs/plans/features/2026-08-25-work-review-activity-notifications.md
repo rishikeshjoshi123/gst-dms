@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: in-progress
 created: 2026-08-25
-updated: 2026-09-01
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -18,6 +18,15 @@ related:
 
 # Work Orchestration, Review, Activity, Notifications, and Today
 
+## Reading guide
+
+Use the [shared reading rules](../../README.md#reading-a-large-plan). Read the scope/security links first, then relevant operations and their interfaces/acceptance. Expand dependencies when needed; recorded checkpoints require current-code reconciliation.
+
+- **Read first:** [Current consumer gaps](#legacy-consumer-closure-from-the-september-review) · [Domain boundaries](#domain-separation) · [Permissions/lifecycle](#permissions-and-lifecycle-integration).
+- **Work state:** [Tasks](#tasks) · [Review decisions](#review-items-and-decisions) · [Activity](#activity-event-model) · [State machines](#state-machines).
+- **Consumers:** [Notifications](#notification-policy) · [Delivery](#preferences-and-delivery) · [My Work](#my-work) · [Today](#today-command-centre) · [UI contracts](#workspace-interaction-contracts).
+- **Checks and contracts:** [Interfaces](#interfaces-and-data-changes) · [Acceptance](#testing-and-acceptance-criteria) · [Assumptions](#assumptions) · [Open questions](#open-questions).
+
 ## Summary
 
 Replace CaseChain's overlapping dashboard, pending-review queries, note action items, ad hoc activity logs, and noisy notifications with five explicit capabilities:
@@ -26,7 +35,7 @@ Replace CaseChain's overlapping dashboard, pending-review queries, note action i
 - **Tasks** are owned work with an assignee and lifecycle.
 - **Review** contains a specific human decision that cannot safely be automated.
 - **Notifications** are personal interruptions caused by direct responsibility or urgent risk.
-- **My Work** and **Today** are secured read models over tasks, review assignments, verified deadlines, mentions, failures, recent work, and activity; they do not duplicate source state.
+- **My Work** and **Today** are secured read models over tasks, verified deadlines, mentions, failures, recent work, and activity; they do not duplicate source state. Review remains a separate shared queue for authorised users.
 
 Make `/today` the authenticated command centre and keep `/dashboard` as a compatibility redirect. Today uses deterministic urgency groups rather than vanity statistics or opaque AI ranking. Organisation Review, Activity, and Notifications receive dedicated workspaces with valid source locators, server-side filters, stable counts, and mobile-equivalent flows.
 
@@ -47,6 +56,13 @@ Success means the same source item has one lifecycle, counts agree everywhere, r
 The domain separation, Today/My Work philosophy, Review and Activity models, notification policy, configurable weekly email digest, and gated optional AI overview were approved on 2026-08-25.
 
 ## Decisions
+
+### Legacy consumer closure from the September review
+
+- [D08](../../delivery-ledger.md) requires retiring `dismissReviewFlag` as a generic status reset. A visible exception closes only through its owning typed resolver with allowed action, reason/evidence, source revision and decision history. A disabled generic action must also be denied server-side. This is not an instruction to make all AI candidates effective on dismissal.
+- Remove note action items from Review; read canonical Task state wherever linked Tasks remain visible. Do not restore dual writes to `case_notes.action_item_resolved` merely to satisfy the legacy Review reader.
+- Deliver the smallest extraction/placement/duplicate/recovery Review producer-to-decision flow that the pilot uses, including stale-decision/replay handling and Activity. Keep the recorded Review visual approval boundary; independent legacy reader repairs need not wait for that approval.
+- Activity author displays use the organization-safe member projection or immutable actor snapshot, not a global Auth-admin email lookup. Initial freshness work prioritizes claims and decisions through the Realtime plan.
 
 ### Domain separation
 
@@ -80,7 +96,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - A task created directly in Tasks starts with an empty Comments stream. A task created from Notes links back to its exact origin message, but the surrounding Notes conversation and Task Comments continue independently; later Notes messages are not copied into Task Comments.
 - Creator and assignee follow Task Comments by default for unread visibility; routine comments do not create interruptive notifications. Valid `@` mentions notify accessible active organisation members under the same access revalidation and delivery rules as Notes mentions. Comment unread state is personal and does not affect task status.
 - Completed and cancelled tasks remain commentable so collaborators can record follow-up context without reopening work. Reopening is always an explicit task transition. A task suspended because its owning resource is in Trash is fully read-only, including Comments, until restore re-evaluates it.
-- Owner/Admin and Associate may create tasks and assign them to active operational members. Viewer is read-only and cannot be a task or Review assignee in the first release.
+- Owner/Admin and Associate may create tasks and assign them to active operational members. Viewer is read-only and cannot receive a task or resolve a Review item in the first release.
 - Reassignment, due-date change, priority change, completion, cancellation, reopening, and suspension are domain transitions with optimistic concurrency and Activity.
 - Removing a member unassigns their open tasks in one audited operation and surfaces urgent/unassigned work to Owner/Admin. It never deletes or marks tasks complete.
 - Task completion does not notify the whole matter. Assignment/reassignment creates a direct notification; completion is visible through Activity unless a later explicit watcher policy is approved.
@@ -91,18 +107,18 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - Add normalized `review_items`, `review_item_evidence`, and append-only `review_item_decisions`.
 - Initial Review types are extraction invalid/conflict, possible duplicate, ambiguous placement, inferred/conflicting relationship, deadline verification, financial verification, Case Brief contradiction/proposed change, import validation exception, restore conflict, and supported processing recovery decisions.
 - Staged documents waiting for an ordinary user assignment remain in Document Hub. Note tasks remain in My Work. They never appear in Review merely because they are unfinished.
-- Each Review item contains one decision boundary, reason code, impact statement, source and subject locators, client/matter/document lineage, priority, age, state, assignee, evidence, allowed actions, dedupe key, and source version/revision.
+- Each Review item contains one decision boundary, reason code, impact statement, source and subject locators, client/matter/document lineage, priority, age, state, evidence, allowed actions, dedupe key, and source version/revision. It has no durable assignee: authorised intake users work from the shared queue.
 - Group related extraction candidates into one coherent document Review item where one decision flow can resolve them. Do not create a queue row for every harmless AI field.
 - State is `open`, `in_progress`, `resolved`, `dismissed`, `superseded`, or `suspended`. `Dismiss` exists only for Review types whose policy permits no-action resolution and always records a reason; it is not a generic hide button.
 - Every type has a typed decision schema and owning resolver. A generic Review endpoint cannot apply arbitrary JSON changes to domain tables.
-- Claim and resolution use a row revision/optimistic lock. Before applying a decision, revalidate current source version, tenant access, Trash state, and conflict facts. Stale items become superseded or return refreshed evidence instead of applying an outdated choice.
+- Starting a decision creates a short-lived Review claim; merely opening or reading an item does not. Claim and resolution use a row revision/optimistic lock. The claim prevents two people from deciding the same item at once, is visible to other authorised users, and is released on explicit exit, account suspension/removal, or bounded inactivity expiry. The shared item remains in Review throughout. Before applying a decision, revalidate current source version, tenant access, Trash state, and conflict facts. Stale items become superseded or return refreshed evidence instead of applying an outdated choice.
 - Resolution atomically applies the domain command, appends the decision and Activity, closes/supersedes related items, and emits only the required notifications.
 - Identical low-risk Review decisions may support evidence-preserving bulk resolution. Deadline, financial, restore, destructive, or mixed-impact decisions remain individual.
 
 ### My Work
 
-- `/my-work` is personal responsibility, not an organisation backlog. It projects open/in-progress tasks and Review assigned to the current user, verified assigned deadlines, provisional urgent deadlines awaiting that user's verification, unread mentions, and failures explicitly assigned to that user.
-- Unassigned Review and tasks appear only in authorised organisation queues and an Admin/Owner attention projection, not in every member's My Work.
+- `/my-work` is personal responsibility, not an organisation backlog. It projects open/in-progress tasks, verified assigned deadlines, provisional urgent deadlines awaiting that user's verification, unread mentions, and failures explicitly assigned to that user.
+- Shared Review items appear only in the authorised Review queue and its aggregate Admin/Owner attention projection, not in every member's My Work. Unassigned tasks remain in their authorised organisation queue.
 - Group default results into Overdue, Today, Next 7 days, Later, and No due date. Within a group use consequence/priority, then due time/date, then age; do not use AI relevance.
 - Filters support work type, client, matter, priority, due window, status, and origin. Default is `Assigned to me`; `Created by me` is separate. State is URL-addressable and server-paginated.
 - My Work actions are type-specific. Completing a task, opening a Review decision, viewing a deadline, or opening a mention use the source domain's command/route rather than a generic complete button.
@@ -110,12 +126,12 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 ### Notification policy
 
-- Notifications are addressed personal interruptions. The initial allowlist is direct Notes or Task Comment mentions; task assignment/reassignment; Review assignment/escalation; approaching or overdue verified deadlines assigned/subscribed to the user; organisation invitations and material security/access changes; processing failures requiring that user's action; and urgent storage/operational risk directed to authorised administrators.
+- Notifications are addressed personal interruptions. The initial allowlist is direct Notes or Task Comment mentions; task assignment/reassignment; exceptional Review escalation directed to authorised administrators; approaching or overdue verified deadlines assigned/subscribed to the user; organisation invitations and material security/access changes; processing failures requiring that user's action; and urgent storage/operational risk directed to authorised administrators.
 - Do not notify for ordinary upload completion, successful extraction, document processed/ready, staged intake ready, routine relationship creation, Case Brief refresh, generic Activity, or another person's normal task completion.
 - Create `notification_intents` from domain/outbox events, then fan out idempotently into personal `notifications` and channel `notification_deliveries`. A deterministic dedupe key prevents repeated retries or schedulers from producing duplicates.
 - `notifications` stores recipient, event family, reason, concise title/body snapshot, source event, target locator, action label, unread/read/archive timestamps, dedupe key, and creation/expiry data. Replace `is_read` with `read_at`; archiving is separate from reading.
 - Every notification has a valid authorised target and one clear action. If the target enters Trash, the link opens its approved read-only Trash route. If access is revoked, the notification becomes non-disclosing and cannot leak identity through counts or text.
-- Direct-accountability in-app notifications cannot be disabled: direct mention, task/Review assignment, verified assigned deadline, invitation/security event, and assigned failure. Email and non-direct subscriptions remain configurable.
+- Direct-accountability in-app notifications cannot be disabled: direct mention, task assignment, verified assigned deadline, invitation/security event, and assigned failure. Email and non-direct subscriptions remain configurable.
 - Notification delivery is independent of source success. Email failure never rolls back task assignment or Review resolution; it is retried with safe operational status.
 - Default notification centre views are Action required, Unread, All, and Archived. Remove the current generic System category.
 - Reading a notification is not resolving its task, Review item, deadline, or failure. Resolution may automatically archive the notification through a source-state event.
@@ -125,11 +141,11 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - Replace boolean email columns with per-event-family preferences for in-app and email, delivery mode (`immediate`, `weekly_email_digest`, `off` where allowed), verified-deadline lead times, quiet hours, timezone, and email-digest schedule.
 - Optional email families and the weekly digest default to `off` for new users and require explicit opt-in. Mandatory access/security delivery is not exposed as an optional toggle and cannot be disabled.
-- Initial configurable email families are mentions, task assignments, Review assignments, verified deadline reminders, and assigned failures. Invitation/security delivery follows its mandatory access policy and is not presented as an optional toggle. Routine processing has no preference because it is not a notification.
+- Initial configurable email families are mentions, task assignments, verified deadline reminders, and assigned failures. Review has no personal-assignment email family; only exceptional administrator escalation uses the governed operational-notification path. Invitation/security delivery follows its mandatory access policy and is not presented as an optional toggle. Routine processing has no preference because it is not a notification.
 - Deadline offsets support a validated set such as 30, 14, 7, 3, and 1 day plus due/overdue policy. Deduplicate by deadline, recipient, effective due date, and offset. Correcting a deadline cancels stale scheduled deliveries and creates new ones only after verification.
 - Quiet hours defer ordinary immediate deliveries until the next allowed time. Security events, invitations nearing expiry, and verified deadlines within 24 hours may bypass quiet hours under explicit policy.
 - A **weekly email digest** is a configurable bundled email of eligible non-urgent notifications and work that would otherwise arrive separately. Each user can turn it off, choose the included families, weekday, local send time, and timezone. Organisation settings may provide defaults but cannot force non-mandatory email on a user.
-- The deterministic core groups existing items by family and links to Today, My Work, Review, or the exact source. It includes assigned/open work, verified upcoming deadlines, mentions, Review assignments, failures requiring action, and a restrained activity summary; it never invents facts or copies sensitive legal content into email.
+- The deterministic core groups existing items by family and links to Today, My Work, or the exact source. It includes assigned/open work, verified upcoming deadlines, mentions, failures requiring action, and a restrained activity summary; it never invents facts or copies sensitive legal content into email. It does not turn the shared Review queue into personal work.
 - Urgent verified deadlines, direct security/access events, and other explicitly immediate families do not wait for the weekly digest even when the digest is enabled.
 - The weekly digest omits resolved, trashed, revoked, or inaccessible items at send time. It is a delivery preference only and does not appear as a separate Today/Dashboard card; Today already provides the live in-app view of current work.
 - An optional **AI-written weekly overview** is deferred behind a separate evaluation flag. If later enabled, it may only turn the digest's already-authorised structured facts into a short narrative such as what changed and what needs attention next week. It cannot read raw PDFs or full notes for this purpose, calculate deadlines, provide legal advice, add new claims, or alter ranking.
@@ -141,9 +157,9 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - Make `/today` canonical and redirect legacy `/dashboard` URLs. Navigation label is Today.
 - Today is personal and action-first. Remove client/matter/document count cards and the dashboard-owned search implementation; Search remains a shell capability with its dedicated workspace.
 - Use deterministic groups rather than a hidden numeric score: Needs action now, Due today, Coming up during the next seven days, Resume, and a five-event Recent activity preview.
-- Needs action includes overdue verified deadlines/tasks, urgent assigned Review, and assigned failures. Coming up is grouped by date.
+- Needs action includes overdue verified deadlines/tasks and assigned failures. Exceptional Review backlog risk is an authorised team-attention signal, not personal work. Coming up is grouped by date.
 - Overdue deadlines are always included; the current future-only query behavior is removed. Provisional deadlines are clearly labelled and appear only when the user must verify them.
-- Owner/Admin may see a compact Team attention section for unassigned urgent Review, unassigned urgent tasks, and systemic failures. Do not add portfolio totals or vanity metrics.
+- Owner/Admin may see a compact Team attention section for urgent shared Review backlog, unassigned urgent tasks, and systemic failures. Do not add portfolio totals or vanity metrics.
 - Team attention also includes a deduplicated Trash warning 24 hours before a root Trash operation is scheduled for permanent deletion. It links to that operation for restore or authorised permanent deletion and resolves automatically if the source is restored or deleted first; it is an organisation attention projection, not a copied task or Review item.
 - Use actual source state to derive the first-use checklist: organisation profile, first client, first matter, first upload, and team invitation where authorised. Do not store completion flags that can drift.
 - Track per-user recent resource views with tenant-scoped rows, bounded history, and explicit access/Trash filters. Viewing Activity or a list page does not overwrite substantive resume context.
@@ -153,7 +169,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - **Today:** one principal scroller below stable identity/actions. Each urgency group has a bounded preview and clear route to My Work or Review; live updates do not reorder an item under the pointer.
 - **My Work:** dense grouped list/table on desktop with server filters and prioritized drill-down list on mobile. Type and urgency remain understandable without colour.
-- **Review:** desktop list/detail workspace with stable queue filters and evidence/decision pane; mobile uses list-to-detail navigation with preserved list position. Every row states why, impact, age, owner, evidence availability, and one primary decision.
+- **Review:** desktop list/detail workspace with stable queue filters and evidence/decision pane; mobile uses list-to-detail navigation with preserved list position. Every row states why, impact, age, whether someone is actively reviewing it, evidence availability, and one primary decision.
 - **Activity:** dense chronological feed grouped by Today, Yesterday, and calendar date. Server filters cover actor, category/event, client, matter, entity, source, and date range; URL state is shareable. Matter Activity reuses the same renderer.
 - **Notifications:** stable chronological list. Newly received items show a `New notifications` affordance instead of shifting the scrolled list. Each row explains why the user received it and exposes its action.
 - **Tasks:** desktop uses a compact table/list with an on-demand detail pane; selecting a row or following a Notes task link opens the same pane without requiring a second page. Its stable header contains **Task details** and **Comments** tabs. Each tab owns one deliberate body scroller while the tab bar and permitted actions remain fixed. Mobile uses list-to-full-detail navigation with the same two tabs, preserved list position, and one principal content scroller.
@@ -162,7 +178,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 ### Permissions and lifecycle integration
 
 - RLS and domain commands derive organisation/user scope from authenticated identity and the ordinary user's exactly one active organisation membership. They do not select a newest membership or trust a browser organisation ID, cookie, or selected-workspace record. Caller-supplied assignee, subject, event, and locator IDs are revalidated against that membership and resource access.
-- Viewer can read permitted Activity and receive informational mentions/deadline notifications, but cannot create/complete tasks, be assigned actionable tasks/Review, or resolve Review.
+- Viewer can read permitted Activity and receive informational mentions/deadline notifications, but cannot create/complete tasks, receive actionable tasks, or resolve Review.
 - Associate can manage operational tasks and resolve permitted extraction, relationship, placement, and deadline Review. Owner/Admin has organisation triage, reassignment, configuration, and privileged decision capabilities. Financial/internal-cost and destructive permissions remain with their owning plans.
 - Future matter-level access automatically limits Activity, My Work, Review, notifications, counts, and locators. No projection reveals inaccessible existence or counts.
 - Trash suspends dependent tasks/Review/reminders and removes them from active Today/My Work. Restore re-evaluates relevance; it does not send accumulated notifications or reopen stale decisions blindly.
@@ -245,7 +261,7 @@ and invariant-corruption fixtures. The resolved decision is recorded in
 - `task_comment_mentions`: comment, mentioned member/user, creator, and timestamp; unique per comment/member.
 - `task_comment_read_cursors`: member/task thread, highest observed sequence, and observed timestamp.
 - `task_comment_followers`: task/member follow source (`creator`, `assignee`, or explicit preference), mute state where policy permits, and timestamps.
-- `review_items`: organisation lineage, type/reason, subject/source locators and versions, impact, priority/state, assignee, dedupe key, revision, escalation and lifecycle timestamps.
+- `review_items`: organisation lineage, type/reason, subject/source locators and versions, impact, priority/state, dedupe key, revision, escalation and lifecycle timestamps. Temporary claim holder, activity and expiry are stored separately from durable item responsibility.
 - `review_item_evidence`: review item, typed evidence locator, label, excerpt/structured facts, ordering, and access state.
 - `review_item_decisions`: review item/revision, validated decision type/payload, actor/reason, result locator, and timestamp; append-only.
 - `notification_intents`: source event, family, recipients/subscribers, reason, target, dedupe key, scheduling, and projection state.
@@ -300,6 +316,9 @@ Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComme
 
 ## Testing and Acceptance Criteria
 
+- A generic dismissal cannot erase an unresolved issue; a permitted no-action resolution retains a typed decision and reason. Concurrent or stale resolutions do not apply twice or affect a newer source.
+- Completing a migrated Notes-created Task updates every enabled Task projection and does not leave an open legacy note-action row in Review. Test through the actual reader and command, not source-string matching alone.
+
 - Every material mutation emits exactly one allowed Activity event with stable snapshots, correct lineage/locator, safe metadata, and idempotency. Retries do not duplicate it.
 - Historical Activity renders after rename, member removal, Trash, restore, source replacement, and purge without live administrator user enumeration or raw UUID descriptions.
 - Legacy note action items migrate one-to-one to Tasks with assignee, due date, completion state, origin, and legacy provenance. Note edits/deletion do not silently mutate the task.
@@ -307,14 +326,14 @@ Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComme
 - Task details and Comments are keyboard-accessible URL-addressable tabs. Comments match the shared Notes feed/composer interaction, mentions and unread behavior, but Task Comments and Notes messages never copy or mirror one another.
 - The Task Comments composer exposes no create-task action. Direct Tasks begin with an empty stream; completed/cancelled Tasks accept comments without reopening; suspended Tasks are read-only. Posting, editing, deleting, mentioning, observing, retrying, and concurrent delivery are tenant-safe and idempotent, and none changes Task status implicitly.
 - Task transition history contains actual task-domain transitions and assignment/field changes, not synthetic states or duplicated comment rows. Comments remain available in their dedicated tab.
-- Tasks, ordinary staged placement, and routine processing never appear in Review. Every Review item identifies a current decision, evidence, impact, assignee/state, and valid typed resolver.
+- Tasks, ordinary staged placement, and routine processing never appear in Review. Every Review item identifies a current decision, evidence, impact, state, and valid typed resolver; it has no durable assignee and any temporary claim is visible and bounded.
 - Concurrent Review claim/resolution and stale-version tests prevent double resolution or outdated writes. Dismiss is unavailable when an explicit decision is required.
 - Clean AI extraction creates no gratuitous Review rows; risk-based exceptions bundle related fields under the AI plan.
 - Routine upload, processing, Case Brief, and link events create no personal notification. Eligible events create one deduplicated notification per intended recipient with a valid authorised target and reason.
 - Read, archive, source resolution, and task/review/deadline completion remain distinct. Source resolution can archive related notifications without corrupting Activity.
 - Preferences, weekly schedule/timezone, included families, deadline corrections, lead-time dedupe, quiet hours, digest filtering, email retry/failure, revoked access, member removal, and Trash suspension behave deterministically.
 - The optional AI overview cannot add a fact absent from the deterministic digest fixture, exposes source traceability, is clearly labelled, fails open to the deterministic email, records AI usage, and remains disabled until its separate evaluation gate passes.
-- Viewer cannot be assigned actionable Tasks/Review or invoke mutations; Associate/Admin/Owner capabilities hold through UI, RPCs, direct IDs, and cross-tenant attempts.
+- Viewer cannot receive actionable Tasks or invoke Review mutations; Associate/Admin/Owner capabilities hold through UI, RPCs, direct IDs, and cross-tenant attempts.
 - Task readers and transitions derive tenant authority from exactly one active membership and reject browser-submitted organisation authority. Fixtures cover zero membership, suspended/removed membership, removed-history plus one current membership, concurrent second-join denial, and impossible duplicate-current membership without disclosing either organisation or creating a user-facing workspace stalemate.
 - Today includes overdue verified deadlines/tasks, uses the approved deterministic groups, excludes vanity totals and routine processing, and filters inaccessible/trashed items.
 - My Work, Review, notification badges/pages, and Today show consistent counts from the same secured source state. Queries are server-paginated and never derive totals from capped client arrays.

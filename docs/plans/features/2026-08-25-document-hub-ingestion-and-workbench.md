@@ -2,7 +2,7 @@
 title: Document Hub, Ingestion, Placement, Relationships, and Workbench
 status: approved
 created: 2026-08-25
-updated: 2026-09-01
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -18,11 +18,20 @@ related:
 
 # Document Hub, Ingestion, Placement, Relationships, and Workbench
 
+## Reading guide
+
+Use the [shared reading rules](../../README.md#reading-a-large-plan). Read the scope/security links first, then relevant operations and their interfaces/acceptance. Expand dependencies when needed; recorded checkpoints require current-code reconciliation.
+
+- **Read first:** [Scope](#scope-boundaries) · [Current corrections](#september-review-closure-and-pilot-scope) · [Security](#permissions-and-security).
+- **Ingestion and placement:** [Ingestion contract](#end-to-end-ingestion-contract) · [State boundaries](#state-separation-and-orchestration) · [Duplicates](#exact-duplicates-and-intentional-reuse) · [Placement](#placement-engine-overhaul).
+- **Relationships and workspace:** [Relationships](#reference-and-procedural-relationship-overhaul) · [Hub](#document-hub-experience) · [Workbench](#shared-document-workbench) · [Approved visuals](#visual-approval-boundary-approved-2026-09-05).
+- **Checks and contracts:** [Interfaces](#interfaces-and-data-changes) · [Acceptance](#testing-and-acceptance-criteria) · [Assumptions](#assumptions) · [Open questions](#open-questions).
+
 ## Summary
 
 Rebuild document intake as one durable path from file selection to an evidence-backed document inside a matter. Global uploads, matter uploads, later file attachment, replacement versions, and future external acquisition all enter through the same upload-session, immutable-asset, validation, analysis, placement, and projection contracts. The pipeline extracts a unique PDF once, never copies it merely to assign it, records every consequential automated decision, and can resume individual failed stages without a user-facing `Sync` action.
 
-Replace the current reference-first assignment function with a versioned placement engine that separates human-declared destination, deterministic evidence, ranked suggestions, conflicts, and effective assignment. Initial automatic placement is deliberately limited to an explicit intended matter or one unique, high-authority matter anchor with no contradictory evidence. GSTIN plus financial year, fuzzy references, names, filenames, and semantic similarity can rank suggestions but cannot silently file a document in the initial policy.
+Replace the current reference-first assignment function with a versioned placement engine that separates human-declared destination, deterministic evidence, ranked suggestions, conflicts, and effective assignment. Organisation placement defaults to manual: an explicit intended matter is a human-declared destination, while evidence-inferred automatic placement remains inactive unless an Owner/Admin opts into `strong_evidence_auto_place`. Even then, it is limited to one unique, high-authority matter anchor with no contradictory evidence. GSTIN plus financial year, fuzzy references, names, filenames, and semantic similarity can rank suggestions but cannot silently file a document.
 
 Replace the current `document_links` algorithm with two layers: source-grounded reference mentions and effective procedural relationships. An ordinary citation does not automatically become a timeline edge. Exact, unique, same-matter, procedurally explicit relationships may auto-confirm; fuzzy or progression-only inference becomes a Review candidate. Manual decisions remain authoritative, rejected suggestions do not recur, self-links are impossible, and event-driven reevaluation replaces the ordinary-user `Re-evaluate links` button.
 
@@ -30,7 +39,9 @@ Make Document Hub the operational queue and create one shared `DocumentWorkbench
 
 ## Context and Goals
 
-### Current-state audit
+### Historical audit at plan creation
+
+This describes the original paths, not the current completion state. Use [delivery outcomes D04–D09](../../delivery-ledger.md) and the implementation checkpoints below for the current handoff; reverify the actual checkout before changing a completed foundation.
 
 The current application has two partially independent ingestion paths:
 
@@ -86,6 +97,16 @@ The present PDF experiences are also inconsistent. Document Hub opens a PDF-only
 
 ## Decisions
 
+### September review closure and pilot scope
+
+- D04/D05: use the File Lifecycle plan's bounded direct resumable upload and **Attach PDF** contract. Show real transferred bytes separately from validation/processing. After reload, durable status is recoverable but incomplete file transfer may require reselection; do not promise background or cross-device upload. No replacement/version-management interface is required for the pilot.
+- D06: readers return explicit success/error results. A successful empty snapshot clears stale rows; only a genuine read failure preserves the last successful view with honest freshness. Sign requests and PDF results are fenced by selected subject/version and request generation; a late result for A cannot render beside B's metadata.
+- D06: collections use bounded server pagination and true count projections; destination lookup is bounded/searchable. Fetch the selected inspector and necessary relationship context instead of every document in the matter. Invalidation reconciles selected effective metadata as well as rows through the approved Realtime contract.
+- D06/D07: validate the shared production viewer and its real consumers at 320px/360px, short desktop heights, dark mode, keyboard/touch and 200% zoom. Use fit-to-width, responsive toolbar layout and gap-aware split sizing; the approved 460px concept is not evidence that a different production component passed.
+- D07: pass selected immutable version/page through loader, viewer, inspector and quote persistence. Label any current interpretation alongside historical evidence explicitly; do not offer misleading current-metadata editing from that historical context. Version-bound citations are required even while replacement UI is deferred.
+- D09: replace client-plus-financial-year uniqueness with the approved proceeding/matter identity safeguards only after audit/backfill. Update manual creation, placement and Trash Restore together. Similar metadata may suggest a candidate but never merge documents; two distinct matters for the same client/year must be representable.
+- Fix labels in touched real flows: consistent CaseChain naming, descriptive visible verbs, `Move to Trash` for recoverable deletion, and explicit unavailable capability states. Do not create another concept round for settled shared patterns.
+
 ### Product vocabulary, routes, and ownership
 
 - The user-facing capability is **Document Hub**. Use `/documents` as its canonical collection route and `/documents/intake/{intakeItemId}` for an unassigned item. Keep `/inbox` as a compatibility redirect after cutover.
@@ -105,8 +126,8 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 | 2. Transfer and finalize | Bytes upload directly to the private organisation asset key. Finalization verifies object existence and server-observed bytes; it commits/ensures an `intake_item` and an outbox event. Browser disconnect does not lose the durable item. | The row becomes `Validating`; refresh or another device can resume its state. |
 | 3. Validate and fingerprint | Validate PDF signature/readability, encryption, page limits, detected MIME, suspicious-content policy, SHA-256, and quota accounting. Never trust extension, browser MIME, declared size, or client hash. | Valid files continue. Password-protected/malformed/oversize/quarantined files show a safe reason and exact recovery action. |
 | 4. Resolve exact duplicate | Match the server hash against active, historical, Intake, and Trash asset references in the organisation before a paid AI call. | Open existing, view/restore Trash, return to the active intake item, or cancel. Ordinary upload cannot create a duplicate logical record. |
-| 5. Acquire page content | Extract the native PDF text layer and page geometry. Run OCR only for pages that have absent or low-quality text, retaining page/word boxes and quality. | The row is `Extracting` with a real `Reading document` or `Running OCR` substage; limited/unreadable pages are disclosed rather than hidden. |
-| 6. Extract and validate | Run the versioned Vertex extraction contract once for the immutable asset/schema/model input, validate with Zod and domain rules, and persist source-grounded candidates. | Key facts populate progressively; structural failure becomes retryable without losing the file. |
+| 5. Acquire page content | Extract native PDF text and geometry locally page by page. Apply the versioned quality gate, then send only absent, low-quality, or suspicious mixed pages to the Mumbai Google Document AI Enterprise OCR processor, retaining acquisition method, original-language text, page/word boxes, language, and quality. | The row is `Extracting` with a real `Reading document` or `OCR processing {N} pages…` substage; limited/unreadable pages are disclosed rather than hidden. A provider batch exposes its truthful page scope, not invented page-by-page progress. |
+| 6. Extract and validate | Send the immutable PDF to the versioned Mumbai Vertex Gemini contract for structured GST/legal metadata only, validate with Zod and domain rules, and persist source-grounded candidates. Gemini returns an English synopsis and English display metadata but no transcript/OCR layer. | Key facts populate progressively; structural failure becomes retryable without losing the file. |
 | 7. Classify and place | Resolve human intent, class candidate, placement candidates, evidence, contradictions, and policy. Matter-intended uploads can be placed after validation; global Intake waits for a valid automatic or human placement decision. | The row becomes `Matching`, `Needs placement`, `Conflict`, or `Assigned`. |
 | 8. Materialize document/version | In one domain transaction, create or attach the logical document and immutable version, bind reusable source-analysis artifacts, apply eligible metadata, record placement/classification decisions, append Activity/outbox, and close Intake. No binary move/copy occurs. | The assigned document appears immediately in the matter with remaining stages inline. |
 | 9. Build domain projections | Independently evaluate reference mentions/relationships, deadline and financial candidates, page-aware Search chunks/embeddings, and other derived projections. Each stage has its own run/failure state. | The document can be viewed while later projections say `Indexing`, `Relationship review`, or another real partial state. |
@@ -120,12 +141,26 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 - Processing scopes are `validate`, `page_text_ocr`, `extract`, `placement`, `relationships`, `deadline_financial_projection`, `search_index`, and `full`. UI offers a scoped recovery action for a failed stage, not a generic rebuild.
 - `Ready` does not wait for Search embeddings, Case Brief refresh, email, or other nonessential projections. Their failures remain separately observable and retryable.
 
+### Approved page acquisition and language contract (2026-09-01)
+
+- Native page text/geometry is the default authoritative page source and is acquired before a paid provider call. The versioned quality gate rejects empty/sparse, broken-encoding, implausible, or image-heavy mixed pages; non-empty native text alone does not prove that visible stamps, handwriting, or table regions are represented.
+- Google Document AI Enterprise OCR is the approved selective OCR adapter. Use a pretrained `OCR_PROCESSOR` in Mumbai (`asia-south1`); no custom training or prompt is required. Ordinarily render rejected pages at 300 DPI and retain processor/version, detected language, quality, and normalized word/region coordinates.
+- Original Hindi, English, or mixed-language native/OCR text remains the quotation and Search source. OCR does not translate it. Limited/unreadable pages retain metadata-only coverage with an explicit user-visible limitation.
+- Gemini remains the GST/legal interpretation step. Its response schema contains no full-page transcript, `page_text`, or OCR-word stream. User-facing synopsis and descriptive metadata are English; proper names use a correctable English transliteration while exact original spelling/evidence remains retained. Exact GSTINs, references, provisions, dates, and amounts are preserved unchanged.
+- Gemini document extraction and Document AI OCR use separately configured Mumbai endpoints. Embeddings use their own location configuration and cannot inherit or silently override the document-processing location.
+- Commit `aa13669` remains useful for private page artifacts, chunks, anchors, lineage, leases, lifecycle, and replay. Its Gemini-transcription producer is superseded and cannot supply backfill or Search cutover until replaced and independently reverified.
+
 ### State separation and orchestration
 
 - Keep separate state machines for upload session, asset validation, source analysis, intake placement, logical record, document version, candidate verification, relationship evaluation, Search indexing, and notification delivery.
 - The compact Hub stage vocabulary is `Queued → Validating → Extracting → Matching → Ready`, with explicit `Needs placement`, `Review`, `Duplicate`, and `Failed` outcomes. `Extracting` exposes the current real substage such as native text, OCR, or AI metadata. It is a projection over actual states and never a percentage.
+- Long-running processing is not one open database transaction. Each trusted worker transition commits durable state to the owning `source_analysis_runs`, `document_processing_runs`, page-artifact, or `intake_items` record with expected state/revision, idempotency, attempt/retry, heartbeat, and safe failure data as applicable.
 - Every state transition is a server-side domain command or trusted worker transition with expected prior state/revision. The browser cannot arbitrarily update statuses.
 - Upload finalization and every mutation that requires asynchronous work commit an outbox event in the same database transaction. A dispatcher leases, delivers, retries, and records attempts. Trigger.dev task acceptance is never the only durable copy of processing intent.
+- `outbox_events` is the delivery envelope, not the Hub progress record. `delivered` means that Trigger.dev accepted the instruction; it never means that OCR, extraction, placement, or indexing completed. Outbox payloads remain limited to safe identifiers, versions, scopes, reason codes, and counts and never carry PDF/OCR text, provider payloads, prompts, embeddings, storage paths, signed URLs, credentials, or lease secrets.
+- Serve Hub processing state through one organisation-authorized, allowlisted projection over the owning run, Intake, and page-artifact records. It may return safe resource/run IDs, display stage/substage, run state, attempt count, retry time, safe error/recovery code, meaningful timestamps, truthful page totals and native/OCR planned/completed/failed counts, and server-derived available actions. It never exposes internal lease tokens, provider diagnostics, source text, storage identity, or unrestricted worker telemetry.
+- Realtime is an invalidation hint, not a second state authority. A permitted change signal causes the selected queue row to refetch that projection; initial load, refresh, focus/reconnect, and another device reconstruct the same state from the database. Realtime loss cannot strand or misstate the workflow.
+- For one Document AI request containing multiple pages, show `OCR processing {N} pages…` until the batch succeeds or fails. Show `X of N` only when completed page results have actually been persisted independently; never interpolate time into a percentage or simulated page count.
 - Workers validate `org_id`, source lineage, record/Trash state, source version, and idempotency key on every run. Replayed events skip completed stages or resume the failed stage without duplicating candidates, decisions, relationships, deadlines, Activity, or notifications.
 - In-flight work stops publishing active projections when the Intake item, document, matter, or client becomes unavailable. Trash integration follows the approved suspension/restoration rules.
 - Active queue rows remain in place during realtime updates. Assignment changes the selected row to a success handoff with `Open document` and `Open matter`; it does not disappear under the pointer. Completed rows move to Recent only after navigation, dismissal, or a short stable handoff period.
@@ -171,7 +206,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 #### Initial policy
 
 - **User-directed placement:** a valid intended matter is assigned. Contradictory extracted identity is preserved as evidence and creates a focused Review item after assignment; the system does not reroute.
-- **Organisation placement policy:** Owner/Admin selects one organisation-scoped initial-placement mode in Operations settings: `manual_suggestions` (the default: AI shows evidence but never files), `strong_evidence_auto_place` (allow only the rules below), or `intended_matter_only` (honour user-directed placement and otherwise retain global Intake for a human). The policy affects only initial placement; it never authorises an automatic move after a document is assigned.
+- **Organisation placement policy:** Owner/Admin selects one organisation-scoped initial-placement mode in Operations settings: `manual_suggestions` (the default: evidence-backed suggestions may appear but unassigned Intake is never filed without a human decision), `strong_evidence_auto_place` (allow only the rules below), or `intended_matter_only` (honour user-directed placement and otherwise retain global Intake for a human). New organisations and safe backfills with no explicit choice resolve to `manual_suggestions`; only an explicit Owner/Admin change can enable an automatic mode. The policy affects only initial placement and never authorises an automatic move after a document is assigned. A matter-context upload already carries the user's deliberate destination and is not classified as inferred auto-placement.
 - **Automatic placement:** only when the organisation selects `strong_evidence_auto_place`, allow one eligible active candidate with no hard contradiction and either:
   - one unique exact verified matter/external proceeding identifier; or
   - one unique exact referenced-document identity in that matter, supported by page evidence and no incompatible verified client identifier.
@@ -255,27 +290,47 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 #### Desktop
 
-- Use a bounded list/detail workspace beneath one stable page header. The header contains `Document Hub`, concise queue context, `Upload PDFs`, and filters; it does not contain large tabs, summary cards, or a `Sync` button.
+- Use the authenticated application header for breadcrumbs, account, theme, and global controls. A compact collection workbar below it contains ownership scope, Search, result count, and `Upload PDFs`; it does not repeat selected-document identity. Upload is a collection action, not global application chrome.
+- When the organisation has no intake items, show one centered empty workspace with upload guidance/action and no artificial queue/detail panes. Its restrained document-stack motion responds to hover/focus and respects reduced motion; it does not loop decoratively.
+- The default populated workspace is one full-width compact table. It shows document identity/classification, equal-width status, uploader name/avatar, source, destination/current stage, and received date.
+- Selecting a row opens the approved contextual-sidebar pattern. At wide desktop, preserve an approximately 60/40 table/sidebar split and reduce the table to Document, Status, and Uploaded by because source, destination, received time, and processing context are available in the sidebar. Below the wide split threshold, use full-screen details with a clear Back path.
+- The sidebar uses stable `Overview` and `Extracted data` tabs, a Close control, one scrolling body, and a fixed action footer. Its identity block makes document type and semantic legal direction dominant, keeps the filename subordinate, and aligns current status separately. Overview then leads with up to three source-backed key evidence or processing-detail items, followed by one lightweight decision/outcome section for every item: plain state-specific heading, explicit `Decision required` or `No action needed` cue, outcome title, consequence, and a semantic leading rule. Intake details follow. This evidence-before-interpretation order is stable across document states. Extracted data starts with one compact, icon-led AI-verification header and renders complete typed metadata as bounded section panels with quiet headers and dense two-column field grids; each field keeps label, value, and source action together. Do not leave the state as an unstructured sentence, label every state `Needs attention`, apply warning background universally, or spend the prime region on a large generic status card.
+- Source viewing is explicit and reversible. `View original PDF` or a cited `Open source · page {n}` action replaces the table with the PDF while the sidebar remains anchored; the interface never grows into a queue/PDF/sidebar triple split. On wide desktop, selection first establishes one stable 60/40 pane-chrome row: the queue workbar and sidebar tabs align at the same vertical origin. Source mode replaces only the left workbar/body with the PDF toolbar/viewer, so the sidebar header, width, scroller, and footer do not jump. The PDF toolbar owns a visible Close (`X`) control that restores the table and preserves the selected sidebar.
+- Sidebar open/close uses the shared `150ms` fast duration and smooth easing with no artificial delay. Header, body, and the table's condensed/full column state change together; never restore columns only after the pane has finished closing. The shorter duration is intentional for this dense collection so rows do not feel elastic. Source mode leaves the already-open sidebar stationary. Reduced-motion presentation removes spatial movement and delay. Realtime row updates do not animate position.
+- A cited source action opens the exact immutable version/page and highlights the retained source region using normalized coordinates. When coordinates are unavailable, anchor and highlight the best exact text match and disclose that fallback; opening the original PDF without a citation does not fabricate a highlight.
 - `Upload PDFs` opens the native file picker directly. Drag-and-drop on the queue is equivalent. Selecting files immediately reserves and uploads them; there is no upload modal or additional Submit button.
 - A compact upload tray shows current batch rows, real byte transfer progress, cancel-before-finalize, retry, and per-file errors. Once finalized, rows merge into the durable queue without changing position unexpectedly.
-- The queue uses compact status groups/filters: `Needs action`, `In progress`, `Recent`, and `All`. Additional filters cover destination context, uploader, date, classification, and state. Global versus matter upload is a context filter/chip, not a tall permanent tab strip.
+- Ownership scope is a compact `My uploads` / `All uploads` control before Search. It is available only when the user can view shared Intake, remembered per user, and defaults ordinary contributors to `My uploads`. Workflow filters are `Action required`, `Processing`, `Completed`, and `All statuses`; do not use `Recent` as a workflow state. On desktop, Status and other filters that map cleanly to a visible field open from that column heading, with a persistent active indicator and reset path. Search and ownership remain in the workbar. When table headings are absent or the selected split removes a filtered column, preserve the filter and expose an equivalent compact labelled control. Filtering applies in place and never opens a modal, drawer, or separate screen. Global versus matter upload is a context filter/chip, not a tall permanent tab strip.
 - When opened from a matter, the header shows a removable `Destination: {matter}` context chip and uploads inherit that intended matter. It never creates a second matter-specific queue model.
-- The left list shows filename/title, source, intended/suggested destination, current real stage, age, and one clear next action. Stable equal-width badges use the approved intake vocabulary.
-- The detail pane embeds the Workbench. For unassigned Intake, its first inspector section is **Placement**: recommended matter and evidence, searchable alternative matter, classification, and `Assign document`. A separate **Create client and matter** proposal expands only when no valid record exists. `Discard upload` is isolated in the More/danger region, not placed beside the positive choices.
+- Queue table rows are for identity, comparison, and selection only. Keep every row at the same height and remove tiny row-level action labels; actions belong in the selected sidebar's fixed footer or appropriate tab content. A processing item may include one compact same-line segmented stage marker because stage is comparison context, never a fabricated percentage. If selected, its row marker yields to one compact processing summary stating the current work, a truthful completed-work fact, and whether user action is required; do not repeat a fully labelled stage rail in the sidebar. An active collaborator claim replaces secondary row metadata with a quiet named activity label and restrained live dot; it becomes a compact structural notice in the sidebar because it changes action availability.
+- The Overview tab has a deliberate dynamic-artifact budget: one state-specific summary and at most three key evidence items. Every item uses the same compact schema—type, primary value, short explanation, and explicit source-page action. Complete extracted metadata remains available in predictable sections on the Extracted data tab.
+- For unassigned Intake, Placement occupies the stable action/current-state contract: recommended matter and evidence, searchable alternative matter, classification, and `Assign document`. A separate **Create client and matter** proposal expands only when no valid record exists. `Discard upload` is isolated in the More/danger region, not placed beside the positive choices.
 - Do not use the current square `Take action` modal. Multi-step client/matter creation uses a wide side sheet or dedicated route with reviewable values and horizontal desktop actions; destructive discard uses the shared confirmation dialog.
 
 #### Mobile
 
 - Use one principal queue scroller. Selecting an item navigates to a full-screen detail route with a compact sticky identity/status header and preserved Back position.
-- PDF, Details, Notes, and Placement are explicit modes; only the active mode scrolls. Persistent primary placement action may use the shared bottom action bar without covering PDF controls.
-- Upload uses the platform file picker/camera-file capabilities permitted for PDFs and shows the same durable batch rows. All desktop decisions remain available; filters become a drawer.
+- The sequence is queue → details → source. Source opens only from `View original PDF` or a cited source-page action, and Back returns to the same details context before returning to the queue. Only the active mode scrolls. Persistent primary placement action may use the shared bottom action bar without covering source controls.
+- Upload uses the platform file picker/camera-file capabilities permitted for PDFs and shows the same durable batch rows. All desktop decisions remain available; ordinary filters expand in place near the queue controls without navigating to another screen.
 
 #### Queue behavior
 
 - Active items are sorted by action need and creation time on initial load, but realtime stage changes update in place. A `New uploads` affordance handles arrivals above the current viewport.
-- Duplicate, conflict, and failure rows state what happened and offer an appropriate verb: `Open existing`, `View in Trash`, `Choose matter`, `Review conflict`, `Unlock and retry`, or `Retry extraction`.
-- An assigned handoff shows its destination and `Open document`; Recent retains bounded assignment/failure history for operational reassurance. Activity remains the full historical record.
-- Empty state explains global versus matter-context intake and provides `Upload PDFs`. It does not use decorative illustration or claim that every uploaded tax document belongs in a Timeline.
+- Duplicate, conflict, and failure rows state what happened; their selected sidebars offer the appropriate verb: `Open existing`, `View in Trash`, `Choose matter`, `Review conflict`, `Unlock and retry`, or `Retry extraction`.
+- An assigned handoff shows its destination in the row and exposes `Open document` in the selected sidebar. `Completed` retains bounded assignment/failure history for operational reassurance. Activity remains the full historical record.
+- Empty state explains global versus matter-context intake and provides `Upload PDFs`. A restrained upload/document motif may respond to hover or focus, but it must not loop decoratively or claim that every uploaded tax document belongs in a Timeline.
+
+#### Shared visibility, action authority, and concurrency
+
+- Document Hub is a capability-scoped organisation Intake workspace, not a feed visible to every account. Owner/Admin and an Associate granted `intake.manage_shared` can see `All uploads`; that grant includes standard shared-triage actions on visible Intake rather than creating a largely useless view-only global queue. Ordinary Associates see `My uploads` by default and do not receive `All uploads`; a Viewer does not gain unplaced-intake visibility merely from the Viewer role. The initial release does not issue a separate shared-queue-view-only grant.
+- Queue visibility and action authority still remain distinct at the item boundary. The secured projection returns only records the caller may inspect and an allowed-action set per item. A shared-intake operator may perform ordinary existing-Matter placement, duplicate handling, recoverable retry, and other approved standard triage; an item requiring creation of a Client/Matter, reassignment of a filed document, pre-expiry takeover, or privileged recovery returns an explicit Owner/Admin escalation state rather than a dead control.
+- Opening a row, sidebar, extracted data, or PDF is observational and never claims work. A claim is requested only when the user presses an explicit verb such as `Start conflict review` and the server successfully opens the multi-step consequential workflow. Merely clicking every queue row therefore claims nothing.
+- Each membership may hold at most one active Document Hub claim in an organisation. Starting work on a second item first shows `Release {current item} and start this review?`; confirmation performs one server transaction that releases the prior claim and acquires the new item, while cancellation leaves both unchanged. The acquire command serializes on the membership and item, clears expired state, revalidates capability and source revision, and cannot be bypassed by multiple tabs.
+- An active claim is a visible 10-minute soft lease containing actor, start, last meaningful activity, expiry, and source revision. While that resolution UI is active, source navigation, decision-draft changes, or an explicit `Continue review` action may renew the lease to 10 minutes from authoritative database time through a throttled authenticated command; a merely open or background tab does not renew it. The UI warns when two minutes remain.
+- `Cancel review`, returning to the queue, closing the selected workflow, navigating to another application route, and signing out all attempt an immediate authenticated release. Moving between details and the source PDF for the same review retains the claim. Browser close, device sleep, crash, network loss, and process termination are not reliable release signals; the client may attempt best-effort cleanup but correctness relies on server expiry no later than 10 minutes after the last meaningful activity. A same-user reload/tab may resume the one existing claim rather than create another. Acquire, renewal, release, expiry, switch, or authorised confirmed takeover is audited.
+- Claim acquisition, renewal, release, current-state reads, and final mutations use authenticated database/RPC commands over ordinary request/response transport and do not require Supabase Realtime. Realtime is only an invalidation hint. If it is refused, disconnected, disabled, or over quota, the workspace shows truthful paused freshness, refetches the visible selected claim every 30 seconds with jitter and the queue every 60 seconds while foregrounded, and always refetches on focus and immediately before an action. Hidden pages do not poll.
+- Every final mutation carries an idempotency key and expected authoritative revision. The first valid commit wins; a stale second submission cannot overwrite it and receives the resolved actor, time, and current outcome. Realtime only prompts a refetch of that server projection.
+- Another user's claim appears in the row and selected sidebar. Remote completion changes the row in place into a stable completion/handoff receipt such as `Resolved by {name}` with destination/open actions. It does not silently disappear; removal from the active view occurs only after explicit navigation/dismissal or the bounded handoff interval.
 
 ### Shared Document Workbench
 
@@ -285,7 +340,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
   - `{ kind: 'intake'; intakeItemId; assetId }`, or
   - `{ kind: 'document'; documentId; versionId?: string }`.
 - Server loaders derive organisation, access, current/historical/Trash state, signed asset access, capabilities, and source locator. Browser callers do not supply bucket paths, organisation IDs, or permission booleans.
-- Desktop uses a resizable PDF/inspector split, initially approximately 64/36. The outer workspace does not scroll. Viewer and inspector each have one independently scrolling body beneath stable pane headers; the selected width may be remembered per user.
+- When explicitly opened in source mode, desktop uses a resizable PDF/inspector split, initially approximately 64/36. The outer workspace does not scroll. Viewer and inspector each have one independently scrolling body beneath stable pane headers; the selected width may be remembered per user. This source composition is not the Document Hub's default selection state.
 - At constrained desktop/tablet widths, keep the PDF primary and open the inspector as a drawer. Mobile uses one active full-screen mode and one principal scroller.
 - Stable Workbench chrome shows document identity, version/historical state, processing/classification, matter context when assigned, and primary task. Secondary operations live in a labelled More menu.
 
@@ -310,6 +365,8 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 #### Inspector information architecture
 
+- Present one quiet panel-level notice where AI-derived fields are shown: `AI-generated · Verify critical details`. Its helper text says `Dates, amounts and identifiers may be inaccurate. Compare important information with the source document.` Keep it visually subordinate and do not repeat it beside every field.
+- Show field-level `Needs review` only for an actual exception: no or ambiguous canonical source match, invalid deterministic value, OCR/handwriting conflict, conflicting source, or a consequential Tier C action. The normal workflow must not ask the user to validate every extracted field.
 - **At a glance:** effective title/type/reference/date/direction, concise cited summary, client/matter placement, classification, and processing/readability warnings.
 - **Deadlines:** every extracted or manual deadline tied to the document, including overdue/missed dates, verification state, source page, and owning matter action. Relative unresolved periods are labelled and never presented as calendar deadlines.
 - **Financial facts:** typed stated demand/tax/interest/penalty/pre-deposit/payment or other events, INR formatting, allegation/finding/operative context, verification, and evidence.
@@ -323,7 +380,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 #### Workbench actions
 
 - Primary actions are context-specific: `Assign document` for Intake, `Add note` while quoting, `Resolve review` when opened from Review, or no forced action for ordinary reading.
-- Normal assigned-document actions are `Edit details`, `Move or copy`, `Change classification`, `Replace PDF`, and `Move to Trash`, subject to capability and state. Consequential actions use impact previews and domain commands.
+- Normal assigned-document actions are `Edit details`, `Move or copy`, `Change classification`, and `Move to Trash`, subject to capability, verified implementation and release policy. A metadata-only record exposes `Attach PDF`. `Replace PDF` is a later gated More action, deferred for the pilot. Consequential actions use impact previews and domain commands.
 - `Retry {failed stage}` is available only when a stage is failed/retryable. `Re-extract metadata` or `Retry relationship matching` appears in More with scope and consequence; there is no generic `Sync` or ordinary `Re-evaluate links` action.
 - Every mutation is disabled in Trash/read-only/historical-version contexts as appropriate. Historical versions may still be viewed, quoted, and compared according to access policy.
 
@@ -331,7 +388,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 - Viewer can inspect authorised active and Trash-readable documents/versions and quotations but cannot upload, assign, classify, retry, edit, replace, move/copy, or trash.
 - Associate can upload, place Intake, correct permitted metadata, manage permitted relationships, reclassify, move/copy, retry recoverable stages, and trash/restore individual documents under the approved capability rules.
-- Owner/Admin has organisation triage, conflict reassignment, new client/matter approval, quota exceptions within platform limits, and privileged recovery. Permanent purge remains governed by the Trash plan.
+- Owner/Admin escalation inside Document Hub is contextual to the selected intake item: approve creating a new Client/Matter from that upload, resolve an assignment/reassignment conflict, confirm takeover of an active review when operationally necessary, or run an explicitly offered privileged intake recovery. These are not persistent global Hub controls. Organisation placement policy belongs in Organisation settings, permanent purge belongs in Trash, and tenant administrators cannot grant platform quota exceptions or bypass entitlements.
 - Every table includes `org_id` and constrained lineage. RLS and server/domain commands enforce permissions. Service workers revalidate organisation/source lineage rather than trusting event payload IDs.
 - Signed PDF access is resolved from an authorised intake item or document version with a short expiry. Storage paths, hashes, OCR text, embeddings, and quarantine diagnostics are not returned in ordinary list payloads.
 - Text/OCR/PDF content is untrusted input. Extraction and matching prompts ignore embedded instructions; rendered PDF links/annotations follow safe browser policy.
@@ -353,43 +410,114 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 - Reuse source analysis only for the same organisation, immutable asset hash, extraction model/prompt/schema/catalogue version, and page/OCR content version. Matter-specific and human-effective projections are never shared blindly.
 - A provider outage leaves validated files accessible, keeps Global Intake in a retryable state, and allows manual placement/classification. Exact duplicate checks, PDF viewing, native-text extraction, and existing search continue where possible.
 
-### Visual approval boundary (2026-09-01)
+### Visual approval boundary (approved 2026-09-05)
 
 - The fixture-only concept at `/dev/document-hub-workbench-concept` presents
   the approved operational queue and shared Workbench direction without
   production data, routes, APIs, uploads, storage, permissions, or real PDF
-  rendering. It uses a compact desktop queue/viewer/inspector composition and
-  a phone list-to-document flow with Document, Details, Notes, and Placement
-  modes.
+  rendering. The revised desktop concept rests on a full-width table, opens an
+  adaptive 60/40 table/sidebar composition after selection, and replaces the
+  table with PDF/sidebar only after an explicit original/source-page action.
+  A truly empty Hub has no artificial panes. Its phone flow is queue → details
+  → source.
 - Local fixture controls cover queue states, upload-tray progress, quotation
   context, Viewer read-only behavior, loading, empty, error, long content,
   light/dark, and responsive layout. Consequential controls explicitly report
   a local preview result and make no mutation.
-- Driver checks and independent QA passed responsive page-overflow, bounded
-  viewer/inspector scrolling, tablet dialog Escape/focus-return, state
-  filtering, scope isolation, TypeScript, targeted lint, and diff checks. The
-  in-app browser harness could not independently advance Tab focus, so its
-  dialog focus-containment observation is limited; the Radix dialog contract
-  and Escape/focus-return were verified.
-- Visual approval remains required before live Document Hub or Workbench UI
-  work begins. The open review item is recorded in
-  `docs/approval-based-blockers.md`.
+- The visual contract deliberately limits structural surprise: selecting a
+  document opens one familiar contextual sidebar and removes redundant table
+  columns; only a labelled, reversible source action replaces the table.
+  Ordinary filters apply in place. Overview carries one state-specific summary
+  and at most three evidence items; complete extracted metadata remains in its
+  stable tab, and cited navigation highlights the exact retained source region.
+- The user approved this production visual direction on 2026-09-05 after
+  iterative desktop review and a final 460px responsive verification. The
+  mobile queue showed no horizontal overflow; queue → details → source,
+  preserved return context, readable Overview/Extracted data, fixed actions,
+  and fitted PDF controls all remained intact. Visual approval no longer blocks
+  live Document Hub or shared Workbench UI work; the secured readers, commands,
+  source locators, and acceptance tests below remain mandatory.
 
 ## Implementation Plan
 
+### Verified checkpoint: canonical Document Hub route cutover (2026-09-05)
+
+- `/documents` is the live authenticated collection reader for the existing
+  canonical Intake queue. `/inbox` is redirect-only compatibility, preserving
+  only scalar `matterId` and `intakeId` state; sidebar, matter-upload,
+  duplicate-intake, and mutation-refresh callers use `/documents`.
+- This closure retains the organisation-fenced `intake_items` projection and
+  existing server/RPC command boundaries unchanged. It introduces no migration,
+  staging-table reader, placement policy, or Workbench contract.
+- Focused developer verification and independent read-only QA passed. Local
+  broad TypeScript/test execution remains limited by the pre-existing mixed
+  dependency tree; no package recovery or install is part of this tranche.
+- Next Document Hub tranche: replace the legacy queue/modal presentation with
+  the approved secured queue → details → source Workbench closure, retaining
+  the live `/documents` route and canonical Intake actions.
+
+### Verified checkpoint: canonical assigned-document reader (2026-09-05)
+
+- `/documents/{documentId}` is the live assigned-document reader. Active
+  records resolve by authorised canonical ID; Trash requires the exact scalar
+  Matter lineage already verified by the Trash projection and signed-version
+  grant. The legacy nested Matter route is redirect-only compatibility.
+- Active Matter, Notes, Search, notification, Intake-duplicate, and Trash
+  callers now route canonically without weakening active/Trash access fences.
+  Exact canonical readers are invalidated after their relevant document,
+  relationship, review, financial-year, reprocess, and Trash mutations.
+- Focused developer checks and adversarial QA passed after consolidated
+  lineage/caller repairs. The next closure remains the approved secured
+  queue → details → source Workbench presentation; viewer state restoration
+  (page/highlight/return context) belongs to that later stateful UI contract.
+
 ### Verified checkpoint: secured Document Hub queue → details → source (2026-09-05)
 
-- `/documents` now mounts the secured canonical Intake Workbench: full queue, URL-backed details, and explicit signed source mode with a stable desktop 60/40 source/sidebar split and mobile return flow.
-- It reuses canonical upload, signed URL, assignment, discard, duplicate-resolution, route, and idempotency contracts; no schema, RLS, RPC, or policy changed.
-- Focused developer checks, consolidated remediation, and fresh final read-only QA passed. Broad TypeScript/ESLint remain unavailable because of pre-existing broken dependency links.
-- Next action: add a shared version/source-locator consumer only when its secured loader contract is ready; do not create a page-local viewer policy.
+- `/documents` now mounts the secured canonical Intake Workbench rather than
+  the legacy Inbox client. Its unselected desktop queue is full width;
+  selecting an allowlisted `intakeId` opens a 60/40 queue/detail composition.
+  The explicit signed-source action replaces only the queue pane on desktop;
+  mobile preserves queue → details → source with labelled return actions.
+- The closure reuses the existing canonical upload modal, signed intake URL,
+  assignment, discard, duplicate-resolution, route, and idempotency contracts.
+  It introduces no new projection, migration, RLS rule, RPC, browser-supplied
+  authority, or policy. Ready-only PDF/assignment actions and terminal-state
+  handling remain derived from `canonicalIntakeActions`.
+- The queue retains every record supplied by the authorised canonical reader,
+  including matter-intended items. It has a native upload entry, URL-backed
+  selection, safe refresh/error behavior, stable desktop pane headers and
+  scrollers, semantic table/button controls, fixed-width status badges, and
+  accessible empty/long-content states.
+- Focused developer checks, a consolidated remediation, and fresh final
+  read-only QA passed. Full TypeScript/ESLint remain unavailable because of the
+  pre-existing broken dependency links; no dependency recovery was performed.
+- Next Document Hub action: add only a separately approved live consumer for
+  shared version/source-locator state (such as page/highlight restoration) once
+  its secured loader and source-locator contract are ready. Do not create a
+  page-local viewer policy in the meantime.
+
+### Verified checkpoint: canonical version and page source locator (2026-09-05)
+
+- The live `/documents/{documentId}` reader now accepts only scalar allowlisted
+  `version` and positive `page` source state. It proves the requested version
+  belongs to the exact canonical document before issuing either the active or
+  exact Trash signed grant, then restores the one-based page in the shared
+  viewer after its PDF page count is known. Malformed, repeated, unavailable,
+  or foreign values fail closed without exposing a storage locator.
+- This is deliberately page restoration only: there are no quote/region
+  highlights, text search, Notes/Review producers, return-context policy, or
+  second viewer. The shared viewer contract and static design-system specimen
+  record its server-derived initial-page and accessible toolbar behavior.
+- Focused developer tests and fresh adversarial QA passed. The next shared
+  Workbench stage must be selected only with a secure downstream source-locator
+  producer/consumer; retain the verified canonical reader in the meantime.
 
 1. **Freeze fixtures and state catalogue.** Capture current global upload, matter upload, duplicate, manual/auto assignment, auto-create, reprocess, link/pending-link, move/copy, reclassify, viewer, quote, Trash, and failure behaviors. Add representative GST PDFs for exact/colliding references, multiple matters in one FY, multi-FY documents, scans, encrypted/malformed PDFs, conflicting GSTIN, missing targets, self-reference, and replacement versions.
 2. **Resolve cross-plan source analysis.** Amend AI provenance so immutable source analysis can be asset-scoped during Intake and bound to a document version at placement; retain document-specific effective candidates/decisions. Amend File Lifecycle events/tables accordingly before schema work.
 3. **Add the additive ingestion foundation.** Introduce/complete `file_assets`, `upload_sessions`, `intake_items`, `source_analysis_runs`, page/OCR artifacts, `document_versions`, analysis bindings, processing-stage runs, and outbox/dispatch state with RLS, lineage constraints, idempotency, reservations, and safe errors.
 4. **Build upload reservation/finalization.** Move browser transfer to bounded direct-to-private-storage contracts, enforce the approved 25 MB/default and organisation/platform quotas, finalize server-observed object data, and implement cleanup/expiry. Do not remove legacy bucket reads yet.
 5. **Build validation and duplicate resolution.** Add PDF signature/readability/encryption/page checks, SHA-256, quarantine adapter, all-lifecycle duplicate lookup, replacement/copy special cases, and non-disclosing conflict results. Ensure duplicate decisions occur before paid AI.
-6. **Split analysis into resumable stages.** Implement native page text/geometry, selective OCR with word boxes/quality, asset-scoped Vertex extraction, Zod/domain validation, reusable artifacts, usage records, and document-version binding. Remove the staged/raw-metadata fast-path heuristic after cutover.
+6. **Split analysis into resumable stages.** Implement versioned native page text/geometry and quality routing, selective Mumbai Enterprise OCR with word boxes and structured table cells/geometry, asset-scoped Gemini metadata-only extraction with English synopsis/display normalization, source-span/cell verification, Zod/domain validation, reusable artifacts, usage records, and document-version binding. Migrate Gemini structured generation to `@google/genai`. Remove Gemini transcript fields and the staged/raw-metadata fast-path heuristic after the corrected pipeline is verified and cut over.
 7. **Introduce placement storage and policy.** Add runs/candidates/evidence/decisions, matter identifiers, policy registry, resolvers, conflict production, and audited create-client/matter proposal. Remove client-year uniqueness only after audit/backfill and replacement identity constraints exist.
 8. **Migrate both upload paths.** Route global and matter upload through sessions/Intake. Matter intent assigns after validation; global Intake uses placement. Assignment references the asset without bucket copy and commits logical document/version/decisions/events atomically.
 9. **Introduce reference/relationship storage and engine.** Backfill existing links into explicit provenance categories, add mentions/runs/candidates/evidence/decisions/effective relationships, seed the versioned type/rule catalogue, and implement exact resolution, review policy, event-driven pending resolution, rejection memory, and graph integrity constraints.
@@ -409,7 +537,8 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 - `source_field_candidates`: source analysis run/asset, semantic key, field path/type, normalized typed value, page/quote/region evidence, confidence, validation state/errors, and timestamps. These are immutable observations about the PDF, not effective document fields.
 - `source_pages`: asset/analysis, 1-based page, PDF geometry/rotation, native/OCR availability and quality, text-content hash, and restricted text/box artifact reference.
 - `document_version_analysis_bindings`: organisation, document version, source analysis run, binding reason, creator/time, and unique compatible binding constraint. Document-level candidates reference the applicable source candidate/binding so copies may have independent human decisions without repeating source extraction.
-- Extend `document_processing_runs` to stage-level attempts/dependencies and `intake_items` to classification/placement run and stable failure/action state.
+- Extend `document_processing_runs` to stage-level attempts/dependencies and `intake_items` to classification/placement run and stable failure/action state. Persist only real current substage and progress facts: planned/completed/failed page counts are allowed when backed by committed page work, while estimated percentages and timer-derived completion are prohibited.
+- Add an organisation-authorized Document Hub processing-status projection/RPC over `intake_items`, the active source/document processing runs, and aggregate page artifacts. This is the browser status contract and is safe to refetch after a Realtime hint; neither `outbox_events` nor private run/page tables become direct browser APIs.
 
 ### Placement additions
 
@@ -506,6 +635,10 @@ type WorkbenchSubject =
 
 ## Testing and Acceptance Criteria
 
+- Reproduce and close the reviewed empty-success refresh, late source-sign response, historical-source/current-inspector mismatch and narrow-viewer defects using real state transitions and production components. Quotes persist the exact selected version; no global quote event supplies ambiguous current-page state.
+- A real deployed upload exceeding 4.5 MB and at the 25 MiB application boundary succeeds through direct Storage transfer. Retry/cancel/expiry and reload-with-file-reselection behavior match the lifecycle contract and never duplicate finalization or paid work.
+- Distinct same-client/year matters can be created, assigned and restored while genuine identifier conflicts remain explicit; dropping the old index alone does not satisfy acceptance.
+
 ### Pipeline and storage
 
 - Global, matter, replacement, later-attachment, and intentional-copy fixtures all use the same upload/asset contracts. Ordinary assignment/reassignment performs no storage download, copy, move, or re-upload.
@@ -514,12 +647,18 @@ type WorkbenchSubject =
 - Exact duplicate detection covers active, historical, Intake, and Trash before AI. Renaming, forged hashes, or alternate routes cannot bypass it. Intentional Copy reuses one asset and rebuilds matter-specific state.
 - Provider outage or OCR/extraction failure never loses a validated asset. Manual placement remains possible where safe; retries are scope-specific and idempotent.
 - Every stage transition and status projection has unit/state-machine tests, RLS tests, stale revision tests, and safe failure codes. No combined status can claim `Ready` while the source itself is unavailable.
+- Dispatch acceptance while the owning run remains queued/running does not advance the Hub to `Ready`. Tests cover outbox replay, expired leases, duplicate delivery, retry scheduling, provider failure, refresh/reconnect, and Realtime loss while proving that the database projection remains authoritative.
 
 ### Placement quality and integrity
 
 - Tests cover intended matter, exact matter/external key, exact cited document, same reference under multiple matters, GSTIN conflict, GSTIN+FY only, multiple matters in one FY, multi-FY source, fuzzy/name/filename/semantic hints, unavailable/Trash targets, no match, later stronger evidence, and concurrent user/worker decisions.
 - Fuzzy-reference fixtures cover punctuation/spacing variants, year formats, known OCR confusions, one-character numeric collisions, different issuers, different clients, multiple plausible targets, and adversarial near matches. They prove that fuzzy results are explainable suggestions only and cause no mutation.
+- Native/OCR routing fixtures cover good native English/Hindi/mixed pages, empty and broken text layers, large image regions, stamps, handwriting, rotation, poor scans, and representative tables. They measure missed and unnecessary OCR, source-text accuracy, reading order, page/word anchors, latency, and billed pages without allowing Gemini to supply the transcript.
+- Gemini extraction fixtures require an English neutral synopsis and English display metadata, retain original evidence for transliterated proper names, preserve exact identifiers/numbers, and reject any provider response containing page transcripts or OCR word streams.
+- Critical metadata is automatically eligible only when its typed value resolves to the quoted canonical page span or structured table cell and its field validator passes. Date-format normalization compares real calendar values; GSTIN/reference/amount normalization preserves raw evidence; absent, repeated, ambiguous, invalid, or one-digit-conflicting values fail closed into one grouped Review exception.
+- Regional configuration tests prove document extraction and OCR use `asia-south1`, embeddings have an independent location, and no India processing path silently falls back to a US or global endpoint.
 - Initial auto-placement occurs only for the approved strong-anchor cases with one eligible candidate and no contradiction. GSTIN+FY, fuzzy, name, filename, and semantic-only cases remain suggestions.
+- Fresh-organisation, unset/backfill, and policy-reversion fixtures prove `manual_suggestions` is the fail-closed default: global uploads remain in Intake until a human assigns them, and neither a worker nor a browser-supplied mode can enable automatic placement without the current stored Owner/Admin decision.
 - A human-directed matter upload is never rerouted by AI. A conflict creates one evidence-backed Review item without blocking PDF access.
 - An assigned document never moves on reevaluation. Possible reassignment requires a current, typed Review decision and impact preview.
 - Client/matter proposal creates no record before confirmation and commits client/matter/document assignment atomically. Race tests resolve existing identifiers without orphan or duplicate records.
@@ -540,12 +679,14 @@ type WorkbenchSubject =
 
 - Clicking `Upload PDFs` opens the native picker directly; drag/drop and multi-file selection create durable rows without a modal or Submit step. Transfer failures and finalized processing are visually distinct.
 - Hub queue rows do not jump during realtime stage updates or vanish on assignment. Filters, selected item, matter context, and return navigation are URL-addressable and preserved appropriately.
+- Batch OCR renders `OCR processing {N} pages…` from the committed request scope. It renders `X of N` only from persisted per-page completions, shows a safe retry/failure state when applicable, and never displays a timer-derived percentage or simulated progress.
 - The Placement pane cleanly separates suggested/existing matter assignment, new client/matter proposal, and destructive discard. Every candidate shows evidence and contradictions without a fake confidence percentage.
 - The same Workbench renders an Intake asset, assigned document, historical version, Search passage, Review evidence, and Trash read-only route. No page maintains a separate PDF/metadata viewer contract.
 - Continuous scrolling works with long PDFs; direct page entry, zoom, fit, rotate, search, thumbnails, keyboard navigation, and native scroll all work without forcing next/previous clicks.
 - Every document passage fixture opens the exact immutable version/page and highlights the expected normalized regions after zoom, rotation, resize, and desktop/mobile layout changes.
 - Native-text, OCR-text, and region-only quotations create valid note locators. Clicking the note quote returns to the correct page/highlight; historical replacement preserves the old quotation; purged evidence shows the approved tombstone.
 - Inspector shows overdue/missed deadlines, provisional/verified facts, financial context, parties, legal references, relationships, versions, and processing/provenance without reading arbitrary `raw_metadata` after cutover.
+- The inspector shows one subtle `AI-generated · Verify critical details` notice for AI-derived content, field-level warnings only for actual exceptions, source evidence/highlights for review, and no mandatory confirmation of every clean field.
 - `Sync`, ordinary `Re-evaluate links`, routine-completion notifications, current upload modal, and PDF-only Hub modal are absent after equivalent workflows pass.
 
 ### Security, accessibility, responsive, and performance

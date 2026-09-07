@@ -2,7 +2,7 @@
 title: Hierarchical Resource Trash, Retention, and Purge
 status: approved
 created: 2026-08-24
-updated: 2026-08-31
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -13,6 +13,15 @@ related:
 ---
 
 # Hierarchical Resource Trash, Retention, and Purge
+
+## Reading guide
+
+Use the [shared reading rules](../../README.md#reading-a-large-plan). Read the scope/security links first, then relevant operations and their interfaces/acceptance. Expand dependencies when needed; recorded checkpoints require current-code reconciliation.
+
+- **Read first:** [Release reconciliation](#release-policy-reconciliation-and-matter-identity) · [Scope](#scope-and-hierarchy) · [Permissions](#permissions) · [Cross-domain effects](#effects-on-dependent-domains).
+- **Trash and restore:** [Operation model](#trash-operation-model) · [Workspace](#trash-workspace-and-read-only-routes) · [Restore](#restoration) · [Duplicate protection](#duplicate-protection-while-in-trash).
+- **Retention and purge:** [Retention](#retention-settings) · [Permanent purge](#permanent-purge) · [Hold/export](#legal-hold-and-exports) · [Recorded next action](#canonical-next-action).
+- **Checks and contracts:** [Interfaces](#interfaces-and-data-changes) · [Acceptance](#testing-and-acceptance-criteria) · [Assumptions](#assumptions) · [Open questions](#open-questions).
 
 ## Summary
 
@@ -29,6 +38,12 @@ The intended experience is recoverable and intelligible: a deleted client appear
 The hierarchy, read-only experience, duplicate protection, retention defaults, purge safeguards, and role boundary in this plan were approved on 2026-08-24.
 
 ## Decisions
+
+### Release-policy reconciliation and matter identity
+
+- The completed retention/purge foundation remains intact. Its production activation conflicts with the proposed pilot sequence's disabled-purge rule; resolve `PILOT-RETENTION-SCOPE-2026-09-08` in [the decision queue](../../approval-based-blockers.md) before activation or confidential-data release. Do not silently remove the completed authority or enable it based on whichever plan was read last.
+- [D09](../../delivery-ledger.md) replaces the same-client/year assumption in Restore alongside Matter creation and placement. Audit/backfill and replacement identity safeguards precede removal of `idx_matters_unique_client_fy`. Legitimate separate same-year matters may restore; actual identifier conflicts still require explicit resolution and never cause automatic merging.
+- Deferred PDF replacement does not authorize deleting prior file assets or breaking historical evidence links. Any existing purge follows its established reference, hold and authorization checks.
 
 ### Scope and hierarchy
 
@@ -134,7 +149,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-No further Trash action is currently queued. Continue the approved Work foundation from its completed catalogue inventory when its selected-organisation authority blocker is resolved. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy.
+No further Trash action is currently queued. The Work selected-organisation authority blocker is resolved through the one-active-organisation membership invariant; continue the approved Task reader/transition closure under that authority. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy.
 
 ### Completed: governed root permanent deletion (2026-09-01)
 
@@ -167,7 +182,7 @@ No further Trash action is currently queued. Continue the approved Work foundati
 
 ### Approved retention-settings concept (2026-09-01)
 
-- The inspectable fixture-only concept is available at `/dev/trash-retention-settings-concept` in [`src/app/dev/trash-retention-settings-concept/`](../../src/app/dev/trash-retention-settings-concept/). It reuses the existing organisation Settings context and Civic Ink primitives rather than creating a separate Trash workspace.
+- The inspectable fixture-only concept is available at `/dev/trash-retention-settings-concept` in [`src/app/dev/trash-retention-settings-concept/`](../../../src/app/dev/trash-retention-settings-concept/). It reuses the existing organisation Settings context and Civic Ink primitives rather than creating a separate Trash workspace.
 - It presents one 30/60/90-day choice, with 90 days as the initial value. Automatic expiry is inherent rather than a separate setting. The same panel explains that Trash still permits restore or authorised permanent deletion and that `Today → Team attention` receives a warning 24 hours before scheduled deletion.
 - The concept also shows Owner/Admin editing, Associate/Viewer read-only access, loading/error/long-content states, responsive one-scroller layouts, and light/dark appearances. It is not production UI and has no data/API path. The user confirmed the simplified 30/60/90-day direction is visually approved; the production Settings contract described above is implemented.
 - Design-system audit on 2026-08-31 aligned the concept with the Organisation settings contract: Settings is no longer represented as a primary rail destination; the stable workbar keeps scope at left, developer preview controls secondary, and `Save changes` rightmost; fixture-only explanation moved out of the form into the Preview menu; the binary control now uses the shared Switch; and mutually exclusive menu choices use radio semantics. User-facing language says permanent deletion rather than unexplained purge terminology. The appearance preview no longer creates a server/client hydration mismatch.
@@ -194,7 +209,7 @@ No further Trash action is currently queued. Continue the approved Work foundati
 
 ### Approved `/trash` workspace concept (2026-08-30)
 
-- The inspectable fixture-only concept is available at `/dev/trash-workspace-concept` in [`src/app/dev/trash-workspace-concept/`](../../src/app/dev/trash-workspace-concept/). It proposes a stable desktop workspace header with filters outside a root-operation table/list and an adjacent, independently scrolling hierarchy detail pane. On mobile it becomes a root-operation card list with an explicit detail drill-down and `Back to Trash` control.
+- The inspectable fixture-only concept is available at `/dev/trash-workspace-concept` in [`src/app/dev/trash-workspace-concept/`](../../../src/app/dev/trash-workspace-concept/). It proposes a stable desktop workspace header with filters outside a root-operation table/list and an adjacent, independently scrolling hierarchy detail pane. On mobile it becomes a root-operation card list with an explicit detail drill-down and `Back to Trash` control.
 - It represents the approved grouped-deletion model, original context, deletion record, included item counts, storage, plain-language grouping, loading/empty/error/long-content states, and explicit group-only action boundary. It contains preview-only `Restore group` and `Delete permanently` affordances with impact dialogs, but no live API, permission enforcement, restore, retention, legal-hold, purge-eligibility, or permanent-delete authority.
 - Visual review on 2026-08-30 rejected generic fixed-height loading cards. The revised concept uses the shared Civic Ink skeleton primitive inside the same desktop columns and mobile card composition as the loaded collection, keeps the list pane at full width when no detail is selected, preserves an explicit loading announcement, and respects reduced motion. Future layout changes must update the loaded and loading compositions together.
 - Visual review on 2026-08-30 also rejected the separate actor/date/purge/hold filter row and the wide five-column list. The concept now exposes search plus one functional resource-type filter, uses the shared compact operational table, keeps only Item, Deleted, Included, and View details in each row, and moves the deletion reason into the detail pane. Retention, legal hold, and permanent-deletion eligibility remain valid future domain contracts but must not appear in the workspace until users can define, understand, and rely on those workflows.
@@ -280,6 +295,8 @@ type TrashImpact = {
 ```
 
 ## Testing and Acceptance Criteria
+
+- Creation, placement and Restore agree on genuine matter identity after the old client/year index is replaced. A release manifest records the resolved retention/purge activation policy, and direct commands/workers enforce it.
 
 - Deleting a document, matter, or client is atomic, idempotent, tenant-scoped, and creates one root Trash card with the correct inherited tree and impact counts.
 - A pre-deleted document remains independently trashed when its later-deleted matter/client is restored.

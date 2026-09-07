@@ -1,6 +1,24 @@
 // Public-reader summaries. These are intentionally separate from docs/plans,
 // which remain the canonical, technical decision record.
 export const plainLanguagePlans = {
+  'docs/plans/operations/2026-09-08-agent-delivery-workflow.md': {
+    overview: 'One implementation task follows a durable goal across ready approved improvements, with independent review and a compact record that a fresh task can resume.',
+    why: 'An approved design or a small commit does not prove that the combined application works.',
+    outcomes: ['A delivery index backed by code and verification evidence.', 'Bounded implementation and risk-appropriate review.', 'Continued work across approved plans when one outcome is blocked.'],
+    steps: ['Choose a ready outcome', 'Implement and verify', 'Record evidence and continue'],
+  },
+  'docs/plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md': {
+    overview: 'The proposed pilot sequence focuses on a complete document journey for the first design partner before expanding product breadth.',
+    why: 'The partner needs a reliable working product with an explicit release boundary.',
+    outcomes: ['A guided upload-to-reopen journey.', 'Human review of consequential exceptions.', 'Deployment and recovery evidence before handoff.'],
+    steps: ['Close release gaps', 'Prove the document journey', 'Rehearse and approve the handoff'],
+  },
+  'docs/plans/features/2026-09-03-interactive-demo-workspace.md': {
+    overview: 'A later fictional demo will let prospects explore a connected matter without creating an account or changing real data.',
+    why: 'A guided experience can explain the product once the production workflows are stable.',
+    outcomes: ['Clearly fictional cases and evidence.', 'Temporary changes confined to the demo tab.', 'Shared production presentation with no live mutation authority.'],
+    steps: ['Finish the production foundations', 'Prepare coherent fixtures', 'Offer guided exploration'],
+  },
   'docs/plans/platform/2026-08-24-product-architecture-portfolio.md': {
     overview: 'This is the master map for CaseChain. It explains how the parts of the product fit together so we can build them in a sensible order.',
     why: 'People should be able to trust where a fact came from, who made a decision, and what still needs attention.',

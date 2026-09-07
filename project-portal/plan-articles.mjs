@@ -1,6 +1,63 @@
 // Human-edited public articles. The canonical technical contracts continue to
 // live in docs/plans; this layer explains their intent to a broader audience.
 export const planArticles = {
+  'docs/plans/operations/2026-09-08-agent-delivery-workflow.md': {
+    deck: 'CaseChain development will proceed through one implementation task with a durable goal, clear outcomes, independent checks and a reusable handoff.',
+    intro: 'The architecture plans remain valuable, but delivery needs its own evidence. This workflow connects each selected improvement to the user behavior it must deliver and the checks that establish whether it works.',
+    flowCaption: 'From an approved decision to working behavior',
+    flow: ['Select a ready outcome', 'Implement and independently review', 'Record evidence and continue'],
+    sections: [
+      { heading: 'One owner for the combined result', paragraphs: [
+        'A coordinator chooses the next bounded outcome, identifies dependencies and preserves unrelated work. Only one writer changes the checkout at a time. Small helpers can investigate a difficult question or perform independent review, but parallel implementation worktrees are deferred.',
+        'Work is organized around an observable result, such as attaching a PDF to an existing document and reopening it safely. Database commands, application readers and the interface are checked together where that outcome requires them.',
+      ]},
+      { heading: 'Review proportional to the consequence', paragraphs: [
+        'Routine checks can use a narrowly scoped reviewer. Permissions, migrations, asynchronous processing and source identity receive stronger independent scrutiny. Repair loops are bounded: a persistent failure receives a focused diagnosis rather than endless retries or an automatic pass.',
+      ]},
+      { heading: 'A fresh task can continue', paragraphs: [
+        'Canonical plans record decisions. A delivery ledger indexes current outcomes, tested revisions and integration evidence. The handoff identifies the next step and unfinished work. A user decision blocks its dependent outcome while the coordinator searches the wider documentation for other approved work, including outcomes not yet in the ledger.',
+        'The durable goal continues across verified tranches. Developer and independent reviewer results remain separate, and a fresh task checks relevant evidence against the current code before relying on it. A partial repair cannot complete its parent capability, and a local commit does not imply production verification.',
+      ]},
+    ],
+  },
+  'docs/plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md': {
+    deck: 'The proposed first pilot focuses on one dependable document journey before the wider CaseChain portfolio expands.',
+    intro: 'The partner should be able to enter an authorized workspace, upload a PDF, understand processing, resolve a material exception, place the document and reopen its evidence. The sequence connects existing foundations to that complete experience.',
+    flowCaption: 'Preparing the first partner journey',
+    flow: ['Repair and connect', 'Rehearse the full journey', 'Verify the release boundary'],
+    sections: [
+      { heading: 'Begin with working foundations', paragraphs: [
+        'Implementation starts by reconciling the current checkout and establishing build, permission and verification evidence. Historical checkpoints help explain what was built, but they do not prove the current application can be deployed or used successfully.',
+        'The next increments connect identity, document upload, human Review, the shared source workspace and a bounded matter view. First attachment to an existing metadata-only record is included. A replacement-file interface remains deferred while exact source identity is preserved.',
+      ]},
+      { heading: 'Keep the release honest', paragraphs: [
+        'Unfinished capabilities cannot remain available through hidden server entry points. Development usage tools need an enforced release boundary, and the production policy for retention must be reconciled with the approved Trash contract before activation. The pilot sequence remains proposed until its required decisions are settled.',
+      ]},
+      { heading: 'Prove what the partner receives', paragraphs: [
+        'A rehearsal exercises the actual deployed journey, including failed uploads, retry, access revocation and phone layouts. Source quality and cited retrieval have their own evidence gates. Backup coverage and object-recovery limitations are stated explicitly rather than inferred from a successful deployment.',
+        'Broader graphs, automated briefs, financial workflows and a full platform console remain governed by their later contracts. Partner feedback should guide expansion after the core journey works reliably.',
+      ]},
+    ],
+  },
+  'docs/plans/features/2026-09-03-interactive-demo-workspace.md': {
+    deck: 'A later interactive demo will help prospects understand CaseChain through a coherent fictional matter.',
+    intro: 'The demo is deliberately scheduled after the existing product plans and reusable production workflows are complete or explicitly superseded. It explains a working product rather than creating a second application that must be maintained independently.',
+    flowCaption: 'A fictional introduction to the workspace',
+    flow: ['Enter with a demo code', 'Explore the connected matter', 'Reset or create a real workspace'],
+    sections: [
+      { heading: 'Learn by following the evidence', paragraphs: [
+        'A visitor can follow a guided mission from a matter timeline to source evidence, inspect a Review item and work with related tasks or notes. Free exploration remains available. The data is clearly labelled fictional, including the people, identifiers, documents and extracted results.',
+        'The interface reuses stable production presentation components. A separate demo boundary supplies repository fixtures and temporary browser state, so the experience remains connected without needing access to a real organization.',
+      ]},
+      { heading: 'Temporary changes stay in the demo', paragraphs: [
+        'Visitors can try representative actions and see counts and related views update consistently. Changes remain within the current tab and can be reset. There are no real uploads, invitations, paid model calls, production database mutations or permanent deletion operations.',
+      ]},
+      { heading: 'Build it when the product is ready', paragraphs: [
+        'The shared access code is a lightweight entry gate, not protection for confidential content. The demo must never contain client data or imply that precomputed examples are live AI results. Its design is constrained by the actual production capabilities it illustrates.',
+        'Keeping this feature last protects delivery capacity for the core document journey. Once those foundations are stable, the demo can support a clear transition from exploration to signup or contact without changing real workspace state.',
+      ]},
+    ],
+  },
   'docs/plans/platform/2026-08-24-product-architecture-portfolio.md': {
     deck: 'CaseChain is becoming one connected workspace for GST litigation, rather than a collection of useful but separate screens.',
     intro: 'This portfolio is the map for that change. It explains which parts of the product own documents, evidence, decisions and day-to-day work, so every new feature strengthens the same system.',

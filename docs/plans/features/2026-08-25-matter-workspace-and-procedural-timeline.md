@@ -2,7 +2,7 @@
 title: Matter Workspace and Procedural Timeline
 status: approved
 created: 2026-08-25
-updated: 2026-08-27
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -19,6 +19,15 @@ related:
 
 # Matter Workspace and Procedural Timeline
 
+## Reading guide
+
+Use the [shared reading rules](../../README.md#reading-a-large-plan). Read the scope/security links first, then relevant operations and their interfaces/acceptance. Expand dependencies when needed; recorded checkpoints require current-code reconciliation.
+
+- **Read first:** [Scope](#scope-boundaries) · [Current priorities](#september-review-implementation-priorities) · [Permissions](#permissions-and-mutation-boundaries) · [Failures](#failure-loading-empty-and-partial-behavior).
+- **Navigation and reads:** [Routes](#matter-workspace-route-and-state) · [Section actions](#section-navigation-and-primary-actions) · [Responsive scrolling](#scroll-ownership-and-responsive-structure) · [Freshness](#selective-realtime-and-freshness).
+- **Matter content:** [Timeline authority](#timeline-philosophy-and-source-data) · [Graph](#horizontal-layout-and-graph-behavior) · [Inspector](#document-inspector-and-workbench-handoff) · [Files](#files-supporting-evidence-library) · [Activity](#matter-activity) · [Details](#matter-details-and-status-normalization).
+- **Checks and contracts:** [Interfaces](#interfaces-and-data-changes) · [Acceptance](#testing-and-acceptance-criteria) · [Assumptions](#assumptions) · [Open questions](#open-questions).
+
 ## Summary
 
 Rebuild the Matter page as CaseChain's flagship evidence workspace rather than a collection of unrelated tabs. Keep matter identity, status, scoped Search, freshness, navigation, and the current primary action in compact stable chrome; give each section one deliberate content region; and preserve deep-linkable state across Timeline, Files, Case Brief, Notes, Deadlines, Financials, Activity, and Details.
@@ -29,7 +38,9 @@ Make Files the supporting-evidence library for the matter. It uses a compact des
 
 ## Context and Goals
 
-### Current-state audit
+### Historical audit at plan creation
+
+Use [the delivery ledger](../../delivery-ledger.md) for current repairs and evidence. The audit below explains the plan's origin; completed checkpoints must be reconciled against the actual checkout.
 
 The production Matter route currently loads the matter, all proceeding/supporting documents, legacy links, CaseWiki sections, Notes, every organisation member, and administrator-auth user email data before rendering. `MatterTabs` keeps five feature-local state copies and attaches broad Postgres Changes subscriptions to `documents`, `document_links`, `wiki_sections`, and `case_notes`. The route has no URL-addressable active section or selected document state, and section failures cannot degrade independently.
 
@@ -72,6 +83,13 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 
 ## Decisions
 
+### September review implementation priorities
+
+- D09/D11: use the corrected proceeding/matter identity across creation, placement and Restore; a financial year is a grouping attribute, not sufficient matter identity. Coordinate the index/Restore migration with Document Hub and Trash.
+- Load the active Matter section lazily, paginate growing collections and use narrow selected-document/relationship projections. Do not load every note, document and member to open one section; use the canonical safe member directory instead of Auth admin lookups.
+- Ship the compact shell, chronology and Files-to-Workbench journey before the richer graph. Preserve section and selection in URLs. Validate gap-aware pane sizing, loading/error/empty/long-content states, visible verb labels and phone layouts in actual consumers.
+- Selected inspector effective metadata reconciles with document/source state; refreshing only the row list cannot leave a stale interpretation beside a new source. Use the shared Realtime contract rather than a second timer or subscription.
+
 ### Matter workspace route and state
 
 - `/matters/{matterId}` remains the canonical Matter route. Use URL state rather than component-only tabs:
@@ -100,7 +118,7 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 
 ### Section navigation and primary actions
 
-- Desktop section order is fixed: `Timeline`, `Files`, `Case Brief`, `Notes`, `Deadlines`, `Financials`, `Activity`, `Details`. Activity precedes Details and Details is the rightmost item. Financials uses the rupee icon.
+- Desktop section order is fixed: `Timeline`, `Files`, `Case Brief`, `Notes`, `Deadlines`, `Financials`, `Activity`, `Details`. Keep the compact navigation label `Files`; inside that section, use the quiet visible identity `Supporting files` and the action `Add supporting file` so users do not mistake it for the proceeding-document Timeline. Activity precedes Details and Details is the rightmost item. Financials uses the rupee icon.
 - Use the reviewed full, opaque section strip with a modest shadow. It does not collapse, fade to low opacity, become glass, or require hover to discover navigation. The strip remains outside the active section scroller and does not move when its table/feed/body scrolls.
 - On the Timeline canvas the strip overlays the upper canvas region so the graph can use the full bounded body. Nodes/layout reserve a safe top zone beneath it. On non-canvas desktop sections, reserve only the strip's compact height plus a small gap; do not add another hero heading such as `CHRONOLOGY`, `SUPPORTING MATERIAL`, or `Matter files` before the real content.
 - Every non-canvas Matter section uses the same compact workbar anatomy: view/scope controls at the left, optional search or interpretation context in the flexible middle, and collaborators/Filters/secondary controls plus the current primary action at the right. The primary action is always the rightmost control. Sections may omit irrelevant slots but do not reorder the remaining ones; moving between Files, Notes, Deadlines, Financials, Activity, and Details must not make familiar actions jump unpredictably.
@@ -214,7 +232,7 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 ### Files supporting-evidence library
 
 - Files contains active logical documents with `document_class = supporting`; proceeding documents remain in Timeline. A supporting document may have native/OCR/extracted metadata, metadata only, or no reliable text. The UI states the actual availability instead of implying every file was AI-read.
-- Remove the large `SUPPORTING MATERIAL / Matter files` heading and explanatory paragraph. The selected section and table columns establish context. Use a compact toolbar with Search, Filters, result count when filtered, and `Add supporting file`.
+- Remove the large `SUPPORTING MATERIAL / Matter files` heading and explanatory paragraph. Use a quiet `Supporting files` identity within the compact workbar, followed by Search, Filters, result count when filtered, and `Add supporting file`; do not turn the identity into another hero heading.
 - Desktop uses a semantic table with `File`, `Category`, `Added`, `Linked to`, `Content`, and More actions. File identity includes type/icon, title/original filename, size, and content/indexing state without reading a storage path in the browser.
 - Mobile uses a compact list: icon plus title/filename, a single metadata line, category badge, linked-proceeding summary, and More. It must not vertically stack category, date, link, and menu into oversized cards.
 - Category navigation lives inside Filters, not a permanent left category card. Seed a supporting-file category catalogue with stable keys/labels:
@@ -227,7 +245,7 @@ The reviewed development concept at `/dev/matter-workspace-concept` established 
 - Categories are rows in `supporting_file_categories`, with system rows and future organisation rows, instead of another PostgreSQL enum. The document stores `supporting_category_id`; inactive categories remain renderable for history. `Other` is the fallback, not a dumping rule that prevents later correction.
 - Add `document_evidence_associations` for optional same-matter supporting-to-proceeding links. It stores organisation/matter, supporting document, proceeding document, kind (`supports`, `submitted_with`, `attachment_to`, `background`), optional concise note, actor, and timestamps. Constraints enforce source class supporting, target class proceeding, same matter/organisation, active endpoint lineage, and unique active pair/kind. These associations appear in Files/Workbench but never as procedural Timeline edges.
 - Selecting a file opens the shared Workbench. More actions follow capabilities: Edit record, Link to proceeding, Change category, Promote to proceeding with impact preview, Replace PDF, Download original, and Move to Trash. There is no page-specific PDF modal.
-- Size/quota policy remains the lifecycle plan's 25 MB/PDF, 100 MB/organisation, and 750 MB platform guard. Files displays organisation storage warning only through the shared quota projection and never invents a matter-local hard limit.
+- Size/quota policy remains the lifecycle plan's 25 MiB/PDF default, reviewable 350 MiB design-partner organisation entitlement, and configurable provider-capacity platform guard. Files displays organisation storage warning only through the shared quota projection and never invents a matter-local hard limit.
 
 ### Matter Activity
 
@@ -440,6 +458,8 @@ type MatterTimelineProjection = {
 - Realtime invalidations carry only IDs, revisions, event kind, and safe projection names. They contain no matter title, client identity, filename, note body, extracted fact, quote, signed URL, or storage path.
 
 ## Testing and Acceptance Criteria
+
+- Opening a section does not eagerly fetch all other section bodies. A selected inspector reads only its required context; member email visibility matches Team. Browser navigation restores section/selection and narrow layouts retain accessible actions without page overflow.
 
 ### Shell, routing, and responsive behavior
 

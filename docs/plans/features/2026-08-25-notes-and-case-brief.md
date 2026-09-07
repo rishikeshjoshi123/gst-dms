@@ -2,7 +2,7 @@
 title: Matter Notes and Cited Case Brief
 status: approved
 created: 2026-08-25
-updated: 2026-09-01
+updated: 2026-09-08
 owners:
   - product
   - engineering
@@ -43,6 +43,27 @@ This plan serves lawyers, associates, reviewers, and organisation administrators
 Out of scope are general chat rooms, direct messages, typing indicators, emoji reactions, simultaneous rich-text co-editing, voice/video, AI-generated legal advice, arbitrary Case Brief section templates, and using Notes as the canonical task/deadline store.
 
 ## Decisions
+
+### Existing Notes and source integrity repairs
+
+- [D02/D07 in the delivery ledger](../../delivery-ledger.md) apply to enabled legacy Notes now; they do not wait for the full post-pilot conversation overhaul. Reading a note does not authorize deleting it. Replace service-role deletion after a read check with an author/capability-checked mutation that atomically revalidates membership and active parent state.
+- Test author and non-author Associate, Admin/Owner moderation, Viewer, removed/suspended member and cross-tenant direct calls. Use the canonical directory projection and immutable actor snapshots; Notes/Activity must not rebuild member email visibility through the global Auth admin directory.
+- New source-backed quotes persist the selected immutable PDF version and validated page, even while replacement UI is deferred. Backfill old quotes only when the source can be established unambiguously; otherwise preserve the excerpt and mark its locator unverified rather than inventing a version. Repairing this minimum integrity contract does not require the entire new Notes UI.
+- Pilot-disabled Brief/Wiki generation is denied at the server trigger and worker boundary as well as hidden in UI. Historical readable content cannot imply current automatic maintenance.
+
+### Design-partner release boundary
+
+- The first production release does not ship Case Brief generation,
+  automatic refresh, agents, generated answers, Note/chat distillation, or a
+  workspace-wide memory system. Existing compatibility content may remain
+  readable only where it cannot imply current AI maintenance.
+- Notes messages and Case Brief blocks are not embedded in the first-release
+  Search index. The only semantic index in that release is the Search plan's
+  cited, matter-scoped retrieval over current PDF chunks.
+- This plan remains the approved post-pilot contract for the Notes/Case Brief
+  overhaul. Its AI generation and refresh steps become eligible only after the
+  first-release document retrieval has measured citation quality, cost, and
+  user value; they are not a design-partner release gate.
 
 ### Product boundaries
 
@@ -183,7 +204,7 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 3. Publish migrated content with a visible partial-citation state; do not invent page references. A user or validated refresh may resolve citations section by section.
 4. Keep legacy CaseWiki routes as temporary redirects to Matter Case Brief, then remove legacy writes after migration verification.
 
-### 5. Implement Brief generation and refresh
+### 5. Implement post-pilot Brief generation and refresh
 
 1. Implement on-demand initial generation from proceeding documents, verified effective metadata, canonical facts, and exact source locators. Supply opaque source/fact IDs and require the fixed, versioned section/block/claim schema.
 2. Validate the response with the versioned schema, resolve canonical facts independently, and add grounding validation that rejects missing, invented, inaccessible, version-mismatched, or unsupported citations before publishing.
@@ -198,7 +219,7 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 3. Add Search indexing, Activity events, Review routing, read-only Trash behavior, and document purge dependency handling.
 4. Remove the user-facing CaseWiki label after redirect and migration monitoring complete.
 
-### 7. Cut-over and observe
+### 7. Cut over and observe after the feature is enabled
 
 1. Roll out per organisation/matter behind flags: Notes read projection, Notes writes, Brief read projection, Brief generation, automatic maintenance.
 2. Monitor migration parity, message command errors, Broadcast channel usage, cursor lag, mention delivery, citation-open success, Brief no-op ratio, validation rejection, proposal rate, token usage, and refresh latency.
@@ -245,6 +266,9 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 
 ## Testing and Acceptance Criteria
 
+- Existing note deletion rejects a non-author without moderation capability, a Viewer and an inactive member through direct mutation calls, not merely disabled buttons. Concurrent Trash/member changes cannot bypass the command.
+- A persisted quote reopens the same source/page after navigation, refresh and any existing historical-version selection. Unverifiable legacy locators are explicit. Pilot generation triggers cannot schedule a provider call through direct invocation.
+
 ### Automated coverage
 
 - Schema and RLS tests prove cross-organisation thread/message/mention/quote/Brief/citation access is impossible and role permissions match this plan.
@@ -277,7 +301,7 @@ Completion requires typecheck, lint for touched files, unit/integration/RLS/migr
 - The shared Workbench supplies immutable document versions, page rendering/OCR coordinates, and typed source locators before exact quotation cut-over.
 - The Work/Review/Activity plan supplies first-class tasks, Review items, outbox, notification intent, and configurable mention email delivery.
 - Initial rich-text storage uses a sanitized versioned JSON AST with a controlled renderer/editor; raw arbitrary HTML is never accepted.
-- Case Brief auto-maintenance is opt-out per organisation after first creation and may remain feature-flagged during the pilot.
+- Case Brief generation and auto-maintenance are disabled for the design-partner release. When the later feature gate passes, auto-maintenance is opt-out per organisation after first creation and remains separately feature-flagged during rollout.
 - Under the controlled-pilot contract, one ordinary user may have exactly one active or suspended organisation membership. Notes/Brief cursors, preferences, mentions, and search remain organisation-scoped so a future approved multi-organisation migration is compatible.
 
 ## Open Questions

@@ -23,11 +23,11 @@ Allowed statuses are `proposed`, `approved`, `in-progress`, `completed`, and `su
 
 Create another domain only after multiple plans justify a stable new category.
 
-## Portfolio handoff
+## Implementation entry point
 
-The canonical cross-domain status and resumption contract lives in the [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md#portfolio-status-and-resumption-contract). As of 2026-08-29, the fourteen child domains comprise nine approved plans, zero decision-complete proposed plans, four in-progress implementation/revision tracks, and one deliberately deferred, not-archived domain. Every archived decision-complete proposed child plan has now passed final approval. The umbrella portfolio remains proposed until External Acquisition and Imports is archived, but planning no longer blocks implementation.
+Use the [reusable prompt](../implementation-prompt.md) and its [canonical workflow](./operations/2026-09-08-agent-delivery-workflow.md). The [documentation map](../README.md) routes supporting reads. For selection, use the index below; read the selected contract and necessary dependencies, expanding scope when evidence requires it. The largest domain plans have reading guides. Historical checkpoints are retrieved when relevant.
 
-A fresh planning task should read `AGENTS.md`, this index, the portfolio status table, and only the plan for the active domain. It must not reconstruct approved decisions from chat history. Organisation Administration remains in progress, but its identity/RBAC foundation is a completed foundation tranche. Document Record and File Lifecycle is in progress: direct-matter and global Inbox canonical upload, placement, recovery, staged-source verification, controlled staging transfer, non-destructive retirement evidence inventory, durable outbox dispatch, scoped reprocess completion/recovery, structured Vertex failure fences, privileged outbox compaction, fail-closed staged-source purge authority, and the verified zero-unresolved staging compatibility/legacy-assignment cutover are complete. AI Extraction and Provenance is in progress: transitional hardening plus immutable source-analysis run/attempt and source-field candidate authority are complete; document-version bindings/document-level candidate materialization are implemented and awaiting independent QA. Unassigned Intake is manual-only; after assignment and exact canonical equality, legal hold, export, backup, and retention govern the canonical matter document rather than its redundant staging copy. Retain the staging history and content-free tombstones until a later separately approved data-retention contract authorises removal. Platform Operations must ship and pass its gates before rollout beyond the controlled pilot. External Acquisition and Imports remains deliberately deferred until representative spreadsheets are available.
+The [portfolio table](./platform/2026-08-24-product-architecture-portfolio.md#portfolio-status-and-resumption-contract) describes architecture; the [ledger](../delivery-ledger.md) indexes delivery evidence. Approval, implementation, verification and deployment remain distinct. A proposed overview does not approve its scope or invalidate a separately approved child plan. Keep temporary execution records out of this archive.
 
 ## Plan index
 
@@ -42,28 +42,30 @@ A fresh planning task should read `AGENTS.md`, this index, the portfolio status 
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-01 |
-| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-01 |
-| [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-08-25 |
-| [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-08-27 |
-| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-01 |
-| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-08-26 |
+| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-08 |
+| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-08 |
+| [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-09-08 |
+| [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-09-08 |
+| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-08 |
+| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-09-08 |
+| [Passcode-Gated Interactive Demo Workspace](./features/2026-09-03-interactive-demo-workspace.md) | `proposed` | 2026-09-03 |
 
 ### Platform
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-08-29 |
-| [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `in-progress` | 2026-08-29 |
-| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-08-29 |
-| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-09-01 |
-| [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `approved` | 2026-08-27 |
-| [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-08-27 |
-| [Platform Operations](./platform/2026-08-27-platform-operations.md) | `approved` | 2026-08-27 |
+| [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-09-08 |
+| [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `in-progress` | 2026-09-08 |
+| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-09-08 |
+| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-09-08 |
+| [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `approved` | 2026-09-08 |
+| [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-09-08 |
+| [Platform Operations](./platform/2026-08-27-platform-operations.md) | `approved` | 2026-09-08 |
 
 ### Operations
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [Design Partner Pilot Execution Sequence](./operations/2026-08-29-design-partner-pilot-execution-sequence.md) | `proposed` | 2026-08-29 |
-| [Project Portal and GitHub Pages](./operations/2026-08-27-project-portal-and-github-pages.md) | `in-progress` | 2026-08-27 |
+| [Design Partner Pilot Execution Sequence](./operations/2026-08-29-design-partner-pilot-execution-sequence.md) | `proposed` | 2026-09-08 |
+| [Project Portal and GitHub Pages](./operations/2026-08-27-project-portal-and-github-pages.md) | `in-progress` | 2026-09-08 |
+| [Single-Task Agent Delivery and Verification](./operations/2026-09-08-agent-delivery-workflow.md) | `approved` | 2026-09-08 |
