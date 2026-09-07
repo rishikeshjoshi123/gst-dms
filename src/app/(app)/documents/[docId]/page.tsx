@@ -41,6 +41,8 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
       isTrashReadOnly ? exactDocument.expectedMatterId : undefined,
     )
     : null
+  const signedDocumentError = signedDocument && 'error' in signedDocument ? signedDocument.error : null
+  const signedDocumentUrl = signedDocument && 'url' in signedDocument ? signedDocument.url : null
   const notes = isTrashReadOnly ? exactDocument.data.notes : await getNotes({ documentId: docId })
   const allDocsData = isTrashReadOnly ? null : await getDocumentsByMatter(matterId)
   const allDocuments = isTrashReadOnly
@@ -81,18 +83,18 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
 
       <div className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1 lg:flex-row lg:overflow-hidden lg:pr-0">
         <div className="h-[55vh] min-h-72 w-full shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] lg:h-full lg:w-[65%]">
-          {signedDocument?.error ? (
+          {signedDocumentError ? (
             <div role="alert" className="flex h-full min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
               <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)]">
                 <FileText size={20} aria-hidden="true" />
               </div>
               <div className="max-w-sm space-y-1">
                 <h2 className="text-section-heading text-[var(--text-primary)]">PDF unavailable</h2>
-                <p className="text-body text-[var(--text-secondary)]">{signedDocument.error}</p>
+                <p className="text-body text-[var(--text-secondary)]">{signedDocumentError}</p>
               </div>
             </div>
-          ) : signedDocument?.url ? (
-            <PdfViewer url={signedDocument.url} initialPage={sourceLocator.page ?? 1} />
+          ) : signedDocumentUrl ? (
+            <PdfViewer url={signedDocumentUrl} initialPage={sourceLocator.page ?? 1} />
           ) : (
             <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
               <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-muted)]">
