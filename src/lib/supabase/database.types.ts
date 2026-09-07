@@ -557,6 +557,50 @@ export type Database = {
           },
         ]
       }
+      client_command_receipts: {
+        Row: {
+          actor_user_id: string
+          client_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          client_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          client_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           active_trash_membership_id: string | null
@@ -570,6 +614,7 @@ export type Database = {
           org_id: string
           pan: string | null
           record_state: Database["public"]["Enums"]["resource_record_state"]
+          revision: number
           updated_at: string
         }
         Insert: {
@@ -584,6 +629,7 @@ export type Database = {
           org_id: string
           pan?: string | null
           record_state?: Database["public"]["Enums"]["resource_record_state"]
+          revision?: number
           updated_at?: string
         }
         Update: {
@@ -598,6 +644,7 @@ export type Database = {
           org_id?: string
           pan?: string | null
           record_state?: Database["public"]["Enums"]["resource_record_state"]
+          revision?: number
           updated_at?: string
         }
         Relationships: [
@@ -7377,6 +7424,20 @@ export type Database = {
           receipt_id: string
         }[]
       }
+      create_client_command: {
+        Args: {
+          p_gstin: string
+          p_idempotency_key: string
+          p_name: string
+          p_pan: string
+        }
+        Returns: {
+          client_id: string | null
+          code: string
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
       create_metadata_only_document: {
         Args: {
           p_display_title: string
@@ -9260,6 +9321,22 @@ export type Database = {
         Returns: {
           blocker_code: string
           blocking_operation_id: string
+        }[]
+      }
+      update_client_command: {
+        Args: {
+          p_client_id: string
+          p_expected_revision: number
+          p_gstin: string
+          p_idempotency_key: string
+          p_name: string
+          p_pan: string
+        }
+        Returns: {
+          client_id: string | null
+          code: string
+          replayed: boolean
+          revision: number | null
         }[]
       }
       update_organisation_trash_retention_policy: {

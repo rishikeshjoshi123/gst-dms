@@ -3,6 +3,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const nullableRpcFields = {
+  create_client_command: {
+    client_id: 'string',
+    revision: 'number',
+  },
   create_note_with_optional_task: {
     note_id: 'string',
     task_id: 'string',
@@ -62,6 +66,10 @@ const nullableRpcFields = {
     revision: 'number',
     status: 'Database["public"]["Enums"]["task_status"]',
     task_id: 'string',
+  },
+  update_client_command: {
+    client_id: 'string',
+    revision: 'number',
   },
 }
 

@@ -1,10 +1,10 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
-import { appendActivity } from '@/lib/activity'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
+import { randomUUID } from 'node:crypto'
 
 // ── Read Clients ──────────────────────────────────────────────────
 
@@ -25,12 +25,12 @@ export async function getClients() {
 
   if (!data) return []
 
-  return data.map((client: any) => {
+  return data.map((client) => {
     const activeMatters = client.matters || []
     return {
       ...client,
       totalMatters: activeMatters.length,
-      openMatters: activeMatters.filter((m: any) => m.status !== 'closed' && m.status !== 'disposed').length
+      openMatters: activeMatters.filter((matter) => matter.status !== 'closed' && matter.status !== 'disposed').length
     }
   })
 }
@@ -59,47 +59,36 @@ export async function createClientAction(formData: FormData) {
   
   if (!orgId) return { error: 'No active organisation.' }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
   const name = (formData.get('name') as string)?.trim()
   const gstin = (formData.get('gstin') as string)?.trim() || null
   const pan = (formData.get('pan') as string)?.trim() || null
+  const idempotencyKey = (formData.get('idempotencyKey') as string)?.trim() || randomUUID()
 
   if (!name || name.length < 2) {
     return { error: 'Client name must be at least 2 characters.' }
   }
 
-  const db = createServiceClient()
-
-  const { data, error } = await db
-    .from('clients')
-    .insert({
-      org_id: orgId,
-      name,
-      gstin,
-      pan,
-    })
-    .select('id')
-    .single()
-
-  if (error || !data) {
-    console.error('Create client error:', error)
-    return { error: error?.message ?? 'Failed to create client.' }
+  const { data: command, error: commandError } = await supabase.rpc('create_client_command', {
+    p_name: name,
+    p_gstin: gstin ?? '',
+    p_pan: pan ?? '',
+    p_idempotency_key: idempotencyKey,
+  })
+  const result = command?.[0]
+  if (commandError || !result || result.code !== 'ok' || !result.client_id) {
+    console.error('Create client command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      invalid_request: 'Check the client name, GSTIN, and PAN.',
+      not_allowed: 'You do not have permission to create clients.',
+      identifier_conflict: 'An active client already uses this GSTIN or PAN.',
+      idempotency_conflict: 'This submission key was already used for another request.',
+      context_unavailable: 'The created client is no longer active.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Failed to create client.' }
   }
 
-  // Log activity
-  await appendActivity({
-    org_id: orgId,
-    user_id: user.id,
-    action: 'client_created',
-    entity_type: 'client',
-    entity_id: data.id,
-    description: `Created client "${name}"`,
-  })
-
   revalidatePath('/clients'); revalidatePath('/dashboard')
-  return { success: true, id: data.id }
+  return { success: true, id: result.client_id }
 }
 
 // ── Update Client ─────────────────────────────────────────────────
@@ -110,22 +99,18 @@ export async function updateClientAction(id: string, formData: FormData) {
   
   if (!orgId) return { error: 'No active organisation.' }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
   const name = (formData.get('name') as string)?.trim()
   const gstin = (formData.get('gstin') as string)?.trim() || null
   const pan = (formData.get('pan') as string)?.trim() || null
+  const idempotencyKey = (formData.get('idempotencyKey') as string)?.trim() || randomUUID()
 
   if (!name || name.length < 2) {
     return { error: 'Client name must be at least 2 characters.' }
   }
 
-  const db = createServiceClient()
-
   const { data: activeClient } = await supabase
     .from('clients')
-    .select('id')
+    .select('id, revision')
     .eq('id', id)
     .eq('org_id', orgId)
     .eq('record_state', 'active')
@@ -133,36 +118,34 @@ export async function updateClientAction(id: string, formData: FormData) {
     .maybeSingle()
   if (!activeClient) return { error: 'Client not found or is read-only in Trash.' }
 
-  const { data: updatedClient, error } = await db
-    .from('clients')
-    .update({
-      name,
-      gstin,
-      pan,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    console.error('Update client error:', error)
-    return { error: error.message }
+  const expectedRevisionValue = formData.get('expectedRevision')
+  const requestedRevision = expectedRevisionValue === null
+    ? activeClient.revision
+    : Number(expectedRevisionValue)
+  if (!Number.isSafeInteger(requestedRevision) || requestedRevision < 1) {
+    return { error: 'Refresh this client before saving changes.' }
   }
-  if (!updatedClient) return { error: 'Client not found or is read-only in Trash.' }
-
-  // Log activity
-  await db.from('activity_logs').insert({
-    org_id: orgId,
-    user_id: user.id,
-    action: 'client_updated',
-    entity_type: 'client',
-    entity_id: id,
-    description: `Updated client "${name}"`,
+  const { data: command, error: commandError } = await supabase.rpc('update_client_command', {
+    p_client_id: id,
+    p_expected_revision: requestedRevision,
+    p_name: name,
+    p_gstin: gstin ?? '',
+    p_pan: pan ?? '',
+    p_idempotency_key: idempotencyKey,
   })
+  const result = command?.[0]
+  if (commandError || !result || result.code !== 'ok') {
+    console.error('Update client command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      invalid_request: 'Check the client name, GSTIN, and PAN.',
+      not_allowed: 'You do not have permission to update clients.',
+      context_unavailable: 'Client not found or is read-only in Trash.',
+      conflict: 'This client changed. Refresh before saving again.',
+      identifier_conflict: 'An active client already uses this GSTIN or PAN.',
+      idempotency_conflict: 'This submission key was already used for another request.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Failed to update client.' }
+  }
 
   revalidatePath('/clients'); revalidatePath('/dashboard')
   revalidatePath(`/clients/${id}`)

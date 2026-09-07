@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { createClientAction } from '@/lib/actions/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,18 +13,21 @@ export function NewClientButton() {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const idempotencyKey = useRef(crypto.randomUUID())
   const router = useRouter()
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     const formData = new FormData(e.currentTarget)
+    formData.set('idempotencyKey', idempotencyKey.current)
 
     startTransition(async () => {
       const result = await createClientAction(formData)
       if (result?.error) {
         setError(result.error)
       } else {
+        idempotencyKey.current = crypto.randomUUID()
         setOpen(false)
         router.refresh()
       }
@@ -38,7 +41,13 @@ export function NewClientButton() {
         New Client
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isPending) {
+          idempotencyKey.current = crypto.randomUUID()
+          setError(null)
+        }
+        setOpen(nextOpen)
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a new client</DialogTitle>

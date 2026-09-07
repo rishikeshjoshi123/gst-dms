@@ -4,6 +4,7 @@ import test from 'node:test'
 import { refineSupabaseTypes } from './refine-supabase-types.mjs'
 
 const specs = {
+  create_client_command: ['client_id: string', 'revision: number'],
   create_note_with_optional_task: ['note_id: string', 'task_id: string'],
   get_my_tasks: [
     'assignee_user_id: string',
@@ -58,6 +59,7 @@ const specs = {
     'status: Database["public"]["Enums"]["task_status"]',
     'task_id: string',
   ],
+  update_client_command: ['client_id: string', 'revision: number'],
 }
 
 function generatedFixture() {
