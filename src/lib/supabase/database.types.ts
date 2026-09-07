@@ -8062,16 +8062,17 @@ export type Database = {
       get_my_team_members: {
         Args: never
         Returns: {
-          authorised_email: string
+          authorised_email: string | null
           capabilities: string[]
-          display_name: string
+          display_name: string | null
           is_owner: boolean
           joined_at: string
           membership_id: string
-          professional_title: string
+          professional_title: string | null
           revision: number
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_membership_state"]
+          user_id: string
         }[]
       }
       get_note_task_summaries: {

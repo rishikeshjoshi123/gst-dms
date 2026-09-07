@@ -1,8 +1,9 @@
 import { getNotes } from '@/lib/actions/notes'
 import { getMatters } from '@/lib/actions/matter'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { NotesClientView } from './NotesClientView'
+import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
 
 export const metadata = { title: 'Notes Hub — GST Litigation DMS' }
 
@@ -27,20 +28,7 @@ export default async function NotesPage() {
   // Fetch initial notes
   const notes = await getNotes()
 
-  // Fetch users in org for assignee dropdown
-  const { data: memberRows } = await supabase
-    .from('org_members')
-    .select('user_id, role')
-    .eq('org_id', orgId)
-
-  const serviceClient = createServiceClient()
-  const { data: { users: authUsers } } = await serviceClient.auth.admin.listUsers()
-  const userMap = new Map(authUsers.map(u => [u.id, u.email]))
-
-  const usersList = (memberRows ?? []).map((m: any) => ({
-    id: m.user_id,
-    email: userMap.get(m.user_id) || `User (${m.user_id.slice(0, 8)})`
-  }))
+  const usersList = await getOperationalMemberOptions()
 
   return (
     <NotesClientView

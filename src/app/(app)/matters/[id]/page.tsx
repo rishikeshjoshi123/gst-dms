@@ -4,14 +4,13 @@ import { getWikiSections } from '@/lib/actions/wiki'
 import { getNotes } from '@/lib/actions/notes'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
 import { shapeDocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getCurrentOrgId } from '@/lib/actions/org'
 import { getExactMatter } from '@/lib/trash/exact-resource'
 import { notFound } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { MatterTabs } from '@/components/matters/MatterTabs'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
+import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
 
@@ -27,8 +26,6 @@ export default async function MatterPage(props: {
   if (!exactMatter) notFound()
   const isTrashReadOnly = exactMatter.state === 'trash'
   const matter = isTrashReadOnly ? exactMatter.data.record : exactMatter.record
-
-  const supabase = await createClient()
 
   const trashDocuments = isTrashReadOnly ? exactMatter.data.documents : []
   const activeDocuments = isTrashReadOnly ? null : await getDocumentsByMatter(params.id)
@@ -46,21 +43,7 @@ export default async function MatterPage(props: {
     ? shapeDocumentInspectorMetadata(documentIds, exactMatter.data.inspectorMetadataRows)
     : await getDocumentInspectorMetadata(documentIds)
 
-  const orgId = await getCurrentOrgId()
-  let usersList: Array<{ id: string; email: string }> = []
-  if (!isTrashReadOnly) {
-    const { data: memberRows } = await supabase
-      .from('org_members')
-      .select('user_id, role')
-      .eq('org_id', orgId || '')
-    const serviceClient = createServiceClient()
-    const { data: { users: authUsers } } = await serviceClient.auth.admin.listUsers()
-    const userMap = new Map(authUsers.map(u => [u.id, u.email]))
-    usersList = (memberRows ?? []).map((m) => ({
-      id: m.user_id,
-      email: userMap.get(m.user_id) || `User (${m.user_id.slice(0, 8)})`
-    }))
-  }
+  const usersList = isTrashReadOnly ? [] : await getOperationalMemberOptions()
 
   const isClosed = matter.status === 'closed'
 

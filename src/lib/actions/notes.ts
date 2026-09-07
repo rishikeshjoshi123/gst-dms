@@ -1,11 +1,12 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@/lib/supabase/database.types'
 import { batchTaskSummaryNoteIds } from '@/lib/notes/task-summary-batching'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { getSafeMemberDirectory } from '@/lib/organisation/member-directory'
 
 export async function getNotes(filters: {
   matterId?: string
@@ -88,29 +89,14 @@ export async function getNotes(filters: {
     task_summary: taskSummaryByNoteId.get(note.id) ?? null,
   }))
 
-  // Fetch auth users to resolve emails
-  try {
-    const serviceClient = createServiceClient()
-    const { data: { users: authUsers }, error: authError } = await serviceClient.auth.admin.listUsers()
-    if (!authError && authUsers) {
-      const userMap = new Map(authUsers.map(u => [u.id, u.email]))
-      return notesWithTaskSummaries.map(note => ({
-        ...note,
-        author: {
-          id: note.author_id,
-          email: userMap.get(note.author_id) || `User (${note.author_id.slice(0, 8)})`
-        }
-      }))
-    }
-  } catch (err) {
-    console.error('Failed to fetch auth users list:', err)
-  }
+  const directory = await getSafeMemberDirectory()
+  const userMap = new Map(directory.map((member) => [member.id, member.label]))
 
   return notesWithTaskSummaries.map(note => ({
     ...note,
     author: {
       id: note.author_id,
-      email: `User (${note.author_id.slice(0, 8)})`
+      email: userMap.get(note.author_id) || `User (${note.author_id.slice(0, 8)})`
     }
   }))
 }

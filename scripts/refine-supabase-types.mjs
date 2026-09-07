@@ -20,6 +20,11 @@ const nullableRpcFields = {
     due_timezone: 'string',
     matter_id: 'string',
   },
+  get_my_team_members: {
+    authorised_email: 'string',
+    display_name: 'string',
+    professional_title: 'string',
+  },
   get_note_task_summaries: {
     assignee_user_id: 'string',
     due_date: 'string',
