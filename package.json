@@ -12,9 +12,13 @@
     "test:search-baseline": "tsx scripts/search/evaluate-legacy-search-baseline.ts",
     "test:ocr-acquisition-benchmark": "tsx --test scripts/document-ai/ocr-acquisition-benchmark.test.ts",
     "test:db:migrations": "node --test scripts/check-supabase-migrations.test.mjs",
+    "test:db:types": "node --test scripts/refine-supabase-types.test.mjs",
+    "typecheck": "tsc --noEmit --pretty false",
     "trigger:dev": "npx trigger.dev@latest dev",
     "db:migrations:check": "node scripts/check-supabase-migrations.mjs",
-    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_REF > src/lib/supabase/database.types.ts"
+    "db:types": "node scripts/generate-supabase-types.mjs",
+    "db:types:local": "node scripts/generate-supabase-types.mjs --local",
+    "db:types:refine": "node scripts/refine-supabase-types.mjs src/lib/supabase/database.types.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.100",

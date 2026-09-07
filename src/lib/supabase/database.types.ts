@@ -7399,9 +7399,9 @@ export type Database = {
         }
         Returns: {
           code: string
-          note_id: string
+          note_id: string | null
           replayed: boolean
-          task_id: string
+          task_id: string | null
         }[]
       }
       create_organisation: {
@@ -7972,14 +7972,14 @@ export type Database = {
           p_statuses?: Database["public"]["Enums"]["task_status"][]
         }
         Returns: {
-          assignee_user_id: string
-          client_id: string
+          assignee_user_id: string | null
+          client_id: string | null
           created_at: string
-          document_id: string
-          due_date: string
-          due_time: string
-          due_timezone: string
-          matter_id: string
+          document_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          matter_id: string | null
           origin_available: boolean
           priority: Database["public"]["Enums"]["task_priority"]
           revision: number
@@ -8007,10 +8007,10 @@ export type Database = {
       get_note_task_summaries: {
         Args: { p_note_ids?: string[] }
         Returns: {
-          assignee_user_id: string
-          due_date: string
-          due_time: string
-          due_timezone: string
+          assignee_user_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
           note_id: string
           revision: number
           status: Database["public"]["Enums"]["task_status"]
@@ -8127,8 +8127,8 @@ export type Database = {
           comment_id: string
           created_at: string
           mentioned_user_ids: string[]
-          reply_to_comment_id: string
-          reply_to_sequence: number
+          reply_to_comment_id: string | null
+          reply_to_sequence: number | null
           sequence: number
           thread_id: string
         }[]
@@ -8136,20 +8136,20 @@ export type Database = {
       get_task_detail: {
         Args: { p_task_id: string }
         Returns: {
-          assignee_user_id: string
-          client_id: string
-          completed_at: string
-          completed_by: string
+          assignee_user_id: string | null
+          client_id: string | null
+          completed_at: string | null
+          completed_by: string | null
           created_at: string
           creator_user_id: string
-          description: string
-          document_id: string
-          due_date: string
-          due_time: string
-          due_timezone: string
-          matter_id: string
+          description: string | null
+          document_id: string | null
+          due_date: string | null
+          due_time: string | null
+          due_timezone: string | null
+          matter_id: string | null
           origin_available: boolean
-          origin_note_id: string
+          origin_note_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
           revision: number
           status: Database["public"]["Enums"]["task_status"]
@@ -8164,15 +8164,15 @@ export type Database = {
         Returns: {
           actor_user_id: string
           command: string
-          from_assignee_user_id: string
-          from_due_date: string
-          from_due_timezone: string
+          from_assignee_user_id: string | null
+          from_due_date: string | null
+          from_due_timezone: string | null
           from_status: Database["public"]["Enums"]["task_status"]
           occurred_at: string
           revision: number
-          to_assignee_user_id: string
-          to_due_date: string
-          to_due_timezone: string
+          to_assignee_user_id: string | null
+          to_due_date: string | null
+          to_due_timezone: string | null
           to_status: Database["public"]["Enums"]["task_status"]
           transition_id: string
         }[]
@@ -8764,10 +8764,10 @@ export type Database = {
         Args: { p_source_analysis_run_id: string }
         Returns: {
           code: string
-          cost_micro_usd: number
-          pricing_version_id: string
-          provider_usage_event_id: string
-          quality: Database["public"]["Enums"]["provider_usage_quality"]
+          cost_micro_usd: number | null
+          pricing_version_id: string | null
+          provider_usage_event_id: string | null
+          quality: Database["public"]["Enums"]["provider_usage_quality"] | null
         }[]
       }
       record_current_document_inspector_correction: {
@@ -9192,9 +9192,9 @@ export type Database = {
         Returns: {
           code: string
           replayed: boolean
-          revision: number
-          status: Database["public"]["Enums"]["task_status"]
-          task_id: string
+          revision: number | null
+          status: Database["public"]["Enums"]["task_status"] | null
+          task_id: string | null
         }[]
       }
       trash_purge_active_blockers: {

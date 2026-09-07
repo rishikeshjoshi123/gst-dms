@@ -7,6 +7,7 @@ type List = Database['public']['Functions']['get_my_tasks']['Returns'][number]
 type Summary = Database['public']['Functions']['get_note_task_summaries']['Returns'][number]
 type Detail = Database['public']['Functions']['get_task_detail']['Returns'][number]
 type History = Database['public']['Functions']['get_task_transition_history']['Returns'][number]
+type Comment = Database['public']['Functions']['get_task_comments']['Returns'][number]
 type CreateNoteWithOptionalTask = Database['public']['Functions']['create_note_with_optional_task']['Returns'][number]
 type Transition = Database['public']['Functions']['transition_task']['Returns'][number]
 
@@ -46,6 +47,10 @@ type _HistoryNullability = Assert<
   IsNullable<History['to_due_date']> &
   IsNullable<History['to_due_timezone']>
 >
+type _CommentNullability = Assert<
+  IsNullable<Comment['reply_to_comment_id']> &
+  IsNullable<Comment['reply_to_sequence']>
+>
 type _CreateNoteWithOptionalTaskNullability = Assert<
   IsNullable<CreateNoteWithOptionalTask['note_id']> &
   IsNullable<CreateNoteWithOptionalTask['task_id']>
@@ -61,6 +66,7 @@ export const taskRpcNullabilityTypeProof: [
   _SummaryNullability,
   _DetailNullability,
   _HistoryNullability,
+  _CommentNullability,
   _CreateNoteWithOptionalTaskNullability,
   _TransitionNullability,
-] = [true, true, true, true, true, true]
+] = [true, true, true, true, true, true, true]

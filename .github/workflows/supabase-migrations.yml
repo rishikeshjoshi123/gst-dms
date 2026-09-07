@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install application dependencies
+        run: npm ci
+
       - name: Check migration versions
         run: npm run db:migrations:check
 
@@ -33,18 +36,26 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Verify checked-in type contract before migration push
+        run: |
+          npm run test:db:types
+          npm run typecheck
+
       - name: Push migrations to remote
         run: supabase db push --include-all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Regenerate TypeScript types
-        run: |
-          supabase gen types typescript \
-            --project-id ${{ secrets.SUPABASE_PROJECT_REF }} \
-            > src/lib/supabase/database.types.ts
+        run: npm run db:types
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Verify generated type refinements and consumers
+        run: |
+          npm run test:db:types
+          npm run typecheck
 
       - name: Commit regenerated types (if changed)
         uses: stefanzweifel/git-auto-commit-action@v5
