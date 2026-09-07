@@ -1,7 +1,9 @@
 import { after } from 'next/server'
+import { tasks } from '@trigger.dev/sdk/v3'
 
 export type DocumentOutboxWakePayload = Readonly<Record<never, never>>
 
+export const documentOutboxDispatcherTaskId = 'dispatch-document-outbox'
 export const documentOutboxWakePayload: DocumentOutboxWakePayload = {}
 export const documentOutboxWakeOptions = {
   debounce: {
@@ -23,8 +25,7 @@ async function triggerSingletonDocumentOutboxDispatcher(
   payload: typeof documentOutboxWakePayload,
   options: typeof documentOutboxWakeOptions,
 ) {
-  const { documentOutboxDispatcher } = await import('@/trigger/outbox')
-  return documentOutboxDispatcher.trigger(payload, options)
+  return tasks.trigger(documentOutboxDispatcherTaskId, payload, options)
 }
 
 /**

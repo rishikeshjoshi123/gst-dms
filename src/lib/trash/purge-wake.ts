@@ -1,12 +1,23 @@
 import { after } from 'next/server'
+import { tasks } from '@trigger.dev/sdk/v3'
 
 const options = { debounce: { key: 'trash-purge-dispatch', delay: '2s', maxDelay: '15s' } } as const
+export const trashPurgeDispatcherTaskId = 'dispatch-trash-permanent-delete'
 
-export function scheduleTrashPurgeWake(schedule: typeof after = after) {
+type TrashPurgeWakeTrigger = () => Promise<unknown>
+type AfterScheduler = (callback: () => void | Promise<void>) => void
+
+const triggerTrashPurgeDispatcher: TrashPurgeWakeTrigger = () => (
+  tasks.trigger(trashPurgeDispatcherTaskId, undefined, options)
+)
+
+export function scheduleTrashPurgeWake(
+  schedule: AfterScheduler = after,
+  trigger: TrashPurgeWakeTrigger = triggerTrashPurgeDispatcher,
+) {
   schedule(async () => {
     try {
-      const { trashPurgeDispatcher } = await import('@/trigger/outbox')
-      await trashPurgeDispatcher.trigger(undefined, options)
+      await trigger()
     } catch {
       console.warn('Trash purge wake was not accepted; scheduled recovery will resume durable work.')
     }

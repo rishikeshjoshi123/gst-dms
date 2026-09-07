@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   documentOutboxWakeOptions,
   documentOutboxWakePayload,
+  documentOutboxDispatcherTaskId,
   scheduleDocumentOutboxWake,
   submitDocumentOutboxWake,
 } from './wake'
@@ -17,6 +18,7 @@ test('submits one fixed, content-free singleton dispatcher wake', async () => {
   assert.deepEqual(result, { accepted: true })
   assert.deepEqual(calls, [{ payload: {}, options: documentOutboxWakeOptions }])
   assert.deepEqual(documentOutboxWakePayload, {})
+  assert.equal(documentOutboxDispatcherTaskId, 'dispatch-document-outbox')
   assert.deepEqual(documentOutboxWakeOptions, {
     debounce: { key: 'document-outbox-dispatch', delay: '5s', maxDelay: '30s' },
   })
@@ -64,6 +66,16 @@ test('document actions and legacy workers cannot bypass the outbox with direct p
     const file = readFileSync(new URL(source, import.meta.url), 'utf8')
     assert.doesNotMatch(file, /from ['"]@trigger\.dev\/sdk(?:\/v3)?['"]/)
   }
+})
+
+test('the application wake boundary does not import Trigger task implementations', () => {
+  const wake = readFileSync(new URL('./wake.ts', import.meta.url), 'utf8')
+  const purgeWake = readFileSync(new URL('../trash/purge-wake.ts', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(wake, /(?:import\s*\(|from\s+)['"]@\/trigger\//)
+  assert.doesNotMatch(purgeWake, /(?:import\s*\(|from\s+)['"]@\/trigger\//)
+  assert.match(wake, /tasks\.trigger\(documentOutboxDispatcherTaskId, payload, options\)/)
+  assert.match(purgeWake, /tasks\.trigger\(trashPurgeDispatcherTaskId, undefined, options\)/)
 })
 
 test('canonical upload and placement commands schedule only the fixed outbox wake after success', () => {
