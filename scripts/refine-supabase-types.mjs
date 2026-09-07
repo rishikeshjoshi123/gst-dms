@@ -53,6 +53,11 @@ const nullableRpcFields = {
     provider_usage_event_id: 'string',
     quality: 'Database["public"]["Enums"]["provider_usage_quality"]',
   },
+  remove_case_note: {
+    document_id: 'string',
+    matter_id: 'string',
+    removed_at: 'string',
+  },
   transition_task: {
     revision: 'number',
     status: 'Database["public"]["Enums"]["task_status"]',

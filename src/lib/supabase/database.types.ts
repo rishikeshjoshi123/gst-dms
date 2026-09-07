@@ -462,6 +462,9 @@ export type Database = {
           content: string
           created_at: string
           deleted_at: string | null
+          deleted_by: string | null
+          deletion_kind: string | null
+          deletion_reason: string | null
           document_id: string | null
           id: string
           is_action_item: boolean
@@ -483,6 +486,9 @@ export type Database = {
           content: string
           created_at?: string
           deleted_at?: string | null
+          deleted_by?: string | null
+          deletion_kind?: string | null
+          deletion_reason?: string | null
           document_id?: string | null
           id?: string
           is_action_item?: boolean
@@ -504,6 +510,9 @@ export type Database = {
           content?: string
           created_at?: string
           deleted_at?: string | null
+          deleted_by?: string | null
+          deletion_kind?: string | null
+          deletion_reason?: string | null
           document_id?: string | null
           id?: string
           is_action_item?: boolean
@@ -8936,6 +8945,15 @@ export type Database = {
         }
         Returns: {
           code: string
+        }[]
+      }
+      remove_case_note: {
+        Args: { p_moderation_reason?: string; p_note_id: string }
+        Returns: {
+          code: string
+          document_id: string | null
+          matter_id: string | null
+          removed_at: string | null
         }[]
       }
       replace_document_version: {

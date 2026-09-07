@@ -244,50 +244,35 @@ export async function updateNote(noteId: string, updates: {
   return { success: true }
 }
 
-export async function deleteNote(noteId: string) {
+export async function deleteNote(noteId: string, moderationReason?: string) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const db = createServiceClient()
+  const { data: command, error: commandError } = await supabase.rpc('remove_case_note', {
+    p_note_id: noteId,
+    ...(moderationReason === undefined ? {} : { p_moderation_reason: moderationReason }),
+  })
+  const result = command?.[0]
 
-  const { data: existingNote } = await supabase
-    .from('case_notes')
-    .select('org_id, matter_id, document_id')
-    .eq('id', noteId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!existingNote) return { error: 'Note not found.' }
-  const { data: activeMatter } = await supabase
-    .from('matters')
-    .select('id')
-    .eq('id', existingNote.matter_id)
-    .eq('org_id', existingNote.org_id)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!activeMatter) return { error: 'Notes are read-only while this matter is in Trash.' }
-
-  // Soft delete
-  const { error } = await db
-    .from('case_notes')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', noteId)
-    .eq('org_id', existingNote.org_id)
-    .is('deleted_at', null)
-
-  if (error) {
-    console.error('deleteNote error:', error)
-    return { error: error.message }
+  if (commandError || !result || !['ok', 'already_removed'].includes(result.code)) {
+    console.error('deleteNote command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      context_unavailable: 'Note or matter is unavailable.',
+      not_allowed: 'You do not have permission to remove this note.',
+      reason_required: 'Enter a moderation reason between 8 and 500 characters.',
+      reason_not_allowed: 'Authors remove their own notes without a moderation reason.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Unable to remove this note.' }
   }
 
   revalidatePath('/notes')
-  if (existingNote) {
-    revalidatePath(`/matters/${existingNote.matter_id}`)
-    if (existingNote.document_id) {
-      revalidatePath(canonicalDocumentPath(existingNote.document_id))
-    }
+  if (result.matter_id) {
+    revalidatePath(`/matters/${result.matter_id}`)
+  }
+  if (result.document_id) {
+    revalidatePath(canonicalDocumentPath(result.document_id))
   }
 
   return { success: true }
