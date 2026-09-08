@@ -56,7 +56,7 @@ export function UserMenu({ user, currentOrg, allOrgs }: UserMenuProps) {
           className="flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[--accent] cursor-pointer"
         >
           <Avatar
-            name={user.fullName || user.email}
+            name={user.fullName}
             src={user.avatarUrl}
             size="sm"
           />

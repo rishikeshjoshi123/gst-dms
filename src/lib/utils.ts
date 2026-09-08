@@ -37,11 +37,16 @@ export function timeAgo(dateString: string | Date): string {
 }
 
 /**
- * Get initials from a name or email
+ * Returns display-name initials without ever deriving an identity from an
+ * address or identifier. Null tells Avatar to render its neutral user icon.
  */
-export function getInitials(name: string): string {
-  if (!name) return '?'
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
+export function getInitials(displayName?: string | null): string | null {
+  const tokens = displayName?.trim().split(/\s+/).filter(Boolean) ?? []
+  if (tokens.length === 0) return null
+
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  const firstGraphemes = (value: string, count: number) => Array.from(segmenter.segment(value), ({ segment }) => segment).slice(0, count).join('')
+
+  if (tokens.length === 1) return firstGraphemes(tokens[0], 2).toLocaleUpperCase()
+  return `${firstGraphemes(tokens[0], 1)}${firstGraphemes(tokens[tokens.length - 1], 1)}`.toLocaleUpperCase()
 }

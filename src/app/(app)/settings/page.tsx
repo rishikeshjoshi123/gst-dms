@@ -4,6 +4,7 @@ import { SettingsClient } from './SettingsClient'
 import type { Metadata } from 'next'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { getOrganisationTrashRetentionPolicy } from '@/lib/trash/retention-policy'
+import type { Database } from '@/lib/supabase/database.types'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -24,35 +25,26 @@ export default async function SettingsPage() {
 
   if (!org) redirect('/onboarding')
 
-  const [{ data: memberRows }, retentionPolicyResult] = await Promise.all([
-    (supabase.rpc as any)('get_my_team_members'),
-    getOrganisationTrashRetentionPolicy(orgId),
-  ])
-  const members = (memberRows ?? []).map((m: any) => ({ membership_id: m.membership_id, role: m.role as 'admin' | 'associate' | 'viewer', email: m.authorised_email ?? null, full_name: m.display_name ?? null, professional_title: m.professional_title ?? null, is_owner: m.is_owner, state: m.state, joined_at: m.joined_at }))
+  const retentionPolicyResult = await getOrganisationTrashRetentionPolicy(orgId)
 
-  const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
-  const currentContext = (contexts ?? []).find((context: any) => context.org_id === orgId)
-  const currentUserRole = currentContext?.role ?? 'member'
+  const { data: contexts } = await supabase.rpc('get_my_organisation_context')
+  const currentContext = (contexts ?? []).find((context) => context.org_id === orgId)
   const capabilities = currentContext?.capabilities ?? []
 
   // Invite addresses are administrative data; do not even fetch them for a
   // non-admin and rely on RLS as a second line of defense.
   const { data: pendingInvites } = (capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin'))
-    ? await (supabase.rpc as any)('get_organisation_invites')
+    ? await supabase.rpc('get_organisation_invites')
     : { data: [] }
 
   return (
     <SettingsClient
-      orgId={orgId}
       orgName={org.name}
-      currentMembershipId={(contexts ?? []).find((context: any) => context.org_id === orgId)?.membership_id ?? ''}
-      currentUserRole={currentUserRole}
       capabilities={capabilities}
-      members={members}
-      pendingInvites={(pendingInvites ?? []).map((i: any) => ({
+      pendingInvites={(pendingInvites ?? []).map((i) => ({
         id: i.id,
         invited_email: i.authorized_email,
-        role: i.role as 'admin' | 'associate' | 'viewer',
+        role: i.role as Database['public']['Enums']['org_member_role'],
         status: i.state,
         expires_at: i.expires_at,
       }))}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { UserPlus, Mail, User, UserMinus, Crown, Building2, Users, X } from 'lucide-react'
+import { UserPlus, Mail, Building2, X } from 'lucide-react'
 import { inviteMember, deleteInvite, resendInvite } from '@/lib/actions/org'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,22 +15,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Avatar } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import type { TrashRetentionPolicy } from '@/lib/trash/retention-policy'
 import { TrashRetentionSettingsSection } from './TrashRetentionSettingsSection'
-
-interface Member {
-  membership_id: string
-  role: 'admin' | 'associate' | 'viewer'
-  email: string | null
-  full_name: string | null
-  professional_title: string | null
-  is_owner: boolean
-  state: 'active' | 'suspended' | 'removed'
-  joined_at: string
-}
 
 interface Invite {
   id: string
@@ -41,44 +28,28 @@ interface Invite {
 }
 
 interface SettingsClientProps {
-  orgId: string
   orgName: string
-  currentMembershipId: string
-  currentUserRole: string
   capabilities: string[]
-  members: Member[]
   pendingInvites: Invite[]
   retentionPolicy: TrashRetentionPolicy | null
   retentionPolicyLoadError: boolean
 }
 
-const roleIcon: Record<string, React.ElementType> = {
-  admin: Crown,
-  associate: User,
-  viewer: UserMinus,
-}
-
 export function SettingsClient({
-  orgId,
   orgName,
-  currentMembershipId,
-  currentUserRole,
   capabilities,
-  members,
   pendingInvites,
   retentionPolicy,
   retentionPolicyLoadError,
 }: SettingsClientProps) {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
-  const [inviteSuccess, setInviteSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
   
 
   function handleInvite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setInviteError(null)
-    setInviteSuccess(false)
     const formData = new FormData(e.currentTarget)
 
     startTransition(async () => {
@@ -86,7 +57,6 @@ export function SettingsClient({
       if (result?.error) {
         setInviteError(result.error)
       } else {
-        setInviteSuccess(true)
         toast.success('Invitation sent successfully!')
         ;(e.target as HTMLFormElement).reset()
         setInviteOpen(false)
@@ -135,10 +105,6 @@ export function SettingsClient({
               <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Organisation Name</span>
               <span className="font-semibold text-[var(--text-primary)]">{orgName}</span>
             </div>
-            <div className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex justify-between items-center">
-              <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Active Members</span>
-              <span className="font-semibold text-[var(--text-primary)]">{members.length} member{members.length !== 1 ? 's' : ''}</span>
-            </div>
           </div>
         </div>
 
@@ -147,76 +113,26 @@ export function SettingsClient({
           loadError={retentionPolicyLoadError}
         />
 
-        {/* Team Members Card */}
+        {/* Invitation lifecycle remains in Settings; member directory lives at /team. */}
         <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--primary)] border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] shrink-0">
-                <Users size={16} className="text-[var(--primary)]" />
-              </div>
               <div>
-                <h2 className="text-base font-bold text-[var(--text-primary)] leading-tight">Team Members</h2>
-                <p className="text-[11px] text-[var(--text-muted)]">Manage access</p>
+                <h2 className="text-base font-bold text-[var(--text-primary)] leading-tight">Invitations</h2>
+                <p className="text-[11px] text-[var(--text-muted)]">Invite and manage pending invitations</p>
               </div>
             </div>
 
             {(capabilities.includes('team.invite.standard') || capabilities.includes('team.invite.admin')) && (
               <Button
                 size="sm"
-                onClick={() => { setInviteOpen(true); setInviteError(null); setInviteSuccess(false) }}
+                onClick={() => { setInviteOpen(true); setInviteError(null) }}
                 className="h-7 px-3 text-[11px] gap-1.5"
               >
                 <UserPlus size={12} />
                 Invite
               </Button>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            {members.map((member) => {
-              const RoleIcon = roleIcon[member.role] ?? User
-              const isTargetOwner = member.is_owner
-
-              return (
-                <div
-                  key={member.membership_id}
-                  className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-[var(--bg)] transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <Avatar
-                      name={member.full_name || member.email || 'Team member'}
-                      size="sm"
-                    />
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[var(--text-primary)] truncate leading-tight">
-                          {member.full_name ?? member.email ?? 'Team member'}
-                        </span>
-                        {isTargetOwner && (
-                          <span className="text-[10px] font-medium text-[var(--warning)] bg-[var(--warning-muted)] px-1.5 py-0.5 rounded-[var(--radius-sm)]">Owner</span>
-                        )}
-                      </div>
-                      {(member.professional_title || member.email) && (
-                        <span className="text-[11px] text-[var(--text-muted)] truncate leading-none mt-0.5">{member.professional_title ?? member.email}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${
-                      member.role === 'admin'
-                        ? 'text-[var(--warning)]'
-                        : 'text-[var(--text-secondary)]'
-                    }`}>
-                      <RoleIcon size={12} />
-                      <span className="capitalize">{member.role}</span>
-                    </span>
-
-                    <div className="w-6" />
-                  </div>
-                </div>
-              )
-            })}
           </div>
 
           {/* Pending invites */}

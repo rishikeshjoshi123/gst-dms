@@ -8241,6 +8241,30 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_team_directory: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_query?: string | null
+          p_role?: string | null
+          p_state?: string | null
+        }
+        Returns: {
+          authorised_email: string | null
+          capabilities: string[] | null
+          display_name: string | null
+          is_owner: boolean | null
+          joined_at: string | null
+          membership_id: string | null
+          outcome_code: string
+          page_offset: number
+          professional_title: string | null
+          role: Database["public"]["Enums"]["org_member_role"] | null
+          state: Database["public"]["Enums"]["organisation_membership_state"] | null
+          total_count: number
+          user_id: string | null
+        }[]
+      }
       get_note_quote_locators: {
         Args: { p_note_ids: string[]; p_trash_matter_id?: string }
         Returns: {

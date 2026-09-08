@@ -21,6 +21,18 @@ const specs = {
     'display_name: string',
     'professional_title: string',
   ],
+  get_team_directory: [
+    'authorised_email: string',
+    'capabilities: string[]',
+    'display_name: string',
+    'is_owner: boolean',
+    'joined_at: string',
+    'membership_id: string',
+    'professional_title: string',
+    'role: Database["public"]["Enums"]["org_member_role"]',
+    'state: Database["public"]["Enums"]["organisation_membership_state"]',
+    'user_id: string',
+  ],
   get_note_task_summaries: [
     'assignee_user_id: string',
     'due_date: string',

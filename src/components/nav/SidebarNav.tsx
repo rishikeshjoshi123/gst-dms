@@ -23,6 +23,7 @@ const navItems = [
   { href: '/matters',   icon: FolderOpen,      label: 'Matters' },
   { href: '/tasks',     icon: ListTodo,        label: 'Tasks' },
   { href: '/notes',     icon: StickyNote,      label: 'Notes' },
+  { href: '/team',      icon: Users,           label: 'Team' },
 ]
 
 const bottomItems = [
@@ -54,7 +55,7 @@ export function SidebarNav({
         <Link
           key={href}
           href={href}
-          className={cn('nav-item min-h-10', isMobile ? 'justify-start' : 'justify-center md:justify-start', pathname.startsWith(href) && 'active')}
+          className={cn('nav-item min-h-10', isMobile ? 'min-h-11 justify-start' : 'justify-center md:justify-start', pathname.startsWith(href) && 'active')}
           title={label}
         >
           <Icon size={16} className="nav-icon shrink-0" />

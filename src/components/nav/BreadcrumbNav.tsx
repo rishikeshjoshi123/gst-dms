@@ -17,6 +17,7 @@ const fallbackLabels: Record<string, string> = {
   '/usage': 'Token Usage',
   '/trash': 'Trash',
   '/settings': 'Settings',
+  '/team': 'Team',
   '/dev/design-system': 'Design system',
 }
 

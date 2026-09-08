@@ -1,6 +1,7 @@
 'use client'
 
 import * as AvatarPrimitive from '@radix-ui/react-avatar'
+import { UserRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getInitials } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ const sizeStyles = {
 }
 
 export function Avatar({ src, name = '', size = 'md', className, ...props }: AvatarProps) {
+  const initials = getInitials(name)
   return (
     <AvatarPrimitive.Root
       className={cn(
@@ -41,7 +43,7 @@ export function Avatar({ src, name = '', size = 'md', className, ...props }: Ava
           'font-bold tracking-wider',
         )}
       >
-        {getInitials(name)}
+        {initials ?? <UserRound aria-hidden="true" size={size === 'xs' ? 12 : size === 'sm' ? 14 : 16} />}
       </AvatarPrimitive.Fallback>
     </AvatarPrimitive.Root>
   )
