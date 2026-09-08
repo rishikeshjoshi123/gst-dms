@@ -12,3 +12,15 @@ test('the shared PDF viewer owns one responsive scroller and fit-width toolbar',
   assert.match(source, /min-h-11 min-w-11/)
   assert.doesNotMatch(source, /min-h-\[600px\]|bg-white/)
 })
+
+test('the shared viewer rotates and scopes keyboard page navigation to its focusable region', async () => {
+  const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /setRotation\(current => \(current \+ 90\) % 360\)/)
+  assert.match(source, /rotate=\{rotation\}/)
+  assert.match(source, /aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"/)
+  assert.match(source, /target\.closest\('button, input, select, textarea, a, \[contenteditable="true"\]'\)/)
+  assert.match(source, /setRotation\(0\)/)
+  assert.match(source, /setPageNumber\(clampPage\(e\.detail\.pageNumber, numPages\)\)/)
+  assert.match(source, /Number\.isFinite\(page\) \? Math\.trunc\(page\) : 1/)
+})

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop, RotateCw } from 'lucide-react';
 import { Button } from './button';
 
 // Configure the worker for pdf.js
@@ -20,7 +20,8 @@ type PdfViewerProps = {
 }
 
 function clampPage(page: number, numPages?: number) {
-  const lowerBounded = Math.max(1, page)
+  const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1
+  const lowerBounded = Math.max(1, integerPage)
   return numPages ? Math.min(numPages, lowerBounded) : lowerBounded
 }
 
@@ -29,6 +30,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [pageNumber, setPageNumber] = useState<number>(() => clampPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
   const [fitWidth, setFitWidth] = useState(true);
+  const [rotation, setRotation] = useState(0);
   const [pageWidth, setPageWidth] = useState<number>();
   const [renderedSource, setRenderedSource] = useState({ url, initialPage });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -39,18 +41,20 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   useEffect(() => {
     const handleJump = (e: CustomEvent) => {
       if (e.detail && typeof e.detail.pageNumber === 'number') {
-        setPageNumber(e.detail.pageNumber);
+        setPageNumber(clampPage(e.detail.pageNumber, numPages));
       }
     };
     window.addEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
     return () => window.removeEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
-  }, []);
+  }, [numPages]);
 
   if (renderedSource.url !== url || renderedSource.initialPage !== initialPage) {
     setRenderedSource({ url, initialPage });
     setNumPages(undefined);
     setPageNumber(clampPage(initialPage));
+    setScale(1);
     setFitWidth(true);
+    setRotation(0);
     setSelection(null);
   }
 
@@ -71,6 +75,33 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages);
     setPageNumber(page => clampPage(page, numPages));
+  }
+
+  function previousPage() {
+    setPageNumber(page => Math.max(1, page - 1));
+  }
+
+  function nextPage() {
+    setPageNumber(page => Math.min(numPages || 1, page + 1));
+  }
+
+  function handleViewerKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a, [contenteditable="true"]')) return;
+
+    if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+      event.preventDefault();
+      previousPage();
+    } else if (event.key === 'ArrowRight' || event.key === 'PageDown') {
+      event.preventDefault();
+      nextPage();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setPageNumber(1);
+    } else if (event.key === 'End' && numPages) {
+      event.preventDefault();
+      setPageNumber(numPages);
+    }
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -105,7 +136,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--surface)]">
       {/* Toolbar */}
       <div className="z-10 flex min-h-14 w-full shrink-0 flex-wrap items-center justify-center gap-1 border-b border-[var(--border)] bg-[var(--surface)] p-2 sm:gap-2">
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Previous page" title="Previous page" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Previous page" title="Previous page" onClick={previousPage} disabled={pageNumber <= 1}>
           <ChevronLeft size={16} />
         </Button>
         <label className="flex min-h-11 items-center gap-1 text-sm font-medium text-[var(--text-primary)]">
@@ -120,7 +151,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           />
           <span className="whitespace-nowrap text-[var(--text-muted)]">of {numPages || '--'}</span>
         </label>
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Next page" title="Next page" onClick={() => setPageNumber(p => Math.min(numPages || 1, p + 1))} disabled={pageNumber >= (numPages || 1)}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Next page" title="Next page" onClick={nextPage} disabled={pageNumber >= (numPages || 1)}>
           <ChevronRight size={16} />
         </Button>
 
@@ -139,13 +170,29 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           <PanelTop size={16} aria-hidden="true" />
           Fit width
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => setRotation(current => (current + 90) % 360)}
+          aria-label={`Rotate PDF clockwise. Current rotation ${rotation} degrees`}
+          title={`Current rotation: ${rotation}°`}
+        >
+          <RotateCw size={16} aria-hidden="true" />
+          Rotate
+        </Button>
       </div>
 
       {/* PDF Container */}
       <div 
         ref={scrollContainerRef}
-        className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 sm:p-4"
+        tabIndex={0}
+        role="region"
+        aria-label="PDF page viewer"
+        aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"
+        className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:p-4"
         onMouseUp={handleMouseUp}
+        onKeyDown={handleViewerKeyDown}
       >
         <Document 
           file={url} 
@@ -157,6 +204,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
             pageNumber={pageNumber} 
             width={fitWidth ? pageWidth : undefined}
             scale={fitWidth ? undefined : scale}
+            rotate={rotation}
             className="shadow-[var(--shadow-lg)]"
             renderTextLayer={true}
             renderAnnotationLayer={true}
