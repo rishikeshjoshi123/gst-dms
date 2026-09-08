@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/database.types'
+import { TaskReaderError } from '@/lib/tasks/task-reader-error'
 
 export type TaskStatus = Database['public']['Enums']['task_status']
 export type TaskCommand =
@@ -20,14 +21,6 @@ export type TaskDetail = Database['public']['Functions']['get_task_detail']['Ret
 export type TaskTransition = Database['public']['Functions']['get_task_transition_history']['Returns'][number]
 export type TaskCommentThread = Database['public']['Functions']['get_task_comment_thread']['Returns'][number]
 export type TaskComment = Database['public']['Functions']['get_task_comments']['Returns'][number]
-
-export class TaskReaderError extends Error {
-  readonly code = 'task_reader_unavailable'
-
-  constructor() {
-    super('Task data is temporarily unavailable.')
-  }
-}
 
 export type TaskWorkspaceContext = {
   currentUserId: string

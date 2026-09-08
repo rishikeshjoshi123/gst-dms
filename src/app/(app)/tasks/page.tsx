@@ -1,5 +1,4 @@
 import {
-  TaskReaderError,
   getTaskCommentThread,
   getTaskComments,
   getTaskDetail,
@@ -12,6 +11,7 @@ import {
   type TaskListItem,
   type TaskTransition,
 } from '@/lib/actions/tasks'
+import { TaskReaderError } from '@/lib/tasks/task-reader-error'
 import { TasksWorkspace } from '@/components/tasks/TasksWorkspace'
 import { isTaskId, isTaskWorkspaceTab } from '@/components/tasks/task-model'
 
