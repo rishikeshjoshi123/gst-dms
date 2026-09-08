@@ -10,10 +10,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { formatDistanceToNow, differenceInDays, isToday, isYesterday, differenceInCalendarWeeks } from 'date-fns'
+import { formatDistanceToNow, isToday, isYesterday, differenceInCalendarWeeks } from 'date-fns'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
 import type { TrashRetentionTeamAttentionItem } from '@/lib/trash/retention-policy'
 import { TrashRetentionTeamAttentionPanel } from './TrashRetentionTeamAttentionPanel'
+import { getDeadlineDayStatus, type DeadlineAttentionPayload } from '@/lib/deadlines/attention'
 
 interface DashboardContentProps {
   firstName: string
@@ -23,7 +24,7 @@ interface DashboardContentProps {
   needsReviewDocs: any[]
   statCards: Array<{ label: string; value: number; href: string }>
   activityLogs: any[]
-  upcomingDeadlines: any[]
+  deadlineAttention: DeadlineAttentionPayload
   trashRetentionAttention: TrashRetentionTeamAttentionItem[]
 }
 
@@ -132,7 +133,7 @@ export function DashboardContent({
   needsReviewDocs,
   statCards,
   activityLogs,
-  upcomingDeadlines,
+  deadlineAttention,
   trashRetentionAttention,
 }: DashboardContentProps) {
   const [query, setQuery] = useState('')
@@ -359,42 +360,46 @@ export function DashboardContent({
       {stats.clients > 0 && (
         <div className="space-y-8 pb-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* ── Upcoming Deadlines ──────────────────────────────── */}
+            {/* ── Deadline attention ──────────────────────────────── */}
             <div className="lg:col-span-1 flex flex-col rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-xs">
               <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)] flex items-center justify-center">
                     <Calendar size={14} />
                   </div>
-                  <span className="text-sm font-bold text-[var(--text-primary)]">Upcoming Deadlines</span>
+                  <span className="text-sm font-bold text-[var(--text-primary)]">Deadline attention</span>
                 </div>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)]">
-                  {upcomingDeadlines.length}
+                  {deadlineAttention.status === 'available' ? deadlineAttention.items.length : '—'}
                 </span>
               </div>
 
               <div className="divide-y divide-[var(--border)] flex-1 overflow-y-auto custom-scrollbar max-h-[420px]">
-                {upcomingDeadlines.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-[var(--text-muted)]">No upcoming deadlines</div>
+                {deadlineAttention.status === 'unavailable' ? (
+                  <div className="p-8 text-center text-xs text-[var(--text-muted)]">
+                    Deadline attention is temporarily unavailable.
+                  </div>
+                ) : deadlineAttention.items.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[var(--text-muted)]">No unresolved deadlines</div>
                 ) : (
-                  upcomingDeadlines.map((d: any) => {
-                    const days = differenceInDays(new Date(d.due_date), new Date())
-                    const urgency = days <= 3 ? 'bg-[var(--danger-muted)] text-[var(--danger)]' :
-                      days <= 7 ? 'bg-[var(--warning-muted)] text-[var(--warning)]' :
+                  deadlineAttention.items.map((deadline) => {
+                    const dayStatus = getDeadlineDayStatus(deadline.dueDate, deadlineAttention.asOfDate)
+                    const urgency = dayStatus.kind === 'overdue' || dayStatus.dayDelta <= 3 ? 'bg-[var(--danger-muted)] text-[var(--danger)]' :
+                      dayStatus.dayDelta <= 7 ? 'bg-[var(--warning-muted)] text-[var(--warning)]' :
                         'bg-[var(--accent-muted)] text-[var(--primary)]'
 
                     return (
-                      <div key={d.id} className="p-3.5 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
+                      <div key={deadline.id} className="p-3.5 hover:bg-[var(--surface-hover)] transition-colors flex items-start justify-between gap-3">
                         <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                            {d.description || DEADLINE_TYPE_LABELS[d.type] || 'Deadline'}
+                            {deadline.description || DEADLINE_TYPE_LABELS[deadline.type] || 'Deadline'}
                           </span>
                           <span className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                            {d.matters?.clients?.name} · {d.matters?.title}
+                            {deadline.matter.clientName} · {deadline.matter.title}
                           </span>
                         </div>
-                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] shrink-0', urgency)}>
-                          {days === 0 ? 'Today' : days === 1 ? '1 day' : `${days}d`}
+                        <span className={cn('w-32 text-center text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] shrink-0', urgency)}>
+                          {dayStatus.label}
                         </span>
                       </div>
                     )

@@ -7901,6 +7901,13 @@ export type Database = {
           sim_score: number
         }[]
       }
+      get_current_organisation_operational_timezone: {
+        Args: never
+        Returns: {
+          org_id: string
+          timezone: string
+        }[]
+      }
       get_document_search_index_reprocess_input: {
         Args: { p_lease_token: string; p_processing_run_id: string }
         Returns: {

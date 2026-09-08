@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getNeedsReviewDocuments } from '@/lib/actions/document'
-import { getRecentActivityLogs, getUpcomingDeadlines } from '@/lib/actions/notifications'
+import { getDeadlineAttention, getRecentActivityLogs } from '@/lib/actions/notifications'
 import { DashboardContent } from './DashboardContent'
 import type { Metadata } from 'next'
 import { getCurrentOrgId } from '@/lib/actions/org'
@@ -31,12 +31,12 @@ export default async function DashboardPage() {
   const orgId = await getCurrentOrgId()
   if (!orgId) redirect('/onboarding')
 
-  const [stats, { data: org }, needsReviewDocs, activityLogs, upcomingDeadlines, trashRetentionAttention] = await Promise.all([
+  const [stats, { data: org }, needsReviewDocs, activityLogs, deadlineAttention, trashRetentionAttention] = await Promise.all([
     getDashboardStats(orgId),
     supabase.from('organisations').select('name').eq('id', orgId).single(),
     getNeedsReviewDocuments(),
     getRecentActivityLogs(15),
-    getUpcomingDeadlines(5),
+    getDeadlineAttention(5),
     getTrashRetentionTeamAttention(orgId),
   ])
 
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
       needsReviewDocs={needsReviewDocs}
       statCards={statCards}
       activityLogs={activityLogs}
-      upcomingDeadlines={upcomingDeadlines}
+      deadlineAttention={deadlineAttention}
       trashRetentionAttention={trashRetentionAttention}
     />
   )

@@ -5,6 +5,7 @@ import { getCurrentOrgId } from '@/lib/actions/org'
 import { revalidatePath } from 'next/cache'
 import { getSafeMemberDirectory } from '@/lib/organisation/member-directory'
 import type { Json } from '@/lib/supabase/database.types'
+import { getDateKeyInTimeZone, getDeadlineDayStatus, type DeadlineAttentionPayload } from '@/lib/deadlines/attention'
 
 type ActivityMetadata = { [key: string]: Json | undefined }
 type ActivityDocument = {
@@ -250,41 +251,79 @@ export async function getRecentActivityLogs(limit = 50) {
   return logs
 }
 
-export async function getUpcomingDeadlines(limit = 5) {
+export async function getDeadlineAttention(limit = 5): Promise<DeadlineAttentionPayload> {
   const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return []
+  const unavailable: DeadlineAttentionPayload = {
+    status: 'unavailable',
+    asOfDate: null,
+    timeZone: null,
+    items: [],
+  }
+  const { data: timezoneRows, error: timezoneError } = await supabase.rpc('get_current_organisation_operational_timezone')
+  if (timezoneError || timezoneRows?.length !== 1) return unavailable
 
-  const today = new Date().toISOString().split('T')[0]
+  const [{ org_id: orgId, timezone: timeZone }] = timezoneRows
+  let asOfDate: string
+  try {
+    asOfDate = getDateKeyInTimeZone(new Date(), timeZone)
+  } catch {
+    return unavailable
+  }
+  const boundedLimit = Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 20) : 5
 
   // First get matter IDs for this org
-  const { data: matters } = await supabase
+  const { data: matters, error: mattersError } = await supabase
     .from('matters')
     .select('id')
     .eq('org_id', orgId)
     .is('deleted_at', null)
 
-  if (!matters || matters.length === 0) return []
+  if (mattersError) return unavailable
+  if (!matters || matters.length === 0) {
+    return { status: 'available', asOfDate, timeZone, items: [] }
+  }
   const matterIds = matters.map((matter) => matter.id)
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('deadlines')
     .select(`
-      *,
+      id,
+      due_date,
+      type,
+      description,
       matters (
-        id,
         title,
-        matter_code,
         clients ( name )
       )
     `)
     .in('matter_id', matterIds)
     .eq('is_resolved', false)
-    .gte('due_date', today)
     .order('due_date', { ascending: true })
-    .limit(limit)
+    .limit(boundedLimit)
 
-  return data ?? []
+  if (error) return unavailable
+  try {
+    return {
+      status: 'available',
+      asOfDate,
+      timeZone,
+      items: (data ?? []).map((deadline) => {
+        getDeadlineDayStatus(deadline.due_date, asOfDate)
+        return {
+          id: deadline.id,
+          dueDate: deadline.due_date,
+          type: deadline.type,
+          description: deadline.description,
+          matter: {
+            title: deadline.matters.title,
+            clientName: deadline.matters.clients.name,
+          },
+        }
+      }),
+    }
+  } catch {
+    return unavailable
+  }
 }
 
 export async function getPendingReviewItems() {
