@@ -3,7 +3,10 @@ import test from 'node:test'
 
 import {
   clampPdfPage,
+  highlightPdfText,
   isPdfPageInRenderWindow,
+  nextPdfSearchBatch,
+  normalizePdfSearchQuery,
   pdfPageHeight,
 } from './pdf-viewer-model'
 
@@ -26,4 +29,19 @@ test('preserves placeholder geometry across fit, zoom and rotation', () => {
   assert.equal(pdfPageHeight({ sourceSize, rotation: 0, fitWidth: true, pageWidth: 300, scale: 1 }), 450)
   assert.equal(pdfPageHeight({ sourceSize, rotation: 90, fitWidth: true, pageWidth: 300, scale: 1 }), 200)
   assert.equal(pdfPageHeight({ sourceSize, rotation: 0, fitWidth: false, scale: 1.5 }), 1350)
+})
+
+test('bounds each search pass and reports when coverage is complete', () => {
+  assert.deepEqual(nextPdfSearchBatch(0, 60), { start: 1, end: 25, complete: false })
+  assert.deepEqual(nextPdfSearchBatch(25, 60), { start: 26, end: 50, complete: false })
+  assert.deepEqual(nextPdfSearchBatch(50, 60), { start: 51, end: 60, complete: false })
+  assert.deepEqual(nextPdfSearchBatch(60, 60), { start: 61, end: 60, complete: true })
+})
+
+test('normalizes bounded queries and safely highlights untrusted PDF text', () => {
+  assert.equal(normalizePdfSearchQuery(`  input   tax ${'x'.repeat(120)}`).length, 100)
+  assert.equal(
+    highlightPdfText('<script>GST & GST</script>', 'GST'),
+    '&lt;script&gt;<mark style="background:var(--warning-muted);color:inherit">GST</mark> &amp; <mark style="background:var(--warning-muted);color:inherit">GST</mark>&lt;/script&gt;',
+  )
 })

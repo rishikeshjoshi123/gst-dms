@@ -1,14 +1,20 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop, RotateCw, Search, X } from 'lucide-react';
 import { Button } from './button';
+import { Input } from './input';
 import {
   clampPdfPage,
+  highlightPdfText,
   isPdfPageInRenderWindow,
+  nextPdfSearchBatch,
+  normalizePdfSearchQuery,
+  PDF_SEARCH_BATCH_SIZE,
   pdfPageHeight,
 } from './pdf-viewer-model';
 
@@ -25,6 +31,7 @@ type PdfViewerProps = {
 }
 
 export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
+  const searchInputId = useId();
   const [numPages, setNumPages] = useState<number>();
   const [pageNumber, setPageNumber] = useState<number>(() => clampPdfPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
@@ -32,10 +39,19 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [rotation, setRotation] = useState(0);
   const [pageWidth, setPageWidth] = useState<number>();
   const [pageSizes, setPageSizes] = useState<Record<number, { width: number; height: number }>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const [searchedPages, setSearchedPages] = useState(0);
+  const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [activeSearchResult, setActiveSearchResult] = useState(-1);
+  const [isSearchPending, setIsSearchPending] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [renderedSource, setRenderedSource] = useState({ url, initialPage });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageElementsRef = useRef(new Map<number, HTMLElement>());
   const shouldScrollToPageRef = useRef(true);
+  const pdfDocumentRef = useRef<PDFDocumentProxy | null>(null);
+  const searchGenerationRef = useRef(0);
 
   const [selection, setSelection] = useState<{ text: string, x: number, y: number, pageNumber: number } | null>(null);
 
@@ -64,20 +80,35 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   }, [numPages]);
 
   if (renderedSource.url !== url || renderedSource.initialPage !== initialPage) {
+    const urlChanged = renderedSource.url !== url;
     setRenderedSource({ url, initialPage });
-    setNumPages(undefined);
+    if (urlChanged) {
+      setNumPages(undefined);
+      setPageSizes({});
+    }
     setPageNumber(clampPdfPage(initialPage));
     setScale(1);
     setFitWidth(true);
     setRotation(0);
-    setPageSizes({});
+    setSearchQuery('');
+    setActiveSearchQuery('');
+    setSearchedPages(0);
+    setSearchResults([]);
+    setActiveSearchResult(-1);
+    setIsSearchPending(false);
+    setSearchError(null);
     setSelection(null);
   }
 
   useEffect(() => {
-    pageElementsRef.current.clear();
     shouldScrollToPageRef.current = true;
+    searchGenerationRef.current += 1;
   }, [renderedSource]);
+
+  useEffect(() => {
+    pageElementsRef.current.clear();
+    pdfDocumentRef.current = null;
+  }, [renderedSource.url]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -93,11 +124,12 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     return () => observer.disconnect();
   }, []);
 
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
-    setNumPages(numPages);
+  function onDocumentLoadSuccess(document: PDFDocumentProxy): void {
+    pdfDocumentRef.current = document;
+    setNumPages(document.numPages);
     setPageNumber(page => {
       shouldScrollToPageRef.current = true;
-      return clampPdfPage(page, numPages);
+      return clampPdfPage(page, document.numPages);
     });
   }
 
@@ -175,6 +207,72 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
 
   function pageHeight(page: number) {
     return pdfPageHeight({ sourceSize: pageSizes[page], rotation, fitWidth, pageWidth, scale });
+  }
+
+  function changeSearchQuery(value: string) {
+    searchGenerationRef.current += 1;
+    setSearchQuery(value);
+    setActiveSearchQuery('');
+    setSearchedPages(0);
+    setSearchResults([]);
+    setActiveSearchResult(-1);
+    setIsSearchPending(false);
+    setSearchError(null);
+  }
+
+  function cancelSearch() {
+    searchGenerationRef.current += 1;
+    setIsSearchPending(false);
+  }
+
+  async function searchNextBatch() {
+    const document = pdfDocumentRef.current;
+    const query = normalizePdfSearchQuery(searchQuery);
+    if (!document || !numPages || !query) return;
+    const batch = nextPdfSearchBatch(searchedPages, numPages);
+    if (batch.complete) return;
+
+    const generation = searchGenerationRef.current + 1;
+    searchGenerationRef.current = generation;
+    setActiveSearchQuery(query);
+    setIsSearchPending(true);
+    setSearchError(null);
+    const batchMatches: number[] = [];
+    let lastScannedPage = batch.start - 1;
+
+    try {
+      for (let page = batch.start; page <= batch.end; page += 1) {
+        const pageProxy = await document.getPage(page);
+        const content = await pageProxy.getTextContent();
+        if (searchGenerationRef.current !== generation || pdfDocumentRef.current !== document) return;
+        const text = content.items.map((item) => 'str' in item ? item.str : '').join(' ');
+        if (text.toLowerCase().includes(query.toLowerCase())) batchMatches.push(page);
+        lastScannedPage = page;
+      }
+
+      const mergedResults = Array.from(new Set([...searchResults, ...batchMatches]));
+      setSearchResults(mergedResults);
+      setSearchedPages(batch.end);
+      if (activeSearchResult < 0 && mergedResults.length > 0) {
+        setActiveSearchResult(0);
+        requestPage(mergedResults[0]);
+      }
+    } catch {
+      if (searchGenerationRef.current !== generation || pdfDocumentRef.current !== document) return;
+      const mergedResults = Array.from(new Set([...searchResults, ...batchMatches]));
+      setSearchResults(mergedResults);
+      setSearchedPages(lastScannedPage);
+      setSearchError(`Search stopped at page ${lastScannedPage + 1}. Coverage is complete through page ${lastScannedPage}.`);
+    } finally {
+      if (searchGenerationRef.current === generation) setIsSearchPending(false);
+    }
+  }
+
+  function navigateSearchResult(direction: -1 | 1) {
+    const nextIndex = Math.min(searchResults.length - 1, Math.max(0, activeSearchResult + direction));
+    setActiveSearchResult(nextIndex);
+    const matchPage = searchResults[nextIndex];
+    if (matchPage) requestPage(matchPage);
   }
 
   function previousPage() {
@@ -286,6 +384,70 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         </Button>
       </div>
 
+      <form
+        className="flex min-h-14 w-full shrink-0 flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] p-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void searchNextBatch();
+        }}
+      >
+        <label htmlFor={searchInputId} className="sr-only">Search selectable PDF text</label>
+        <div className="relative min-w-48 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
+          <Input
+            id={searchInputId}
+            value={searchQuery}
+            onChange={(event) => changeSearchQuery(event.target.value)}
+            placeholder="Search selectable PDF text"
+            className="h-11 pl-9 pr-10"
+          />
+          {searchQuery && !isSearchPending && (
+            <button
+              type="button"
+              onClick={() => changeSearchQuery('')}
+              className="absolute right-0 top-0 flex size-11 items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]"
+              aria-label="Clear PDF search"
+              title="Clear PDF search"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {isSearchPending ? (
+          <Button type="button" variant="outline" className="min-h-11" onClick={cancelSearch}>Cancel search</Button>
+        ) : (
+          <Button
+            type="submit"
+            variant="outline"
+            className="min-h-11"
+            disabled={!normalizePdfSearchQuery(searchQuery) || !numPages || searchedPages >= numPages}
+          >
+            {searchedPages >= (numPages ?? 0) && numPages
+              ? 'Search complete'
+              : searchedPages > 0
+                ? `Search next ${Math.min(PDF_SEARCH_BATCH_SIZE, Math.max(0, (numPages ?? 0) - searchedPages))} pages`
+                : 'Search PDF'}
+          </Button>
+        )}
+        {activeSearchQuery && (
+          <div className="flex min-h-11 flex-wrap items-center gap-1 text-xs text-[var(--text-muted)]" aria-live="polite">
+            <span className="whitespace-nowrap">Searched {searchedPages} of {numPages ?? 0} pages · {searchResults.length} matching pages</span>
+            {searchResults.length > 0 && (
+              <>
+                <Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" onClick={() => navigateSearchResult(-1)} disabled={activeSearchResult <= 0} aria-label="Previous matching page" title="Previous matching page">
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                </Button>
+                <span className="min-w-12 text-center">{activeSearchResult + 1} of {searchResults.length}</span>
+                <Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" onClick={() => navigateSearchResult(1)} disabled={activeSearchResult >= searchResults.length - 1} aria-label="Next matching page" title="Next matching page">
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        {searchError && <p role="alert" className="w-full text-xs text-[var(--danger)]">{searchError}</p>}
+      </form>
+
       {/* PDF Container */}
       <div 
         ref={scrollContainerRef}
@@ -327,6 +489,9 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
                     scale={fitWidth ? undefined : scale}
                     rotate={rotation}
                     onLoadSuccess={(proxy) => recordPageSize(page, proxy)}
+                    customTextRenderer={searchResults.includes(page)
+                      ? ({ str }) => highlightPdfText(str, activeSearchQuery)
+                      : undefined}
                     className="shadow-[var(--shadow-lg)]"
                     renderTextLayer={true}
                     renderAnnotationLayer={true}

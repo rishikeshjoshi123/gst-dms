@@ -35,3 +35,15 @@ test('continuous scrolling renders a bounded page window and synchronizes the do
   assert.doesNotMatch(source, /scrollIntoView/)
   assert.match(source, /pageNumber: selection\.pageNumber/)
 })
+
+test('in-document search is cancellable, batched, truthful, and navigates matching pages', async () => {
+  const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /nextPdfSearchBatch\(searchedPages, numPages\)/)
+  assert.match(source, /searchGenerationRef\.current !== generation/)
+  assert.match(source, /pdfDocumentRef\.current !== document/)
+  assert.match(source, /Searched \{searchedPages\} of \{numPages \?\? 0\} pages/)
+  assert.match(source, /requestPage\(mergedResults\[0\]\)/)
+  assert.match(source, /customTextRenderer=\{searchResults\.includes\(page\)/)
+  assert.match(source, /Cancel search/)
+})
