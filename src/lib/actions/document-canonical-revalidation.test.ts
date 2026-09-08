@@ -21,7 +21,6 @@ test('document record mutations invalidate their canonical reader', () => {
     assert.match(exportedFunction(source, name), /revalidatePath\(canonicalDocumentPath\(documentId\)\)/, name)
   }
 
-  assert.match(exportedFunction(source, 'reassignDocumentMatter'), /copiedDocumentId[\s\S]*revalidatePath\(canonicalDocumentPath\(copiedDocumentId\)\)/)
   assert.match(exportedFunction(source, 'updateDocumentMetadata'), /revalidatePath\(canonicalDocumentPath\(docId\)\)/)
 })
 
@@ -45,8 +44,20 @@ test('matter financial-year synchronization invalidates every exact updated docu
   const source = readFileSync(new URL('./matter.ts', import.meta.url), 'utf8')
   const updateMatter = exportedFunction(source, 'updateMatterDetails')
 
-  assert.match(updateMatter, /update\(\{ financial_year: payload\.financialYear \}\)[\s\S]*\.select\('id'\)/)
+  assert.match(updateMatter, /rpc\('update_matter_command'/)
+  assert.match(updateMatter, /\.eq\('financial_year', payload\.financialYear\)/)
   assert.match(updateMatter, /for \(const document of updatedDocuments \?\? \[\]\)[\s\S]*revalidatePath\(canonicalDocumentPath\(document\.id\)\)/)
+})
+
+test('legacy document copy fails before storage or direct document insertion', () => {
+  const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
+  const reassign = exportedFunction(source, 'reassignDocumentMatter')
+  const copyGuard = reassign.indexOf("if (mode === 'copy')")
+  const clientCreation = reassign.indexOf('createClient()')
+
+  assert.ok(copyGuard >= 0 && copyGuard < clientCreation)
+  assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.insert/)
+  assert.doesNotMatch(reassign, /\.storage\s*\.from\('documents'\)\s*\.upload/)
 })
 
 test('chaining review mutations invalidate the exact document whose status and reason changed', () => {

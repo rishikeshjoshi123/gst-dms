@@ -288,6 +288,10 @@ export async function reassignDocumentMatter(
   newMatterId: string,
   mode: 'move' | 'copy' = 'move'
 ) {
+  if (mode === 'copy') {
+    return { error: 'Document copy is unavailable until the governed copy workflow is ready.' }
+  }
+
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation.' }
@@ -323,125 +327,56 @@ export async function reassignDocumentMatter(
 
   if (!newMatter) return { error: 'Target matter not found.' }
 
-  let copiedDocumentId: string | null = null
-  if (mode === 'copy') {
-    if (!doc.storage_path) {
-      return { error: 'This document has no file attached, so it cannot be copied yet.' }
-    }
-
-    const originalName = doc.storage_path.split('/').pop() || 'document.pdf'
-    const copiedStoragePath = `${orgId}/${newMatterId}/${Date.now()}_${originalName}`
-    const { data: sourceFile, error: sourceFileError } = await supabase.storage
-      .from('documents')
-      .download(doc.storage_path)
-
-    if (sourceFileError || !sourceFile) {
-      return { error: 'Could not read the original document file.' }
-    }
-
-    const { error: copyFileError } = await supabase.storage
-      .from('documents')
-      .upload(copiedStoragePath, sourceFile, { contentType: 'application/pdf' })
-
-    if (copyFileError) return { error: 'Could not copy the document file to the target matter.' }
-
-    const { error: insertError, data: newDoc } = await supabase
-      .from('documents')
-      .insert({
-        org_id: orgId,
-        matter_id: newMatterId,
-        storage_path: copiedStoragePath,
-        // Legacy copies cannot manufacture a privileged processing request.
-        // Canonical attach/replacement commands write their own outbox event.
-        status: 'analyzed',
-        review_status: 'unreviewed',
-        source: 'inbox',
-        created_by: user.id,
-        doc_type: doc.doc_type,
-        reference_number: doc.reference_number,
-        doc_date: doc.doc_date,
-        direction: doc.direction,
-        document_class: doc.document_class,
-        document_category: doc.document_category,
-        financial_year: doc.financial_year,
-        raw_metadata: doc.raw_metadata,
-        file_hash_sha256: doc.file_hash_sha256
-      })
-      .select('id')
-      .single()
-
-    if (insertError || !newDoc) {
-      await supabase.storage.from('documents').remove([copiedStoragePath])
-      console.error('Copy document error:', insertError)
-      return { error: insertError?.message ?? 'Failed to copy document' }
-    }
-    copiedDocumentId = newDoc.id
-    // Log reversible activity
-    await appendActivity({
-        org_id: orgId,
-        user_id: user.id,
-        action: 'document_copied',
-        entity_type: 'document',
-        entity_id: newDoc.id,
-        is_reversible: true,
-        metadata: {
-          original_document_id: documentId,
-          original_matter_id: oldMatterId,
-          new_matter_id: newMatterId,
-        },
-      })
-  } else {
-    // 1. Delete existing document_links (built in wrong matter's scope)
-    const { data: affectedLinks } = await supabase
-      .from('document_links')
-      .select('from_doc_id, to_doc_id')
-      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
-    for (const link of affectedLinks ?? []) {
-      affectedLinkedDocumentIds.add(link.from_doc_id)
-      if (link.to_doc_id) affectedLinkedDocumentIds.add(link.to_doc_id)
-    }
-    await supabase
-      .from('document_links')
-      .delete()
-      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
-
-    // 2. Reassign document
-    const moveUpdate = doc.storage_path
-      ? { matter_id: newMatterId, source: 'inbox' }
-      : { matter_id: newMatterId }
-
-    const { error: updateError } = await supabase
-      .from('documents')
-      .update(moveUpdate)
-      .eq('id', documentId)
-      .eq('org_id', orgId)
-      .eq('record_state', 'active')
-      .is('deleted_at', null)
-
-    if (updateError) {
-      console.error('Reassign document error:', updateError)
-      return { error: updateError.message }
-    }
-    // 3. Update any deadlines tied to this document
-    await supabase
-      .from('deadlines')
-      .update({ matter_id: newMatterId })
-      .eq('document_id', documentId)
-
-    // 4. Log reversible activity
-    await appendActivity({
-      org_id: orgId,
-      user_id: user.id,
-      action: 'document_reassigned',
-      entity_type: 'document',
-      entity_id: documentId,
-      is_reversible: true,
-      metadata: {
-        old_matter_id: oldMatterId,
-        new_matter_id: newMatterId,
-      },
-    })
+  // 1. Delete existing document_links (built in wrong matter's scope)
+  const { data: affectedLinks } = await supabase
+    .from('document_links')
+    .select('from_doc_id, to_doc_id')
+    .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+  for (const link of affectedLinks ?? []) {
+    affectedLinkedDocumentIds.add(link.from_doc_id)
+    if (link.to_doc_id) affectedLinkedDocumentIds.add(link.to_doc_id)
   }
+  await supabase
+    .from('document_links')
+    .delete()
+    .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
+
+  // 2. Reassign document
+  const moveUpdate = doc.storage_path
+    ? { matter_id: newMatterId, source: 'inbox' }
+    : { matter_id: newMatterId }
+
+  const { error: updateError } = await supabase
+    .from('documents')
+    .update(moveUpdate)
+    .eq('id', documentId)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+
+  if (updateError) {
+    console.error('Reassign document error:', updateError)
+    return { error: updateError.message }
+  }
+  // 3. Update any deadlines tied to this document
+  await supabase
+    .from('deadlines')
+    .update({ matter_id: newMatterId })
+    .eq('document_id', documentId)
+
+  // 4. Log reversible activity
+  await appendActivity({
+    org_id: orgId,
+    user_id: user.id,
+    action: 'document_reassigned',
+    entity_type: 'document',
+    entity_id: documentId,
+    is_reversible: true,
+    metadata: {
+      old_matter_id: oldMatterId,
+      new_matter_id: newMatterId,
+    },
+  })
 
   revalidatePath(`/matters/${oldMatterId}`)
   revalidatePath(`/matters/${newMatterId}`)
@@ -450,7 +385,6 @@ export async function reassignDocumentMatter(
   for (const affectedDocumentId of affectedLinkedDocumentIds) {
     revalidatePath(canonicalDocumentPath(affectedDocumentId))
   }
-  if (copiedDocumentId) revalidatePath(canonicalDocumentPath(copiedDocumentId))
   return { success: true }
 }
 

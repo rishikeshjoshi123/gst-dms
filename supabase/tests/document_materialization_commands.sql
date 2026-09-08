@@ -23,7 +23,7 @@ DECLARE r record; did uuid; revision bigint; denied boolean;
 BEGIN
  IF NOT public.has_organisation_capability('37000000-0000-0000-0000-000000000001','document.record.create') OR NOT public.has_organisation_capability('37000000-0000-0000-0000-000000000001','document.version.replace') THEN RAISE EXCEPTION 'owner document capabilities'; END IF;
  IF (SELECT count(*) FROM public.get_my_organisation_context())<>1 OR EXISTS(SELECT 1 FROM public.get_my_organisation_context() WHERE org_id='37000000-0000-0000-0000-000000000002') THEN RAISE EXCEPTION 'owner context tenant leakage'; END IF;
- IF (SELECT capabilities FROM public.get_my_team_members() WHERE membership_id=(SELECT id FROM public.organisation_memberships WHERE org_id='37000000-0000-0000-0000-000000000001' AND user_id='37100000-0000-0000-0000-000000000001')) IS DISTINCT FROM ARRAY['team.view','team.invite.standard','team.role.manage_standard','team.membership.suspend_standard','organisation.profile.manage','organisation.operations.manage','team.invite.admin','team.role.manage_admin','team.membership.manage_admin','team.ownership.transfer','trash.purge','document.view','document.intake.create','document.record.create','document.intake.assign','document.intake.discard','document.version.attach','document.version.replace']::text[] THEN RAISE EXCEPTION 'owner member capability projection'; END IF;
+ IF (SELECT capabilities FROM public.get_my_team_members() WHERE membership_id=(SELECT id FROM public.organisation_memberships WHERE org_id='37000000-0000-0000-0000-000000000001' AND user_id='37100000-0000-0000-0000-000000000001')) IS DISTINCT FROM (SELECT capabilities FROM public.get_my_organisation_context() WHERE org_id='37000000-0000-0000-0000-000000000001') THEN RAISE EXCEPTION 'owner member capability projection'; END IF;
  denied:=false; BEGIN PERFORM 1 FROM public.document_versions LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; IF NOT denied THEN RAISE EXCEPTION 'authenticated document version select was not denied'; END IF;
  denied:=false; BEGIN PERFORM 1 FROM public.document_command_receipts LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; IF NOT denied THEN RAISE EXCEPTION 'authenticated command receipt select was not denied'; END IF;
  denied:=false; BEGIN PERFORM 1 FROM public.outbox_events LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; IF NOT denied THEN RAISE EXCEPTION 'authenticated outbox select was not denied'; END IF;
@@ -83,7 +83,7 @@ BEGIN
  PERFORM set_config('test.assigned_document',assigned_document::text,true); PERFORM set_config('test.assigned_version',assigned_version::text,true); PERFORM set_config('test.assigned_revision',r.lifecycle_revision::text,true);
  SELECT * INTO r FROM public.attach_intake_to_document(d,i1,rev,'37100000-0000-0000-0000-000000000001','37500000-0000-0000-0000-000000000010'); IF r.code<>'ok' OR r.document_version_id IS NULL OR r.lifecycle_revision IS NULL THEN RAISE EXCEPTION 'attach v1'; END IF; v1:=r.document_version_id; rev:=r.lifecycle_revision;
  PERFORM set_config('test.attached_version',v1::text,true); PERFORM set_config('test.attached_revision',rev::text,true);
- SELECT * INTO r FROM public.attach_intake_to_document(d,i2,rev,'37100000-0000-0000-0000-000000000001','37500000-0000-0000-0000-000000000011'); IF r.code<>'document_not_metadata_only' THEN RAISE EXCEPTION 'attach only metadata'; END IF;
+ SELECT * INTO r FROM public.attach_intake_to_document(d,i2,rev,'37100000-0000-0000-0000-000000000001','37500000-0000-0000-0000-000000000011'); IF r.code<>'intake_unavailable' THEN RAISE EXCEPTION 'attach only metadata'; END IF;
  SELECT * INTO r FROM public.replace_document_version(d,i2,rev-1,'Corrected scan','37100000-0000-0000-0000-000000000001','37500000-0000-0000-0000-000000000012'); IF r.code<>'stale_revision' THEN RAISE EXCEPTION 'stale revision'; END IF;
  SELECT * INTO r FROM public.replace_document_version(d,i2,rev,'Corrected scan','37100000-0000-0000-0000-000000000001','37500000-0000-0000-0000-000000000013'); IF r.code<>'ok' OR r.document_version_id IS NULL OR r.lifecycle_revision IS NULL THEN RAISE EXCEPTION 'replace v2'; END IF; v2:=r.document_version_id; rev:=r.lifecycle_revision;
  PERFORM set_config('test.replacement_version',v2::text,true); PERFORM set_config('test.replacement_revision',rev::text,true);
@@ -99,10 +99,17 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.document_materialization_diagnostics) OR EXISTS(SELECT 1 FROM public.outbox_events WHERE aggregate_id=d AND payload::text ~* '(path|object|content|filename|token)') THEN RAISE EXCEPTION 'materialization diagnostics/secrecy'; END IF;
 END $commands_inspection$;
 
-SET LOCAL ROLE service_role;
-WITH changed AS (UPDATE public.documents AS document_record SET record_state='trashed',trashed_at=now() WHERE document_record.id=current_setting('test.material_document')::uuid RETURNING document_record.lifecycle_revision)
-SELECT set_config('test.trashed_revision',lifecycle_revision::text,true) FROM changed;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','37100000-0000-0000-0000-000000000001',true);
+DO $trash_fixture$
+DECLARE result record; d uuid:=current_setting('test.material_document')::uuid;
+BEGIN
+ SELECT * INTO result FROM public.trash_resource('document',d,'materialization.trashed-denial');
+ IF result.code<>'trashed' THEN RAISE EXCEPTION 'trash fixture'; END IF;
+END $trash_fixture$;
 RESET ROLE;
+SELECT set_config('test.trashed_revision',lifecycle_revision::text,true)
+FROM public.documents WHERE id=current_setting('test.material_document')::uuid;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','37100000-0000-0000-0000-000000000001',true);
 DO $trashed$
