@@ -329,61 +329,8 @@ export async function setDocumentClass(
   documentId: string,
   newClass: 'proceeding' | 'supporting',
 ) {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
-
-  // Get current class to decide if we need to clean up chains
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('id, document_class, matter_id, storage_path, created_by, status')
-    .eq('id', documentId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!doc) return { error: 'Document not found.' }
-
-  const affectedLinkedDocumentIds = new Set<string>()
-
-  // If demoting from proceeding → supporting: delete its chains
-  if (doc.document_class === 'proceeding' && newClass === 'supporting') {
-    const { data: affectedLinks } = await supabase
-      .from('document_links')
-      .select('from_doc_id, to_doc_id')
-      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
-    for (const link of affectedLinks ?? []) {
-      affectedLinkedDocumentIds.add(link.from_doc_id)
-      if (link.to_doc_id) affectedLinkedDocumentIds.add(link.to_doc_id)
-    }
-    await supabase
-      .from('document_links')
-      .delete()
-      .or(`from_doc_id.eq.${documentId},to_doc_id.eq.${documentId}`)
-  }
-
-  const { error } = await supabase
-    .from('documents')
-    .update({
-      document_class: newClass,
-    })
-    .eq('id', documentId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-
-  if (error) {
-    console.error('Set document class error:', error)
-    return { error: error.message }
-  }
-
-  revalidatePath(`/matters/${doc.matter_id}`)
-  revalidatePath(canonicalDocumentPath(documentId))
-  for (const affectedDocumentId of affectedLinkedDocumentIds) {
-    revalidatePath(canonicalDocumentPath(affectedDocumentId))
-  }
-  return { success: true }
+  void [documentId, newClass]
+  return { error: 'Document classification is unavailable until the governed impact workflow is ready.' }
 }
 
 /**

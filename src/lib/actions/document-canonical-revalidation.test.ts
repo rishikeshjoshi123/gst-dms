@@ -14,7 +14,6 @@ test('document record mutations invalidate their canonical reader', () => {
 
   for (const name of [
     'dismissReviewFlag',
-    'setDocumentClass',
     'deleteDocument',
   ]) {
     assert.match(exportedFunction(source, name), /revalidatePath\(canonicalDocumentPath\(documentId\)\)/, name)
@@ -74,12 +73,12 @@ test('chaining review mutations invalidate the exact document whose status and r
   assert.equal((source.match(/revalidatePath\(canonicalDocumentPath\(reviewedDocument\.id\)\)/g) ?? []).length, 2)
 })
 
-test('class demotion invalidates every captured link endpoint', () => {
+test('legacy classification fails before client creation or destructive link changes', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
   const documentClass = exportedFunction(source, 'setDocumentClass')
 
-  assert.match(documentClass, /select\('from_doc_id, to_doc_id'\)/)
-  assert.match(documentClass, /affectedLinkedDocumentIds\.add\(link\.from_doc_id\)/)
-  assert.match(documentClass, /if \(link\.to_doc_id\) affectedLinkedDocumentIds\.add\(link\.to_doc_id\)/)
-  assert.match(documentClass, /for \(const affectedDocumentId of affectedLinkedDocumentIds\)[\s\S]*revalidatePath\(canonicalDocumentPath\(affectedDocumentId\)\)/)
+  assert.doesNotMatch(documentClass, /createClient\(\)/)
+  assert.doesNotMatch(documentClass, /\.from\('document_links'\)/)
+  assert.doesNotMatch(documentClass, /\.from\('documents'\)\s*\.update/)
+  assert.match(documentClass, /governed impact workflow/)
 })
