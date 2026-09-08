@@ -15,3 +15,7 @@ Updated: 2026-09-08. The checkout remains in a single-writer, uncommitted concep
 - **Helpers / running processes:** this planning handoff launches no implementation helpers or app servers. A subsequent owner must record and stop/transfer its own processes before handoff.
 
 Replace these bullets at each handoff. Keep only current state and pointers to durable verification receipts; do not accumulate a second history or copy large logs here.
+
+## Current implementation checkpoint
+
+HEAD is `5c6fd4d` on `dev`. D04-T01 (`78a4884`) cuts all three upload surfaces over to signed 6 MiB TUS transfer with server-observed finalization; D06-T01 (`c18640a`) separates successful-empty queue reads from failures and fences late source URLs; D06-T02 (`d8b8781`) repairs responsive PDF fit and controls; D06-T03 (`5c6fd4d`) adds truthful foreground fallback freshness. Receipts: [D04-T01](delivery-evidence/D04-T01.md), [D06-T01](delivery-evidence/D06-T01.md), [D06-T02](delivery-evidence/D06-T02.md), [D06-T03](delivery-evidence/D06-T03.md). Production builds, TypeScript, scoped lint and focused tests pass as recorded; broad lint B02, independent QA, authenticated D04/D06 browser acceptance, remote/deployment gates and clean database replay remain. No helper or development server is running. Preserve the existing Team/concept/design-system/Task edits. Resume with D06-T04 bounded queue pagination and truthful total; do not infer selective Realtime before its private emitter/topic foundation exists.
