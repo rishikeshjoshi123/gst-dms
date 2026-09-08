@@ -197,7 +197,7 @@ export async function getExactMatter(id: string) {
   const orgId = await getCurrentOrgId()
   if (!orgId) return null
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('matters')
     .select('*, clients(id, name, gstin, pan)')
     .eq('id', id)
@@ -206,6 +206,7 @@ export async function getExactMatter(id: string) {
     .is('deleted_at', null)
     .maybeSingle()
 
+  if (error) throw new Error('Unable to load the Matter workspace.')
   if (data) return { state: 'active' as const, record: data }
   const trash = await getTrashProjection<TrashMatterRecord>('matter', id, null)
   return trash ? { state: 'trash' as const, ...trash } : null

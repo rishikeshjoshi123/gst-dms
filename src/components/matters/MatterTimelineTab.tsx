@@ -1,21 +1,44 @@
 'use client'
 
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { TimelineGraph } from './TimelineGraph'
 import { TimelineDocumentDetail } from './TimelineDocumentDetail'
 import { TimelineListFallback, type TimelineDocument, type TimelineLink } from './TimelineListFallback'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { buildMatterDocumentSelectionHref } from '@/lib/matters/workspace-route'
+import { buildMatterInspectorHref, type MatterInspectorView } from '@/lib/matters/workspace-route'
 
-export function MatterTimelineTab({ documents, links, notes = [], inspectorMetadataByDocumentId, readOnly = false }: {
+export function MatterTimelineTab({
+  matterId,
+  documents,
+  links,
+  notes = [],
+  inspectorMetadataByDocumentId,
+  selectedDocumentId = null,
+  inspector = 'overview',
+  queryEntries = [],
+  readOnly = false,
+}: {
+  matterId: string
   documents: TimelineDocument[]
   links: TimelineLink[]
   notes?: Record<string, unknown>[]
   inspectorMetadataByDocumentId: Record<string, DocumentInspectorMetadata>
+  selectedDocumentId?: string | null
+  inspector?: MatterInspectorView
+  queryEntries?: Array<[string, string]>
   readOnly?: boolean
 }) {
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
+  const router = useRouter()
+  const selectedDocId = selectedDocumentId
+  const setSelectedDocId = (documentId: string | null) => {
+    router.push(buildMatterDocumentSelectionHref(matterId, queryEntries, documentId), { scroll: false })
+  }
+  const setInspector = (nextInspector: MatterInspectorView) => {
+    router.push(buildMatterInspectorHref(matterId, queryEntries, nextInspector), { scroll: false })
+  }
 
   const selectedDoc = documents.find(d => d.id === selectedDocId) || null
 
@@ -71,6 +94,8 @@ export function MatterTimelineTab({ documents, links, notes = [], inspectorMetad
               inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
               onClose={() => setSelectedDocId(null)}
               readOnly={readOnly}
+              activeTab={inspector}
+              onActiveTabChange={setInspector}
             />
           </div>
         </div>

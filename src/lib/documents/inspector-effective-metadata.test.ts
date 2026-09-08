@@ -85,7 +85,7 @@ test('keeps the protected projection reader on the server and wires both live in
   const readerSource = readFileSync(new URL('./inspector-effective-metadata.ts', import.meta.url), 'utf8')
   const detailSource = readFileSync(new URL('../../components/matters/TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
   const documentPageSource = readFileSync(new URL('../../app/(app)/documents/[docId]/page.tsx', import.meta.url), 'utf8')
-  const matterPageSource = readFileSync(new URL('../../app/(app)/matters/[id]/page.tsx', import.meta.url), 'utf8')
+  const matterSectionSource = readFileSync(new URL('../../components/matters/MatterActiveSection.tsx', import.meta.url), 'utf8')
 
   assert.match(readerSource, /import 'server-only'/)
   assert.match(readerSource, /createServiceClient\(\)\.rpc\('read_current_document_inspector_projection'/)
@@ -94,7 +94,8 @@ test('keeps the protected projection reader on the server and wires both live in
   assert.match(documentPageSource, /const inspectorIds = documentInspectorIds\(doc\.id, allDocuments\)/)
   assert.match(documentPageSource, /getDocumentInspectorMetadata\(inspectorIds\)/)
   assert.match(documentPageSource, /inspectorMetadataByDocumentId=\{inspectorMetadata\}/)
-  assert.match(matterPageSource, /getDocumentInspectorMetadata\(documentIds\)/)
+  assert.match(matterSectionSource, /acceptedSectionSelection/)
+  assert.match(matterSectionSource, /getDocumentInspectorMetadata\(\[accepted\.id\]\)/)
   assert.match(detailSource, /inspectorMetadata\.referenceNumber/)
 })
 

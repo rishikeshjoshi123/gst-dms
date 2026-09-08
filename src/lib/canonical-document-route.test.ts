@@ -77,7 +77,7 @@ test('active document callers use the canonical route while Trash keeps lineage 
     './actions/trash.ts',
     '../components/matters/TimelineDocumentDetail.tsx',
     '../components/matters/TimelineGraphNode.tsx',
-    '../components/matters/MatterTabs.tsx',
+    '../components/matters/MatterFilesSection.tsx',
     '../components/matters/MatterNotesTab.tsx',
     '../app/(app)/notes/NotesClientView.tsx',
     '../app/(app)/inbox/InboxClientView.tsx',
@@ -104,12 +104,12 @@ test('notifications route active documents canonically without changing other en
 })
 
 test('matter read-only compositions preserve each document Trash lineage without affecting active links', () => {
-  const matterTabs = readFileSync(new URL('../components/matters/MatterTabs.tsx', import.meta.url), 'utf8')
+  const matterFiles = readFileSync(new URL('../components/matters/MatterFilesSection.tsx', import.meta.url), 'utf8')
   const graphNode = readFileSync(new URL('../components/matters/TimelineGraphNode.tsx', import.meta.url), 'utf8')
   const notesTab = readFileSync(new URL('../components/matters/MatterNotesTab.tsx', import.meta.url), 'utf8')
   const timelineGraph = readFileSync(new URL('../components/matters/TimelineGraph.tsx', import.meta.url), 'utf8')
 
-  assert.match(matterTabs, /canonicalDocumentPath\(doc\.id, readOnly \? \{ matterId: doc\.matter_id \} : \{\}\)/)
+  assert.match(matterFiles, /canonicalDocumentPath\(document\.id, \{ matterId \}\)/)
   assert.match(graphNode, /canonicalDocumentPath\(doc\.id, readOnly \? \{ matterId: doc\.matter_id \} : \{\}\)/)
   assert.match(timelineGraph, /data:\s*\{[\s\S]*doc,[\s\S]*readOnly,[\s\S]*\}/)
   assert.match(notesTab, /documents\.find\(document => document\.id === selectedThread\?\.document_id\)\?\.matter_id/)

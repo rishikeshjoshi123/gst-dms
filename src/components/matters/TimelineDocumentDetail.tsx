@@ -22,6 +22,7 @@ import { MoveRight } from 'lucide-react'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { QuotationSource } from '@/components/notes/QuotationSource'
 import type { PdfQuotationSelection } from '@/components/ui/pdf-viewer'
+import type { MatterInspectorView } from '@/lib/matters/workspace-route'
 
 function EffectiveMetadataField({ label, value, type = 'text', correction }: {
   label: string
@@ -114,10 +115,10 @@ export function TimelineDocumentDetail({
   quotationDraft?: PdfQuotationSelection | null
   onQuotationDraftConsumed?: () => void
   displayedSource?: { versionId: string; page: number; historical: boolean }
-  activeTab?: 'details' | 'notes'
-  onActiveTabChange?: (tab: 'details' | 'notes') => void
+  activeTab?: MatterInspectorView
+  onActiveTabChange?: (tab: MatterInspectorView) => void
 }) {
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<'details' | 'notes'>('details')
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<MatterInspectorView>('overview')
   const [isSynopsisOpen, setIsSynopsisOpen] = useState(false)
   const [notes, setNotes] = useState<any[]>(propNotes)
   const [newNoteContent, setNewNoteContent] = useState('')
@@ -169,7 +170,7 @@ export function TimelineDocumentDetail({
   }, [doc.id])
 
   const activeTab = controlledActiveTab ?? uncontrolledActiveTab
-  const setActiveTab = (tab: 'details' | 'notes') => {
+  const setActiveTab = (tab: MatterInspectorView) => {
     onActiveTabChange?.(tab)
     if (controlledActiveTab === undefined) setUncontrolledActiveTab(tab)
   }
@@ -374,19 +375,30 @@ export function TimelineDocumentDetail({
       {/* Tabs Selector */}
       <div className="flex border-b border-[var(--border)] bg-[var(--surface-hover)] px-3 shrink-0">
         <button
-          onClick={() => setActiveTab('details')}
-          className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
-            activeTab === 'details'
+          onClick={() => setActiveTab('overview')}
+          className={`flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
+            activeTab === 'overview'
               ? 'border-[var(--primary)] text-[var(--primary)]'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
           }`}
         >
           <FileText size={12} />
-          Details
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('relationships')}
+          className={`flex min-h-11 items-center gap-1.5 border-b-2 px-2 text-[11px] font-semibold transition-colors -mb-px ${
+            activeTab === 'relationships'
+              ? 'border-[var(--primary)] text-[var(--primary)]'
+              : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
+          }`}
+        >
+          <MoveRight size={12} aria-hidden="true" />
+          Relationships
         </button>
         <button
           onClick={() => setActiveTab('notes')}
-          className={`flex items-center gap-1.5 py-2 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
+          className={`flex min-h-11 items-center gap-1.5 px-2 text-[11px] font-semibold border-b-2 transition-colors -mb-px ${
             activeTab === 'notes'
               ? 'border-[var(--primary)] text-[var(--primary)]'
               : 'border-transparent text-[--text-muted] hover:text-[--text-primary]'
@@ -402,7 +414,7 @@ export function TimelineDocumentDetail({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-        {activeTab === 'details' ? (
+        {activeTab !== 'notes' ? (
           <div className="flex flex-col gap-4">
           
           {/* Summary */}

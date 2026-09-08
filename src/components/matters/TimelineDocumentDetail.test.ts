@@ -60,7 +60,7 @@ test('uses a guarded financial-year correction and decimal keyboard input', () =
 test('keeps active document links canonical and binds Trash links to each document matter', () => {
   const source = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /const viewUrl = canonicalDocumentPath\(doc\.id, readOnly \? \{ matterId: doc\.matter_id \} : \{\}\)/)
+  assert.match(source, /const viewUrl = canonicalDocumentPath\(doc\.id, \{[\s\S]*readOnly \? \{ matterId: doc\.matter_id \} : \{\}/)
   assert.match(source, /canonicalDocumentPath\(ldoc\.id, readOnly \? \{ matterId: ldoc\.matter_id \} : \{\}\)/)
   assert.equal(canonicalDocumentPath('document-id'), '/documents/document-id')
   assert.equal(

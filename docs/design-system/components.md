@@ -151,3 +151,9 @@ Non-canvas Matter sections use one stable ordering so controls remain predictabl
 4. The current primary action as the rightmost control.
 
 Omit slots that do not apply without reordering the remaining controls. Do not repeat the selected section name, explanatory hero, totals that do not affect decisions, or the same create action again inside the scrolling body. Mobile may wrap or adapt this workbar, but retains the same semantic order and does not introduce page-level horizontal overflow.
+
+### Matter section navigation
+
+The Matter shell uses one permanent ordered set: Timeline, Files, Case Brief, Notes, Deadlines, Financials, Activity, and Details. The active section is URL state, not component-local state, and the opaque desktop strip stays outside the active section scroller while loading or retrying that section.
+
+At mobile widths, replace the strip with a fixed five-destination bar: Timeline, Files, Case Brief, Notes, and More. More opens the shared accessible dialog as a bottom sheet containing Deadlines, Financials, Activity, and Details and states which secondary destination is active. Every destination retains a 44px effective target. Reserve content padding for the bar and safe-area inset so it never covers the last row or action.

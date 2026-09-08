@@ -130,6 +130,31 @@ export default function DesignSystemPage() {
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Matter section navigation</h2>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">The permanent eight-section desktop strip and four-plus-More mobile bar keep Matter navigation stable while only the active section loads.</p>
+          </div>
+          <Badge variant="outline">Responsive contract</Badge>
+        </div>
+        <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] p-3">
+          <p className="text-xs font-semibold text-[var(--text-secondary)]">Desktop · fixed order outside the section scroller</p>
+          <div className="mt-2 grid grid-cols-4 gap-1 border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[var(--shadow-sm)] lg:grid-cols-8">
+            {['Timeline', 'Files', 'Case Brief', 'Notes', 'Deadlines', 'Financials', 'Activity', 'Details'].map((label, index) => (
+              <span key={label} className={`flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] px-2 text-center text-xs font-medium ${index === 0 ? 'bg-[var(--primary-muted)] text-[var(--primary)]' : 'text-[var(--text-secondary)]'}`}>{label}</span>
+            ))}
+          </div>
+          <p className="mt-4 text-xs font-semibold text-[var(--text-secondary)]">Mobile · fixed destinations above the content-safe inset</p>
+          <div className="mt-2 grid max-w-md grid-cols-5 border border-[var(--border-strong)] bg-[var(--surface)] p-1 shadow-[var(--shadow-lg)]">
+            {['Timeline', 'Files', 'Case Brief', 'Notes', 'More'].map((label, index) => (
+              <span key={label} className={`flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] px-1 text-center text-[11px] font-medium ${index === 0 ? 'bg-[var(--primary-muted)] text-[var(--primary)]' : 'text-[var(--text-secondary)]'}`}>{label}</span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">More opens an accessible bottom sheet for Deadlines, Financials, Activity, and Details and names the active secondary destination.</p>
+        </div>
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
         <h2 className="text-base font-semibold">Matter section workbar</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">Views remain left, optional context occupies the middle, and the primary action remains rightmost.</p>
         <MatterSectionWorkbar

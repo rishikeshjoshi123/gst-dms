@@ -7,7 +7,9 @@ import { updateWikiSection } from '@/lib/actions/wiki'
 import { CaseWikiMarkdown } from './CaseWikiMarkdown'
 import type { Database, Json } from '@/lib/supabase/database.types'
 
-type WikiSection = Database['public']['Tables']['wiki_sections']['Row']
+type WikiSection = Pick<Database['public']['Tables']['wiki_sections']['Row'],
+  'id' | 'section_key' | 'title' | 'content' | 'is_user_edited' | 'updated_at'
+>
 
 function wikiText(content: Json) {
   if (typeof content !== 'string') return ''

@@ -86,13 +86,13 @@ test('canonical exact routes reuse their familiar compositions in Trash read-onl
   }
   assert.match(pages[0], /isTrashReadOnly[\s\S]*exactClient\.data\.record/)
   assert.match(pages[0], /!isTrashReadOnly[\s\S]*NewMatterButton/)
-  assert.match(pages[1], /<MatterTabs[\s\S]*readOnly=\{isTrashReadOnly\}/)
+  assert.match(pages[1], /<MatterWorkspaceShell[\s\S]*readOnly=\{isTrashReadOnly\}/)
   assert.match(pages[2], /<CanonicalDocumentWorkbench[\s\S]*readOnly=\{isTrashReadOnly\}/)
 })
 
 test('Trash read-only compositions suppress realtime and direct mutation handlers', async () => {
   const sources = await Promise.all([
-    readFile(path.join(root, 'src/components/matters/MatterTabs.tsx'), 'utf8'),
+    readFile(path.join(root, 'src/components/matters/MatterActiveSection.tsx'), 'utf8'),
     readFile(path.join(root, 'src/components/matters/TimelineGraph.tsx'), 'utf8'),
     readFile(path.join(root, 'src/components/matters/TimelineDocumentDetail.tsx'), 'utf8'),
     readFile(path.join(root, 'src/components/matters/MatterDetailsTab.tsx'), 'utf8'),
@@ -101,7 +101,8 @@ test('Trash read-only compositions suppress realtime and direct mutation handler
     readFile(path.join(root, 'src/components/matters/TimelineGraphNode.tsx'), 'utf8'),
   ])
 
-  assert.match(sources[0], /useEffect\(\(\) => \{[\s\S]*if \(readOnly\) return[\s\S]*supabase\.channel/)
+  assert.match(sources[0], /const isTrash = exactMatter\.state === 'trash'/)
+  assert.doesNotMatch(sources[0], /supabase\.channel/)
   for (const source of sources.slice(1)) {
     assert.match(source, /readOnly/)
   }

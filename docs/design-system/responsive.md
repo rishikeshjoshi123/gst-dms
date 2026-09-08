@@ -34,6 +34,8 @@ Workspace or pane
 
 For desktop split panes, each pane may own one vertical scroller while its header remains stable. For mobile, avoid multiple narrow scrollers: use one principal page/detail scroller, a compact sticky identity header when needed, and a bottom action bar or action menu for persistent primary actions.
 
+For Matter routes, keep the identity header and eight-section desktop strip outside the active body scroller. Below the desktop breakpoint, use one principal section/detail scroller above the fixed Timeline, Files, Case Brief, Notes, and More bar; reserve the safe-area-adjusted bar height in the body. More exposes the remaining four sections in an accessible bottom sheet rather than a horizontally scrolling strip.
+
 ## Scroll ownership
 
 Every page and pane must have one deliberate scroll owner. Accidental nested scrolling is a defect.

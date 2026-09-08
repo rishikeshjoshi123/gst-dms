@@ -8,6 +8,7 @@ import { PdfViewer, type PdfQuotationSelection } from '@/components/ui/pdf-viewe
 import type { PdfSourceFailure } from '@/components/ui/pdf-viewer-model'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 import { renewCanonicalDocumentVersionSource } from '@/lib/actions/document'
+import type { MatterInspectorView } from '@/lib/matters/workspace-route'
 
 type SourceProjection = {
   versionId: string
@@ -53,7 +54,7 @@ export function CanonicalDocumentWorkbench({
   readOnly: boolean
 }) {
   const [quotationDraft, setQuotationDraft] = useState<QuotationDraft | null>(null)
-  const [inspectorTab, setInspectorTab] = useState<'details' | 'notes'>('details')
+  const [inspectorTab, setInspectorTab] = useState<MatterInspectorView>('overview')
   const sourceIdentity = source ? `${doc.id}:${source.versionId}` : null
   const activeQuotationDraft = quotationDraft?.sourceIdentity === sourceIdentity
     ? quotationDraft.selection

@@ -1,16 +1,14 @@
-import { MATTER_STATUS_LABELS } from '@/lib/constants'
-import { getDocumentsByMatter } from '@/lib/actions/document'
-import { getWikiSections } from '@/lib/actions/wiki'
-import { getNotes } from '@/lib/actions/notes'
-import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
-import { shapeDocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
+import { Suspense } from 'react'
 import { getExactMatter } from '@/lib/trash/exact-resource'
 import { notFound } from 'next/navigation'
-import { AlertTriangle } from 'lucide-react'
-import { MatterTabs } from '@/components/matters/MatterTabs'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
-import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
+import { parseMatterWorkspaceRoute, searchParamEntries } from '@/lib/matters/workspace-route'
+import { MatterWorkspaceShell } from '@/components/matters/MatterWorkspaceShell'
+import { MatterActiveSection } from '@/components/matters/MatterActiveSection'
+import { MatterSectionBoundary } from '@/components/matters/MatterSectionBoundary'
+import { MatterSectionLoading } from '@/components/matters/MatterSectionLoading'
+import { readMatterWorkspaceCapabilities } from '@/lib/matters/workspace-read'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
 
@@ -26,63 +24,44 @@ export default async function MatterPage(props: {
   if (!exactMatter) notFound()
   const isTrashReadOnly = exactMatter.state === 'trash'
   const matter = isTrashReadOnly ? exactMatter.data.record : exactMatter.record
-
-  const trashDocuments = isTrashReadOnly ? exactMatter.data.documents : []
-  const activeDocuments = isTrashReadOnly ? null : await getDocumentsByMatter(params.id)
-  const proceedings = isTrashReadOnly
-    ? trashDocuments.filter((document) => document.document_class === 'proceeding' || !document.document_class)
-    : activeDocuments!.proceedings
-  const supporting = isTrashReadOnly
-    ? trashDocuments.filter((document) => document.document_class === 'supporting')
-    : activeDocuments!.supporting
-  const links = isTrashReadOnly ? exactMatter.data.links : activeDocuments!.links
-  const wikiSections = isTrashReadOnly ? exactMatter.data.wikiSections : await getWikiSections(params.id)
-  const notes = isTrashReadOnly ? exactMatter.data.notes : await getNotes({ matterId: params.id })
-  const documentIds = [...proceedings.map((document) => document.id), ...supporting.map((document) => document.id)]
-  const inspectorMetadataByDocumentId = isTrashReadOnly
-    ? shapeDocumentInspectorMetadata(documentIds, exactMatter.data.inspectorMetadataRows)
-    : await getDocumentInspectorMetadata(documentIds)
-
-  const usersList = isTrashReadOnly ? [] : await getOperationalMemberOptions()
-
-  const isClosed = matter.status === 'closed'
+  const capabilities = isTrashReadOnly
+    ? { canContribute: false }
+    : await readMatterWorkspaceCapabilities()
+  const route = parseMatterWorkspaceRoute(searchParams)
+  const queryEntries = searchParamEntries(searchParams)
 
   const breadcrumbs = fromReview
     ? [
         { label: 'Pending Review', href: '/review' },
         { label: matter.clients?.name || 'Unknown', href: `/clients/${matter.client_id}` },
-        { label: matter.title }
       ]
     : [
         { label: 'Clients', href: '/clients' },
         { label: matter.clients?.name || 'Unknown', href: `/clients/${matter.client_id}` },
-        { label: matter.title }
       ]
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden h-full animate-fade-in -mt-2 ">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
       <BreadcrumbSetter breadcrumbs={breadcrumbs} />
       {isTrashReadOnly && <TrashReadOnlyStrip context={exactMatter.context} />}
-
-      {/* Warning Banner */}
-      {!isTrashReadOnly && isClosed && (
-        <div className="flex items-center gap-3 p-3 mb-4 rounded-[var(--radius-md)] bg-[var(--danger-muted)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] text-[var(--danger)] shadow-[var(--shadow-sm)] shrink-0">
-          <AlertTriangle size={18} />
-          <p className="text-[14px] font-medium">This matter is marked as {MATTER_STATUS_LABELS[matter.status]}. Uploading new documents is disabled.</p>
-        </div>
-      )}
-
-      <MatterTabs
+      <MatterWorkspaceShell
         matter={matter}
-        proceedings={proceedings}
-        supporting={supporting}
-        links={links || []}
-        wikiSections={wikiSections || []}
-        notes={notes || []}
-        users={usersList}
-        inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
+        section={route.section}
+        queryEntries={queryEntries}
         readOnly={isTrashReadOnly}
-      />
+      >
+        <MatterSectionBoundary section={route.section}>
+          <Suspense key={route.section} fallback={<MatterSectionLoading section={route.section} />}>
+            <MatterActiveSection
+              matterId={params.id}
+              exactMatter={exactMatter}
+              route={route}
+              queryEntries={queryEntries}
+              canContribute={capabilities.canContribute}
+            />
+          </Suspense>
+        </MatterSectionBoundary>
+      </MatterWorkspaceShell>
     </div>
   )
 }
