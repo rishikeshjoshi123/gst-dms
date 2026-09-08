@@ -9,6 +9,7 @@ import { MatterActiveSection } from '@/components/matters/MatterActiveSection'
 import { MatterSectionBoundary } from '@/components/matters/MatterSectionBoundary'
 import { MatterSectionLoading } from '@/components/matters/MatterSectionLoading'
 import { readMatterWorkspaceCapabilities } from '@/lib/matters/workspace-read'
+import { MatterTimelineFocusProvider } from '@/components/matters/MatterTimelineFocusBridge'
 
 export const metadata = { title: 'Matter Workspace — GST Litigation DMS' }
 
@@ -50,17 +51,19 @@ export default async function MatterPage(props: {
         queryEntries={queryEntries}
         readOnly={isTrashReadOnly}
       >
-        <MatterSectionBoundary section={route.section}>
-          <Suspense key={route.section} fallback={<MatterSectionLoading section={route.section} />}>
-            <MatterActiveSection
-              matterId={params.id}
-              exactMatter={exactMatter}
-              route={route}
-              queryEntries={queryEntries}
-              canContribute={capabilities.canContribute}
-            />
-          </Suspense>
-        </MatterSectionBoundary>
+        <MatterTimelineFocusProvider>
+          <MatterSectionBoundary section={route.section}>
+            <Suspense key={route.section} fallback={<MatterSectionLoading section={route.section} />}>
+              <MatterActiveSection
+                matterId={params.id}
+                exactMatter={exactMatter}
+                route={route}
+                queryEntries={queryEntries}
+                canContribute={capabilities.canContribute}
+              />
+            </Suspense>
+          </MatterSectionBoundary>
+        </MatterTimelineFocusProvider>
       </MatterWorkspaceShell>
     </div>
   )

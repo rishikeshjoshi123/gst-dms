@@ -17,7 +17,11 @@ export type TrashDocumentRecord = Pick<DocumentRow,
   | 'id' | 'matter_id' | 'display_title' | 'effective_filename'
   | 'document_class' | 'document_category' | 'financial_year' | 'reference_number'
   | 'status' | 'review_reason' | 'summary' | 'current_version_id' | 'created_at'
-> & { matters?: Pick<TrashMatterRecord, 'id' | 'title'> | null }
+  | 'content_availability' | 'doc_type' | 'doc_date' | 'direction'
+> & {
+  has_any_version: boolean
+  matters?: Pick<TrashMatterRecord, 'id' | 'title'> | null
+}
 type TrashDocumentLink = Pick<Database['public']['Tables']['document_links']['Row'],
   'id' | 'from_doc_id' | 'to_doc_id' | 'link_type' | 'status' | 'match_method' | 'created_at'
 >

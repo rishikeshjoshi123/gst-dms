@@ -8115,6 +8115,43 @@ export type Database = {
           trashed_by_name: string
         }[]
       }
+      get_exact_trashed_resource_projection_v00086: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          related_documents: Json
+          related_inspector_metadata: Json
+          related_links: Json
+          related_matters: Json
+          related_notes: Json
+          related_wiki_sections: Json
+          resource_id: string
+          resource_record: Json
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_name: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+          trashed_by_name: string
+        }[]
+      }
       get_intake_duplicate_resolution: {
         Args: { p_intake_id: string }
         Returns: {
@@ -9014,6 +9051,26 @@ export type Database = {
           projection_fingerprint: string
           reference_number: string
           summary: string
+        }[]
+      }
+      read_matter_timeline_chronology: {
+        Args: {
+          p_filters?: string[]
+          p_limit?: number
+          p_matter_id: string
+          p_offset?: number
+          p_selected_document_id?: string | null
+        }
+        Returns: {
+          fetched_at: string
+          items: Json
+          limit: number
+          offset: number
+          outcome: string
+          selected: Json | null
+          source_revision: string | null
+          total: number
+          unfiltered_total: number
         }[]
       }
       recompute_document_effective_metadata: {

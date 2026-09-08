@@ -6,6 +6,7 @@ import {
   buildMatterFilesPageHref,
   buildMatterInspectorHref,
   buildMatterSectionHref,
+  buildMatterTimelineFiltersHref,
   loadOnlyActiveMatterSection,
   MATTER_PRIMARY_MOBILE_SECTIONS,
   MATTER_SECONDARY_MOBILE_SECTIONS,
@@ -18,6 +19,7 @@ import { acceptedSectionSelection } from './workspace-selection'
 
 const documentId = '00000000-0000-4000-8000-000000000001'
 const defaultFilesPage = { offset: 0, limit: 50 }
+const defaultTimelinePage = { offset: 0, limit: 50, filters: [] }
 
 test('uses the fixed canonical order and defaults invalid or omitted sections to Timeline', () => {
   assert.deepEqual(MATTER_SECTION_IDS, [
@@ -31,13 +33,37 @@ test('uses the fixed canonical order and defaults invalid or omitted sections to
 
 test('parses selection only for Timeline or Files and rejects malformed or repeated ids', () => {
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'timeline', document: documentId, inspector: 'notes' }), {
-    section: 'timeline', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes', filesPage: defaultFilesPage,
+    section: 'timeline', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage,
   })
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: 'malformed' }).selectedDocumentId, null)
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: [documentId, documentId] }).selectedDocumentId, null)
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'details', document: documentId, inspector: 'notes' }), {
-    section: 'details', selectionRequested: false, selectedDocumentId: null, inspector: 'overview', filesPage: defaultFilesPage,
+    section: 'details', selectionRequested: false, selectedDocumentId: null, inspector: 'overview', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage,
   })
+})
+
+test('parses bounded Timeline paging and repeated filters for the secured chronology reader', () => {
+  assert.deepEqual(parseMatterWorkspaceRoute({ timelineOffset: '100', timelineLimit: '25', filter: ['incoming', 'q:%_\\'] }).timelinePage, { offset: 100, limit: 25, filters: ['incoming', 'q:%_\\'] })
+  assert.deepEqual(parseMatterWorkspaceRoute({ timelineOffset: ['50', '100'], timelineLimit: '0', filter: ['x'.repeat(81)] }).timelinePage, defaultTimelinePage)
+})
+
+test('Timeline filter href applies and clears once while preserving unrelated repeated state', () => {
+  const entries: Array<[string, string]> = [
+    ['section', 'timeline'], ['view', 'chronology'], ['document', documentId],
+    ['inspector', 'notes'], ['filter', 'incoming'], ['timelineOffset', '100'],
+    ['timelineLimit', '25'], ['return', 'one'], ['return', 'two'],
+  ]
+  const applied = new URL(buildMatterTimelineFiltersHref('matter/one', entries, ['type:Notice', 'from:2026-01-01']), 'https://casechain.test')
+  assert.equal(applied.pathname, '/matters/matter%2Fone')
+  assert.deepEqual(applied.searchParams.getAll('filter'), ['type:Notice', 'from:2026-01-01'])
+  assert.equal(applied.searchParams.has('timelineOffset'), false)
+  assert.equal(applied.searchParams.get('timelineLimit'), '25')
+  assert.equal(applied.searchParams.get('document'), documentId)
+  assert.equal(applied.searchParams.get('inspector'), 'notes')
+  assert.deepEqual(applied.searchParams.getAll('return'), ['one', 'two'])
+  const cleared = new URL(buildMatterTimelineFiltersHref('matter/one', applied.searchParams.entries(), []), 'https://casechain.test')
+  assert.equal(cleared.searchParams.has('filter'), false)
+  assert.equal(cleared.searchParams.get('view'), 'chronology')
 })
 
 test('parses bounded Files paging and fails repeated or malformed paging values closed', () => {

@@ -1,4 +1,5 @@
 import { MATTER_FILES_DEFAULT_LIMIT, normalizeMatterFilesPage } from './workspace-files-page'
+import { MATTER_TIMELINE_DEFAULT_LIMIT, normalizeMatterTimelinePage } from './workspace-timeline-page'
 
 export const MATTER_SECTION_IDS = [
   'timeline',
@@ -57,6 +58,7 @@ export type MatterWorkspaceRouteState = {
     offset: number
     limit: number
   }
+  timelinePage: { offset: number; limit: number; filters: string[] }
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -90,7 +92,43 @@ export function parseMatterWorkspaceRoute(
       offset: scalar(query.filesOffset),
       limit: scalar(query.filesLimit),
     }),
+    timelinePage: normalizeMatterTimelinePage({
+      offset: scalar(query.timelineOffset),
+      limit: scalar(query.timelineLimit),
+      filters: Array.isArray(query.filter) ? query.filter : typeof query.filter === 'string' ? [query.filter] : [],
+    }),
   }
+}
+
+export function buildMatterTimelinePageHref(
+  matterId: string,
+  currentEntries: Iterable<readonly [string, string]>,
+  page: { offset: number; limit: number },
+) {
+  const normalized = normalizeMatterTimelinePage(page)
+  const search = new URLSearchParams()
+  for (const [key, value] of currentEntries) {
+    if (key !== 'timelineOffset' && key !== 'timelineLimit') search.append(key, value)
+  }
+  search.set('section', 'timeline')
+  if (normalized.offset > 0) search.set('timelineOffset', String(normalized.offset))
+  if (normalized.limit !== MATTER_TIMELINE_DEFAULT_LIMIT) search.set('timelineLimit', String(normalized.limit))
+  return `/matters/${encodeURIComponent(matterId)}?${search.toString()}`
+}
+
+export function buildMatterTimelineFiltersHref(
+  matterId: string,
+  currentEntries: Iterable<readonly [string, string]>,
+  filters: readonly string[],
+) {
+  const normalized = normalizeMatterTimelinePage({ filters })
+  const search = new URLSearchParams()
+  for (const [key, value] of currentEntries) {
+    if (key !== 'filter' && key !== 'timelineOffset') search.append(key, value)
+  }
+  search.set('section', 'timeline')
+  normalized.filters.forEach((filter) => search.append('filter', filter))
+  return `/matters/${encodeURIComponent(matterId)}?${search.toString()}`
 }
 
 export function searchParamEntries(query: MatterWorkspaceSearchParams) {

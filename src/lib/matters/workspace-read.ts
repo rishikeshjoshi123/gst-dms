@@ -11,11 +11,17 @@ import {
   paginateMatterFiles,
   type MatterFilesPageRequest,
 } from './workspace-files-page'
+import {
+  normalizeMatterTimelinePage,
+  type MatterTimelineChronologyItem,
+  type MatterTimelineChronologyPage,
+  type MatterTimelinePageRequest,
+} from './workspace-timeline-page'
+
+export type { MatterTimelineChronologyItem, MatterTimelineChronologyPage } from './workspace-timeline-page'
 
 export type MatterWorkspaceDocument = Database['public']['Tables']['documents']['Row']
 export type MatterWorkspaceLink = Database['public']['Tables']['document_links']['Row']
-type NoteQuoteLocator = Database['public']['Functions']['get_note_quote_locators']['Returns'][number]
-
 const SUPPORTING_FILE_SELECT = [
   'id',
   'org_id',
@@ -164,46 +170,75 @@ export async function readMatterWorkspaceCapabilities(): Promise<MatterWorkspace
  * selected document. It deliberately avoids the Notes workspace's member
  * directory and task-summary projections.
  */
-export async function readSelectedDocumentNotes(matterId: string, documentId: string) {
+export async function readSelectedDocumentNotePreview(matterId: string, documentId: string) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return []
 
+  const { data: selectedDocument, error: documentError } = await supabase
+    .from('documents')
+    .select('id')
+    .eq('id', documentId)
+    .eq('org_id', orgId)
+    .eq('matter_id', matterId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .or('document_class.eq.proceeding,document_class.is.null')
+    .maybeSingle()
+  if (documentError) throw new Error('Unable to validate the selected proceeding for notes.')
+  if (!selectedDocument) return []
+
   const { data, error } = await supabase
     .from('case_notes')
-    .select('*')
+    .select('id, content, created_at, author_id')
     .eq('org_id', orgId)
     .eq('matter_id', matterId)
     .eq('document_id', documentId)
     .is('deleted_at', null)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(5)
   if (error) throw new Error('Unable to load selected-document notes.')
 
-  const notes = data ?? []
-  let quoteLocatorByNoteId = new Map<string, NoteQuoteLocator>()
-  if (notes.length > 0) {
-    const { data: locators, error: locatorError } = await supabase.rpc('get_note_quote_locators', {
-      p_note_ids: notes.map((note) => note.id),
-    })
-    if (locatorError) throw new Error('Unable to load selected-document quotation sources.')
-    quoteLocatorByNoteId = new Map((locators ?? []).map((locator) => [locator.note_id, locator]))
-  }
-
-  return notes.map((note) => ({
-    ...note,
-    quotation_locator: quoteLocatorByNoteId.get(note.id) ?? null,
-    task_summary: null,
-    author: {
-      id: note.author_id,
-      email: `User (${note.author_id.slice(0, 8)})`,
-    },
+  return (data ?? []).map((note) => ({
+    id: note.id,
+    content: note.content,
+    created_at: note.created_at,
+    authorLabel: null,
   }))
 }
 
 /** Timeline deliberately excludes supporting and cross-matter documents. */
 export function readActiveProceedings(matterId: string) {
   return readActiveMatterDocuments(matterId, 'proceeding')
+}
+
+/** The only live Timeline reader. The RPC owns actor, matter, lifecycle, version and selection fences. */
+export async function readMatterTimelineChronology(
+  matterId: string,
+  request: MatterTimelinePageRequest = {},
+  selectedDocumentId: string | null = null,
+): Promise<MatterTimelineChronologyPage> {
+  const normalized = normalizeMatterTimelinePage(request)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('read_matter_timeline_chronology', {
+    p_matter_id: matterId,
+    p_offset: normalized.offset,
+    p_limit: normalized.limit,
+    p_filters: normalized.filters,
+    p_selected_document_id: selectedDocumentId,
+  })
+  if (error) throw new Error('Unable to load the chronology.')
+  const row = (data ?? [])[0]
+  if (!row) return { outcome: 'unavailable', items: [], total: 0, unfilteredTotal: 0, offset: 0, limit: normalized.limit, fetchedAt: new Date().toISOString(), sourceRevision: null, selected: null }
+  return {
+    outcome: row.outcome === 'ok' ? 'ok' : 'unavailable',
+    items: Array.isArray(row.items) ? row.items as MatterTimelineChronologyItem[] : [],
+    total: row.total, unfilteredTotal: row.unfiltered_total, offset: row.offset, limit: row.limit,
+    fetchedAt: row.fetched_at, sourceRevision: row.source_revision,
+    selected: row.selected && typeof row.selected === 'object' && !Array.isArray(row.selected) ? row.selected as MatterTimelineChronologyItem : null,
+  }
 }
 
 /** Files reads one exact, bounded active-supporting page without browser storage data. */

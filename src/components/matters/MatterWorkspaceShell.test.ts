@@ -6,7 +6,8 @@ const activeSectionSource = readFileSync(new URL('./MatterActiveSection.tsx', im
 const boundarySource = readFileSync(new URL('./MatterSectionBoundary.tsx', import.meta.url), 'utf8')
 const pageSource = readFileSync(new URL('../../app/(app)/matters/[id]/page.tsx', import.meta.url), 'utf8')
 const readerSource = readFileSync(new URL('../../lib/matters/workspace-read.ts', import.meta.url), 'utf8')
-const timelineSource = readFileSync(new URL('./MatterTimelineTab.tsx', import.meta.url), 'utf8')
+const chronologySource = readFileSync(new URL('./MatterTimelineChronology.tsx', import.meta.url), 'utf8')
+const timelinePageSource = readFileSync(new URL('../../lib/matters/workspace-timeline-page.ts', import.meta.url), 'utf8')
 const exactResourceSource = readFileSync(new URL('../../lib/trash/exact-resource.ts', import.meta.url), 'utf8')
 
 test('the route fetches the exact shell first and keeps section work under Suspense and a local boundary', () => {
@@ -25,31 +26,45 @@ test('active unavailable sections do not import or call canonical domain readers
   assert.match(activeSectionSource, /Activity is not available in this release/)
 })
 
-test('inspector metadata is read only after exact section membership acceptance', () => {
-  for (const sectionFunction of ['TimelineSection', 'FilesSection']) {
-    const start = activeSectionSource.indexOf(`function ${sectionFunction}`)
-    const next = activeSectionSource.indexOf('\nasync function ', start + 1)
-    const body = activeSectionSource.slice(start, next === -1 ? undefined : next)
-    assert.ok(body.indexOf('acceptedSectionSelection') < body.indexOf('getDocumentInspectorMetadata([accepted.id])'))
-    assert.match(body, /selectionUnavailable = route\.selectionRequested && !accepted/)
-  }
+test('Timeline and Files accept selection only through their bounded authoritative readers', () => {
+  const timelineStart = activeSectionSource.indexOf('function TimelineSection')
+  const filesStart = activeSectionSource.indexOf('async function FilesSection', timelineStart)
+  const timelineBody = activeSectionSource.slice(timelineStart, filesStart)
+  const filesBody = activeSectionSource.slice(filesStart, activeSectionSource.indexOf('async function CaseBriefSection', filesStart))
+  assert.match(timelineBody, /readMatterTimelineChronology\(matterId, route\.timelinePage, route\.selectedDocumentId\)/)
+  assert.match(timelineBody, /createMatterTimelineSnapshotPage\(matterId, exactMatter\.data\.documents/)
+  assert.match(timelineBody, /selectionUnavailable=\{route\.selectionRequested && !page\.selected\}/)
+  assert.ok(filesBody.indexOf('acceptedSectionSelection') < filesBody.indexOf('getDocumentInspectorMetadata([accepted.id])'))
+  assert.match(filesBody, /selectionUnavailable = route\.selectionRequested && !accepted/)
 })
 
 test('Timeline selected-document notes use the narrow reader without the Notes member directory', () => {
   const start = activeSectionSource.indexOf('function TimelineSection')
   const end = activeSectionSource.indexOf('async function FilesSection', start)
   const timelineBody = activeSectionSource.slice(start, end)
-  assert.match(timelineBody, /readSelectedDocumentNotes\(matterId, accepted\.id\)/)
+  assert.match(timelineBody, /page\.selected && route\.inspector === 'notes'/)
+  assert.match(timelineBody, /readSelectedDocumentNotePreview\(matterId, page\.selected\.id\)/)
+  assert.match(timelineBody, /exactMatter\.data\.notes[\s\S]*\.filter\(\(note\) => note\.document_id === page\.selected\?\.id\)/)
+  assert.match(timelineBody, /exactMatter\.data\.notes[\s\S]*\.slice\(0, 5\)/)
+  assert.doesNotMatch(timelineBody, /readSelectedDocumentNotePreview\(matterId, page\.selected\.id\)\)\.slice/)
   assert.doesNotMatch(timelineBody, /getNotes\(/)
+  assert.doesNotMatch(timelineBody, /getOperationalMemberOptions/)
   assert.doesNotMatch(readerSource, /getSafeMemberDirectory|getOperationalMemberOptions/)
   assert.match(readerSource, /\.eq\('matter_id', matterId\)[\s\S]*\.eq\('document_id', documentId\)/)
+  const previewStart = readerSource.indexOf('export async function readSelectedDocumentNotePreview')
+  const previewEnd = readerSource.indexOf('/** Timeline deliberately', previewStart)
+  const previewBody = readerSource.slice(previewStart, previewEnd)
+  assert.match(previewBody, /\.select\('id, content, created_at, author_id'\)/)
+  assert.match(previewBody, /\.limit\(5\)/)
+  assert.doesNotMatch(previewBody, /get_note_quote_locators|author_id\.slice|User \(/)
+  assert.match(chronologySource, /Document notes/)
+  assert.match(chronologySource, /Open Matter Notes/)
 })
 
-test('URL inspector state is consumed and active mutation UI is capability and closed-state gated', () => {
+test('URL inspector state is consumed and workspace capabilities remain server-derived', () => {
   assert.match(activeSectionSource, /inspector=\{route\.inspector\}/)
-  assert.match(timelineSource, /activeTab=\{inspector\}/)
-  assert.match(timelineSource, /buildMatterInspectorHref/)
-  assert.match(activeSectionSource, /record\.status === 'closed' \|\| !canContribute/)
+  assert.match(chronologySource, /buildMatterInspectorHref/)
+  assert.match(chronologySource, /aria-current=\{inspector === view \? 'page'/)
   assert.match(readerSource, /capabilities\.includes\('document\.intake\.create'\)/)
 })
 
@@ -61,17 +76,26 @@ test('temporary active Matter lookup failures do not fall through to a false not
 })
 
 test('Trash sections use exact snapshots and never active readers', () => {
-  assert.match(activeSectionSource, /isTrash\s*\? exactMatter\.data\.documents/)
-  assert.match(activeSectionSource, /isTrash\s*\? exactMatter\.data\.links/)
+  const start = activeSectionSource.indexOf('function TimelineSection')
+  const end = activeSectionSource.indexOf('async function FilesSection', start)
+  const timelineBody = activeSectionSource.slice(start, end)
+  assert.match(timelineBody, /isTrash[\s\S]*createMatterTimelineSnapshotPage\(matterId, exactMatter\.data\.documents/)
+  assert.ok(timelineBody.indexOf('createMatterTimelineSnapshotPage') < timelineBody.indexOf(': await readMatterTimelineChronology'))
+  assert.match(timelinePageSource, /document\.matter_id === matterId/)
+  assert.match(timelinePageSource, /document\.document_class === 'proceeding' \|\| document\.document_class === null/)
+  assert.doesNotMatch(timelinePageSource, /raw_metadata|storage_path|document_links/)
+  assert.match(timelinePageSource, /document\.content_availability === 'metadata_only'[\s\S]*document\.current_version_id === null[\s\S]*!document\.has_any_version/)
   assert.match(activeSectionSource, /isTrash \? exactMatter\.data\.wikiSections : await getWikiSections/)
   assert.match(activeSectionSource, /initialNotes=\{exactMatter\.data\.notes\}/)
   assert.match(pageSource, /<TrashReadOnlyStrip context=\{exactMatter\.context\}/)
 })
 
-test('narrow readers exclude supporting documents from Timeline and never follow cross-matter links', () => {
-  assert.match(readerSource, /readActiveProceedings[\s\S]*'proceeding'/)
-  assert.match(readerSource, /document_class\.eq\.proceeding,document_class\.is\.null/)
+test('secured chronology replaces graph-era live reads and excludes unsafe projections', () => {
+  assert.match(readerSource, /supabase\.rpc\('read_matter_timeline_chronology'/)
   assert.match(readerSource, /readActiveSupportingFiles[\s\S]*'supporting'/)
-  assert.doesNotMatch(readerSource, /crossMatter|linkedDocIds/)
-  assert.match(readerSource, /allowedIds\.has\(link\.from_doc_id\)[\s\S]*allowedIds\.has\(link\.to_doc_id\)/)
+  const chronologyStart = readerSource.indexOf('export async function readMatterTimelineChronology')
+  const chronologyEnd = readerSource.indexOf('/** Files reads', chronologyStart)
+  const chronologyReader = readerSource.slice(chronologyStart, chronologyEnd)
+  assert.doesNotMatch(chronologyReader, /document_links|raw_metadata|readActiveProceedings/)
+  assert.match(chronologyReader, /normalized\.filters/)
 })

@@ -26,9 +26,10 @@ INSERT INTO public.clients(id,org_id,name) VALUES
 INSERT INTO public.matters(id,org_id,client_id,title,financial_year) VALUES
   ('86300000-0000-0000-0000-000000000001','86000000-0000-0000-0000-000000000001','86200000-0000-0000-0000-000000000001','Projection matter','2026-27'),
   ('86300000-0000-0000-0000-000000000002','86000000-0000-0000-0000-000000000001','86200000-0000-0000-0000-000000000001','Wrong route matter','2025-26');
-INSERT INTO public.documents(id,org_id,matter_id,storage_path,display_title,created_by) VALUES
-  ('86400000-0000-0000-0000-000000000001','86000000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001','legacy/projection.pdf','Projection document','86100000-0000-0000-0000-000000000001'),
-  ('86400000-0000-0000-0000-000000000002','86000000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001','legacy/second.pdf','Second document','86100000-0000-0000-0000-000000000001');
+INSERT INTO public.documents(id,org_id,matter_id,storage_path,display_title,doc_type,reference_number,doc_date,direction,document_class,origin_kind,content_availability,status,created_by) VALUES
+  ('86400000-0000-0000-0000-000000000001','86000000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001','legacy/projection.pdf','Projection document','Attached legacy type','ATTACHED/1','2026-08-01','incoming','proceeding','legacy_migration','source_indexed','placed','86100000-0000-0000-0000-000000000001'),
+  ('86400000-0000-0000-0000-000000000002','86000000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001','legacy/second.pdf','Second document','Second attached type','ATTACHED/2','2026-08-02','outgoing','proceeding','legacy_migration','source_attached','placed','86100000-0000-0000-0000-000000000001'),
+  ('86400000-0000-0000-0000-000000000003','86000000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001',NULL,'Metadata-only document','Command type','COMMAND/3','2026-08-03','incoming','proceeding','manual_record','metadata_only','placed','86100000-0000-0000-0000-000000000001');
 INSERT INTO public.wiki_sections(id,matter_id,section_key,title,content)
 VALUES ('86500000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001','executive_summary','Executive summary','{"text":"Readable wiki"}');
 INSERT INTO public.case_notes(id,matter_id,document_id,org_id,author_id,content)
@@ -57,6 +58,31 @@ UPDATE public.documents SET current_version_id='86700000-0000-0000-0000-00000000
 SET CONSTRAINTS ALL IMMEDIATE;
 SET CONSTRAINTS ALL DEFERRED;
 
+DO $acl$
+BEGIN
+  IF NOT has_function_privilege('authenticated','public.get_exact_trashed_resource_projection(public.trash_resource_type,uuid,uuid)','EXECUTE')
+     OR has_function_privilege('anon','public.get_exact_trashed_resource_projection(public.trash_resource_type,uuid,uuid)','EXECUTE')
+     OR has_function_privilege('service_role','public.get_exact_trashed_resource_projection(public.trash_resource_type,uuid,uuid)','EXECUTE')
+     OR has_function_privilege('authenticated','public.get_exact_trashed_resource_projection_v00086(public.trash_resource_type,uuid,uuid)','EXECUTE')
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc AS procedure
+       JOIN pg_namespace AS namespace ON namespace.oid=procedure.pronamespace
+       JOIN LATERAL aclexplode(coalesce(procedure.proacl,acldefault('f',procedure.proowner))) AS acl ON true
+       WHERE namespace.nspname='public'
+         AND procedure.proname IN ('get_exact_trashed_resource_projection','get_exact_trashed_resource_projection_v00086')
+         AND acl.grantee=0
+         AND acl.privilege_type='EXECUTE'
+     ) THEN RAISE EXCEPTION 'exact Trash chronology projection ACL is unsafe'; END IF;
+END $acl$;
+
+SET LOCAL ROLE anon;
+DO $anon_denied$ DECLARE denied boolean:=false; BEGIN
+  BEGIN PERFORM public.get_exact_trashed_resource_projection('matter','86300000-0000-0000-0000-000000000001',NULL); EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+  IF NOT denied THEN RAISE EXCEPTION 'anon executed exact Trash projection'; END IF;
+END $anon_denied$;
+RESET ROLE;
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.role','authenticated',true);
 SELECT set_config('request.jwt.claim.sub','86100000-0000-0000-0000-000000000001',true);
@@ -71,7 +97,7 @@ BEGIN
   IF projection.resource_id IS NULL OR projection.resource_record->>'title' <> 'Projection matter' THEN
     RAISE EXCEPTION 'exact trashed matter body was not projected';
   END IF;
-  IF jsonb_array_length(projection.related_documents) <> 2
+  IF jsonb_array_length(projection.related_documents) <> 3
      OR jsonb_array_length(projection.related_wiki_sections) <> 1
      OR jsonb_array_length(projection.related_notes) <> 2 THEN
     RAISE EXCEPTION 'trashed matter dependent data was incomplete';
@@ -87,6 +113,28 @@ BEGIN
       AND note->'documents'->>'display_title'='Projection document'
       AND NOT (note->'documents' ? 'storage_path')
   ) THEN RAISE EXCEPTION 'safe note document identity was not projected'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(projection.related_documents) AS document
+    WHERE document->>'id'='86400000-0000-0000-0000-000000000001'
+      AND document->>'content_availability'='source_indexed'
+      AND document->>'current_version_id'='86700000-0000-0000-0000-000000000001'
+      AND document->>'has_any_version'='true'
+      AND document->>'doc_type'='Attached legacy type'
+      AND document->>'reference_number'='ATTACHED/1'
+      AND document->>'doc_date'='2026-08-01'
+      AND document->>'direction'='incoming'
+  ) THEN RAISE EXCEPTION 'attached chronology-safe Trash document facts were incomplete'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(projection.related_documents) AS document
+    WHERE document->>'id'='86400000-0000-0000-0000-000000000003'
+      AND document->>'content_availability'='metadata_only'
+      AND document->'current_version_id'='null'::jsonb
+      AND document->>'has_any_version'='false'
+      AND document->>'doc_type'='Command type'
+      AND document->>'reference_number'='COMMAND/3'
+      AND document->>'doc_date'='2026-08-03'
+      AND document->>'direction'='incoming'
+  ) THEN RAISE EXCEPTION 'genuine metadata-only chronology-safe Trash facts were incomplete'; END IF;
   IF projection.root_resource_name <> 'Projection matter'
      OR projection.trashed_by_name <> 'Projection Admin'
      OR projection.cause <> 'direct' THEN
@@ -99,6 +147,15 @@ BEGIN
   IF projection.cause <> 'direct' OR projection.root_resource_type <> 'document'::public.trash_resource_type
      OR projection.root_resource_id <> '86400000-0000-0000-0000-000000000002'::uuid THEN
     RAISE EXCEPTION 'independently trashed child lost its own Trash operation';
+  END IF;
+
+  SELECT * INTO projection FROM public.get_exact_trashed_resource_projection(
+    'document','86400000-0000-0000-0000-000000000001','86300000-0000-0000-0000-000000000001'
+  );
+  IF projection.resource_record->>'content_availability'<>'source_indexed'
+     OR projection.resource_record->>'has_any_version'<>'true'
+     OR projection.resource_record ?| ARRAY['storage_path','raw_metadata','content_hash','embedding','search_vector'] THEN
+    RAISE EXCEPTION 'exact document resource body lost safe-field parity or exposed private fields';
   END IF;
 
   IF EXISTS (
@@ -136,7 +193,7 @@ DO $fixture$
 DECLARE projection record;
 BEGIN
   SELECT * INTO projection FROM public.get_exact_trashed_resource_projection('matter','86300000-0000-0000-0000-000000000001',NULL);
-  IF jsonb_array_length(projection.related_documents) <> 1 OR jsonb_array_length(projection.related_notes) <> 1 THEN
+  IF jsonb_array_length(projection.related_documents) <> 2 OR jsonb_array_length(projection.related_notes) <> 1 THEN
     RAISE EXCEPTION 'purging independent child leaked through readable ancestor projection';
   END IF;
   IF EXISTS (SELECT 1 FROM public.get_exact_trashed_resource_projection(

@@ -5,12 +5,12 @@ import { shapeDocumentInspectorMetadata } from '@/lib/documents/inspector-metada
 import {
   createSupportingFilesSnapshotPage,
   readActiveNoteDocumentOptions,
-  readActiveProceedings,
+  readMatterTimelineChronology,
+  readSelectedDocumentNotePreview,
   readActiveSupportingFileSelection,
   readActiveSupportingFiles,
-  readSelectedDocumentNotes,
-  readTransitionalTimelineLinks,
 } from '@/lib/matters/workspace-read'
+import { createMatterTimelineSnapshotPage, shapeMatterTimelineSnapshotMetadata } from '@/lib/matters/workspace-timeline-page'
 import { acceptedSectionSelection } from '@/lib/matters/workspace-selection'
 import type { MatterWorkspaceRouteState } from '@/lib/matters/workspace-route'
 import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
@@ -19,80 +19,41 @@ import { CaseWikiTab } from './CaseWikiTab'
 import { MatterDetailsTab } from './MatterDetailsTab'
 import { MatterFilesSection } from './MatterFilesSection'
 import { MatterNotesTab } from './MatterNotesTab'
-import { MatterTimelineTab } from './MatterTimelineTab'
+import { MatterTimelineChronology } from './MatterTimelineChronology'
 import { MatterUnavailableSection } from './MatterUnavailableSection'
 
 type ExactMatter = NonNullable<Awaited<ReturnType<typeof getExactMatter>>>
-
-function unavailableSelection() {
-  return (
-    <div role="status" className="shrink-0 border border-[var(--border)] bg-[var(--surface)] p-4 text-sm text-[var(--text-secondary)]">
-      The selected document is unavailable. Choose a document from this matter.
-    </div>
-  )
-}
 
 async function TimelineSection({
   matterId,
   exactMatter,
   route,
   queryEntries,
-  canContribute,
 }: ActiveSectionProps) {
   const isTrash = exactMatter.state === 'trash'
-  const record = isTrash ? exactMatter.data.record : exactMatter.record
-  const readOnly = isTrash || record.status === 'closed' || !canContribute
-  const documents = isTrash
-    ? exactMatter.data.documents.filter((document) => document.document_class === 'proceeding' || document.document_class === null)
-    : await readActiveProceedings(matterId)
-  const accepted = acceptedSectionSelection(
-    route.selectedDocumentId,
-    matterId,
-    'proceeding',
-    documents.map(({ id, matter_id, document_class }) => ({ id, matter_id, document_class })),
-  )
-  const selectionUnavailable = route.selectionRequested && !accepted
-
-  const links = isTrash
-    ? exactMatter.data.links.filter((link) => {
-        const ids = new Set(documents.map((document) => document.id))
-        return ids.has(link.from_doc_id) && Boolean(link.to_doc_id && ids.has(link.to_doc_id))
-      })
-    : await readTransitionalTimelineLinks(documents.map((document) => document.id))
-
-  const inspectorMetadataByDocumentId = accepted
-    ? isTrash
-      ? shapeDocumentInspectorMetadata([accepted.id], exactMatter.data.inspectorMetadataRows)
-      : await getDocumentInspectorMetadata([accepted.id])
+  const trashMetadataByDocumentId = isTrash
+    ? shapeMatterTimelineSnapshotMetadata(
+        exactMatter.data.documents
+          .filter((document) => document.matter_id === matterId && (document.document_class === 'proceeding' || document.document_class === null))
+          .map((document) => document.id),
+        exactMatter.data.inspectorMetadataRows,
+      )
     : {}
-  const notes = accepted && route.inspector === 'notes'
+  const page = isTrash
+    ? createMatterTimelineSnapshotPage(matterId, exactMatter.data.documents, trashMetadataByDocumentId, route.timelinePage, route.selectedDocumentId)
+    : await readMatterTimelineChronology(matterId, route.timelinePage, route.selectedDocumentId)
+  const notePreview = page.selected && route.inspector === 'notes'
     ? isTrash
-      ? exactMatter.data.notes.filter((note) => note.document_id === accepted.id)
-      : await readSelectedDocumentNotes(matterId, accepted.id)
+      ? exactMatter.data.notes
+          .filter((note) => note.document_id === page.selected?.id)
+          .slice(0, 5)
+          .map((note) => ({ id: note.id, content: note.content, created_at: note.created_at, authorLabel: null }))
+      : await readSelectedDocumentNotePreview(matterId, page.selected.id)
     : []
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">
-      {selectionUnavailable && unavailableSelection()}
-      {documents.length === 0 ? (
-        <MatterUnavailableSection title="No proceedings yet">
-          Proceeding documents added to this matter will appear in the Timeline.
-        </MatterUnavailableSection>
-      ) : (
-        <div className="min-h-0 flex-1">
-          <MatterTimelineTab
-            matterId={matterId}
-            documents={documents}
-            links={links}
-            inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
-            notes={notes}
-            selectedDocumentId={accepted?.id ?? null}
-            inspector={route.inspector}
-            queryEntries={queryEntries}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
+      <MatterTimelineChronology matterId={matterId} page={page} selectionUnavailable={route.selectionRequested && !page.selected} queryEntries={queryEntries} filters={route.timelinePage.filters} inspector={route.inspector} notePreview={notePreview} />
     </div>
   )
 }
