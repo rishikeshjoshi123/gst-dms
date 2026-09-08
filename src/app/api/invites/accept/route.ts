@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
   if (!user) {
     if (!token && cookieIntent) return NextResponse.redirect(`${origin}/login`)
     const nonce = randomBytes(32).toString('base64url')
-    await (supabase.rpc as any)('begin_organisation_invitation_accept_intent', { p_selector_hash: hash(token ?? ''), p_nonce_hash: hash(nonce) })
-    const response = NextResponse.redirect(`${origin}/login`)
+    await supabase.rpc('begin_organisation_invitation_accept_intent', { p_selector_hash: hash(token ?? ''), p_nonce_hash: hash(nonce) })
+    const response = NextResponse.redirect(`${origin}/signup`)
     response.cookies.set(INTENT_COOKIE, nonce, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 20 * 60, path: '/' })
     response.cookies.set(NEXT_COOKIE, safePath(searchParams.get('next')), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 20 * 60, path: '/' })
     return response
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const params = cookieIntent
     ? { p_nonce_hash: hash(cookieIntent ?? ''), p_idempotency_key: randomUUID() }
     : { p_selector_hash: hash(token ?? ''), p_idempotency_key: randomUUID() }
-  const { data } = await (supabase.rpc as any)('accept_organisation_invite', params)
+  const { data } = await supabase.rpc('accept_organisation_invite', params)
   const result = data?.[0]
   const accepted = result?.code === 'accepted'
   const response = clearIntent(NextResponse.redirect(`${origin}${accepted ? (searchParams.get('next') ? safePath(searchParams.get('next')) : intentNext) : '/onboarding?invite_error=invalid_invitation'}`))

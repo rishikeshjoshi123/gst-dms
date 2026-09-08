@@ -9,6 +9,7 @@ import { FormField } from '@/components/ui/label'
 
 export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -26,6 +27,7 @@ export default function SignupPage() {
     startTransition(async () => {
       const result = await signUp(formData)
       if (result?.error) setError(result.error)
+      else if (result?.success) setSubmitted(true)
     })
   }
 
@@ -34,11 +36,16 @@ export default function SignupPage() {
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Create your account</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Get started with GST Litigation DMS
+          Create an account for your CaseChain invitation
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {submitted ? (
+        <div className="rounded-[var(--radius-md)] border border-[var(--success)] bg-[var(--success-muted)] px-4 py-4 text-sm text-[var(--text-primary)]" role="status">
+          Check your email to verify the account. After verification, CaseChain will complete your organisation invitation.
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <FormField label="Full name" required>
           <Input
             id="full_name"
@@ -103,7 +110,8 @@ export default function SignupPage() {
         >
           {isPending ? 'Creating account…' : 'Create account'}
         </Button>
-      </form>
+        </form>
+      )}
 
       <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
         Already have an account?{' '}

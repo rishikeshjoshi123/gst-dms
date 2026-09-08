@@ -9503,6 +9503,10 @@ export type Database = {
           intake_item_id: string
         }[]
       }
+      validate_organisation_invitation_signup: {
+        Args: { p_email: string; p_nonce_hash: string }
+        Returns: string
+      }
       validate_platform_privileged_intent: {
         Args: {
           p_command_family: Database["public"]["Enums"]["platform_privileged_command_family"]

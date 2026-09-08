@@ -3,14 +3,32 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createHash } from 'node:crypto'
+
+const INVITATION_INTENT_COOKIE = 'organisation_invitation_intent'
+const hashInvitationIntent = (value: string) => createHash('sha256').update(value).digest('hex')
 
 export async function signUp(formData: FormData) {
+  const cookieStore = await cookies()
+  const invitationIntent = cookieStore.get(INVITATION_INTENT_COOKIE)?.value
+  if (!invitationIntent) {
+    return { error: 'A valid organisation invitation is required to create an account.' }
+  }
+
   const supabase = await createClient()
-  const email = formData.get('email') as string
+  const email = (formData.get('email') as string)?.trim().toLowerCase()
   const password = formData.get('password') as string
   const fullName = formData.get('full_name') as string
 
-  const { error } = await supabase.auth.signUp({
+  const { data: eligibility, error: eligibilityError } = await supabase.rpc('validate_organisation_invitation_signup', {
+    p_nonce_hash: hashInvitationIntent(invitationIntent),
+    p_email: email,
+  })
+  if (eligibilityError || eligibility !== 'eligible') {
+    return { error: 'This invitation is unavailable or does not match that email address.' }
+  }
+
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -23,8 +41,8 @@ export async function signUp(formData: FormData) {
     return { error: error.message }
   }
 
-  // Redirect to onboarding — session established via cookie automatically
-  redirect('/onboarding')
+  if (data.session) redirect('/api/invites/accept')
+  return { success: true }
 }
 
 export type SignInState = { error: string | null }
@@ -47,7 +65,7 @@ export async function signIn(_previousState: SignInState, formData: FormData): P
   // Canonical context is authoritative for active/suspended routing.
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
-    const { data: contexts } = await (supabase.rpc as any)('get_my_organisation_context')
+    const { data: contexts } = await supabase.rpc('get_my_organisation_context')
     const context = (contexts ?? [])[0]
     if (context?.state === 'suspended') {
       return { error: 'Access suspended.' }
