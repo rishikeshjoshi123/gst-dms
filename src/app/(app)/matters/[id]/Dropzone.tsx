@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { uploadDocumentFile } from '@/lib/uploads/resumable-document-upload'
+import { documentUploadIdempotencyKey, uploadDocumentFile, type DocumentUploadControl } from '@/lib/uploads/resumable-document-upload'
 import { UploadCloud, File as FileIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
-type QueuedUpload = { file: File; idempotencyKey: string; error?: string; retryable?: boolean; progress?: number }
+type QueuedUpload = { file: File; idempotencyKey: string; error?: string; retryable?: boolean; progress?: number; control?: DocumentUploadControl; cancelling?: boolean }
 
 export function Dropzone({ matterId }: { matterId: string }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -31,13 +31,13 @@ export function Dropzone({ matterId }: { matterId: string }) {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(false)
-    const droppedFiles = queueFiles(e.dataTransfer.files)
+    const droppedFiles = queueFiles(e.dataTransfer.files, matterId)
     setFiles(prev => [...prev, ...droppedFiles])
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
-      const selectedFiles = queueFiles(e.target.files)
+      const selectedFiles = queueFiles(e.target.files, matterId)
       setFiles(prev => [...prev, ...selectedFiles])
     }
   }
@@ -63,7 +63,15 @@ export function Dropzone({ matterId }: { matterId: string }) {
           setFiles(current => current.map(upload => upload.idempotencyKey === queuedFile.idempotencyKey
             ? { ...upload, progress }
             : upload))
+        }, control => {
+          setFiles(current => current.map(upload => upload.idempotencyKey === queuedFile.idempotencyKey
+            ? { ...upload, control: control ?? undefined }
+            : upload))
         })
+        if ('cancelled' in result) {
+          setFiles(current => current.filter(upload => upload.idempotencyKey !== queuedFile.idempotencyKey))
+          continue
+        }
         if ('error' in result) {
           errorCount++
           if (result.retryable) {
@@ -139,7 +147,7 @@ export function Dropzone({ matterId }: { matterId: string }) {
 
       {files.length > 0 && (
         <div className="flex flex-col gap-2">
-          {files.map(({ file, idempotencyKey, error, progress }, i) => (
+          {files.map(({ file, idempotencyKey, error, progress, control, cancelling }, i) => (
             <div key={idempotencyKey} className="flex items-center justify-between p-3 rounded-md border border-[--border-subtle] bg-[--bg-surface]">
               <div className="flex min-w-0 items-center gap-3">
                 <FileIcon size={16} className="text-[--text-muted]" />
@@ -152,9 +160,25 @@ export function Dropzone({ matterId }: { matterId: string }) {
                 </div>
                 <span className="shrink-0 text-xs text-[--text-muted]">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
               </div>
-              <button aria-label={`Remove ${file.name}`} onClick={() => removeFile(i)} className="min-h-11 min-w-11 text-[--text-muted] hover:text-[--danger] transition-colors" disabled={uploadState === 'uploading'}>
-                <X size={16} />
-              </button>
+              {uploadState === 'uploading' && control ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 shrink-0"
+                  disabled={cancelling}
+                  onClick={() => {
+                    setFiles(current => current.map(upload => upload.idempotencyKey === idempotencyKey ? { ...upload, cancelling: true } : upload))
+                    void control.cancel()
+                  }}
+                >
+                  {cancelling ? 'Cancelling…' : 'Cancel'}
+                </Button>
+              ) : (
+                <button aria-label={`Remove ${file.name}`} onClick={() => removeFile(i)} className="min-h-11 min-w-11 text-[--text-muted] hover:text-[--danger] transition-colors" disabled={uploadState === 'uploading'}>
+                  <X size={16} />
+                </button>
+              )}
             </div>
           ))}
 
@@ -170,10 +194,10 @@ export function Dropzone({ matterId }: { matterId: string }) {
   )
 }
 
-function queueFiles(fileList: FileList) {
+function queueFiles(fileList: FileList, matterId: string) {
   return Array.from(fileList)
     // Desktop browsers frequently omit MIME for dragged files. Filename is
     // only an admission hint; the server validates the stored PDF signature.
     .filter(file => file.type === 'application/pdf' || file.type === '' || /\.pdf$/i.test(file.name))
-    .map(file => ({ file, idempotencyKey: crypto.randomUUID() }))
+    .map(file => ({ file, idempotencyKey: documentUploadIdempotencyKey(file, matterId) }))
 }

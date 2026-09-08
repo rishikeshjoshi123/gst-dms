@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { uploadDocumentFile } from '@/lib/uploads/resumable-document-upload'
+import { documentUploadIdempotencyKey, uploadDocumentFile, type DocumentUploadControl } from '@/lib/uploads/resumable-document-upload'
 import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus, FolderOpen, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -22,7 +22,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
-type FileStatus = 'pending' | 'uploading' | 'done' | 'error' | 'terminal'
+type FileStatus = 'pending' | 'uploading' | 'cancelling' | 'done' | 'error' | 'terminal'
 
 interface FileEntry {
   file: File
@@ -32,6 +32,7 @@ interface FileEntry {
   error?: string
   retryable?: boolean
   progress?: number
+  control?: DocumentUploadControl
 }
 
 export function UploadModal({ onClose, matterId, matterName, inline = false, returnFocusRef }: UploadModalProps) {
@@ -47,7 +48,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     const newEntries: FileEntry[] = pdfs.map(f => ({
       file: f,
       id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`,
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: documentUploadIdempotencyKey(f, matterId ?? null),
       status: 'pending'
     }))
     setEntries(prev => {
@@ -56,7 +57,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
       return [...prev, ...newEntries.filter(e => !existing.has(`${e.file.name}-${e.file.size}`))]
     })
     setAllDone(false)
-  }, [])
+  }, [matterId])
 
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
@@ -99,7 +100,13 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
 
       const res = await uploadDocumentFile(entry.file, matterId ?? null, entry.idempotencyKey, progress => {
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, progress } : e))
+      }, control => {
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, control: control ?? undefined } : e))
       })
+      if ('cancelled' in res) {
+        setEntries(prev => prev.filter(e => e.id !== entry.id))
+        continue
+      }
       if ('error' in res) {
         const retryable = res.retryable !== false
         setEntries(prev => prev.map(e => e.id === entry.id ? {
@@ -287,7 +294,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                 const isDone = entry.status === 'done'
                 const isError = entry.status === 'error'
                 const isTerminal = entry.status === 'terminal'
-                const isUpl = entry.status === 'uploading'
+                const isUpl = entry.status === 'uploading' || entry.status === 'cancelling'
 
                 return (
                   <div
@@ -336,12 +343,26 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                           ? (entry.error || 'Upload failed. You can retry it.')
                           : isTerminal
                           ? (entry.error || 'This file was not added. Choose a different file or resolve the issue shown.')
-                          : isDone ? 'Uploaded successfully' : isUpl ? `Uploading… ${entry.progress ?? 0}%` : formatBytes(entry.file.size)}
+                          : isDone ? 'Uploaded successfully' : entry.status === 'cancelling' ? 'Cancelling upload…' : isUpl ? `Uploading… ${entry.progress ?? 0}%` : formatBytes(entry.file.size)}
                       </span>
                     </div>
 
                     {/* Remove */}
-                    {!isUpl && !isDone && (
+                    {isUpl && entry.control ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="min-h-11 shrink-0"
+                        disabled={entry.status === 'cancelling'}
+                        onClick={() => {
+                          setEntries(prev => prev.map(item => item.id === entry.id ? { ...item, status: 'cancelling' } : item))
+                          void entry.control?.cancel()
+                        }}
+                      >
+                        {entry.status === 'cancelling' ? 'Cancelling…' : 'Cancel'}
+                      </Button>
+                    ) : !isDone && (
                       <Button
                         type="button"
                         variant="ghost"

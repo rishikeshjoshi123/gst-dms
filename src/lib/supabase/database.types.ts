@@ -7468,9 +7468,11 @@ export type Database = {
       }
       complete_document_upload: {
         Args: {
+          p_actor: string
           p_detected_mime: string
           p_idempotency: string
           p_observed_bytes: number
+          p_org: string
           p_session: string
           p_sha256: string
         }
@@ -7480,6 +7482,20 @@ export type Database = {
           duplicate_asset_id: string
           intake_item_id: string
           upload_session_id: string
+        }[]
+      }
+      cancel_document_upload: {
+        Args: {
+          p_actor: string
+          p_idempotency: string
+          p_org: string
+          p_session: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          completion_code: string
+          intake_item_id: string
         }[]
       }
       complete_staged_document_backfill_transfer: {
@@ -7980,6 +7996,20 @@ export type Database = {
           projection_fingerprint: string
           reference_number: string
           summary: string
+        }[]
+      }
+      get_document_upload_completion_receipt: {
+        Args: {
+          p_actor: string
+          p_idempotency: string
+          p_org: string
+          p_session: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          duplicate_asset_id: string
+          intake_item_id: string
         }[]
       }
       get_document_search_index_reprocess_input_legacy_typed: {

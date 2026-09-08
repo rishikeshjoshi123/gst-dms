@@ -9,7 +9,6 @@ import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import {
   observeStoredPdf,
   ownsTerminalUploadCleanup,
-  storageDeletionWasRecorded,
   uploadFailureResult,
   uploadIdempotencyKey,
 } from '@/lib/document-upload'
@@ -112,6 +111,8 @@ type DocumentUploadFinalizationInput = {
   idempotencyKey: string
 }
 
+type DocumentUploadCancelInput = DocumentUploadFinalizationInput
+
 /** Reserve canonical lifecycle rows before the browser transfers any bytes. */
 export async function reserveDocumentUpload(input: DocumentUploadReservationInput) {
   const supabase = await createClient()
@@ -197,7 +198,31 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle()
 
-  if (sessionError || !session || session.state !== 'reserved' || new Date(session.expires_at).getTime() <= Date.now()) {
+  if (sessionError || !session) {
+    return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  }
+
+  if (session.state !== 'reserved') {
+    const { data: receipts, error: receiptError } = await storage.rpc('get_document_upload_completion_receipt', {
+      p_session: uploadSessionId,
+      p_idempotency: idempotencyKey,
+      p_actor: user.id,
+      p_org: orgId,
+    })
+    const receipt = receipts?.[0]
+    if (receiptError || !receipt || receipt.code === 'not_found') {
+      return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+    }
+    if (receipt.code === 'duplicate') return uploadFailureResult(documentUploadError('duplicate'), 'duplicate')
+    if (receipt.code === 'ok' && receipt.intake_item_id) {
+      scheduleDocumentOutboxWake()
+      revalidatePath('/documents')
+      revalidatePath('/', 'layout')
+      return { success: true as const, intakeId: receipt.intake_item_id }
+    }
+    return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  }
+  if (new Date(session.expires_at).getTime() <= Date.now()) {
     return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
   }
 
@@ -230,29 +255,6 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
     }
     return true
   }
-  const recordStorageDeletion = async () => {
-    const { data, error } = await storage.rpc('record_document_asset_storage_deleted', {
-      p_asset_id: asset.id,
-    })
-    const code = data?.[0]?.code
-    if (error || !storageDeletionWasRecorded(code)) {
-      // The object has gone, but until the durable tombstone is recorded we
-      // intentionally continue to count it against quota. The scheduled
-      // terminal-asset cleaner can reconcile this safely.
-      console.error('Document asset deletion could not be recorded:', error ?? code)
-      return false
-    }
-    return true
-  }
-  const removeTerminalAsset = async () => {
-    const { error } = await storage.storage.from(asset.bucket_id).remove([asset.object_key])
-    if (error) {
-      // A failed physical deletion must remain counted; do not tombstone it.
-      console.error('Terminal document asset could not be deleted:', error)
-      return false
-    }
-    return recordStorageDeletion()
-  }
   const failUpload = async (errorCode: 'upload_failed' | 'invalid_pdf' | 'storage_missing' | 'upload_rejected') => {
     const { data, error } = await storage.rpc('fail_document_upload', {
       p_session: uploadSessionId,
@@ -270,7 +272,6 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
       console.error('Document upload failure could not be recorded:', error ?? code)
       return false
     }
-    await removeTerminalAsset()
     return true
   }
 
@@ -300,6 +301,8 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
     p_sha256: observation.sha256,
     p_detected_mime: observation.detectedMime,
     p_idempotency: idempotencyKey,
+    p_actor: user.id,
+    p_org: orgId,
   })
   const completion = completions?.[0]
   if (completionError || !completion) {
@@ -310,8 +313,9 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
   }
   if (completion.code !== 'ok') {
     if (completion.code === 'duplicate') {
-      await removeTerminalAsset()
       return uploadFailureResult(documentUploadError(completion.code), 'duplicate')
+    } else if (completion.code === 'cancelled') {
+      return { cancelled: true as const, cleanupPending: true as const }
     } else {
       // Policy/finalisation rejections are terminal. Persist their declared
       // server-observed bytes before releasing the reservation so a failed
@@ -335,6 +339,55 @@ export async function finalizeDocumentUpload(input: DocumentUploadFinalizationIn
   revalidatePath('/', 'layout')
   if (intake?.intended_matter_id) revalidatePath(`/matters/${intake.intended_matter_id}`)
   return { success: true, intakeId: completion.intake_item_id }
+}
+
+/** Serialise cancellation with finalisation; cleanup waits for token expiry. */
+export async function cancelDocumentUpload(input: DocumentUploadCancelInput) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return uploadFailureResult('No active organisation.', 'terminal')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return uploadFailureResult('Not authenticated.', 'terminal')
+
+  const idempotencyKey = uploadIdempotencyKey(input.idempotencyKey)
+  const uploadSessionId = uploadIdempotencyKey(input.uploadSessionId)
+  if (!idempotencyKey || !uploadSessionId) return uploadFailureResult('This upload could not be cancelled safely.', 'terminal')
+
+  const storage = createServiceClient()
+  const { data: session, error: sessionError } = await storage
+    .from('upload_sessions')
+    .select('id, asset_id')
+    .eq('id', uploadSessionId)
+    .eq('org_id', orgId)
+    .eq('created_by', user.id)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle()
+  if (sessionError || !session) return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+
+  const { data: outcomes, error: cancelError } = await storage.rpc('cancel_document_upload', {
+    p_session: uploadSessionId,
+    p_idempotency: idempotencyKey,
+    p_actor: user.id,
+    p_org: orgId,
+  })
+  const outcome = outcomes?.[0]
+  if (cancelError || !outcome) return uploadFailureResult('The upload could not be cancelled. Please try again.')
+  if (outcome.code === 'already_completed') {
+    if (outcome.completion_code === 'ok' && outcome.intake_item_id) {
+      scheduleDocumentOutboxWake()
+      return { success: true as const, intakeId: outcome.intake_item_id, cancelLostRace: true as const }
+    }
+    if (outcome.completion_code === 'duplicate') return uploadFailureResult(documentUploadError('duplicate'), 'duplicate')
+    return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  }
+  if (outcome.code !== 'cancelled' || !outcome.asset_id) {
+    return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  }
+
+  // A token minted near session expiry remains valid beyond the reservation.
+  // Keep worst-case bytes charged and let the scheduled cleaner delete and
+  // tombstone only after the migration's full authorization horizon.
+  return { cancelled: true as const, cleanupPending: true as const }
 }
 
 function resumableStorageEndpoint() {

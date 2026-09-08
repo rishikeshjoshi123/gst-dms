@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { uploadDocumentFile } from '@/lib/uploads/resumable-document-upload'
+import { documentUploadIdempotencyKey, uploadDocumentFile, type DocumentUploadControl } from '@/lib/uploads/resumable-document-upload'
 import { toast } from 'sonner'
 import { UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 export function GlobalDropzone() {
   const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles] = useState<Array<{ file: File; idempotencyKey: string; progress?: number }>>([])
+  const [files, setFiles] = useState<Array<{ file: File; idempotencyKey: string; progress?: number; control?: DocumentUploadControl; cancelling?: boolean }>>([])
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -30,7 +30,7 @@ export function GlobalDropzone() {
     setIsDragging(false)
     const droppedFiles = Array.from(e.dataTransfer.files)
       .filter(f => f.type === 'application/pdf')
-      .map(file => ({ file, idempotencyKey: crypto.randomUUID() }))
+      .map(file => ({ file, idempotencyKey: documentUploadIdempotencyKey(file, null) }))
     setFiles(prev => [...prev, ...droppedFiles])
   }
 
@@ -38,7 +38,7 @@ export function GlobalDropzone() {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files)
         .filter(f => f.type === 'application/pdf')
-        .map(file => ({ file, idempotencyKey: crypto.randomUUID() }))
+        .map(file => ({ file, idempotencyKey: documentUploadIdempotencyKey(file, null) }))
       setFiles(prev => [...prev, ...selectedFiles])
     }
     if (inputRef.current) inputRef.current.value = ''
@@ -64,7 +64,15 @@ export function GlobalDropzone() {
           setFiles(current => current.map(entry => entry.idempotencyKey === idempotencyKey
             ? { ...entry, progress }
             : entry))
+        }, control => {
+          setFiles(current => current.map(entry => entry.idempotencyKey === idempotencyKey
+            ? { ...entry, control: control ?? undefined }
+            : entry))
         })
+        if ('cancelled' in res) {
+          setFiles(current => current.filter(entry => entry.idempotencyKey !== idempotencyKey))
+          continue
+        }
         if ('error' in res) {
           console.error(res.error)
           if (!res.retryable) {
@@ -150,7 +158,7 @@ export function GlobalDropzone() {
       {files.length > 0 && (
         <div className="flex flex-col gap-3">
           <div className="grid gap-2">
-            {files.map(({ file, idempotencyKey, progress }, i) => (
+            {files.map(({ file, idempotencyKey, progress, control, cancelling }, i) => (
               <div key={idempotencyKey} className="flex items-center justify-between p-3 rounded border border-[--border-subtle] bg-white">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-secondary)] shrink-0">
@@ -167,14 +175,30 @@ export function GlobalDropzone() {
                     </span>
                   </div>
                 </div>
-                <button 
-                  aria-label={`Remove ${file.name}`}
-                  onClick={() => removeFile(i)}
-                  className="p-1.5 text-[--text-muted] hover:text-[--text-primary] rounded-full hover:bg-[--bg-overlay] transition-colors"
-                  disabled={uploadState === 'uploading'}
-                >
-                  <X size={14} />
-                </button>
+                {uploadState === 'uploading' && control ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11 shrink-0"
+                    disabled={cancelling}
+                    onClick={() => {
+                      setFiles(current => current.map(entry => entry.idempotencyKey === idempotencyKey ? { ...entry, cancelling: true } : entry))
+                      void control.cancel()
+                    }}
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel'}
+                  </Button>
+                ) : (
+                  <button
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() => removeFile(i)}
+                    className="min-h-11 min-w-11 text-[--text-muted] hover:text-[--text-primary] rounded-[var(--radius-sm)] hover:bg-[--bg-overlay] transition-colors"
+                    disabled={uploadState === 'uploading'}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
