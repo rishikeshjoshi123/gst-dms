@@ -13,7 +13,6 @@ test('document record mutations invalidate their canonical reader', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
 
   for (const name of [
-    'reassignDocumentMatter',
     'dismissReviewFlag',
     'setDocumentClass',
     'deleteDocument',
@@ -48,15 +47,15 @@ test('matter financial-year synchronization invalidates every exact updated docu
   assert.match(updateMatter, /for \(const document of updatedDocuments \?\? \[\]\)[\s\S]*revalidatePath\(canonicalDocumentPath\(document\.id\)\)/)
 })
 
-test('legacy document copy fails before storage or direct document insertion', () => {
+test('legacy document move and copy fail before clients, storage, or direct document writes', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
   const reassign = exportedFunction(source, 'reassignDocumentMatter')
-  const copyGuard = reassign.indexOf("if (mode === 'copy')")
-  const clientCreation = reassign.indexOf('createClient()')
 
-  assert.ok(copyGuard >= 0 && copyGuard < clientCreation)
+  assert.doesNotMatch(reassign, /createClient\(\)/)
   assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.insert/)
+  assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.update/)
   assert.doesNotMatch(reassign, /\.storage\s*\.from\('documents'\)\s*\.upload/)
+  assert.match(reassign, /governed workflow/)
 })
 
 test('legacy metadata editing fails before client creation or direct document update', () => {
@@ -75,15 +74,12 @@ test('chaining review mutations invalidate the exact document whose status and r
   assert.equal((source.match(/revalidatePath\(canonicalDocumentPath\(reviewedDocument\.id\)\)/g) ?? []).length, 2)
 })
 
-test('link cleanup invalidates every captured endpoint for move and demotion', () => {
+test('class demotion invalidates every captured link endpoint', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
-  const move = exportedFunction(source, 'reassignDocumentMatter')
   const documentClass = exportedFunction(source, 'setDocumentClass')
 
-  for (const mutation of [move, documentClass]) {
-    assert.match(mutation, /select\('from_doc_id, to_doc_id'\)/)
-    assert.match(mutation, /affectedLinkedDocumentIds\.add\(link\.from_doc_id\)/)
-    assert.match(mutation, /if \(link\.to_doc_id\) affectedLinkedDocumentIds\.add\(link\.to_doc_id\)/)
-    assert.match(mutation, /for \(const affectedDocumentId of affectedLinkedDocumentIds\)[\s\S]*revalidatePath\(canonicalDocumentPath\(affectedDocumentId\)\)/)
-  }
+  assert.match(documentClass, /select\('from_doc_id, to_doc_id'\)/)
+  assert.match(documentClass, /affectedLinkedDocumentIds\.add\(link\.from_doc_id\)/)
+  assert.match(documentClass, /if \(link\.to_doc_id\) affectedLinkedDocumentIds\.add\(link\.to_doc_id\)/)
+  assert.match(documentClass, /for \(const affectedDocumentId of affectedLinkedDocumentIds\)[\s\S]*revalidatePath\(canonicalDocumentPath\(affectedDocumentId\)\)/)
 })
