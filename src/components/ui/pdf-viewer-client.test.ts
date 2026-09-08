@@ -47,3 +47,17 @@ test('in-document search is cancellable, batched, truthful, and navigates matchi
   assert.match(source, /customTextRenderer=\{searchResults\.includes\(page\)/)
   assert.match(source, /Cancel search/)
 })
+
+test('the responsive thumbnail strip is bounded and synchronized to the current page', async () => {
+  const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /Show thumbnails/)
+  assert.match(source, /aria-label="PDF page thumbnails"/)
+  assert.match(source, /pdfThumbnailPages\(pageNumber, numPages\)/)
+  assert.match(source, /aria-current=\{selected \? 'page' : undefined\}/)
+  assert.match(source, /thumbnailStripRef/)
+  assert.match(source, /container\.scrollTo\(\{/)
+  assert.match(source, /overflow-x-auto overscroll-x-contain/)
+  assert.match(source, /Earlier pages/)
+  assert.match(source, /Later pages/)
+})

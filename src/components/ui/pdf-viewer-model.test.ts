@@ -5,8 +5,10 @@ import {
   clampPdfPage,
   highlightPdfText,
   isPdfPageInRenderWindow,
+  isPdfThumbnailInRenderWindow,
   nextPdfSearchBatch,
   normalizePdfSearchQuery,
+  pdfThumbnailPages,
   pdfPageHeight,
 } from './pdf-viewer-model'
 
@@ -22,6 +24,16 @@ test('keeps at most five adjacent PDF canvases in the render window', () => {
     .filter((page) => isPdfPageInRenderWindow(page, 10))
   assert.deepEqual(rendered, [8, 9, 10, 11, 12])
   assert.deepEqual([1, 2, 3].filter((page) => isPdfPageInRenderWindow(page, 1)), [1, 2, 3])
+})
+
+test('keeps at most five adjacent thumbnail canvases in the thumbnail strip', () => {
+  const rendered = Array.from({ length: 20 }, (_, index) => index + 1)
+    .filter((page) => isPdfThumbnailInRenderWindow(page, 10))
+  assert.deepEqual(rendered, [8, 9, 10, 11, 12])
+  assert.deepEqual([1, 2, 3].filter((page) => isPdfThumbnailInRenderWindow(page, 1)), [1, 2, 3])
+  assert.deepEqual(pdfThumbnailPages(10, 20), [8, 9, 10, 11, 12])
+  assert.deepEqual(pdfThumbnailPages(1, 20), [1, 2, 3])
+  assert.deepEqual(pdfThumbnailPages(20, 20), [18, 19, 20])
 })
 
 test('preserves placeholder geometry across fit, zoom and rotation', () => {

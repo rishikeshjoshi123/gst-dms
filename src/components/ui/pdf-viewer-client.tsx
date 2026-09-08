@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop, RotateCw, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelLeft, PanelTop, RotateCw, Search, X } from 'lucide-react';
 import { Button } from './button';
 import { Input } from './input';
 import {
@@ -16,6 +16,7 @@ import {
   normalizePdfSearchQuery,
   PDF_SEARCH_BATCH_SIZE,
   pdfPageHeight,
+  pdfThumbnailPages,
 } from './pdf-viewer-model';
 
 // Configure the worker for pdf.js
@@ -32,6 +33,7 @@ type PdfViewerProps = {
 
 export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const searchInputId = useId();
+  const thumbnailStripId = useId();
   const [numPages, setNumPages] = useState<number>();
   const [pageNumber, setPageNumber] = useState<number>(() => clampPdfPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
@@ -46,12 +48,15 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [activeSearchResult, setActiveSearchResult] = useState(-1);
   const [isSearchPending, setIsSearchPending] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [renderedSource, setRenderedSource] = useState({ url, initialPage });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageElementsRef = useRef(new Map<number, HTMLElement>());
   const shouldScrollToPageRef = useRef(true);
   const pdfDocumentRef = useRef<PDFDocumentProxy | null>(null);
   const searchGenerationRef = useRef(0);
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
+  const thumbnailElementsRef = useRef(new Map<number, HTMLButtonElement>());
 
   const [selection, setSelection] = useState<{ text: string, x: number, y: number, pageNumber: number } | null>(null);
 
@@ -97,6 +102,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     setActiveSearchResult(-1);
     setIsSearchPending(false);
     setSearchError(null);
+    setThumbnailsOpen(false);
     setSelection(null);
   }
 
@@ -107,6 +113,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
 
   useEffect(() => {
     pageElementsRef.current.clear();
+    thumbnailElementsRef.current.clear();
     pdfDocumentRef.current = null;
   }, [renderedSource.url]);
 
@@ -141,6 +148,19 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [numPages, pageNumber]);
+
+  useEffect(() => {
+    if (!thumbnailsOpen) return;
+    const container = thumbnailStripRef.current;
+    const element = thumbnailElementsRef.current.get(pageNumber);
+    if (!container || !element) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTo({
+        left: Math.max(0, element.offsetLeft - (container.clientWidth - element.offsetWidth) / 2),
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pageNumber, thumbnailsOpen]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -333,6 +353,8 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     }
   };
 
+  const thumbnailPages = numPages ? pdfThumbnailPages(pageNumber, numPages) : [];
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--surface)]">
       {/* Toolbar */}
@@ -381,6 +403,17 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         >
           <RotateCw size={16} aria-hidden="true" />
           Rotate
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => setThumbnailsOpen(open => !open)}
+          aria-expanded={thumbnailsOpen}
+          aria-controls={thumbnailStripId}
+        >
+          <PanelLeft size={16} aria-hidden="true" />
+          {thumbnailsOpen ? 'Hide thumbnails' : 'Show thumbnails'}
         </Button>
       </div>
 
@@ -448,23 +481,85 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         {searchError && <p role="alert" className="w-full text-xs text-[var(--danger)]">{searchError}</p>}
       </form>
 
-      {/* PDF Container */}
-      <div 
-        ref={scrollContainerRef}
-        tabIndex={0}
-        role="region"
-        aria-label="PDF page viewer"
-        aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"
-        className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:p-4"
-        onMouseUp={handleMouseUp}
-        onKeyDown={handleViewerKeyDown}
+      <Document
+        file={url}
+        onLoadSuccess={onDocumentLoadSuccess}
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+        loading={<div className="p-10 font-medium text-[var(--text-muted)] animate-pulse">Loading PDF Document...</div>}
+        error={<div className="p-10 font-medium text-[var(--danger)]">Failed to load PDF. Please try again later.</div>}
       >
-        <Document 
-          file={url} 
-          onLoadSuccess={onDocumentLoadSuccess} 
-          className="flex w-full flex-col items-center gap-4"
-          loading={<div className="p-10 font-medium text-[var(--text-muted)] animate-pulse">Loading PDF Document...</div>}
-          error={<div className="p-10 font-medium text-[var(--danger)]">Failed to load PDF. Please try again later.</div>}
+        {thumbnailsOpen && numPages && (
+          <nav
+            id={thumbnailStripId}
+            aria-label="PDF page thumbnails"
+            className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] p-2"
+          >
+            <div
+              ref={thumbnailStripRef}
+              className="custom-scrollbar flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1"
+            >
+              {thumbnailPages[0] > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-11 shrink-0"
+                  onClick={() => requestPage(thumbnailPages[0] - 1)}
+                >
+                  Earlier pages
+                </Button>
+              )}
+              {thumbnailPages.map((page) => {
+                const selected = page === pageNumber;
+                return (
+                  <button
+                    key={page}
+                    ref={(element) => {
+                      if (element) thumbnailElementsRef.current.set(page, element);
+                      else thumbnailElementsRef.current.delete(page);
+                    }}
+                    type="button"
+                    onClick={() => requestPage(page)}
+                    aria-current={selected ? 'page' : undefined}
+                    aria-label={`Go to PDF page ${page}`}
+                    className="flex min-h-11 w-20 shrink-0 flex-col items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] p-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] aria-[current=page]:border-[var(--accent)] aria-[current=page]:bg-[var(--accent-muted)] aria-[current=page]:text-[var(--text-primary)]"
+                  >
+                    <span className="flex h-[92px] w-[72px] items-center justify-center overflow-hidden bg-[var(--bg-overlay)] shadow-[var(--shadow-xs)]" aria-hidden="true">
+                      <Page
+                        pageNumber={page}
+                        width={72}
+                        rotate={rotation}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                      />
+                    </span>
+                    <span>Page {page}</span>
+                  </button>
+                );
+              })}
+              {thumbnailPages.at(-1)! < numPages && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-11 shrink-0"
+                  onClick={() => requestPage(thumbnailPages.at(-1)! + 1)}
+                >
+                  Later pages
+                </Button>
+              )}
+            </div>
+          </nav>
+        )}
+
+        {/* PDF Container */}
+        <div
+          ref={scrollContainerRef}
+          tabIndex={0}
+          role="region"
+          aria-label="PDF page viewer"
+          aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"
+          className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:p-4"
+          onMouseUp={handleMouseUp}
+          onKeyDown={handleViewerKeyDown}
         >
           {numPages && Array.from({ length: numPages }, (_, index) => {
             const page = index + 1;
@@ -506,24 +601,24 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
               </div>
             );
           })}
-        </Document>
 
-        {/* Floating Add Note Button */}
-        {selection && (
-          <div 
-            style={{ position: 'fixed', top: selection.y - 45, left: selection.x - 20, zIndex: 50 }}
-            className="animate-fade-in"
-          >
-            <Button 
-              size="sm" 
-              onClick={handleAddNoteClick}
-              className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-xl rounded-full px-3 py-1.5 flex items-center gap-1.5 h-auto text-xs"
+          {/* Floating Add Note Button */}
+          {selection && (
+            <div
+              style={{ position: 'fixed', top: selection.y - 45, left: selection.x - 20, zIndex: 50 }}
+              className="animate-fade-in"
             >
-              <MessageSquarePlus size={14} /> Add Note
-            </Button>
-          </div>
-        )}
-      </div>
+              <Button
+                size="sm"
+                onClick={handleAddNoteClick}
+                className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-xl rounded-full px-3 py-1.5 flex items-center gap-1.5 h-auto text-xs"
+              >
+                <MessageSquarePlus size={14} /> Add Note
+              </Button>
+            </div>
+          )}
+        </div>
+      </Document>
     </div>
   );
 }

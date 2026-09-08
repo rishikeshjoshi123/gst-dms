@@ -65,7 +65,7 @@ export default function DesignSystemPage() {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-base font-semibold">PDF viewer source location</h2>
-            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">A server-derived one-based page opens the shared viewer. It clamps to the PDF’s actual page count after loading; the compact toolbar remains outside the scrollable source body.</p>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">A server-derived one-based page opens the shared viewer. It clamps to the PDF’s actual page count after loading; bounded native-text search and a synchronized horizontal thumbnail disclosure remain outside the vertical source scroller.</p>
           </div>
           <Badge variant="outline">Static reference</Badge>
         </div>
@@ -78,8 +78,12 @@ export default function DesignSystemPage() {
             <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom out</span>
             <span className="px-2 font-medium text-[var(--text-primary)]">100%</span>
             <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom in</span>
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Show thumbnails</span>
           </div>
-          <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">Illustrative toolbar only — not an interactive PDF. Compact production controls retain accessible names and the shared effective 44px target.</p>
+          <div className="mt-3 flex gap-2 overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-2" aria-label="Thumbnail navigator reference">
+            {[10, 11, 12, 13, 14].map(page => <span key={page} className={`flex h-16 w-12 shrink-0 items-end justify-center rounded-[var(--radius-sm)] border p-1 text-[10px] ${page === 12 ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--text-primary)]' : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]'}`}>{page}</span>)}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">Illustrative toolbar and thumbnail strip only — not an interactive PDF. The production strip renders at most five labelled nearby thumbnails with explicit earlier/later navigation.</p>
         </div>
       </section>
       <section className="border-t border-[var(--border)] py-6">

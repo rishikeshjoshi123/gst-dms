@@ -1,4 +1,5 @@
 export const PDF_PAGE_RENDER_RADIUS = 2
+export const PDF_THUMBNAIL_RENDER_RADIUS = 2
 export const DEFAULT_PDF_PAGE_SIZE = { width: 612, height: 792 }
 export const PDF_SEARCH_BATCH_SIZE = 25
 
@@ -10,6 +11,17 @@ export function clampPdfPage(page: number, numPages?: number) {
 
 export function isPdfPageInRenderWindow(page: number, currentPage: number) {
   return Math.abs(page - currentPage) <= PDF_PAGE_RENDER_RADIUS
+}
+
+export function isPdfThumbnailInRenderWindow(page: number, currentPage: number) {
+  return Math.abs(page - currentPage) <= PDF_THUMBNAIL_RENDER_RADIUS
+}
+
+export function pdfThumbnailPages(currentPage: number, numPages: number) {
+  const current = clampPdfPage(currentPage, numPages)
+  const start = Math.max(1, current - PDF_THUMBNAIL_RENDER_RADIUS)
+  const end = Math.min(numPages, current + PDF_THUMBNAIL_RENDER_RADIUS)
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index)
 }
 
 export function pdfPageHeight({
