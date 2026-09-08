@@ -31,7 +31,7 @@ test('canonical document route retains signed PDF, inspector, Notes, timeline de
   assert.match(source, /getNotes\(\{ documentId: docId \}\)/)
   assert.match(source, /const inspectorIds = documentInspectorIds\(doc\.id, allDocuments\)/)
   assert.match(source, /getDocumentInspectorMetadata\(inspectorIds\)/)
-  assert.match(source, /<PdfViewer url=\{signedDocument\.url\} initialPage=\{sourceLocator\.page \?\? 1\}/)
+  assert.match(source, /<PdfViewer url=\{signedDocumentUrl\} initialPage=\{sourceLocator\.page \?\? 1\}/)
   assert.match(source, /<TimelineDocumentDetail[\s\S]*inspectorMetadataByDocumentId=\{inspectorMetadata\}[\s\S]*readOnly=\{isTrashReadOnly\}/)
   assert.match(source, /<TrashReadOnlyStrip context=\{exactDocument\.context\}/)
 })

@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelTop } from 'lucide-react';
 import { Button } from './button';
 
 // Configure the worker for pdf.js
@@ -28,6 +28,10 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>();
   const [pageNumber, setPageNumber] = useState<number>(() => clampPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
+  const [fitWidth, setFitWidth] = useState(true);
+  const [pageWidth, setPageWidth] = useState<number>();
+  const [renderedSource, setRenderedSource] = useState({ url, initialPage });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [selection, setSelection] = useState<{ text: string, x: number, y: number } | null>(null);
 
@@ -42,14 +46,31 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     return () => window.removeEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
   }, []);
 
-  // A source locator may arrive before the PDF page count. Preserve its
-  // requested page until load, then clamp it to the real document bounds.
+  if (renderedSource.url !== url || renderedSource.initialPage !== initialPage) {
+    setRenderedSource({ url, initialPage });
+    setNumPages(undefined);
+    setPageNumber(clampPage(initialPage));
+    setFitWidth(true);
+    setSelection(null);
+  }
+
   useEffect(() => {
-    setPageNumber(clampPage(initialPage, numPages));
-  }, [initialPage, numPages]);
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const updateWidth = () => {
+      const horizontalPadding = window.innerWidth < 640 ? 16 : 32;
+      setPageWidth(Math.max(1, container.clientWidth - horizontalPadding));
+    };
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
     setNumPages(numPages);
+    setPageNumber(page => clampPage(page, numPages));
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -81,35 +102,49 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   };
 
   return (
-    <div className="flex flex-col items-center w-full h-full bg-[var(--bg-surface)]">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--surface)]">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 p-2 mb-4 bg-white border border-[var(--border)] shadow-sm rounded-lg sticky top-0 z-10 w-fit">
-        <Button variant="ghost" size="icon" aria-label="Previous page" title="Previous page" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
+      <div className="z-10 flex min-h-14 w-full shrink-0 flex-wrap items-center justify-center gap-1 border-b border-[var(--border)] bg-[var(--surface)] p-2 sm:gap-2">
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Previous page" title="Previous page" onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1}>
           <ChevronLeft size={16} />
         </Button>
-        <span className="text-sm font-medium text-[var(--text-primary)] min-w-[100px] text-center">
-          Page {pageNumber} of {numPages || '--'}
-        </span>
-        <Button variant="ghost" size="icon" aria-label="Next page" title="Next page" onClick={() => setPageNumber(p => Math.min(numPages || 1, p + 1))} disabled={pageNumber >= (numPages || 1)}>
+        <label className="flex min-h-11 items-center gap-1 text-sm font-medium text-[var(--text-primary)]">
+          <span className="sr-only">Current PDF page</span>
+          <input
+            type="number"
+            min={1}
+            max={numPages}
+            value={pageNumber}
+            onChange={event => setPageNumber(clampPage(Number(event.target.value) || 1, numPages))}
+            className="h-9 w-14 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-center text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+          />
+          <span className="whitespace-nowrap text-[var(--text-muted)]">of {numPages || '--'}</span>
+        </label>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Next page" title="Next page" onClick={() => setPageNumber(p => Math.min(numPages || 1, p + 1))} disabled={pageNumber >= (numPages || 1)}>
           <ChevronRight size={16} />
         </Button>
 
-        <div className="w-px h-6 bg-[var(--border)] mx-2" />
+        <div className="mx-1 hidden h-6 w-px bg-[var(--border)] sm:block" />
 
-        <Button variant="ghost" size="icon" aria-label="Zoom out" title="Zoom out" onClick={() => setScale(s => Math.max(0.5, s - 0.2))}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom out" title="Zoom out" onClick={() => { setFitWidth(false); setScale(s => Math.max(0.5, s - 0.2)); }}>
           <ZoomOut size={16} />
         </Button>
-        <span className="text-sm font-medium w-12 text-center text-[var(--text-primary)]">
-          {Math.round(scale * 100)}%
+        <span className="w-12 text-center text-sm font-medium text-[var(--text-primary)]">
+          {fitWidth ? 'Fit' : `${Math.round(scale * 100)}%`}
         </span>
-        <Button variant="ghost" size="icon" aria-label="Zoom in" title="Zoom in" onClick={() => setScale(s => Math.min(3, s + 0.2))}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom in" title="Zoom in" onClick={() => { setFitWidth(false); setScale(s => Math.min(3, s + 0.2)); }}>
           <ZoomIn size={16} />
+        </Button>
+        <Button type="button" variant="outline" className="min-h-11" onClick={() => setFitWidth(true)} aria-pressed={fitWidth}>
+          <PanelTop size={16} aria-hidden="true" />
+          Fit width
         </Button>
       </div>
 
       {/* PDF Container */}
       <div 
-        className="flex-1 overflow-auto w-full flex justify-center rounded-lg bg-[var(--border)] p-4 shadow-inner min-h-[600px] relative"
+        ref={scrollContainerRef}
+        className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 sm:p-4"
         onMouseUp={handleMouseUp}
       >
         <Document 
@@ -120,8 +155,9 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         >
           <Page 
             pageNumber={pageNumber} 
-            scale={scale} 
-            className="shadow-xl" 
+            width={fitWidth ? pageWidth : undefined}
+            scale={fitWidth ? undefined : scale}
+            className="shadow-[var(--shadow-lg)]"
             renderTextLayer={true}
             renderAnnotationLayer={true}
           />
