@@ -1,16 +1,11 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
-import { Building2, Mail, ArrowRight, LogOut, X } from 'lucide-react'
-import { createOrganisation, acceptInvite, rejectInvite, getMyPendingInvites } from '@/lib/actions/org'
+import { useEffect, useState, useTransition } from 'react'
+import { LogOut, Mail, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { acceptInvite, getMyPendingInvites, rejectInvite } from '@/lib/actions/org'
 import { signOut } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { FormField } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-
-type Mode = 'choose' | 'create'
 
 interface PendingInvite {
   id: string
@@ -19,46 +14,31 @@ interface PendingInvite {
 }
 
 export default function OnboardingPage() {
-  const [mode, setMode] = useState<Mode>('choose')
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-  
   const [invites, setInvites] = useState<PendingInvite[]>([])
   const [loadingInvites, setLoadingInvites] = useState(true)
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
-    async function fetchInvites() {
-      try {
-        const data = await getMyPendingInvites()
-        setInvites(data)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoadingInvites(false)
-      }
+    let cancelled = false
+    void getMyPendingInvites()
+      .then((data) => {
+        if (!cancelled) setInvites(data)
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Invitations could not be loaded. Refresh and try again.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInvites(false)
+      })
+    return () => {
+      cancelled = true
     }
-    fetchInvites()
   }, [])
 
-  function handleCreateOrg(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    const formData = new FormData(e.currentTarget)
-    startTransition(async () => {
-      const result = await createOrganisation(formData)
-      if (result?.error) setError(result.error)
-    })
-  }
-
   function handleAcceptInvite(inviteId: string) {
-    setError(null)
     startTransition(async () => {
       const result = await acceptInvite(inviteId)
-      if (result?.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Successfully joined the organization.')
-      }
+      if (result?.error) toast.error(result.error)
     })
   }
 
@@ -67,10 +47,10 @@ export default function OnboardingPage() {
       const result = await rejectInvite(inviteId)
       if (result?.error) {
         toast.error(result.error)
-      } else {
-        toast.success('Invite rejected.')
-        setInvites(invites.filter(inv => inv.id !== inviteId))
+        return
       }
+      setInvites((current) => current.filter((invite) => invite.id !== inviteId))
+      toast.success('Invitation declined.')
     })
   }
 
@@ -82,17 +62,17 @@ export default function OnboardingPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-start justify-between mb-7 gap-4">
+      <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Set up your workspace</h1>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Join your organisation</h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Create a new organisation or join an existing one
+            CaseChain pilot access is available through an organisation invitation.
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="text-[var(--text-secondary)] hover:text-[var(--danger)] hover:border-[var(--danger)] hover:bg-[var(--danger-muted)] transition-colors shrink-0"
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 text-[var(--text-secondary)] transition-colors hover:border-[var(--danger)] hover:bg-[var(--danger-muted)] hover:text-[var(--danger)]"
           onClick={handleLogout}
           disabled={isPending}
         >
@@ -101,115 +81,56 @@ export default function OnboardingPage() {
         </Button>
       </div>
 
-      {/* Choose mode & Pending Invites */}
-      {mode === 'choose' && (
-        <div className="flex flex-col gap-6">
-          
-          {/* Pending Invites Section */}
-          {!loadingInvites && invites.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider">Pending Invites</h2>
-              <div className="space-y-3">
-                {invites.map(invite => (
-                  <div key={invite.id} className="flex items-center justify-between p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-overlay)]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[var(--accent-muted)] flex items-center justify-center shrink-0">
-                        <Mail size={16} className="text-[var(--accent)]" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-[var(--text-primary)] text-sm">{invite.orgName}</p>
-                        <p className="text-xs text-[var(--text-muted)]">Invited you as <span className="font-medium">{invite.role}</span></p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        size="icon" 
-                        variant="outline" 
-                        className="h-11 w-11 sm:h-8 sm:w-8 text-[var(--danger)] hover:bg-[var(--danger-muted)] border-[color-mix(in_srgb,var(--danger)_30%,transparent)]"
-                        onClick={() => handleRejectInvite(invite.id)}
-                        disabled={isPending}
-                        title="Reject Invite"
-                        aria-label={`Reject invitation to ${invite.orgName}`}
-                      >
-                        <X size={14} />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        className="h-11 px-3 sm:h-8"
-                        onClick={() => handleAcceptInvite(invite.id)}
-                        disabled={isPending}
-                        loading={isPending}
-                      >
-                        Accept
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+      {loadingInvites ? (
+        <p className="py-8 text-center text-sm text-[var(--text-muted)]" role="status">
+          Checking invitations…
+        </p>
+      ) : invites.length === 0 ? (
+        <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-overlay)] p-5">
+          <h2 className="font-semibold text-[var(--text-primary)]">Invitation required</h2>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
+            Open the invitation link sent by your organisation administrator. If the link has expired, ask them to send a new invitation.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Pending invitations
+          </h2>
+          {invites.map((invite) => (
+            <div key={invite.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-overlay)] p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent-muted)]">
+                  <Mail size={16} className="text-[var(--accent)]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{invite.orgName}</p>
+                  <p className="text-xs text-[var(--text-muted)]">Invited as {invite.role}</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-11 w-11 border-[color-mix(in_srgb,var(--danger)_30%,transparent)] text-[var(--danger)] hover:bg-[var(--danger-muted)]"
+                  onClick={() => handleRejectInvite(invite.id)}
+                  disabled={isPending}
+                  title="Decline invitation"
+                  aria-label={`Decline invitation to ${invite.orgName}`}
+                >
+                  <X size={14} />
+                </Button>
+                <Button
+                  className="h-11 px-3"
+                  onClick={() => handleAcceptInvite(invite.id)}
+                  disabled={isPending}
+                  loading={isPending}
+                >
+                  Accept invitation
+                </Button>
               </div>
             </div>
-          )}
-
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-              {invites.length > 0 ? 'Or Create Your Own' : 'Get Started'}
-            </h2>
-            <button
-              onClick={() => setMode('create')}
-              type="button"
-              className={cn(
-                'group flex items-start gap-4 p-5 rounded-[var(--radius-md)] w-full',
-                'border border-[var(--border)] bg-[var(--bg-overlay)]',
-                'hover:border-[var(--accent)] hover:bg-[var(--accent-muted)]',
-                'transition-all duration-[var(--duration-base)] text-left cursor-pointer'
-              )}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)] group-hover:bg-[var(--accent)] transition-colors">
-                <Building2 size={20} className="text-[var(--accent)] group-hover:text-[var(--on-accent)] transition-colors" />
-              </div>
-              <div>
-                <p className="font-semibold text-[var(--text-primary)]">Create a new organisation</p>
-                <p className="text-sm text-[var(--text-muted)] mt-0.5">
-                  Start a fresh workspace for your law firm or practice
-                </p>
-              </div>
-              <ArrowRight size={18} className="ml-auto self-center text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors shrink-0" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Create org */}
-      {mode === 'create' && (
-        <div className="animate-fade-in">
-          <button
-            onClick={() => { setMode('choose'); setError(null) }}
-            type="button"
-            className="mb-5 flex min-h-11 items-center gap-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-          >
-            ← Back
-          </button>
-          <form onSubmit={handleCreateOrg} className="flex flex-col gap-4">
-            <FormField
-              label="Organisation name"
-              required
-              error={error ?? undefined}
-            >
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                placeholder="e.g. Tax Advocate Associates"
-                autoFocus
-                required
-                minLength={2}
-                maxLength={120}
-                disabled={isPending}
-              />
-            </FormField>
-            <Button type="submit" size="lg" className="w-full mt-1" loading={isPending}>
-              {isPending ? 'Creating workspace…' : 'Create workspace'}
-            </Button>
-          </form>
+          ))}
         </div>
       )}
     </div>
