@@ -1,21 +1,22 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { UsageClientView } from '@/components/usage/UsageClientView'
 import type { Metadata } from 'next'
+import { isLegacyUsageDevelopmentEnvironment } from '@/lib/platform/legacy-usage-boundary'
 
 export const metadata: Metadata = { title: { absolute: 'Usage — CaseChain' } }
 
 export default async function UsagePage() {
+  if (!isLegacyUsageDevelopmentEnvironment()) notFound()
+
   const supabase = await createClient()
 
   // Get user and verify auth
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Development-only platform dashboard: intentionally aggregates every
-  // organisation's usage while the product has no separate admin surface.
-  // Before production, move this query behind a platform-admin boundary.
+  // Development-only dashboard: intentionally aggregates testing organisations.
   const serviceClient = createServiceClient()
   const { data: logs, error } = await serviceClient
     .from('ai_usage_logs')

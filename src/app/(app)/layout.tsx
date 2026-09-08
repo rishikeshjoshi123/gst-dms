@@ -10,6 +10,7 @@ import { BreadcrumbProvider } from '@/components/nav/BreadcrumbContext'
 import { BreadcrumbNav } from '@/components/nav/BreadcrumbNav'
 import { MobileNavDrawer } from '@/components/nav/MobileNavDrawer'
 import type { Metadata } from 'next'
+import { isLegacyUsageDevelopmentEnvironment } from '@/lib/platform/legacy-usage-boundary'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -69,7 +70,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           {/* Navigation items */}
           <div className="flex-1 px-2 py-4 md:px-3">
-            <SidebarNav inboxCount={inboxCount} notifCount={notifCount} />
+            <SidebarNav
+              inboxCount={inboxCount}
+              notifCount={notifCount}
+              showDevelopmentUsage={isLegacyUsageDevelopmentEnvironment()}
+            />
           </div>
           </aside>
         </div>
@@ -79,7 +84,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {/* Topbar */}
           <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 transition-colors duration-200 md:px-6">
             <div className="flex items-center gap-2">
-              <MobileNavDrawer inboxCount={inboxCount} notifCount={notifCount} />
+              <MobileNavDrawer
+                inboxCount={inboxCount}
+                notifCount={notifCount}
+                showDevelopmentUsage={isLegacyUsageDevelopmentEnvironment()}
+              />
               <BreadcrumbNav />
             </div>
             <div className="relative z-10 flex items-center gap-3.5 pointer-events-auto">

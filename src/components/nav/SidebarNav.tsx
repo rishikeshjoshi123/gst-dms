@@ -32,8 +32,21 @@ const bottomItems = [
   { href: '/settings',      icon: Settings, label: 'Settings' },
 ]
 
-export function SidebarNav({ inboxCount = 0, notifCount = 0, isMobile = false }: { inboxCount?: number; notifCount?: number; isMobile?: boolean }) {
+export function SidebarNav({
+  inboxCount = 0,
+  notifCount = 0,
+  isMobile = false,
+  showDevelopmentUsage = false,
+}: {
+  inboxCount?: number
+  notifCount?: number
+  isMobile?: boolean
+  showDevelopmentUsage?: boolean
+}) {
   const pathname = usePathname()
+  const visibleBottomItems = showDevelopmentUsage
+    ? bottomItems
+    : bottomItems.filter(({ href }) => href !== '/usage')
 
   return (
     <nav className="flex flex-col gap-1">
@@ -68,7 +81,7 @@ export function SidebarNav({ inboxCount = 0, notifCount = 0, isMobile = false }:
 
       <div className="my-2 h-px bg-[var(--sidebar-border,var(--border))]" />
 
-      {bottomItems.map(({ href, icon: Icon, label, badgeKey }) => {
+      {visibleBottomItems.map(({ href, icon: Icon, label, badgeKey }) => {
         const count = badgeKey === 'notif' ? notifCount : 0
         return (
           <Link

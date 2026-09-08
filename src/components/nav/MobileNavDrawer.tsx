@@ -8,9 +8,14 @@ import { SidebarNav } from './SidebarNav'
 interface MobileNavDrawerProps {
   inboxCount?: number
   notifCount?: number
+  showDevelopmentUsage?: boolean
 }
 
-export function MobileNavDrawer({ inboxCount = 0, notifCount = 0 }: MobileNavDrawerProps) {
+export function MobileNavDrawer({
+  inboxCount = 0,
+  notifCount = 0,
+  showDevelopmentUsage = false,
+}: MobileNavDrawerProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -52,7 +57,12 @@ export function MobileNavDrawer({ inboxCount = 0, notifCount = 0 }: MobileNavDra
               if ((event.target as HTMLElement).closest('a')) setIsOpen(false)
             }}
           >
-            <SidebarNav inboxCount={inboxCount} notifCount={notifCount} isMobile />
+            <SidebarNav
+              inboxCount={inboxCount}
+              notifCount={notifCount}
+              showDevelopmentUsage={showDevelopmentUsage}
+              isMobile
+            />
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

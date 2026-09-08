@@ -3,8 +3,13 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getCurrentOrgId } from './org'
+import { isLegacyUsageDevelopmentEnvironment } from '@/lib/platform/legacy-usage-boundary'
 
 export async function updateModelPricing(modelName: string, inputPrice: number, outputPrice: number) {
+  if (!isLegacyUsageDevelopmentEnvironment()) {
+    return { error: 'Legacy pricing management is unavailable in this environment.' }
+  }
+
   const supabase = await createClient()
 
   // Ensure authenticated
