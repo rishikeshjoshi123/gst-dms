@@ -65,7 +65,8 @@ test('active collection and search readers require typed active state and legacy
   assertActiveResourceReader(documents, 'getNeedsReviewDocuments')
   assertActiveResourceReader(search, 'searchAll', 4)
   assert.match(exportedFunction(notes, 'getNotes'), /\.eq\('matters\.record_state', 'active'\)[\s\S]*\.is\('matters\.deleted_at', null\)/)
-  assert.match(exportedFunction(notes, 'getNotes'), /from\('documents'\)[\s\S]*\.eq\('record_state', 'active'\)[\s\S]*readableNotes = readableNotes\.filter/)
+  assert.match(exportedFunction(notes, 'getNotes'), /getQuoteLocatorsByNoteId\(supabase, readableNotes\.map/)
+  assert.doesNotMatch(exportedFunction(notes, 'getNotes'), /readableNotes = readableNotes\.filter/)
   assert.match(dashboard, /from\('clients'\)[\s\S]*?\.eq\('record_state', 'active'\)[\s\S]*?\.is\('deleted_at', null\)/)
   assert.match(dashboard, /from\('matters'\)[\s\S]*?\.eq\('record_state', 'active'\)[\s\S]*?\.is\('deleted_at', null\)/)
   assert.match(dashboard, /from\('documents'\)[\s\S]*?\.eq\('record_state', 'active'\)[\s\S]*?\.is\('deleted_at', null\)/)
@@ -86,7 +87,7 @@ test('canonical exact routes reuse their familiar compositions in Trash read-onl
   assert.match(pages[0], /isTrashReadOnly[\s\S]*exactClient\.data\.record/)
   assert.match(pages[0], /!isTrashReadOnly[\s\S]*NewMatterButton/)
   assert.match(pages[1], /<MatterTabs[\s\S]*readOnly=\{isTrashReadOnly\}/)
-  assert.match(pages[2], /<TimelineDocumentDetail[\s\S]*readOnly=\{isTrashReadOnly\}/)
+  assert.match(pages[2], /<CanonicalDocumentWorkbench[\s\S]*readOnly=\{isTrashReadOnly\}/)
 })
 
 test('Trash read-only compositions suppress realtime and direct mutation handlers', async () => {
@@ -128,14 +129,16 @@ test('direct legacy commands reject trashed resource targets before mutating', a
   for (const command of ['createMatter', 'updateMatterDetails']) {
     assert.match(exportedFunction(matterActions, command), /\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
   }
-  for (const command of ['updateNote', 'deleteNote']) {
-    assert.match(exportedFunction(noteActions, command), /from\('matters'\)[\s\S]*\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
-  }
-  for (const command of ['reassignDocumentMatter', 'setDocumentClass', 'updateDocumentMetadata', 'createManualLink', 'deleteDocumentLink']) {
+  assert.match(exportedFunction(noteActions, 'updateNote'), /from\('matters'\)[\s\S]*\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
+  assert.match(exportedFunction(noteActions, 'deleteNote'), /rpc\('remove_case_note'/)
+  assert.match(exportedFunction(documentActions, 'reassignDocumentMatter'), /governed workflow is ready/)
+  assert.match(exportedFunction(documentActions, 'updateDocumentMetadata'), /governed inspector correction workflow/)
+  assert.match(exportedFunction(documentActions, 'setDocumentClass'), /governed impact workflow/)
+  for (const command of ['createManualLink', 'deleteDocumentLink']) {
     assert.match(exportedFunction(documentActions, command), /\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
   }
-  assert.match(exportedFunction(matterActions, 'setMatterStatus'), /\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
-  assert.match(exportedFunction(documentActions, 'dismissReviewFlag'), /\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
+  assert.match(exportedFunction(matterActions, 'setMatterStatus'), /updateMatterDetails\(id, \{ status \}\)/)
+  assert.match(exportedFunction(documentActions, 'dismissReviewFlag'), /Legacy review dismissal is unavailable/)
 })
 
 test('SQL projections expose allowlisted UI data and keep purge-scheduled Back to Trash valid', async () => {

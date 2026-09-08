@@ -106,6 +106,9 @@ BEGIN
   IF NOT denied THEN RAISE EXCEPTION 'direct client hard delete bypassed Trash lifecycle'; END IF;
   INSERT INTO public.case_notes(id,matter_id,document_id,org_id,author_id,content) VALUES
     ('98700000-0000-0000-0000-000000000001',matter,unique_doc,org,owner,'content that must be removed');
+  INSERT INTO public.note_document_quotes(note_id,org_id,matter_id,document_id,document_version_id,page_number,excerpt)
+  VALUES('98700000-0000-0000-0000-000000000001',org,matter,unique_doc,
+    '98600000-0000-0000-0000-000000000001',1,'Exact purge dependency');
   denied:=false; BEGIN DELETE FROM public.case_notes WHERE document_id=unique_doc; EXCEPTION WHEN others THEN denied:=true; END;
   IF NOT denied THEN RAISE EXCEPTION 'ordinary dependent delete bypassed the governed purge fence'; END IF;
   INSERT INTO public.wiki_sections(id,matter_id,section_key,title,content) VALUES
@@ -236,7 +239,9 @@ BEGIN
     RAISE EXCEPTION 'expired job lease was not safely recovered';
   END IF;
   SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
-  IF result.code<>'prepared' OR result.storage_deletion_count<>1 OR EXISTS (SELECT 1 FROM public.case_notes WHERE document_id=unique_doc) THEN
+  IF result.code<>'prepared' OR result.storage_deletion_count<>1
+     OR EXISTS (SELECT 1 FROM public.case_notes WHERE document_id=unique_doc)
+     OR EXISTS (SELECT 1 FROM public.note_document_quotes WHERE document_id=unique_doc) THEN
     RAISE EXCEPTION 'database dependency cleanup was incomplete: code=%, storage=%, case_note=%',
       result.code,result.storage_deletion_count,EXISTS (SELECT 1 FROM public.case_notes WHERE document_id=unique_doc);
   END IF;

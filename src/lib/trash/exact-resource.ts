@@ -31,6 +31,7 @@ type TrashCaseNote = Pick<Database['public']['Tables']['case_notes']['Row'],
 > & {
   author?: { id: string; email: string }
   documents?: Pick<TrashDocumentRecord, 'id' | 'reference_number' | 'display_title' | 'effective_filename'> | null
+  quotation_locator?: Database['public']['Functions']['get_note_quote_locators']['Returns'][number] | null
 }
 type InspectorMetadataRow = Database['public']['Functions']['read_current_document_inspector_projection']['Returns'][number]
 
@@ -148,6 +149,16 @@ async function getTrashProjection<Record>(
     }
   }
 
+  const notes = Array.isArray(projection.related_notes) ? projection.related_notes as TrashCaseNote[] : []
+  const quoteLocatorByNoteId = new Map<string, Database['public']['Functions']['get_note_quote_locators']['Returns'][number]>()
+  if (notes.length > 0) {
+    const { data: quoteLocators } = await supabase.rpc('get_note_quote_locators', {
+      p_note_ids: notes.map((note) => note.id),
+      p_trash_matter_id: notes[0]?.matter_id,
+    })
+    for (const locator of quoteLocators ?? []) quoteLocatorByNoteId.set(locator.note_id, locator)
+  }
+
   return {
     context,
     data: {
@@ -156,7 +167,7 @@ async function getTrashProjection<Record>(
       documents: Array.isArray(projection.related_documents) ? projection.related_documents as TrashDocumentRecord[] : [],
       links: Array.isArray(projection.related_links) ? projection.related_links as TrashDocumentLink[] : [],
       wikiSections: Array.isArray(projection.related_wiki_sections) ? projection.related_wiki_sections as TrashWikiSection[] : [],
-      notes: Array.isArray(projection.related_notes) ? projection.related_notes as TrashCaseNote[] : [],
+      notes: notes.map((note) => ({ ...note, quotation_locator: quoteLocatorByNoteId.get(note.id) ?? null })),
       inspectorMetadataRows: Array.isArray(projection.related_inspector_metadata) ? projection.related_inspector_metadata as InspectorMetadataRow[] : [],
     },
   }

@@ -3,9 +3,11 @@ import test from 'node:test'
 
 import {
   clampPdfPage,
+  createPdfQuotationSelection,
   classifyPdfSourceFailure,
   highlightPdfText,
   isPdfPageInRenderWindow,
+  isPdfSourceRequestCurrent,
   isPdfThumbnailInRenderWindow,
   nextPdfSearchBatch,
   normalizePdfSearchQuery,
@@ -22,6 +24,29 @@ test('clamps direct and event-driven pages to safe document bounds', () => {
   assert.equal(clampPdfPage(-4, 12), 1)
   assert.equal(clampPdfPage(3.9, 12), 3)
   assert.equal(clampPdfPage(99, 12), 12)
+})
+
+test('binds quotations to the loaded source and rejects invalid pages', () => {
+  const source = { documentId: 'document-a', documentVersionId: 'version-2' }
+  assert.deepEqual(createPdfQuotationSelection(source, '  exact excerpt  ', 3, 8), {
+    ...source,
+    text: 'exact excerpt',
+    pageNumber: 3,
+  })
+  assert.equal(createPdfQuotationSelection(source, 'excerpt', 0, 8), null)
+  assert.equal(createPdfQuotationSelection(source, 'excerpt', 9, 8), null)
+  assert.equal(createPdfQuotationSelection(source, '', 3, 8), null)
+})
+
+test('rejects a late signed URL renewal after a source switch', () => {
+  assert.equal(isPdfSourceRequestCurrent(
+    { generation: 4, sourceIdentity: 'document-a:version-1' },
+    { generation: 5, sourceIdentity: 'document-a:version-2' },
+  ), false)
+  assert.equal(isPdfSourceRequestCurrent(
+    { generation: 5, sourceIdentity: 'document-a:version-2' },
+    { generation: 5, sourceIdentity: 'document-a:version-2' },
+  ), true)
 })
 
 test('keeps at most five adjacent PDF canvases in the render window', () => {

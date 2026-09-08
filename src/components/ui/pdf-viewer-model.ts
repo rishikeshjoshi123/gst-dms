@@ -81,6 +81,25 @@ export function clampPdfPage(page: number, numPages?: number) {
   return numPages ? Math.min(numPages, lowerBounded) : lowerBounded
 }
 
+export function createPdfQuotationSelection(
+  source: { documentId: string; documentVersionId: string },
+  text: string,
+  pageNumber: number,
+  numPages: number,
+) {
+  const excerpt = text.trim()
+  if (!source.documentId || !source.documentVersionId || !excerpt || !Number.isSafeInteger(pageNumber)
+    || pageNumber < 1 || pageNumber > numPages) return null
+  return { ...source, text: excerpt, pageNumber }
+}
+
+export function isPdfSourceRequestCurrent(
+  request: { generation: number; sourceIdentity: string | null },
+  current: { generation: number; sourceIdentity: string | null },
+) {
+  return request.generation === current.generation && request.sourceIdentity === current.sourceIdentity
+}
+
 export function isPdfPageInRenderWindow(page: number, currentPage: number) {
   return Math.abs(page - currentPage) <= PDF_PAGE_RENDER_RADIUS
 }

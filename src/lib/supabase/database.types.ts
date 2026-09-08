@@ -2321,6 +2321,67 @@ export type Database = {
         }
         Relationships: []
       }
+      note_document_quotes: {
+        Row: {
+          created_at: string
+          document_id: string
+          document_version_id: string
+          excerpt: string
+          matter_id: string
+          note_id: string
+          org_id: string
+          page_number: number
+          regions: Json | null
+          selection_method: Database["public"]["Enums"]["note_quote_selection_method"]
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          excerpt: string
+          matter_id: string
+          note_id: string
+          org_id: string
+          page_number: number
+          regions?: Json | null
+          selection_method?: Database["public"]["Enums"]["note_quote_selection_method"]
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          excerpt?: string
+          matter_id?: string
+          note_id?: string
+          org_id?: string
+          page_number?: number
+          regions?: Json | null
+          selection_method?: Database["public"]["Enums"]["note_quote_selection_method"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_document_quotes_document_lineage_fkey"
+            columns: ["org_id", "matter_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "matter_id", "id"]
+          },
+          {
+            foreignKeyName: "note_document_quotes_note_lineage_fkey"
+            columns: ["org_id", "matter_id", "note_id"]
+            isOneToOne: false
+            referencedRelation: "case_notes"
+            referencedColumns: ["org_id", "matter_id", "id"]
+          },
+          {
+            foreignKeyName: "note_document_quotes_version_lineage_fkey"
+            columns: ["org_id", "document_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -7526,6 +7587,7 @@ export type Database = {
           p_action_item_due_date?: string
           p_content: string
           p_document_id?: string
+          p_document_version_id?: string
           p_idempotency_key: string
           p_is_action_item: boolean
           p_matter_id: string
@@ -8147,6 +8209,19 @@ export type Database = {
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_membership_state"]
           user_id: string
+        }[]
+      }
+      get_note_quote_locators: {
+        Args: { p_note_ids: string[]; p_trash_matter_id?: string }
+        Returns: {
+          document_id: string
+          document_version_id: string
+          excerpt: string
+          is_current: boolean
+          note_id: string
+          page_number: number
+          source_available: boolean
+          version_number: number
         }[]
       }
       get_note_task_summaries: {
@@ -9739,6 +9814,7 @@ export type Database = {
       membership_departure_notice_snapshot_state:
         | "accepted"
         | "legacy_unavailable"
+      note_quote_selection_method: "text"
       note_template_type:
         | "hearing_note"
         | "client_instruction"
@@ -10261,6 +10337,7 @@ export const Constants = {
         "accepted",
         "legacy_unavailable",
       ],
+      note_quote_selection_method: ["text"],
       note_template_type: [
         "hearing_note",
         "client_instruction",

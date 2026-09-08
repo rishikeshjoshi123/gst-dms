@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Document, Page, pdfjs } from 'react-pdf';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
@@ -11,9 +11,11 @@ import { Button } from './button';
 import { Input } from './input';
 import {
   clampPdfPage,
+  createPdfQuotationSelection,
   classifyPdfSourceFailure,
   highlightPdfText,
   isPdfPageInRenderWindow,
+  isPdfSourceRequestCurrent,
   nextPdfSearchBatch,
   normalizePdfSearchQuery,
   PDF_SEARCH_BATCH_SIZE,
@@ -37,9 +39,28 @@ type PdfViewerProps = {
   initialPage?: number
   initialFailure?: PdfSourceFailure
   onRequestSourceRefresh?: () => Promise<string | null>
+  quoteSource?: PdfQuoteSource
+  onCreateQuotation?: (selection: PdfQuotationSelection) => void
 }
 
-export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourceRefresh }: PdfViewerProps) {
+export type PdfQuoteSource = {
+  documentId: string
+  documentVersionId: string
+}
+
+export type PdfQuotationSelection = PdfQuoteSource & {
+  text: string
+  pageNumber: number
+}
+
+export function PdfViewer({
+  url,
+  initialPage = 1,
+  initialFailure,
+  onRequestSourceRefresh,
+  quoteSource,
+  onCreateQuotation,
+}: PdfViewerProps) {
   const router = useRouter();
   const searchInputId = useId();
   const thumbnailStripId = useId();
@@ -67,7 +88,8 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
   const [documentAttempt, setDocumentAttempt] = useState(0);
   const [pageFailures, setPageFailures] = useState<Record<number, boolean>>({});
   const [pageAttempts, setPageAttempts] = useState<Record<number, number>>({});
-  const [renderedSource, setRenderedSource] = useState({ url, initialPage, initialFailure });
+  const sourceIdentity = quoteSource ? `${quoteSource.documentId}:${quoteSource.documentVersionId}` : null;
+  const [renderedSource, setRenderedSource] = useState({ url, initialPage, initialFailure, sourceIdentity });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageElementsRef = useRef(new Map<number, HTMLElement>());
   const shouldScrollToPageRef = useRef(true);
@@ -75,6 +97,8 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
   const searchGenerationRef = useRef(0);
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const thumbnailElementsRef = useRef(new Map<number, HTMLButtonElement>());
+  const sourceRequestGenerationRef = useRef(0);
+  const sourceRequestCurrentRef = useRef({ generation: 0, sourceIdentity });
 
   const [selection, setSelection] = useState<{ text: string, x: number, y: number, pageNumber: number } | null>(null);
 
@@ -85,26 +109,9 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
     container.scrollTo({ top: Math.max(0, element.offsetTop - 16) });
   }
 
-  // Listen for jump events from the notes panel
-  useEffect(() => {
-    const handleJump = (e: CustomEvent) => {
-      if (e.detail && typeof e.detail.pageNumber === 'number') {
-        const nextPage = clampPdfPage(e.detail.pageNumber, numPages);
-        shouldScrollToPageRef.current = true;
-        setPageNumber(nextPage);
-        window.requestAnimationFrame(() => {
-          scrollPageIntoView(nextPage);
-          shouldScrollToPageRef.current = false;
-        });
-      }
-    };
-    window.addEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
-    return () => window.removeEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
-  }, [numPages]);
-
-  if (renderedSource.url !== url || renderedSource.initialPage !== initialPage || renderedSource.initialFailure !== initialFailure) {
+  if (renderedSource.url !== url || renderedSource.initialPage !== initialPage || renderedSource.initialFailure !== initialFailure || renderedSource.sourceIdentity !== sourceIdentity) {
     const urlChanged = renderedSource.url !== url;
-    setRenderedSource({ url, initialPage, initialFailure });
+    setRenderedSource({ url, initialPage, initialFailure, sourceIdentity });
     if (urlChanged) {
       setNumPages(undefined);
       setPageSizes({});
@@ -131,6 +138,14 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
     setPageAttempts({});
     setSelection(null);
   }
+
+  useLayoutEffect(() => {
+    sourceRequestGenerationRef.current += 1;
+    sourceRequestCurrentRef.current = {
+      generation: sourceRequestGenerationRef.current,
+      sourceIdentity,
+    };
+  }, [sourceIdentity, url, initialPage, initialFailure]);
 
   useEffect(() => {
     shouldScrollToPageRef.current = true;
@@ -199,6 +214,10 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
   }
 
   async function retrySource() {
+    const requestGeneration = sourceRequestGenerationRef.current + 1;
+    const requestedIdentity = sourceRequestCurrentRef.current.sourceIdentity;
+    sourceRequestGenerationRef.current = requestGeneration;
+    sourceRequestCurrentRef.current = { generation: requestGeneration, sourceIdentity: requestedIdentity };
     setIsSourceRetryPending(true);
     setSourceRetryError(null);
     try {
@@ -207,6 +226,10 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
         requestFreshUrl: onRequestSourceRefresh,
         refreshRoute: router.refresh,
       });
+      if (!isPdfSourceRequestCurrent(
+        { generation: requestGeneration, sourceIdentity: requestedIdentity },
+        sourceRequestCurrentRef.current,
+      )) return;
       if (!refreshedUrl) {
         if (onRequestSourceRefresh) setSourceRetryError('PDF access could not be refreshed. Try again.');
         return;
@@ -215,9 +238,13 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
       setSourceFailure(null);
       setDocumentAttempt(attempt => attempt + 1);
     } catch {
+      if (!isPdfSourceRequestCurrent(
+        { generation: requestGeneration, sourceIdentity: requestedIdentity },
+        sourceRequestCurrentRef.current,
+      )) return;
       setSourceRetryError('PDF access could not be refreshed. Try again.');
     } finally {
-      setIsSourceRetryPending(false);
+      if (sourceRequestGenerationRef.current === requestGeneration) setIsSourceRetryPending(false);
     }
   }
 
@@ -429,16 +456,24 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
-    const text = window.getSelection()?.toString().trim();
-    if (text && text.length > 0) {
-      const pageElement = (e.target as HTMLElement).closest<HTMLElement>('[data-pdf-page]');
-      const selectedPage = clampPdfPage(Number(pageElement?.dataset.pdfPage) || pageNumber, numPages);
+    const browserSelection = window.getSelection();
+    const text = browserSelection?.toString().trim();
+    const nodeElement = (node: Node | null | undefined) => node instanceof HTMLElement ? node : node?.parentElement;
+    const anchorPage = nodeElement(browserSelection?.anchorNode)?.closest<HTMLElement>('[data-pdf-page]');
+    const focusPage = nodeElement(browserSelection?.focusNode)?.closest<HTMLElement>('[data-pdf-page]');
+    const selectedPageNumber = Number(anchorPage?.dataset.pdfPage);
+    const isSingleViewerPage = Boolean(
+      text && quoteSource && onCreateQuotation && anchorPage && focusPage
+      && anchorPage === focusPage && scrollContainerRef.current?.contains(anchorPage)
+      && Number.isSafeInteger(selectedPageNumber) && selectedPageNumber > 0,
+    );
+    if (isSingleViewerPage && text) {
       // Calculate position for the floating button (relative to viewport)
       setSelection({
         text,
         x: e.clientX,
         y: e.clientY,
-        pageNumber: selectedPage,
+        pageNumber: selectedPageNumber,
       });
     } else {
       setSelection(null);
@@ -446,14 +481,10 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
   };
 
   const handleAddNoteClick = () => {
-    if (selection) {
-      // Dispatch event to the Sidebar
-      window.dispatchEvent(new CustomEvent('SET_PDF_QUOTE', {
-        detail: {
-          quote: selection.text,
-          pageNumber: selection.pageNumber
-        }
-      }));
+    if (selection && quoteSource && onCreateQuotation) {
+      const quotation = createPdfQuotationSelection(quoteSource, selection.text, selection.pageNumber, numPages ?? 0);
+      if (!quotation) return;
+      onCreateQuotation(quotation);
       setSelection(null);
       window.getSelection()?.removeAllRanges();
     }
@@ -757,7 +788,7 @@ export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourc
               <Button
                 size="sm"
                 onClick={handleAddNoteClick}
-                className="bg-[--primary] hover:bg-[--primary-hover] text-white shadow-xl rounded-full px-3 py-1.5 flex items-center gap-1.5 h-auto text-xs"
+                className="min-h-11 shadow-[var(--shadow-md)]"
               >
                 <MessageSquarePlus size={14} /> Add Note
               </Button>

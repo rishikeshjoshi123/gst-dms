@@ -22,7 +22,7 @@ test('the shared viewer rotates and scopes keyboard page navigation to its focus
   assert.match(source, /aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"/)
   assert.match(source, /target\.closest\('button, input, select, textarea, a, \[contenteditable="true"\]'\)/)
   assert.match(source, /setRotation\(0\)/)
-  assert.match(source, /const nextPage = clampPdfPage\(e\.detail\.pageNumber, numPages\)/)
+  assert.doesNotMatch(source, /JUMP_TO_PDF_PAGE|SET_PDF_QUOTE/)
 })
 
 test('continuous scrolling renders a bounded page window and synchronizes the dominant page', async () => {
@@ -33,7 +33,10 @@ test('continuous scrolling renders a bounded page window and synchronizes the do
   assert.match(source, /data-pdf-page=\{page\}/)
   assert.match(source, /container\.scrollTo\(\{ top:/)
   assert.doesNotMatch(source, /scrollIntoView/)
-  assert.match(source, /pageNumber: selection\.pageNumber/)
+  assert.match(source, /createPdfQuotationSelection\(quoteSource, selection\.text, selection\.pageNumber/)
+  assert.match(source, /anchorPage === focusPage/)
+  assert.match(source, /quoteSource && onCreateQuotation/)
+  assert.match(source, /createPdfQuotationSelection\(quoteSource/)
 })
 
 test('in-document search is cancellable, batched, truthful, and navigates matching pages', async () => {
@@ -86,5 +89,6 @@ test('source and page failures are distinct, non-disclosing, and recoverable', a
   assert.match(source, /Retry page/)
   assert.match(source, /\{shouldRender \? \(\s*pageFailures\[page\] \? \(/)
   assert.match(source, /motion-reduce:animate-none/)
+  assert.match(source, /isPdfSourceRequestCurrent/)
   assert.doesNotMatch(source, /sourceFailureCopy.*message/)
 })

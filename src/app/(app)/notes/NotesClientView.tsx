@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { QuotationSource } from '@/components/notes/QuotationSource'
 
 const TEMPLATE_META = {
   general: {
@@ -443,16 +444,7 @@ export function NotesClientView({
                       </span>
                     </div>
 
-                    {selectedThread.quote && (
-                      <div className="mb-2.5 p-3 bg-[var(--warning-muted)] border-l-4 border-[var(--warning)] rounded-r-xl">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--warning)]">
-                          Quote · Page {selectedThread.page_number}
-                        </span>
-                        <p className="text-sm italic text-[var(--text-secondary)] mt-1 leading-relaxed">
-                          &ldquo;{selectedThread.quote}&rdquo;
-                        </p>
-                      </div>
-                    )}
+                    <QuotationSource note={selectedThread} className="mb-2.5" />
 
                     {editingNoteId === selectedThread.id ? (
                       <div className="flex flex-col gap-2">
@@ -513,6 +505,7 @@ export function NotesClientView({
                           {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
                         </span>
                       </div>
+                      <QuotationSource note={reply} className="mb-2" />
                       {editingNoteId === reply.id ? (
                         <div className="flex flex-col gap-2">
                           <textarea

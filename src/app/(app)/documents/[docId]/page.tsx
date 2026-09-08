@@ -1,11 +1,10 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
-import { TimelineDocumentDetail } from '@/components/matters/TimelineDocumentDetail'
+import { CanonicalDocumentWorkbench } from '@/components/documents/CanonicalDocumentWorkbench'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
-import { PdfViewer } from '@/components/ui/pdf-viewer'
 import { pdfSourceFailureFromAccessCode } from '@/components/ui/pdf-viewer-model'
 import {
   getCanonicalDocumentVersionSignedUrl,
@@ -34,19 +33,31 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
   const doc = isTrashReadOnly ? exactDocument.data.record : exactDocument.record
   const matterId = doc.matter_id
 
-  const selectedVersionId = sourceLocator.versionId ?? doc.current_version_id
+  const sourcePage = sourceLocator.page ?? 1
+  const selectedVersionId = sourceLocator.sourceState === 'invalid'
+    ? null
+    : sourceLocator.versionId ?? doc.current_version_id
   const signedDocument = selectedVersionId
     ? await getCanonicalDocumentVersionSignedUrl(
       docId,
       selectedVersionId,
       isTrashReadOnly ? exactDocument.expectedMatterId : undefined,
+      sourcePage,
     )
     : null
-  const signedDocumentError = signedDocument && 'error' in signedDocument ? signedDocument.error : null
-  const signedDocumentFailure = signedDocument && signedDocument.code !== 'ok'
-    ? pdfSourceFailureFromAccessCode(signedDocument.code)
-    : undefined
+  const signedDocumentFailure = sourceLocator.sourceState === 'invalid'
+    ? 'unavailable' as const
+    : signedDocument && signedDocument.code !== 'ok'
+      ? pdfSourceFailureFromAccessCode(signedDocument.code)
+      : undefined
   const signedDocumentUrl = signedDocument && 'url' in signedDocument ? signedDocument.url : null
+  const source = signedDocument && 'versionId' in signedDocument ? {
+    versionId: signedDocument.versionId,
+    versionNumber: signedDocument.versionNumber,
+    pageCount: signedDocument.pageCount,
+    isCurrent: signedDocument.isCurrent,
+    page: sourcePage,
+  } : null
   const notes = isTrashReadOnly ? exactDocument.data.notes : await getNotes({ documentId: docId })
   const allDocsData = isTrashReadOnly ? null : await getDocumentsByMatter(matterId)
   const allDocuments = isTrashReadOnly
@@ -85,39 +96,19 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
         </Link>
       </div>
 
-      <div className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1 lg:flex-row lg:overflow-hidden lg:pr-0">
-        <div className="h-[55vh] min-h-72 w-full shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] lg:h-full lg:w-[65%]">
-          {signedDocumentError ? (
-            <PdfViewer url={null} initialPage={sourceLocator.page ?? 1} initialFailure={signedDocumentFailure} />
-          ) : signedDocumentUrl ? (
-            <PdfViewer url={signedDocumentUrl} initialPage={sourceLocator.page ?? 1} />
-          ) : (
-            <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-muted)]">
-                <FileText size={20} aria-hidden="true" />
-              </div>
-              <div className="max-w-sm space-y-1">
-                <h2 className="text-section-heading text-[var(--text-primary)]">No file attached</h2>
-                <p className="text-body text-[var(--text-secondary)]">
-                  This document record has no file version yet. A file can be attached later without changing its details.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="h-[70vh] min-h-96 w-full shrink-0 lg:h-full lg:w-[35%]">
-          <TimelineDocumentDetail
-            doc={doc}
-            allDocuments={allDocuments}
-            links={links}
-            notes={notes}
-            effectiveMetadata={inspectorMetadata[doc.id]}
-            inspectorMetadataByDocumentId={inspectorMetadata}
-            readOnly={isTrashReadOnly}
-          />
-        </div>
-      </div>
+      <CanonicalDocumentWorkbench
+        doc={doc}
+        allDocuments={allDocuments}
+        links={links ?? []}
+        notes={notes}
+        effectiveMetadata={inspectorMetadata[doc.id]}
+        inspectorMetadataByDocumentId={inspectorMetadata}
+        source={source}
+        sourceUrl={signedDocumentUrl ?? null}
+        sourceFailure={signedDocumentFailure}
+        expectedMatterId={isTrashReadOnly ? exactDocument.expectedMatterId : undefined}
+        readOnly={isTrashReadOnly}
+      />
     </div>
   )
 }

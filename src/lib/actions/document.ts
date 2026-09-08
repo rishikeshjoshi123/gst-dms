@@ -440,6 +440,7 @@ export async function getCanonicalDocumentVersionSignedUrl(
   documentId: string,
   documentVersionId: string,
   expectedMatterId?: string,
+  requestedPage?: number,
 ) {
   const exactDocument = await getCanonicalAssignedDocument(documentId, expectedMatterId)
   if (!exactDocument) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
@@ -454,9 +455,11 @@ export async function getCanonicalDocumentVersionSignedUrl(
   const service = createServiceClient()
   const { data: version, error } = await service
     .from('document_versions')
-    .select('id')
+    .select('id, version_number, page_count, state, validation_state')
     .eq('id', documentVersionId)
     .eq('document_id', document.id)
+    .in('state', ['current', 'superseded'])
+    .eq('validation_state', 'valid')
     .maybeSingle()
 
   const versionFailureCode = pdfSourceLookupFailureCode({
@@ -469,10 +472,39 @@ export async function getCanonicalDocumentVersionSignedUrl(
       ? { error: 'PDF source access is temporarily unavailable.', code: versionFailureCode }
       : { error: 'This document version is not available.', code: versionFailureCode }
   }
+  if (!version) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
-  return exactDocument.state === 'trash'
+  if (!version.page_count || (requestedPage !== undefined && requestedPage > version.page_count)) {
+    return { error: 'This document source location is not available.', code: 'source_unavailable' as const }
+  }
+
+  const signedSource = await (exactDocument.state === 'trash'
     ? getTrashedDocumentVersionSignedUrl(exactDocument.expectedMatterId, documentId, documentVersionId)
-    : getDocumentVersionSignedUrl(documentVersionId)
+    : getDocumentVersionSignedUrl(documentVersionId))
+
+  return {
+    ...signedSource,
+    versionId: version.id,
+    versionNumber: version.version_number,
+    pageCount: version.page_count,
+    isCurrent: document.current_version_id === version.id,
+  }
+}
+
+/** Renew one client-held canonical source without ever resolving to latest. */
+export async function renewCanonicalDocumentVersionSource(input: {
+  documentId: string
+  documentVersionId: string
+  expectedMatterId?: string
+  page: number
+}) {
+  const result = await getCanonicalDocumentVersionSignedUrl(
+    input.documentId,
+    input.documentVersionId,
+    input.expectedMatterId,
+    input.page,
+  )
+  return result.code === 'ok' && 'url' in result ? result.url : null
 }
 
 /**

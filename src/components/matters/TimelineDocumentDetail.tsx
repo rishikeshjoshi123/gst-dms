@@ -20,6 +20,8 @@ import { RemoveNoteDialog } from '@/components/notes/RemoveNoteDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { QuotationSource } from '@/components/notes/QuotationSource'
+import type { PdfQuotationSelection } from '@/components/ui/pdf-viewer'
 
 function EffectiveMetadataField({ label, value, type = 'text', correction }: {
   label: string
@@ -95,6 +97,11 @@ export function TimelineDocumentDetail({
   inspectorMetadataByDocumentId,
   onClose,
   readOnly = false,
+  quotationDraft = null,
+  onQuotationDraftConsumed,
+  displayedSource,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
 }: { 
   doc: any
   allDocuments?: any[]
@@ -104,14 +111,18 @@ export function TimelineDocumentDetail({
   inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
   onClose?: () => void
   readOnly?: boolean
+  quotationDraft?: PdfQuotationSelection | null
+  onQuotationDraftConsumed?: () => void
+  displayedSource?: { versionId: string; page: number; historical: boolean }
+  activeTab?: 'details' | 'notes'
+  onActiveTabChange?: (tab: 'details' | 'notes') => void
 }) {
-  const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details')
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<'details' | 'notes'>('details')
   const [isSynopsisOpen, setIsSynopsisOpen] = useState(false)
   const [notes, setNotes] = useState<any[]>(propNotes)
   const [newNoteContent, setNewNoteContent] = useState('')
   const [newNoteType, setNewNoteType] = useState<'general' | 'hearing_note' | 'client_instruction' | 'research_note'>('general')
   const [isPending, startTransition] = useTransition()
-  const [activeQuote, setActiveQuote] = useState<{ text: string, pageNumber: number } | null>(null)
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
@@ -119,11 +130,12 @@ export function TimelineDocumentDetail({
   const [isReassignOpen, setIsReassignOpen] = useState(false)
   const [isReprocessing, setIsReprocessing] = useState(false)
   const reprocessIdempotencyKey = useRef<string | null>(null)
+  const noteCreateIdempotencyKey = useRef<string | null>(null)
   const [pendingNoteDeleteId, setPendingNoteDeleteId] = useState<string | null>(null)
   const router = useRouter()
 
   const handleDeleteDocument = async () => {
-    if (readOnly) return
+    if (readOnly || displayedSource?.historical) return
     if (!documentTrashIdempotencyKey.current) {
       documentTrashIdempotencyKey.current = `trash.document.${crypto.randomUUID()}`
     }
@@ -141,7 +153,7 @@ export function TimelineDocumentDetail({
   }
 
   const handleSearchIndexReprocess = async () => {
-    if (readOnly) return
+    if (readOnly || displayedSource?.historical) return
     if (!reprocessIdempotencyKey.current) reprocessIdempotencyKey.current = crypto.randomUUID()
     setIsReprocessing(true)
     const result = await reprocessDocument(doc.id, 'search_index', reprocessIdempotencyKey.current)
@@ -153,28 +165,32 @@ export function TimelineDocumentDetail({
   useEffect(() => {
     reprocessIdempotencyKey.current = null
     documentTrashIdempotencyKey.current = null
+    noteCreateIdempotencyKey.current = null
   }, [doc.id])
 
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab
+  const setActiveTab = (tab: 'details' | 'notes') => {
+    onActiveTabChange?.(tab)
+    if (controlledActiveTab === undefined) setUncontrolledActiveTab(tab)
+  }
+  const activeQuote = !readOnly
+    && quotationDraft !== null
+    && quotationDraft?.documentId === doc.id
+    && quotationDraft.documentVersionId === displayedSource?.versionId
+    ? quotationDraft
+    : null
+
   useEffect(() => {
-    if (readOnly) return
-    const handleQuote = (e: CustomEvent) => {
-      if (e.detail && e.detail.quote) {
-        setActiveQuote({
-          text: e.detail.quote,
-          pageNumber: e.detail.pageNumber
-        });
-        setActiveTab('notes');
-      }
-    };
-    window.addEventListener('SET_PDF_QUOTE', handleQuote as EventListener);
-    return () => window.removeEventListener('SET_PDF_QUOTE', handleQuote as EventListener);
-  }, [readOnly]);
+    noteCreateIdempotencyKey.current = null
+  }, [activeQuote?.documentId, activeQuote?.documentVersionId, activeQuote?.pageNumber, activeQuote?.text])
 
   const docNotes = notes.filter(n => n.document_id === doc.id)
 
   const handleAddNote = () => {
     if (readOnly) return
     if (!newNoteContent.trim()) return
+    if (!noteCreateIdempotencyKey.current) noteCreateIdempotencyKey.current = crypto.randomUUID()
+    const idempotencyKey = noteCreateIdempotencyKey.current
     startTransition(async () => {
       const res = await createNote({
         matterId: doc.matter_id,
@@ -183,14 +199,17 @@ export function TimelineDocumentDetail({
         templateType: newNoteType,
         isActionItem: false,
         quote: activeQuote?.text,
-        pageNumber: activeQuote?.pageNumber
+        pageNumber: activeQuote?.pageNumber,
+        documentVersionId: activeQuote?.documentVersionId,
+        idempotencyKey,
       })
       if (res.error) {
         toast.error(res.error)
       } else {
+        noteCreateIdempotencyKey.current = null
         setNotes(prev => [res.note, ...prev])
         setNewNoteContent('')
-        setActiveQuote(null)
+        onQuotationDraftConsumed?.()
         toast.success('Note added successfully')
       }
     })
@@ -245,7 +264,7 @@ export function TimelineDocumentDetail({
     fieldCandidates: {},
   }
   const correction = (fieldPath: keyof typeof inspectorMetadata.fieldCandidates) => {
-    if (readOnly) return undefined
+    if (readOnly || displayedSource?.historical) return undefined
     const candidate = inspectorMetadata.fieldCandidates[fieldPath]
     if (!candidate || !inspectorMetadata.documentVersionId) return undefined
     return {
@@ -270,7 +289,10 @@ export function TimelineDocumentDetail({
   const financialYearValue = inspectorMetadata.financialYears.join(', ') || null
   const financialYearNeedsReview = inspectorMetadata.financialYears.length > 1
     || (inspectorMetadata.financialYears.length === 1 && !financialYearCorrection)
-  const viewUrl = canonicalDocumentPath(doc.id, readOnly ? { matterId: doc.matter_id } : {})
+  const viewUrl = canonicalDocumentPath(doc.id, {
+    ...(readOnly ? { matterId: doc.matter_id } : {}),
+    ...(displayedSource ? { version: displayedSource.versionId, page: String(displayedSource.page) } : {}),
+  })
   const headerDocType = inspectorMetadata.state === 'available' ? inspectorMetadata.docType : null
   const headerDocDate = inspectorMetadata.state === 'available' ? inspectorMetadata.documentDate : null
   const documentLabel = selectedDocumentIdentity(doc, inspectorMetadata)
@@ -307,11 +329,11 @@ export function TimelineDocumentDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
-          {!readOnly && <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
+          {!readOnly && !displayedSource?.historical && <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
             <MoveRight size={14} aria-hidden="true" />
             Reassign
           </Button>}
-          {!readOnly && <Button
+          {!readOnly && !displayedSource?.historical && <Button
             type="button"
             variant="outline"
             size="sm"
@@ -323,7 +345,7 @@ export function TimelineDocumentDetail({
             <RefreshCw size={14} aria-hidden="true" />
             Reprocess search index
           </Button>}
-          {!readOnly && <Button
+          {!readOnly && !displayedSource?.historical && <Button
             type="button"
             variant="destructive"
             size="sm"
@@ -345,7 +367,7 @@ export function TimelineDocumentDetail({
           )}
         </div>
       </div>
-      {!readOnly && <p id="scoped-reprocess-status" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
+      {!readOnly && !displayedSource?.historical && <p id="scoped-reprocess-status" className="px-3 py-2 text-xs text-[var(--text-secondary)]">
         Search-index reprocessing is available. Extraction, OCR, relationship, and full reprocessing remain unavailable until their dedicated workers are deployed.
       </p>}
 
@@ -530,7 +552,10 @@ export function TimelineDocumentDetail({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Quick Note</span>
                 <select
                   value={newNoteType}
-                  onChange={(e: any) => setNewNoteType(e.target.value)}
+                  onChange={(e: any) => {
+                    if (e.target.value !== newNoteType) noteCreateIdempotencyKey.current = null
+                    setNewNoteType(e.target.value)
+                  }}
                   className="p-1 px-2 text-[11px] font-medium bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded outline-none shadow-sm"
                 >
                   <option value="general">General</option>
@@ -547,7 +572,8 @@ export function TimelineDocumentDetail({
                       <FileText size={10} /> Selected from Page {activeQuote.pageNumber}
                     </span>
                     <button 
-                      onClick={() => setActiveQuote(null)}
+                      onClick={onQuotationDraftConsumed}
+                      aria-label="Clear selected quotation"
                       className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)] opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-[var(--warning-muted)]"
                     >
                       <X size={12} />
@@ -559,7 +585,10 @@ export function TimelineDocumentDetail({
 
               <textarea
                 value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value !== newNoteContent) noteCreateIdempotencyKey.current = null
+                  setNewNoteContent(e.target.value)
+                }}
                 placeholder="Type note content..."
                 className="w-full min-h-[80px] p-2.5 text-xs text-[var(--text-primary)] bg-[var(--surface)] border border-[var(--border)] rounded outline-none resize-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] shadow-inner mt-1"
               />
@@ -604,17 +633,12 @@ export function TimelineDocumentDetail({
                         </button>
                       </div>}
                     </div>
-                    {note.quote && (
-                      <div 
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent('JUMP_TO_PDF_PAGE', { detail: { pageNumber: note.page_number } }))
-                        }}
-                        className="mb-3 p-2 bg-[var(--bg)] border-l-2 border-[var(--primary)] rounded-r-[var(--radius-md)] text-xs text-[var(--text-secondary)] italic cursor-pointer hover:bg-[var(--surface-hover)] transition-colors shadow-sm"
-                        title={`Jump to Page ${note.page_number}`}
-                      >
-                        "{note.quote}"
-                      </div>
-                    )}
+                    <QuotationSource
+                      note={note}
+                      matterId={doc.matter_id}
+                      readOnly={readOnly}
+                      className="mb-3"
+                    />
                     <p className="text-[13px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">{note.content}</p>
                     <div className="mt-3 pt-2 border-t border-[var(--border)] flex items-center justify-between text-[10px] text-[var(--text-muted)] font-medium">
                       <span>{note.author?.email || 'System'}</span>
@@ -628,7 +652,7 @@ export function TimelineDocumentDetail({
         )}
       </div>
 
-      {!readOnly && <ConfirmDialog
+      {!readOnly && !displayedSource?.historical && <ConfirmDialog
         isOpen={isDocConfirmOpen}
         onClose={() => {
           documentTrashIdempotencyKey.current = null
@@ -648,7 +672,7 @@ export function TimelineDocumentDetail({
         onRemove={handleDeleteNote}
       />}
 
-      {!readOnly && <ReassignDocumentDialog
+      {!readOnly && !displayedSource?.historical && <ReassignDocumentDialog
         isOpen={isReassignOpen}
         onClose={() => {
           setIsReassignOpen(false)

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from '@/components/ui/badge'
 import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { QuotationSource } from '@/components/notes/QuotationSource'
 
 const TEMPLATE_LABELS = {
   general: 'General',
@@ -339,15 +340,12 @@ export function MatterNotesTab({
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
                 {/* Original Note */}
                 <div className="flex flex-col gap-2">
-                  {selectedThread.quote && (
-                    <div className="ml-4 p-3 bg-[var(--warning-muted)] border-l-4 border-[var(--warning)] rounded-r-[var(--radius-md)] shadow-sm">
-                      <div className="flex items-center justify-between mb-1">
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--warning)]">Quote from Page {selectedThread.page_number}</span>
-                         <a href={`${canonicalDocumentPath(selectedThread.document_id, readOnly ? { matterId: selectedThreadDocumentMatterId } : {})}#page=${selectedThread.page_number}`} className="text-[var(--warning)] hover:text-[color-mix(in_srgb,var(--warning)_70%,black)]"><ExternalLink size={12} /></a>
-                      </div>
-                      <p className="text-sm italic text-[color-mix(in_srgb,var(--warning)_90%,transparent)] leading-relaxed">"{selectedThread.quote}"</p>
-                    </div>
-                  )}
+                  <QuotationSource
+                    note={selectedThread}
+                    matterId={selectedThreadDocumentMatterId}
+                    readOnly={readOnly}
+                    className="ml-4"
+                  />
 
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-[--primary]/10 flex items-center justify-center text-[--primary] font-bold shrink-0 mt-1 text-sm">
@@ -358,7 +356,6 @@ export function MatterNotesTab({
                         <span className="font-semibold text-[var(--text-primary)] text-[13px]">{selectedThread.author?.email || 'Unknown User'}</span>
                         <span className="text-[11px] text-[var(--text-muted)]">{new Date(selectedThread.created_at).toLocaleString()}</span>
                       </div>
-                      
                       {!readOnly && editingNoteId === selectedThread.id ? (
                         <div className="flex flex-col gap-2 mt-1">
                            <textarea
@@ -402,6 +399,12 @@ export function MatterNotesTab({
                         <span className="font-semibold text-[var(--text-primary)] text-[13px]">{reply.author?.email || 'Unknown User'}</span>
                         <span className="text-[11px] text-[var(--text-muted)]">{new Date(reply.created_at).toLocaleString()}</span>
                       </div>
+                      <QuotationSource
+                        note={reply}
+                        matterId={documents.find(document => document.id === reply.document_id)?.matter_id}
+                        readOnly={readOnly}
+                        className="mb-2"
+                      />
                       
                       {!readOnly && editingNoteId === reply.id ? (
                         <div className="flex flex-col gap-2 mt-1">

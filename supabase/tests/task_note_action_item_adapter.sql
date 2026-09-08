@@ -224,7 +224,9 @@ BEGIN
   END IF;
   INSERT INTO public.tasks(id,org_id,client_id,matter_id,title,origin_kind,origin_note_id,origin_snapshot,creator_user_id,status_changed_by)
   VALUES ('95400000-0000-0000-0000-000000000002','95100000-0000-0000-0000-000000000001','95200000-0000-0000-0000-000000000001','95300000-0000-0000-0000-000000000001','Other task','case_note',gen_random_uuid(),'Other task', '95000000-0000-0000-0000-000000000001','95000000-0000-0000-0000-000000000001');
-  UPDATE public.case_notes SET content='Edited note',deleted_at=now() WHERE id=note_id;
+  UPDATE public.case_notes
+  SET content='Edited note', deleted_at=now(), deleted_by=author_id, deletion_kind='author', deletion_reason=NULL
+  WHERE id=note_id;
   IF NOT EXISTS (SELECT 1 FROM public.tasks task WHERE task.id=task_id AND task.status='open'
     AND task.origin_snapshot='Prepare the hearing bundle' AND task.lifecycle_state='active') THEN
     RAISE EXCEPTION 'note edit/delete or legacy completion toggle silently changed its Task';
@@ -390,10 +392,10 @@ BEGIN
      OR has_table_privilege('service_role','public.organisation_operational_settings','SELECT')
      OR has_table_privilege('service_role','public.organisation_operational_settings','UPDATE')
      OR has_function_privilege('authenticated','public.append_activity_event(uuid,text,smallint,public.activity_actor_kind,uuid,text,text,uuid,uuid,uuid,text,text,jsonb,text,uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE')
-     OR has_function_privilege('service_role','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE')
+     OR has_function_privilege('service_role','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer,uuid)','EXECUTE')
      OR has_function_privilege('service_role','public.set_my_organisation_operational_timezone(text,bigint)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.set_my_organisation_operational_timezone(text,bigint)','EXECUTE')
-     OR NOT has_function_privilege('authenticated','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer)','EXECUTE') THEN
+     OR NOT has_function_privilege('authenticated','public.create_note_with_optional_task(uuid,text,public.note_template_type,boolean,uuid,uuid,uuid,date,uuid,text,integer,uuid)','EXECUTE') THEN
     RAISE EXCEPTION 'Task command grant surface is unsafe';
   END IF;
 END $grant_surface$;

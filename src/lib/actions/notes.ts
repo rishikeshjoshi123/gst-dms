@@ -8,6 +8,26 @@ import { batchTaskSummaryNoteIds } from '@/lib/notes/task-summary-batching'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { getSafeMemberDirectory } from '@/lib/organisation/member-directory'
 
+type NoteQuoteLocator = Database['public']['Functions']['get_note_quote_locators']['Returns'][number]
+
+async function getQuoteLocatorsByNoteId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  noteIds: string[],
+) {
+  const byNoteId = new Map<string, NoteQuoteLocator>()
+  for (let start = 0; start < noteIds.length; start += 500) {
+    const { data, error } = await supabase.rpc('get_note_quote_locators', {
+      p_note_ids: noteIds.slice(start, start + 500),
+    })
+    if (error) {
+      console.error('getNotes quotation locator error:', error)
+      continue
+    }
+    for (const locator of data ?? []) byNoteId.set(locator.note_id, locator)
+  }
+  return byNoteId
+}
+
 export async function getNotes(filters: {
   matterId?: string
   documentId?: string
@@ -54,18 +74,10 @@ export async function getNotes(filters: {
     return []
   }
 
-  const documentIds = [...new Set((data ?? []).flatMap((note) => note.document_id ? [note.document_id] : []))]
-  let readableNotes = data ?? []
-  if (documentIds.length > 0) {
-    const { data: activeDocuments } = await supabase
-      .from('documents')
-      .select('id')
-      .in('id', documentIds)
-      .eq('record_state', 'active')
-      .is('deleted_at', null)
-    const activeDocumentIds = new Set((activeDocuments ?? []).map((document) => document.id))
-    readableNotes = readableNotes.filter((note) => !note.document_id || activeDocumentIds.has(note.document_id))
-  }
+  // A separately trashed source must not erase the surviving note. Its exact
+  // locator projection becomes a non-disclosing unavailable-source state.
+  const readableNotes = data ?? []
+  const quoteLocatorByNoteId = await getQuoteLocatorsByNoteId(supabase, readableNotes.map((note) => note.id))
 
   // Action-item note fields are immutable legacy origin data. Current Task
   // state is supplied only by the authenticated Task projection.
@@ -86,6 +98,7 @@ export async function getNotes(filters: {
   }
   const notesWithTaskSummaries = readableNotes.map((note) => ({
     ...note,
+    quotation_locator: quoteLocatorByNoteId.get(note.id) ?? null,
     task_summary: taskSummaryByNoteId.get(note.id) ?? null,
   }))
 
@@ -112,6 +125,7 @@ export async function createNote(data: {
   parentNoteId?: string | null
   quote?: string | null
   pageNumber?: number | null
+  documentVersionId?: string | null
   // Callers that can retry a failed submission retain this opaque key.
   idempotencyKey?: string
 }) {
@@ -132,6 +146,7 @@ export async function createNote(data: {
       ...(data.parentNoteId ? { p_parent_note_id: data.parentNoteId } : {}),
       ...(data.quote ? { p_quote: data.quote } : {}),
       ...(data.pageNumber !== null && data.pageNumber !== undefined ? { p_page_number: data.pageNumber } : {}),
+      ...(data.documentVersionId ? { p_document_version_id: data.documentVersionId } : {}),
     }
   const { data: command, error: commandError } = await supabase.rpc(
     'create_note_with_optional_task',
@@ -146,6 +161,7 @@ export async function createNote(data: {
       invalid_parent_note: 'The parent note is unavailable.',
       not_allowed: 'You do not have permission to create this note.',
       idempotency_conflict: 'This submission key was already used for another request.',
+      source_unavailable: 'The selected document version or page is unavailable.',
     }
     return { error: messages[result?.code ?? ''] ?? 'Unable to create this note.' }
   }
@@ -168,6 +184,7 @@ export async function createNote(data: {
 
   const noteWithAuthor = {
     ...note,
+    quotation_locator: (await getQuoteLocatorsByNoteId(supabase, [note.id])).get(note.id) ?? null,
     task_summary: data.isActionItem && result.task_id
       ? (await supabase.rpc('get_note_task_summaries', { p_note_ids: [note.id] })).data?.[0] ?? null
       : null,
