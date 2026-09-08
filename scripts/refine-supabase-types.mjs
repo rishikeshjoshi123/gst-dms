@@ -100,6 +100,67 @@ function functionBlock(source, functionName) {
   return { start, end, value: source.slice(start, end) }
 }
 
+function objectBlock(source, marker, fromIndex = 0) {
+  const start = source.indexOf(marker, fromIndex)
+  if (start === -1 || source.indexOf(marker, start + 1) !== -1) {
+    throw new Error(`Expected exactly one generated object block for ${marker.trim()}`)
+  }
+
+  const openBrace = start + marker.length - 1
+  let depth = 0
+  let quoted = false
+  let escaped = false
+  for (let index = openBrace; index < source.length; index += 1) {
+    const character = source[index]
+    if (quoted) {
+      if (!escaped && character === '"') quoted = false
+      escaped = !escaped && character === '\\'
+      continue
+    }
+    if (character === '"') {
+      quoted = true
+      continue
+    }
+    if (character === '{') depth += 1
+    if (character === '}') depth -= 1
+    if (depth === 0) {
+      return { start, end: index + 1, value: source.slice(start, index + 1) }
+    }
+  }
+
+  throw new Error(`Unclosed generated object block for ${marker.trim()}`)
+}
+
+function normalizeEnumBlock(source, containerMarker) {
+  const container = objectBlock(source, containerMarker)
+  const publicSchema = objectBlock(container.value, '  public: {')
+  const enums = objectBlock(publicSchema.value, '    Enums: {')
+  const body = enums.value.slice('    Enums: {'.length, -1)
+  const suffixMatch = body.match(/\n {4}$/)
+  const suffix = suffixMatch ? suffixMatch[0] : ''
+  const entriesBody = suffix ? body.slice(0, -suffix.length) : body
+  const entries = [...entriesBody.matchAll(/^ {6}([a-z][a-z0-9_]*):/gm)]
+
+  if (entries.length === 0) {
+    throw new Error(`Expected generated enum entries in ${containerMarker.trim()}`)
+  }
+
+  const prefix = entriesBody.slice(0, entries[0].index)
+  const blocks = entries.map((entry, index) => ({
+    name: entry[1],
+    value: entriesBody.slice(entry.index, entries[index + 1]?.index),
+  }))
+  const normalized = `${prefix}${blocks
+    .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+    .map(({ value }) => value.trimEnd())
+    .join('\n')}${suffix}`
+  const refinedEnums = `${enums.value.slice(0, '    Enums: {'.length)}${normalized}}`
+  const refinedPublicSchema = `${publicSchema.value.slice(0, enums.start)}${refinedEnums}${publicSchema.value.slice(enums.end)}`
+  const refinedContainer = `${container.value.slice(0, publicSchema.start)}${refinedPublicSchema}${container.value.slice(publicSchema.end)}`
+
+  return `${source.slice(0, container.start)}${refinedContainer}${source.slice(container.end)}`
+}
+
 export function refineSupabaseTypes(source) {
   if (!source.includes('export type Database = {')) {
     throw new Error('Input does not look like generated Supabase database types')
@@ -134,7 +195,10 @@ export function refineSupabaseTypes(source) {
     refined = `${refined.slice(0, block.start)}${value}${refined.slice(block.end)}`
   }
 
-  return refined
+  refined = normalizeEnumBlock(refined, 'export type Database = {')
+  refined = normalizeEnumBlock(refined, 'export const Constants = {')
+
+  return `${refined.replace(/\s+$/, '')}\n`
 }
 
 function main() {

@@ -9723,6 +9723,15 @@ export type Database = {
         | "high_court"
         | "supreme_court"
         | "closed"
+      membership_departure_case_state:
+        | "active"
+        | "withdrawn"
+        | "offboarding_started"
+        | "completed"
+        | "failed_pending_cleanup"
+      membership_departure_notice_snapshot_state:
+        | "accepted"
+        | "legacy_unavailable"
       note_template_type:
         | "hearing_note"
         | "client_instruction"
@@ -9737,15 +9746,6 @@ export type Database = {
         | "processing_failed"
         | "staged_doc_ready"
         | "wiki_ai_suggestion"
-      membership_departure_case_state:
-        | "active"
-        | "withdrawn"
-        | "offboarding_started"
-        | "completed"
-        | "failed_pending_cleanup"
-      membership_departure_notice_snapshot_state:
-        | "accepted"
-        | "legacy_unavailable"
       org_member_role: "admin" | "associate" | "viewer"
       organisation_invite_state:
         | "pending"
@@ -10242,6 +10242,17 @@ export const Constants = {
         "high_court",
         "supreme_court",
         "closed",
+      ],
+      membership_departure_case_state: [
+        "active",
+        "withdrawn",
+        "offboarding_started",
+        "completed",
+        "failed_pending_cleanup",
+      ],
+      membership_departure_notice_snapshot_state: [
+        "accepted",
+        "legacy_unavailable",
       ],
       note_template_type: [
         "hearing_note",

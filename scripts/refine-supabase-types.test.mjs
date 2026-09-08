@@ -69,7 +69,13 @@ const specs = {
   update_matter_command: ['client_id: string', 'matter_id: string', 'revision: number'],
 }
 
-function generatedFixture() {
+const enumValues = {
+  alpha_type: ['first', 'second'],
+  membership_departure_case_state: ['active', 'withdrawn', 'offboarding_started'],
+  note_template_type: ['hearing_note', 'general'],
+}
+
+function generatedFixture({ enumOrder = Object.keys(enumValues), trailing = '\n' } = {}) {
   const functions = Object.entries(specs).map(([name, fields]) => [
     `      ${name}: {`,
     '        Args: never',
@@ -79,7 +85,17 @@ function generatedFixture() {
     '      }',
   ].join('\n')).join('\n')
 
-  return `export type Database = {\n  public: {\n    Functions: {\n${functions}\n    }\n  }\n}\n`
+  const typeEnums = enumOrder.map((name) => [
+    `      ${name}:`,
+    ...enumValues[name].map((value) => `        | "${value}"`),
+  ].join('\n')).join('\n')
+  const constantEnums = enumOrder.map((name) => [
+    `      ${name}: [`,
+    ...enumValues[name].map((value) => `        "${value}",`),
+    '      ],',
+  ].join('\n')).join('\n')
+
+  return `export type Database = {\n  public: {\n    Functions: {\n${functions}\n    }\n    Enums: {\n${typeEnums}\n    }\n  }\n}\n\nexport const Constants = {\n  public: {\n    Enums: {\n${constantEnums}\n    },\n  },\n} as const${trailing}`
 }
 
 test('refines every known nullable RPC result and is idempotent', () => {
@@ -115,4 +131,24 @@ test('fails closed when a required RPC disappears', () => {
     () => refineSupabaseTypes(missing),
     /Expected exactly one generated RPC signature for transition_task/,
   )
+})
+
+test('canonicalizes equivalent generated enum layouts and final newlines', () => {
+  const first = generatedFixture({
+    enumOrder: ['note_template_type', 'membership_departure_case_state', 'alpha_type'],
+    trailing: '\n\n',
+  })
+  const second = generatedFixture({
+    enumOrder: ['membership_departure_case_state', 'alpha_type', 'note_template_type'],
+    trailing: '',
+  })
+
+  const refined = refineSupabaseTypes(first)
+  assert.equal(refined, refineSupabaseTypes(second))
+  assert.match(refined, /Enums: \{\n      alpha_type:[\s\S]*?      membership_departure_case_state:[\s\S]*?      note_template_type:/)
+  assert.match(refined, /alpha_type: \[[\s\S]*?membership_departure_case_state: \[[\s\S]*?note_template_type: \[/)
+  assert.match(refined, /membership_departure_case_state:\n        \| "active"\n        \| "withdrawn"\n        \| "offboarding_started"/)
+  assert.match(refined, /membership_departure_case_state: \[\n        "active",\n        "withdrawn",\n        "offboarding_started",/)
+  assert.equal(refined.endsWith('\n\n'), false)
+  assert.equal(refined.endsWith('\n'), true)
 })
