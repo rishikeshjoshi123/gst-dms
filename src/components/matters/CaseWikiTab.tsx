@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, Edit2, Check, X } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
 import { updateWikiSection } from '@/lib/actions/wiki'
+import { CaseWikiMarkdown } from './CaseWikiMarkdown'
 import type { Database, Json } from '@/lib/supabase/database.types'
 
 type WikiSection = Database['public']['Tables']['wiki_sections']['Row']
@@ -110,7 +110,7 @@ export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { m
                 />
               ) : (
                 <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-[var(--primary)]">
-                  <ReactMarkdown>{textContent}</ReactMarkdown>
+                  <CaseWikiMarkdown matterId={matterId} readOnly={readOnly}>{textContent}</CaseWikiMarkdown>
                 </div>
               )}
             </div>
