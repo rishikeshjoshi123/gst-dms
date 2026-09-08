@@ -329,7 +329,8 @@ export function InboxClientView({
         toast.success('Document assigned successfully')
         setIsActionModalOpen(false)
         const latestDocs = await getStagedDocuments()
-        setDocuments(uniqueDocumentsById(latestDocs))
+        if (latestDocs.ok) setDocuments(uniqueDocumentsById(latestDocs.documents))
+        else toast.error(latestDocs.error)
         router.refresh()
       }
     })
@@ -461,7 +462,8 @@ export function InboxClientView({
                 const toastId = toast.loading('Refreshing queue...')
                 try {
                   const latestDocs = await getStagedDocuments()
-                  setDocuments(uniqueDocumentsById(latestDocs))
+                  if (!latestDocs.ok) throw new Error(latestDocs.error)
+                  setDocuments(uniqueDocumentsById(latestDocs.documents))
                   router.refresh()
                   toast.success('Queue refreshed', { id: toastId })
                 } catch (err: any) {

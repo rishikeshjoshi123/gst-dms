@@ -24,9 +24,13 @@ export type InboxQueueDocument = {
 }
 
 /** Canonical Inbox projection; legacy staged rows are retirement history. */
-export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
+export type InboxQueueReadResult =
+  | { ok: true; documents: InboxQueueDocument[] }
+  | { ok: false; error: string }
+
+export async function getStagedDocuments(): Promise<InboxQueueReadResult> {
   const orgId = await getCurrentOrgId()
-  if (!orgId) return []
+  if (!orgId) return { ok: false, error: 'No active organisation is available.' }
 
   // Lifecycle tables intentionally have no browser table grant. The server
   // resolves the active organisation and returns only canonical Intake rows.
@@ -40,10 +44,10 @@ export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
 
   if (error) {
     console.error('Failed to load canonical inbox intakes:', error)
-    return []
+    return { ok: false, error: 'The document queue could not be loaded.' }
   }
 
-  return (intakeItems ?? []).map((item) => {
+  const documents = (intakeItems ?? []).map((item) => {
     const session = item.upload_session as unknown as { declared_filename: string } | null
     return {
       id: item.id,
@@ -61,10 +65,12 @@ export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
       canonical_failure_code: item.failure_code,
     }
   })
+  return { ok: true, documents }
 }
 
 export async function getStagedDocumentCount() {
-  return (await getStagedDocuments()).length
+  const result = await getStagedDocuments()
+  return result.ok ? result.documents.length : 0
 }
 
 export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: string, idempotencyKey: string) {

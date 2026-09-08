@@ -48,6 +48,7 @@ import {
 } from '@/lib/actions/inbox'
 import { getIntakeItemSignedUrl } from '@/lib/actions/document'
 import { canonicalIntakeActions } from '@/lib/inbox-compat'
+import { reconcileInboxQueue } from '@/lib/inbox-queue-read'
 import { cn } from '@/lib/utils'
 
 type MatterOption = {
@@ -62,6 +63,7 @@ type DetailTab = 'overview' | 'placement'
 
 type DocumentHubClientViewProps = {
   initialDocuments: InboxQueueDocument[]
+  initialQueueError: string | null
   matters: MatterOption[]
   preselectedMatterId?: string
   preselectedIntakeId?: string
@@ -184,6 +186,7 @@ function intakeStateCopy(document: InboxQueueDocument) {
 
 export function DocumentHubClientView({
   initialDocuments,
+  initialQueueError,
   matters,
   preselectedMatterId,
   preselectedIntakeId,
@@ -200,14 +203,17 @@ export function DocumentHubClientView({
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
   const [isSourcePending, setIsSourcePending] = useState(false)
   const [sourceError, setSourceError] = useState<string | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [refreshError, setRefreshError] = useState<string | null>(initialQueueError)
   const [actionError, setActionError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isDiscardOpen, setIsDiscardOpen] = useState(false)
+  const [renderedQueueProps, setRenderedQueueProps] = useState({ initialDocuments, initialQueueError })
   const [isActionPending, startActionTransition] = useTransition()
   const uploadButtonRef = useRef<HTMLButtonElement>(null)
   const sourceButtonRef = useRef<HTMLButtonElement>(null)
+  const selectedIdRef = useRef(selectedId)
+  const sourceRequestGeneration = useRef(0)
   const actionKeys = useRef(new Map<string, string>())
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
@@ -223,14 +229,21 @@ export function DocumentHubClientView({
     : undefined
 
   useEffect(() => {
-    // The legacy projection currently returns [] for both a genuinely empty queue
-    // and a read failure. Never erase a populated client queue from that ambiguous
-    // refresh result; successful mutations remove their item locally first.
-    setDocuments((current) => {
-      if (initialDocuments.length === 0 && current.length > 0) return current
-      return uniqueDocuments(initialDocuments)
-    })
-  }, [initialDocuments])
+    selectedIdRef.current = selectedId
+  }, [selectedId])
+
+  if (
+    renderedQueueProps.initialDocuments !== initialDocuments
+    || renderedQueueProps.initialQueueError !== initialQueueError
+  ) {
+    setRenderedQueueProps({ initialDocuments, initialQueueError })
+    if (initialQueueError) {
+      setRefreshError(`${initialQueueError} Showing the last loaded documents.`)
+    } else {
+      setRefreshError(null)
+      setDocuments(uniqueDocuments(initialDocuments))
+    }
+  }
 
   useEffect(() => {
     if (preselectedMatterId && selectedMatterContext) {
@@ -246,6 +259,8 @@ export function DocumentHubClientView({
 
   useEffect(() => {
     if (preselectedIntakeId && documents.some((document) => document.id === preselectedIntakeId)) {
+      // Synchronize URL-owned selection after an RSC navigation.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedId(preselectedIntakeId)
       return
     }
@@ -256,6 +271,8 @@ export function DocumentHubClientView({
 
   useEffect(() => {
     if (!selectedDocument) {
+      // Clear the dependent form control when the selected subject disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMatterId('')
       return
     }
@@ -293,6 +310,9 @@ export function DocumentHubClientView({
   }
 
   function selectDocument(document: InboxQueueDocument) {
+    sourceRequestGeneration.current += 1
+    selectedIdRef.current = document.id
+    setIsSourcePending(false)
     setSelectedId(document.id)
     setDetailTab('overview')
     setSourceUrl(null)
@@ -302,6 +322,9 @@ export function DocumentHubClientView({
   }
 
   function closeDetails() {
+    sourceRequestGeneration.current += 1
+    selectedIdRef.current = null
+    setIsSourcePending(false)
     setSelectedId(null)
     setDetailTab('overview')
     setSourceUrl(null)
@@ -311,6 +334,8 @@ export function DocumentHubClientView({
   }
 
   function closeSource() {
+    sourceRequestGeneration.current += 1
+    setIsSourcePending(false)
     setSourceUrl(null)
     setSourceError(null)
     window.requestAnimationFrame(() => sourceButtonRef.current?.focus())
@@ -320,13 +345,11 @@ export function DocumentHubClientView({
     setIsRefreshing(true)
     setRefreshError(null)
     try {
-      const latestDocuments = uniqueDocuments(await getStagedDocuments())
-      if (latestDocuments.length === 0 && documents.length > 0) {
-        setRefreshError('The latest queue could not be confirmed. Showing the last loaded documents.')
-        return
-      }
-      setDocuments(latestDocuments)
-      if (selectedId && !latestDocuments.some((document) => document.id === selectedId)) {
+      const result = await getStagedDocuments()
+      const reconciled = reconcileInboxQueue(documents, result)
+      setRefreshError(reconciled.error)
+      setDocuments(reconciled.documents)
+      if (result.ok && selectedId && !reconciled.documents.some((document) => document.id === selectedId)) {
         closeDetails()
       }
     } catch (error) {
@@ -342,19 +365,24 @@ export function DocumentHubClientView({
 
   async function openSource() {
     if (!selectedDocument || !selectedActions.canPreview) return
+    const subjectId = selectedDocument.id
+    const generation = sourceRequestGeneration.current + 1
+    sourceRequestGeneration.current = generation
     setIsSourcePending(true)
     setSourceError(null)
     try {
       const result = await getIntakeItemSignedUrl(selectedDocument.id)
+      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return
       if (result.error || !result.url) {
         setSourceError(result.error || 'The PDF could not be opened.')
         return
       }
       setSourceUrl(result.url)
     } catch (error) {
+      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return
       setSourceError(error instanceof Error ? error.message : 'The PDF could not be opened.')
     } finally {
-      setIsSourcePending(false)
+      if (sourceRequestGeneration.current === generation) setIsSourcePending(false)
     }
   }
 
@@ -380,12 +408,13 @@ export function DocumentHubClientView({
       toast.success('Document assigned to the matter')
 
       try {
-        const latestDocuments = uniqueDocuments(await getStagedDocuments())
-        if (latestDocuments.length > 0 || remainingDocuments.length === 0) {
-          setDocuments(latestDocuments)
-        } else {
-          setRefreshError('Assignment completed. The remaining queue could not be confirmed, so the last loaded items are still shown.')
+        const result = await getStagedDocuments()
+        const reconciled = reconcileInboxQueue(remainingDocuments, result)
+        if (reconciled.error) {
+          setRefreshError(`Assignment completed. ${reconciled.error}`)
+          return
         }
+        setDocuments(reconciled.documents)
       } catch {
         setRefreshError('Assignment completed. The remaining queue could not be refreshed, so the last loaded items are still shown.')
       }
