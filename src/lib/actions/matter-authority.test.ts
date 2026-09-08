@@ -19,6 +19,9 @@ test('matter create and update use authenticated command boundaries', () => {
   assert.doesNotMatch(mutationSource, /createServiceClient/)
   assert.doesNotMatch(mutationSource, /\.from\('matters'\)\s*\.insert/)
   assert.doesNotMatch(mutationSource, /\.from\('matters'\)\s*\.update/)
+  assert.match(mutationSource, /p_work_state: workState/)
+  assert.match(mutationSource, /p_current_forum: currentForum/)
+  assert.doesNotMatch(mutationSource, /p_status:/)
 })
 
 test('live matter forms preserve one idempotency key across a retry', () => {

@@ -4,13 +4,14 @@ import { getCurrentOrgId } from '@/lib/actions/org'
 import type { Database } from '@/lib/supabase/database.types'
 import { createClient } from '@/lib/supabase/server'
 import type { TrashRestorePreflight } from './restore-model'
+import { normalizeMatterState } from '@/lib/matters/matter-state'
 
 type TrashProjectionRow = Database['public']['Functions']['get_exact_trashed_resource_projection']['Returns'][number]
 type ClientRow = Database['public']['Tables']['clients']['Row']
 type MatterRow = Database['public']['Tables']['matters']['Row']
 type DocumentRow = Database['public']['Tables']['documents']['Row']
 export type TrashClientRecord = Pick<ClientRow, 'id' | 'name' | 'gstin' | 'pan'>
-export type TrashMatterRecord = Pick<MatterRow, 'id' | 'client_id' | 'title' | 'matter_code' | 'financial_year' | 'status' | 'description'> & {
+export type TrashMatterRecord = Pick<MatterRow, 'id' | 'client_id' | 'title' | 'matter_code' | 'financial_year' | 'status' | 'work_state' | 'current_forum' | 'description' | 'revision'> & {
   clients?: TrashClientRecord | null
 }
 export type TrashDocumentRecord = Pick<DocumentRow,
@@ -167,7 +168,9 @@ async function getTrashProjection<Record>(
     context,
     data: {
       record: projection.resource_record as Record,
-      matters: Array.isArray(projection.related_matters) ? projection.related_matters as TrashMatterRecord[] : [],
+      matters: Array.isArray(projection.related_matters)
+        ? (projection.related_matters as TrashMatterRecord[]).map(normalizeMatterState)
+        : [],
       documents: Array.isArray(projection.related_documents) ? projection.related_documents as TrashDocumentRecord[] : [],
       links: Array.isArray(projection.related_links) ? projection.related_links as TrashDocumentLink[] : [],
       wikiSections: Array.isArray(projection.related_wiki_sections) ? projection.related_wiki_sections as TrashWikiSection[] : [],
@@ -211,9 +214,13 @@ export async function getExactMatter(id: string) {
     .maybeSingle()
 
   if (error) throw new Error('Unable to load the Matter workspace.')
-  if (data) return { state: 'active' as const, record: data }
+  if (data) return { state: 'active' as const, record: normalizeMatterState(data) }
   const trash = await getTrashProjection<TrashMatterRecord>('matter', id, null)
-  return trash ? { state: 'trash' as const, ...trash } : null
+  return trash ? {
+    state: 'trash' as const,
+    ...trash,
+    data: { ...trash.data, record: normalizeMatterState(trash.data.record) },
+  } : null
 }
 
 /**

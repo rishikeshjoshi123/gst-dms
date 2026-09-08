@@ -3,7 +3,12 @@ import Link from 'next/link'
 import { AlertTriangle, ArrowUpRight } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { MATTER_STATUS_LABELS, type MatterStatus } from '@/lib/constants'
+import {
+  MATTER_CURRENT_FORUM_LABELS,
+  MATTER_WORK_STATE_LABELS,
+  type MatterCurrentForum,
+  type MatterWorkState,
+} from '@/lib/matters/matter-state'
 import type { MatterSectionId } from '@/lib/matters/workspace-route'
 import { MatterSectionNavigation } from './MatterSectionNavigation'
 
@@ -13,6 +18,8 @@ type MatterShellRecord = {
   matter_code: string | null
   financial_year: string | null
   status: string
+  work_state: MatterWorkState
+  current_forum: MatterCurrentForum
   clients?: { name?: string | null } | null
 }
 
@@ -29,8 +36,8 @@ export function MatterWorkspaceShell({
   readOnly: boolean
   children: ReactNode
 }) {
-  const statusLabel = MATTER_STATUS_LABELS[matter.status as MatterStatus] ?? matter.status
-  const isClosed = matter.status === 'closed'
+  const statusLabel = MATTER_WORK_STATE_LABELS[matter.work_state]
+  const isClosed = matter.work_state === 'closed'
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden -mt-2">
@@ -41,12 +48,12 @@ export function MatterWorkspaceShell({
               <h1 className="min-w-0 truncate text-xl font-semibold text-[var(--text-primary)]" title={matter.title}>
                 {matter.title}
               </h1>
-              <Badge variant={matter.status === 'active' ? 'default' : 'muted'} className="shrink-0 min-w-20 justify-center">
+              <Badge variant={matter.work_state === 'active' ? 'default' : 'muted'} className="shrink-0 min-w-20 justify-center">
                 {statusLabel}
               </Badge>
             </div>
             <p className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)] sm:truncate">
-              {[matter.matter_code || 'No matter code', matter.financial_year || 'Financial year not set']
+              {[matter.matter_code || 'No matter code', matter.financial_year || 'Financial year not set', MATTER_CURRENT_FORUM_LABELS[matter.current_forum]]
                 .filter(Boolean)
                 .join(' · ')}
             </p>

@@ -7,11 +7,11 @@ type UpdateResult = UpdateMatter['Returns'][number]
 
 const createArgs: CreateMatter['Args'] = {
   p_client_id: 'client', p_title: 'Matter', p_financial_year: '2024-25',
-  p_description: '', p_status: 'active', p_idempotency_key: 'key',
+  p_description: '', p_work_state: 'active', p_current_forum: 'adjudication', p_idempotency_key: 'key',
 }
 const updateArgs: UpdateMatter['Args'] = {
   p_matter_id: 'matter', p_expected_revision: 1, p_title: 'Matter',
-  p_financial_year: '2024-25', p_description: '', p_status: 'active',
+  p_description: '', p_work_state: 'active', p_current_forum: 'adjudication',
   p_idempotency_key: 'key',
 }
 const nullableCreateMatterId: string | null = null as CreateResult['matter_id']

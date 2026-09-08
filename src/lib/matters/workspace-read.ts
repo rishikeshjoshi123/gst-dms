@@ -151,18 +151,22 @@ async function readActiveMatterDocuments(
 
 export type MatterWorkspaceCapabilities = {
   canContribute: boolean
+  canCloseReopen: boolean
 }
 
 /** Server-derived UI capabilities; clients never infer permissions from role names. */
 export async function readMatterWorkspaceCapabilities(): Promise<MatterWorkspaceCapabilities> {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
-  if (!orgId) return { canContribute: false }
+  if (!orgId) return { canContribute: false, canCloseReopen: false }
 
   const { data, error } = await supabase.rpc('get_my_organisation_context')
-  if (error) return { canContribute: false }
+  if (error) return { canContribute: false, canCloseReopen: false }
   const context = (data ?? []).find((row) => row.org_id === orgId && row.state === 'active')
-  return { canContribute: Boolean(context?.capabilities.includes('document.intake.create')) }
+  return {
+    canContribute: Boolean(context?.capabilities.includes('document.intake.create')),
+    canCloseReopen: Boolean(context?.is_owner || context?.role === 'admin'),
+  }
 }
 
 /**

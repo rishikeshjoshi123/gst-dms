@@ -26,7 +26,7 @@ export default async function MatterPage(props: {
   const isTrashReadOnly = exactMatter.state === 'trash'
   const matter = isTrashReadOnly ? exactMatter.data.record : exactMatter.record
   const capabilities = isTrashReadOnly
-    ? { canContribute: false }
+    ? { canContribute: false, canCloseReopen: false }
     : await readMatterWorkspaceCapabilities()
   const route = parseMatterWorkspaceRoute(searchParams)
   const queryEntries = searchParamEntries(searchParams)
@@ -60,6 +60,7 @@ export default async function MatterPage(props: {
                 route={route}
                 queryEntries={queryEntries}
                 canContribute={capabilities.canContribute}
+                canCloseReopen={capabilities.canCloseReopen}
               />
             </Suspense>
           </MatterSectionBoundary>

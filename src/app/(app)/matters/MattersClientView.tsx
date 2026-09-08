@@ -5,10 +5,14 @@ import Link from 'next/link'
 import { FolderOpen, ChevronRight, Building2, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
-import { MATTER_STATUS_LABELS, MatterStatus } from '@/lib/constants'
+import { MATTER_CURRENT_FORUM_LABELS, MATTER_WORK_STATE_LABELS, type MatterCurrentForum, type MatterWorkState } from '@/lib/matters/matter-state'
 
 interface MattersClientViewProps {
-  matters: any[]
+  matters: Array<{
+    id: string; title: string; matter_code: string | null; financial_year: string | null
+    work_state: MatterWorkState; current_forum: MatterCurrentForum
+    clients?: { name?: string | null } | null
+  }>
 }
 
 export function MattersClientView({ matters }: MattersClientViewProps) {
@@ -78,9 +82,10 @@ export function MattersClientView({ matters }: MattersClientViewProps) {
                   </div>
                   
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant={matter.status === 'active' ? 'default' : 'muted'} className="text-[10px] h-5 uppercase tracking-wider">
-                      {MATTER_STATUS_LABELS[matter.status as MatterStatus]}
+                    <Badge variant={matter.work_state === 'active' ? 'default' : 'muted'} className="text-[10px] h-5 uppercase tracking-wider">
+                      {MATTER_WORK_STATE_LABELS[matter.work_state]}
                     </Badge>
+                    <span className="text-[11px] text-[var(--text-muted)]">{MATTER_CURRENT_FORUM_LABELS[matter.current_forum]}</span>
                     {matter.matter_code && (
                       <span className="font-mono text-[10px] bg-[var(--bg)] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-secondary)]">
                         {matter.matter_code}
@@ -121,7 +126,7 @@ function EmptyMatters() {
       </div>
       <h2 className="text-lg font-bold text-[var(--text-primary)]">No active matters</h2>
       <p className="text-sm text-[var(--text-muted)] mt-2 max-w-sm mb-6 leading-relaxed">
-        A matter represents a specific tax proceeding or advisory engagement. Head over to a client's profile to create one.
+        A matter represents a specific tax proceeding or advisory engagement. Head over to a client&apos;s profile to create one.
       </p>
       <Link
         href="/clients"

@@ -131,10 +131,10 @@ async function NotesSection({ matterId, exactMatter, canContribute }: ActiveSect
   return <MatterNotesTab matterId={matterId} initialNotes={notes} documents={documents} users={users} readOnly={readOnly} />
 }
 
-function DetailsSection({ exactMatter, canContribute }: ActiveSectionProps) {
+function DetailsSection({ exactMatter, canContribute, canCloseReopen }: ActiveSectionProps) {
   const isTrash = exactMatter.state === 'trash'
-  const readOnly = isTrash || !canContribute
   const record = isTrash ? exactMatter.data.record : exactMatter.record
+  const readOnly = isTrash || !canContribute || (record.work_state === 'closed' && !canCloseReopen)
   const matter = {
     ...record,
     client_id: record.client_id ?? null,
@@ -143,7 +143,7 @@ function DetailsSection({ exactMatter, canContribute }: ActiveSectionProps) {
     description: record.description ?? null,
     revision: 'revision' in record && typeof record.revision === 'number' ? record.revision : 0,
   }
-  return <MatterDetailsTab matter={matter} readOnly={readOnly} />
+  return <MatterDetailsTab matter={matter} readOnly={readOnly} canCloseReopen={canCloseReopen} />
 }
 
 type ActiveSectionProps = {
@@ -152,6 +152,7 @@ type ActiveSectionProps = {
   route: MatterWorkspaceRouteState
   queryEntries: Array<[string, string]>
   canContribute: boolean
+  canCloseReopen: boolean
 }
 
 export async function MatterActiveSection(props: ActiveSectionProps) {

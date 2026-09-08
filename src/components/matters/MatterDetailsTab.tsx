@@ -6,8 +6,15 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Edit3, X, Loader2, Info, Building, Calendar, AlertTriangle, FileText, ArrowRight, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { MATTER_STATUS_LABELS, FINANCIAL_YEARS, MatterStatus } from '@/lib/constants'
 import { updateMatterDetails, deleteMatterAction } from '@/lib/actions/matter'
+import {
+  MATTER_CURRENT_FORUM_LABELS,
+  MATTER_CURRENT_FORUMS,
+  MATTER_WORK_STATE_LABELS,
+  MATTER_WORK_STATES,
+  type MatterCurrentForum,
+  type MatterWorkState,
+} from '@/lib/matters/matter-state'
 
 interface MatterDetails {
   id: string
@@ -15,7 +22,8 @@ interface MatterDetails {
   title: string
   matter_code: string | null
   financial_year: string | null
-  status: MatterStatus
+  work_state: MatterWorkState
+  current_forum: MatterCurrentForum
   description: string | null
   revision: number
   clients?: {
@@ -25,7 +33,15 @@ interface MatterDetails {
   } | null
 }
 
-export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterDetails; readOnly?: boolean }) {
+export function MatterDetailsTab({
+  matter,
+  readOnly = false,
+  canCloseReopen = false,
+}: {
+  matter: MatterDetails
+  readOnly?: boolean
+  canCloseReopen?: boolean
+}) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -33,8 +49,8 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
   const matterTrashIdempotencyKey = useRef<string | null>(null)
   const matterUpdateIdempotencyKey = useRef<string | null>(null)
   const [title, setTitle] = useState(matter.title || '')
-  const [financialYear, setFinancialYear] = useState(matter.financial_year || 'Unknown FY')
-  const [status, setStatus] = useState<MatterStatus>(matter.status || 'active')
+  const [workState, setWorkState] = useState<MatterWorkState>(matter.work_state)
+  const [currentForum, setCurrentForum] = useState<MatterCurrentForum>(matter.current_forum)
   const [description, setDescription] = useState(matter.description || '')
   const [isPending, startTransition] = useTransition()
 
@@ -64,7 +80,7 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
     matterTrashIdempotencyKey.current = null
   }, [matter.id])
 
-  const isClosed = matter.status === 'closed'
+  const isClosed = matter.work_state === 'closed'
   const isUnknownFY = matter.financial_year === 'Unknown FY' || !matter.financial_year
 
   const handleSave = () => {
@@ -80,8 +96,8 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
       }
       const res = await updateMatterDetails(matter.id, {
         title: title.trim(),
-        financialYear,
-        status,
+        workState,
+        currentForum,
         description: description.trim() || null,
       }, {
         expectedRevision: matter.revision,
@@ -101,8 +117,8 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
   const handleCancel = () => {
     matterUpdateIdempotencyKey.current = null
     setTitle(matter.title || '')
-    setFinancialYear(matter.financial_year || 'Unknown FY')
-    setStatus(matter.status || 'active')
+    setWorkState(matter.work_state)
+    setCurrentForum(matter.current_forum)
     setDescription(matter.description || '')
     setIsEditing(false)
   }
@@ -115,10 +131,13 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
           {/* Status & Warning Badges */}
           <div className="flex flex-wrap items-center gap-2">
             <Badge 
-              variant={matter.status === 'active' ? 'default' : 'muted'} 
+              variant={matter.work_state === 'active' ? 'default' : 'muted'}
               className="shrink-0 h-5 py-0 px-2 text-[10px] font-semibold uppercase tracking-wider bg-[var(--surface-hover)] text-[var(--text-primary)] border border-[var(--border)]"
             >
-              {MATTER_STATUS_LABELS[matter.status as keyof typeof MATTER_STATUS_LABELS] || matter.status}
+              {MATTER_WORK_STATE_LABELS[matter.work_state]}
+            </Badge>
+            <Badge variant="outline" className="shrink-0">
+              {MATTER_CURRENT_FORUM_LABELS[matter.current_forum]}
             </Badge>
 
             {isUnknownFY && (
@@ -169,14 +188,14 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
             Edit Details
           </button>
 
-          <button
+          {canCloseReopen && <button
             onClick={() => setIsDeleteModalOpen(true)}
             className="inline-flex items-center justify-center rounded-[var(--radius-sm)] text-[14px] font-medium h-10 px-3 bg-[var(--surface)] hover:bg-[var(--danger-muted)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] transition-colors shadow-sm"
             title="Delete Matter"
           >
             <Trash2 size={15} className="mr-1.5 text-[var(--danger)]" />
             Delete
-          </button>
+          </button>}
 
           {!isClosed && (
             <Link
@@ -202,12 +221,6 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
               </p>
             </div>
           </div>
-          {!readOnly && <button
-            onClick={() => setIsEditing(true)}
-            className="min-h-11 shrink-0 text-[12px] font-semibold bg-[var(--warning)] hover:opacity-90 text-[var(--on-warning,var(--surface))] px-3 py-1.5 rounded-[var(--radius-sm)] transition-opacity"
-          >
-            Update FY Now
-          </button>}
         </div>
       )}
 
@@ -314,7 +327,7 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
               <div>
                 <h3 className="text-[18px] font-semibold text-[var(--text-primary)]">Edit Matter Details</h3>
                 <p className="text-[14px] font-normal text-[var(--text-secondary)] mt-0.5">
-                  Update matter title, financial year, status, and synopsis.
+                  Update the matter title, synopsis, work state, and current forum.
                 </p>
               </div>
               <button
@@ -343,44 +356,38 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
                 />
               </div>
 
-              {/* Financial Year Select */}
+              {/* Work-state Select */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                  Financial Year <span className="text-[var(--danger)]">*</span>
+                  Work state
                 </label>
                 <select
-                  value={financialYear}
-                  onChange={(e) => setFinancialYear(e.target.value)}
+                  value={workState}
+                  onChange={(e) => setWorkState(e.target.value as MatterWorkState)}
                   disabled={isPending}
                   className="w-full bg-[var(--surface)] border border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded-md px-3 py-2 text-[14px] text-[var(--text-primary)] transition-all"
                 >
-                  <option value="Unknown FY">Unknown FY</option>
-                  {FINANCIAL_YEARS.map((fy) => (
-                    <option key={fy} value={fy}>
-                      FY {fy}
+                  {MATTER_WORK_STATES.map((value) => (
+                    <option key={value} value={value} disabled={value === 'closed' && !canCloseReopen}>
+                      {MATTER_WORK_STATE_LABELS[value]}
                     </option>
                   ))}
                 </select>
-                <p className="text-[12px] text-[var(--text-muted)]">
-                  Updating FY will automatically synchronize all linked documents with unassigned FYs.
-                </p>
+                {!canCloseReopen && <p className="text-[12px] text-[var(--text-muted)]">Only an Owner or Admin can close or reopen a matter.</p>}
               </div>
 
-              {/* Status Select */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                  Status
+                  Current forum or stage
                 </label>
                 <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as MatterStatus)}
+                  value={currentForum}
+                  onChange={(e) => setCurrentForum(e.target.value as MatterCurrentForum)}
                   disabled={isPending}
                   className="w-full bg-[var(--surface)] border border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 outline-none rounded-md px-3 py-2 text-[14px] text-[var(--text-primary)] transition-all"
                 >
-                  {Object.entries(MATTER_STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
+                  {MATTER_CURRENT_FORUMS.map((value) => (
+                    <option key={value} value={value}>{MATTER_CURRENT_FORUM_LABELS[value]}</option>
                   ))}
                 </select>
               </div>

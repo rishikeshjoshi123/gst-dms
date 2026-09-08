@@ -1,5 +1,5 @@
 import { getMattersByClient } from '@/lib/actions/matter'
-import { MATTER_STATUS_LABELS } from '@/lib/constants'
+import { MATTER_CURRENT_FORUM_LABELS, MATTER_WORK_STATE_LABELS } from '@/lib/matters/matter-state'
 import { getExactClient } from '@/lib/trash/exact-resource'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -80,8 +80,8 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
                 <div className="flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-[14px] text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">{matter.title}</span>
-                    <Badge variant={matter.status === 'active' ? 'default' : 'muted'}>
-                      {MATTER_STATUS_LABELS[matter.status]}
+                    <Badge variant={matter.work_state === 'active' ? 'default' : 'muted'}>
+                      {MATTER_WORK_STATE_LABELS[matter.work_state]}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3 text-[12px] text-[var(--text-muted)] font-medium mt-1">
@@ -89,6 +89,7 @@ export default async function ClientDetailPage(props: { params: Promise<{ id: st
                       <span className="font-mono bg-[var(--bg)] border border-[var(--border)] px-1.5 py-0.5 rounded text-[11px] uppercase tracking-wider">{matter.matter_code}</span>
                     )}
                     <span>FY: {matter.financial_year}</span>
+                    <span>{MATTER_CURRENT_FORUM_LABELS[matter.current_forum]}</span>
                   </div>
                 </div>
 

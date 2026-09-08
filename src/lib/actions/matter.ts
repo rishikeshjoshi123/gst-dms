@@ -6,7 +6,6 @@ import { reevaluateMatterLinks } from './chaining'
 import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
-import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { randomUUID } from 'node:crypto'
 import {
   escapeMatterDestinationLike,
@@ -17,7 +16,12 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────
 
-import { MatterStatus, FINANCIAL_YEARS } from '../constants'
+import { FINANCIAL_YEARS } from '../constants'
+import {
+  normalizeMatterState,
+  type MatterCurrentForum,
+  type MatterWorkState,
+} from '@/lib/matters/matter-state'
 
 export type MatterDestinationOption = {
   id: string
@@ -119,7 +123,7 @@ export async function getMatters() {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  return data ?? []
+  return (data ?? []).map(normalizeMatterState)
 }
 
 export async function getMattersByClient(clientId: string) {
@@ -136,7 +140,7 @@ export async function getMattersByClient(clientId: string) {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  return data ?? []
+  return (data ?? []).map(normalizeMatterState)
 }
 
 export async function getMatterById(id: string) {
@@ -155,7 +159,7 @@ export async function getMatterById(id: string) {
     .is('deleted_at', null)
     .single()
 
-  return data
+  return data ? normalizeMatterState(data) : null
 }
 
 // ── Create Matter ─────────────────────────────────────────────────
@@ -169,7 +173,8 @@ export async function createMatter(formData: FormData) {
   const title = (formData.get('title') as string)?.trim()
   const financialYear = formData.get('financial_year') as string
   const description = (formData.get('description') as string)?.trim() || null
-  const status = (formData.get('status') as MatterStatus) || 'active'
+  const workState = (formData.get('work_state') as MatterWorkState) || 'active'
+  const currentForum = (formData.get('current_forum') as MatterCurrentForum) || 'adjudication'
   const idempotencyKey = (formData.get('idempotencyKey') as string)?.trim() || randomUUID()
 
   if (!clientId) return { error: 'Client is required.' }
@@ -200,7 +205,8 @@ export async function createMatter(formData: FormData) {
     p_title: finalTitle,
     p_financial_year: financialYear,
     p_description: description ?? '',
-    p_status: status,
+    p_work_state: workState,
+    p_current_forum: currentForum,
     p_idempotency_key: idempotencyKey,
   })
   const result = command?.[0]
@@ -227,9 +233,9 @@ export async function updateMatterDetails(
   matterId: string,
   payload: {
     title?: string
-    financialYear?: string
     description?: string | null
-    status?: MatterStatus
+    workState?: MatterWorkState
+    currentForum?: MatterCurrentForum
   },
   options: { expectedRevision?: number; idempotencyKey?: string } = {},
 ) {
@@ -241,37 +247,31 @@ export async function updateMatterDetails(
     return { error: 'Title must be at least 2 characters.' }
   }
 
-  if (payload.financialYear !== undefined && payload.financialYear !== 'Unknown FY') {
-    if (!FINANCIAL_YEARS.includes(payload.financialYear)) {
-      return { error: 'Invalid financial year selected.' }
-    }
-  }
-
   // Fetch current matter to get client_id for revalidation
   const { data: existingMatter } = await supabase
     .from('matters')
-    .select('client_id, title, financial_year, description, status, revision')
+    .select('client_id, title, description, status, work_state, current_forum, revision')
     .eq('id', matterId)
     .eq('org_id', orgId)
     .eq('record_state', 'active')
     .is('deleted_at', null)
     .maybeSingle()
   if (!existingMatter) return { error: 'Matter not found or is read-only in Trash.' }
+  const currentMatter = normalizeMatterState(existingMatter)
 
   const expectedRevision = options.expectedRevision ?? existingMatter.revision
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
     return { error: 'Refresh this matter before saving changes.' }
   }
-  const financialYear = payload.financialYear ?? existingMatter.financial_year
   const { data: command, error: commandError } = await supabase.rpc('update_matter_command', {
     p_matter_id: matterId,
     p_expected_revision: expectedRevision,
     p_title: payload.title?.trim() ?? existingMatter.title,
-    p_financial_year: financialYear,
     p_description: payload.description === undefined
       ? (existingMatter.description ?? '')
       : (payload.description?.trim() ?? ''),
-    p_status: payload.status ?? existingMatter.status,
+    p_work_state: payload.workState ?? currentMatter.work_state,
+    p_current_forum: payload.currentForum ?? currentMatter.current_forum,
     p_idempotency_key: options.idempotencyKey ?? randomUUID(),
   })
   const result = command?.[0]
@@ -287,43 +287,32 @@ export async function updateMatterDetails(
     return { error: messages[result?.code ?? ''] ?? 'Failed to update matter.' }
   }
 
-  if (payload.financialYear && payload.financialYear !== 'Unknown FY') {
-    const { data: updatedDocuments } = await supabase
-      .from('documents')
-      .select('id')
-      .eq('matter_id', matterId)
-      .eq('org_id', orgId)
-      .eq('record_state', 'active')
-      .is('deleted_at', null)
-      .eq('financial_year', payload.financialYear)
-
-    for (const document of updatedDocuments ?? []) revalidatePath(canonicalDocumentPath(document.id))
-  }
-
   revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/matters/${matterId}`)
   if (existingMatter?.client_id) {
     revalidatePath(`/clients/${existingMatter.client_id}`)
   }
-  return { success: true }
+  return { success: true, revision: result.revision }
 }
 
 export async function updateMatter(id: string, formData: FormData) {
   const title = (formData.get('title') as string)?.trim()
   const description = (formData.get('description') as string)?.trim() || null
-  const status = formData.get('status') as MatterStatus | null
+  const workState = formData.get('work_state') as MatterWorkState | null
+  const currentForum = formData.get('current_forum') as MatterCurrentForum | null
 
   return updateMatterDetails(id, {
     title,
     description,
-    ...(status ? { status } : {})
+    ...(workState ? { workState } : {}),
+    ...(currentForum ? { currentForum } : {}),
   })
 }
 
 // ── Archive / Close Matter ────────────────────────────────────────
 
-export async function setMatterStatus(id: string, status: MatterStatus) {
-  return updateMatterDetails(id, { status })
+export async function setMatterStatus(id: string, workState: MatterWorkState, currentForum?: MatterCurrentForum) {
+  return updateMatterDetails(id, { workState, ...(currentForum ? { currentForum } : {}) })
 }
 
 

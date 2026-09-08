@@ -5,6 +5,7 @@ import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { randomUUID } from 'node:crypto'
+import { isOpenMatter, normalizeMatterState } from '@/lib/matters/matter-state'
 
 // ── Read Clients ──────────────────────────────────────────────────
 
@@ -15,7 +16,7 @@ export async function getClients() {
 
   const { data } = await supabase
     .from('clients')
-    .select('*, matters(id, status)')
+    .select('*, matters(id, status, work_state, current_forum)')
     .eq('org_id', orgId)
     .eq('record_state', 'active')
     .is('deleted_at', null)
@@ -26,11 +27,11 @@ export async function getClients() {
   if (!data) return []
 
   return data.map((client) => {
-    const activeMatters = client.matters || []
+    const activeMatters = (client.matters || []).map(normalizeMatterState)
     return {
       ...client,
       totalMatters: activeMatters.length,
-      openMatters: activeMatters.filter((matter) => matter.status !== 'closed' && matter.status !== 'disposed').length
+      openMatters: activeMatters.filter(isOpenMatter).length
     }
   })
 }

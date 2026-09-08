@@ -88,14 +88,50 @@ const enumValues = {
 }
 
 function generatedFixture({ enumOrder = Object.keys(enumValues), trailing = '\n' } = {}) {
-  const functions = Object.entries(specs).map(([name, fields]) => [
-    `      ${name}: {`,
-    '        Args: never',
-    '        Returns: {',
-    ...fields.map((field) => `          ${field}`),
-    '        }[]',
-    '      }',
-  ].join('\n')).join('\n')
+  const functions = Object.entries(specs).map(([name, fields]) => {
+    const result = [
+      '            Returns: {',
+      ...fields.map((field) => `          ${field}`),
+      '            }[]',
+    ]
+    if (name === 'create_matter_command') {
+      return [
+        `      ${name}:`,
+        '        | {',
+        '            Args: { legacy: true }',
+        ...result,
+        '          }',
+        '        | {',
+        '            Args: { typed: true }',
+        ...result,
+        '          }',
+      ].join('\n')
+    }
+    return [
+      `      ${name}: {`,
+      ...(name === 'get_team_directory' ? [
+        '        Args: {',
+        '          p_query?: string',
+        '          p_role?: string',
+        '          p_state?: string',
+        '        }',
+      ] : ['        Args: never']),
+      '        Returns: {',
+      ...fields.map((field) => `          ${field}`),
+      '        }[]',
+      '      }',
+    ].join('\n')
+  }).concat([
+    [
+      '      read_matter_timeline_chronology: {',
+      '        Args: {',
+      '          p_matter_id: string',
+      '          p_selected_document_id?: string',
+      '        }',
+      '        Returns: never',
+      '      }',
+    ].join('\n'),
+  ]).join('\n')
 
   const typeEnums = enumOrder.map((name) => [
     `      ${name}:`,
@@ -119,6 +155,15 @@ test('refines every known nullable RPC result and is idempotent', () => {
     }
   }
   assert.equal(refineSupabaseTypes(refined), refined)
+  const createMatterBlock = refined.slice(
+    refined.indexOf('      create_matter_command:'),
+    refined.indexOf('      create_note_with_optional_task:'),
+  )
+  assert.equal([...createMatterBlock.matchAll(/matter_id: string \| null/g)].length, 2)
+  assert.match(refined, /p_selected_document_id\?: string \| null/)
+  assert.match(refined, /p_query\?: string \| null/)
+  assert.match(refined, /p_role\?: string \| null/)
+  assert.match(refined, /p_state\?: string \| null/)
 })
 
 test('fails closed when a known generated signature drifts', () => {

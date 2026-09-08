@@ -2116,11 +2116,57 @@ export type Database = {
           },
         ]
       }
+      matter_status_normalization_report: {
+        Row: {
+          disposition: string
+          legacy_status: string
+          mapped_current_forum:
+            | Database["public"]["Enums"]["matter_current_forum"]
+            | null
+          mapped_work_state:
+            | Database["public"]["Enums"]["matter_work_state"]
+            | null
+          matter_id: string
+          org_id: string
+          record_state: Database["public"]["Enums"]["resource_record_state"]
+          reported_at: string
+        }
+        Insert: {
+          disposition: string
+          legacy_status: string
+          mapped_current_forum?:
+            | Database["public"]["Enums"]["matter_current_forum"]
+            | null
+          mapped_work_state?:
+            | Database["public"]["Enums"]["matter_work_state"]
+            | null
+          matter_id: string
+          org_id: string
+          record_state: Database["public"]["Enums"]["resource_record_state"]
+          reported_at?: string
+        }
+        Update: {
+          disposition?: string
+          legacy_status?: string
+          mapped_current_forum?:
+            | Database["public"]["Enums"]["matter_current_forum"]
+            | null
+          mapped_work_state?:
+            | Database["public"]["Enums"]["matter_work_state"]
+            | null
+          matter_id?: string
+          org_id?: string
+          record_state?: Database["public"]["Enums"]["resource_record_state"]
+          reported_at?: string
+        }
+        Relationships: []
+      }
       matters: {
         Row: {
           active_trash_membership_id: string | null
           client_id: string
           created_at: string
+          current_forum: Database["public"]["Enums"]["matter_current_forum"]
           deleted_at: string | null
           description: string | null
           financial_year: string
@@ -2131,11 +2177,13 @@ export type Database = {
           revision: number
           status: Database["public"]["Enums"]["matter_status"]
           title: string
+          work_state: Database["public"]["Enums"]["matter_work_state"]
         }
         Insert: {
           active_trash_membership_id?: string | null
           client_id: string
           created_at?: string
+          current_forum?: Database["public"]["Enums"]["matter_current_forum"]
           deleted_at?: string | null
           description?: string | null
           financial_year?: string
@@ -2146,11 +2194,13 @@ export type Database = {
           revision?: number
           status?: Database["public"]["Enums"]["matter_status"]
           title: string
+          work_state?: Database["public"]["Enums"]["matter_work_state"]
         }
         Update: {
           active_trash_membership_id?: string | null
           client_id?: string
           created_at?: string
+          current_forum?: Database["public"]["Enums"]["matter_current_forum"]
           deleted_at?: string | null
           description?: string | null
           financial_year?: string
@@ -2161,6 +2211,7 @@ export type Database = {
           revision?: number
           status?: Database["public"]["Enums"]["matter_status"]
           title?: string
+          work_state?: Database["public"]["Enums"]["matter_work_state"]
         }
         Relationships: [
           {
@@ -7304,6 +7355,20 @@ export type Database = {
           operator_id: string
         }[]
       }
+      cancel_document_upload: {
+        Args: {
+          p_actor: string
+          p_idempotency: string
+          p_org: string
+          p_session: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          completion_code: string
+          intake_item_id: string
+        }[]
+      }
       claim_document_asset_storage_deletion_work: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -7484,20 +7549,6 @@ export type Database = {
           upload_session_id: string
         }[]
       }
-      cancel_document_upload: {
-        Args: {
-          p_actor: string
-          p_idempotency: string
-          p_org: string
-          p_session: string
-        }
-        Returns: {
-          asset_id: string
-          code: string
-          completion_code: string
-          intake_item_id: string
-        }[]
-      }
       complete_staged_document_backfill_transfer: {
         Args: {
           p_destination_observed_bytes: number
@@ -7565,23 +7616,42 @@ export type Database = {
           revision: number | null
         }[]
       }
-      create_matter_command: {
-        Args: {
-          p_client_id: string
-          p_description: string
-          p_financial_year: string
-          p_idempotency_key: string
-          p_status: Database["public"]["Enums"]["matter_status"]
-          p_title: string
-        }
-        Returns: {
-          client_id: string | null
-          code: string
-          matter_id: string | null
-          replayed: boolean
-          revision: number | null
-        }[]
-      }
+      create_matter_command:
+        | {
+            Args: {
+              p_client_id: string
+              p_description: string
+              p_financial_year: string
+              p_idempotency_key: string
+              p_status: Database["public"]["Enums"]["matter_status"]
+              p_title: string
+            }
+            Returns: {
+              client_id: string | null
+              code: string
+              matter_id: string | null
+              replayed: boolean
+              revision: number | null
+            }[]
+          }
+        | {
+            Args: {
+              p_client_id: string
+              p_current_forum: Database["public"]["Enums"]["matter_current_forum"]
+              p_description: string
+              p_financial_year: string
+              p_idempotency_key: string
+              p_title: string
+              p_work_state: Database["public"]["Enums"]["matter_work_state"]
+            }
+            Returns: {
+              client_id: string | null
+              code: string
+              matter_id: string | null
+              replayed: boolean
+              revision: number | null
+            }[]
+          }
       create_metadata_only_document: {
         Args: {
           p_display_title: string
@@ -7998,20 +8068,6 @@ export type Database = {
           summary: string
         }[]
       }
-      get_document_upload_completion_receipt: {
-        Args: {
-          p_actor: string
-          p_idempotency: string
-          p_org: string
-          p_session: string
-        }
-        Returns: {
-          asset_id: string
-          code: string
-          duplicate_asset_id: string
-          intake_item_id: string
-        }[]
-      }
       get_document_search_index_reprocess_input_legacy_typed: {
         Args: { p_lease_token: string; p_processing_run_id: string }
         Returns: {
@@ -8040,6 +8096,20 @@ export type Database = {
           code: string
           existing_content_hashes: Json
           pages: Json
+        }[]
+      }
+      get_document_upload_completion_receipt: {
+        Args: {
+          p_actor: string
+          p_idempotency: string
+          p_org: string
+          p_session: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          duplicate_asset_id: string
+          intake_item_id: string
         }[]
       }
       get_document_version_read_grant: {
@@ -8116,6 +8186,43 @@ export type Database = {
         }[]
       }
       get_exact_trashed_resource_projection_v00086: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          related_documents: Json
+          related_inspector_metadata: Json
+          related_links: Json
+          related_matters: Json
+          related_notes: Json
+          related_wiki_sections: Json
+          resource_id: string
+          resource_record: Json
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_name: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+          trashed_by_name: string
+        }[]
+      }
+      get_exact_trashed_resource_projection_v00140: {
         Args: {
           p_expected_matter_id?: string
           p_resource_id: string
@@ -8276,30 +8383,6 @@ export type Database = {
           role: Database["public"]["Enums"]["org_member_role"]
           state: Database["public"]["Enums"]["organisation_membership_state"]
           user_id: string
-        }[]
-      }
-      get_team_directory: {
-        Args: {
-          p_limit?: number
-          p_offset?: number
-          p_query?: string | null
-          p_role?: string | null
-          p_state?: string | null
-        }
-        Returns: {
-          authorised_email: string | null
-          capabilities: string[] | null
-          display_name: string | null
-          is_owner: boolean | null
-          joined_at: string | null
-          membership_id: string | null
-          outcome_code: string
-          page_offset: number
-          professional_title: string | null
-          role: Database["public"]["Enums"]["org_member_role"] | null
-          state: Database["public"]["Enums"]["organisation_membership_state"] | null
-          total_count: number
-          user_id: string | null
         }[]
       }
       get_note_quote_locators: {
@@ -8496,6 +8579,30 @@ export type Database = {
           current_user_id: string
           display_name: string
           member_user_id: string
+        }[]
+      }
+      get_team_directory: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_query?: string | null
+          p_role?: string | null
+          p_state?: string | null
+        }
+        Returns: {
+          authorised_email: string | null
+          capabilities: string[] | null
+          display_name: string | null
+          is_owner: boolean | null
+          joined_at: string | null
+          membership_id: string | null
+          outcome_code: string
+          page_offset: number
+          professional_title: string | null
+          role: Database["public"]["Enums"]["org_member_role"] | null
+          state: Database["public"]["Enums"]["organisation_membership_state"] | null
+          total_count: number
+          user_id: string | null
         }[]
       }
       get_trash_purge_impact: {
@@ -8823,6 +8930,21 @@ export type Database = {
         }
         Returns: string
       }
+      matter_current_forum_from_legacy: {
+        Args: { p_status: Database["public"]["Enums"]["matter_status"] }
+        Returns: Database["public"]["Enums"]["matter_current_forum"]
+      }
+      matter_legacy_status: {
+        Args: {
+          p_current_forum: Database["public"]["Enums"]["matter_current_forum"]
+          p_work_state: Database["public"]["Enums"]["matter_work_state"]
+        }
+        Returns: Database["public"]["Enums"]["matter_status"]
+      }
+      matter_work_state_from_legacy: {
+        Args: { p_status: Database["public"]["Enums"]["matter_status"] }
+        Returns: Database["public"]["Enums"]["matter_work_state"]
+      }
       my_org_ids: { Args: never; Returns: string[] }
       org_wide_fuzzy_match_reference: {
         Args: { p_org_id: string; p_reference_number: string }
@@ -9067,8 +9189,8 @@ export type Database = {
           limit: number
           offset: number
           outcome: string
-          selected: Json | null
-          source_revision: string | null
+          selected: Json
+          source_revision: string
           total: number
           unfiltered_total: number
         }[]
@@ -9508,6 +9630,7 @@ export type Database = {
         Args: { p_org_id: string; p_task_id: string }
         Returns: boolean
       }
+      timeline_safe_iso_date: { Args: { p_value: string }; Returns: string }
       transition_organisation_invite: {
         Args: {
           p_action: string
@@ -9600,24 +9723,43 @@ export type Database = {
           revision: number | null
         }[]
       }
-      update_matter_command: {
-        Args: {
-          p_description: string
-          p_expected_revision: number
-          p_financial_year: string
-          p_idempotency_key: string
-          p_matter_id: string
-          p_status: Database["public"]["Enums"]["matter_status"]
-          p_title: string
-        }
-        Returns: {
-          client_id: string | null
-          code: string
-          matter_id: string | null
-          replayed: boolean
-          revision: number | null
-        }[]
-      }
+      update_matter_command:
+        | {
+            Args: {
+              p_current_forum: Database["public"]["Enums"]["matter_current_forum"]
+              p_description: string
+              p_expected_revision: number
+              p_idempotency_key: string
+              p_matter_id: string
+              p_title: string
+              p_work_state: Database["public"]["Enums"]["matter_work_state"]
+            }
+            Returns: {
+              client_id: string | null
+              code: string
+              matter_id: string | null
+              replayed: boolean
+              revision: number | null
+            }[]
+          }
+        | {
+            Args: {
+              p_description: string
+              p_expected_revision: number
+              p_financial_year: string
+              p_idempotency_key: string
+              p_matter_id: string
+              p_status: Database["public"]["Enums"]["matter_status"]
+              p_title: string
+            }
+            Returns: {
+              client_id: string | null
+              code: string
+              matter_id: string | null
+              replayed: boolean
+              revision: number | null
+            }[]
+          }
       update_organisation_trash_retention_policy: {
         Args: {
           p_expected_policy_version: number
@@ -9907,6 +10049,14 @@ export type Database = {
         | "exhibit"
         | "attachment_to"
         | "references_doc"
+      matter_current_forum:
+        | "adjudication"
+        | "first_appeal"
+        | "tribunal"
+        | "high_court"
+        | "supreme_court"
+        | "remand"
+        | "other"
       matter_status:
         | "active"
         | "stayed"
@@ -9916,6 +10066,7 @@ export type Database = {
         | "high_court"
         | "supreme_court"
         | "closed"
+      matter_work_state: "active" | "stayed" | "disposed" | "closed"
       membership_departure_case_state:
         | "active"
         | "withdrawn"
@@ -10427,6 +10578,15 @@ export const Constants = {
         "attachment_to",
         "references_doc",
       ],
+      matter_current_forum: [
+        "adjudication",
+        "first_appeal",
+        "tribunal",
+        "high_court",
+        "supreme_court",
+        "remand",
+        "other",
+      ],
       matter_status: [
         "active",
         "stayed",
@@ -10437,6 +10597,7 @@ export const Constants = {
         "supreme_court",
         "closed",
       ],
+      matter_work_state: ["active", "stayed", "disposed", "closed"],
       membership_departure_case_state: [
         "active",
         "withdrawn",

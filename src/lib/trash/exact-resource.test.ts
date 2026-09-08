@@ -138,7 +138,7 @@ test('direct legacy commands reject trashed resource targets before mutating', a
   for (const command of ['createManualLink', 'deleteDocumentLink']) {
     assert.match(exportedFunction(documentActions, command), /\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
   }
-  assert.match(exportedFunction(matterActions, 'setMatterStatus'), /updateMatterDetails\(id, \{ status \}\)/)
+  assert.match(exportedFunction(matterActions, 'setMatterStatus'), /updateMatterDetails\(id, \{ workState/)
   assert.match(exportedFunction(documentActions, 'dismissReviewFlag'), /Legacy review dismissal is unavailable/)
 })
 

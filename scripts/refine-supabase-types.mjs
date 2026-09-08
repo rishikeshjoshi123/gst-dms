@@ -100,14 +100,25 @@ const nullableRpcFields = {
   },
 }
 
+const nullableRpcArguments = {
+  read_matter_timeline_chronology: {
+    'p_selected_document_id?': 'string',
+  },
+  get_team_directory: {
+    'p_query?': 'string',
+    'p_role?': 'string',
+    'p_state?': 'string',
+  },
+}
+
 function functionBlock(source, functionName) {
-  const startMarker = `      ${functionName}: {`
+  const startMarker = `      ${functionName}:`
   const start = source.indexOf(startMarker)
   if (start === -1 || source.indexOf(startMarker, start + 1) !== -1) {
     throw new Error(`Expected exactly one generated RPC signature for ${functionName}`)
   }
 
-  const next = source.slice(start + startMarker.length).search(/^      [a-z0-9_]+: \{$/m)
+  const next = source.slice(start + startMarker.length).search(/^      [a-z0-9_]+:/m)
   const end = next === -1 ? source.length : start + startMarker.length + next
   return { start, end, value: source.slice(start, end) }
 }
@@ -188,20 +199,54 @@ export function refineSupabaseTypes(source) {
     }
 
     for (const [fieldName, baseType] of Object.entries(fields)) {
-      const marker = `          ${fieldName}: `
-      const lines = value.split('\n').filter((line) => line.startsWith(marker))
-      if (lines.length !== 1) {
-        throw new Error(`Expected exactly one ${functionName}.${fieldName} result field`)
+      const marker = `${fieldName}: `
+      let matches = 0
+      value = value.split('\n').map((line) => {
+        const trimmed = line.trimStart()
+        if (!trimmed.startsWith(marker)) return line
+        matches += 1
+        const indentation = line.slice(0, line.length - trimmed.length)
+        const actualType = trimmed.slice(marker.length)
+        const nullableType = `${baseType} | null`
+        if (actualType !== baseType && actualType !== nullableType) {
+          throw new Error(
+            `Unexpected generated type for ${functionName}.${fieldName}: ${actualType}`,
+          )
+        }
+        return `${indentation}${marker}${nullableType}`
+      }).join('\n')
+      if (matches === 0) {
+        throw new Error(`Expected at least one ${functionName}.${fieldName} result field`)
       }
+    }
 
-      const actualType = lines[0].slice(marker.length)
-      const nullableType = `${baseType} | null`
-      if (actualType !== baseType && actualType !== nullableType) {
-        throw new Error(
-          `Unexpected generated type for ${functionName}.${fieldName}: ${actualType}`,
-        )
+    refined = `${refined.slice(0, block.start)}${value}${refined.slice(block.end)}`
+  }
+
+  for (const [functionName, fields] of Object.entries(nullableRpcArguments)) {
+    const block = functionBlock(refined, functionName)
+    let value = block.value
+
+    for (const [fieldName, baseType] of Object.entries(fields)) {
+      const marker = `${fieldName}: `
+      let matches = 0
+      value = value.split('\n').map((line) => {
+        const trimmed = line.trimStart()
+        if (!trimmed.startsWith(marker)) return line
+        matches += 1
+        const indentation = line.slice(0, line.length - trimmed.length)
+        const actualType = trimmed.slice(marker.length)
+        const nullableType = `${baseType} | null`
+        if (actualType !== baseType && actualType !== nullableType) {
+          throw new Error(
+            `Unexpected generated type for ${functionName}.${fieldName}: ${actualType}`,
+          )
+        }
+        return `${indentation}${marker}${nullableType}`
+      }).join('\n')
+      if (matches === 0) {
+        throw new Error(`Expected at least one ${functionName}.${fieldName} argument field`)
       }
-      value = value.replace(`${marker}${actualType}`, `${marker}${nullableType}`)
     }
 
     refined = `${refined.slice(0, block.start)}${value}${refined.slice(block.end)}`
