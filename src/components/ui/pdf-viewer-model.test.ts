@@ -10,6 +10,7 @@ import {
   normalizePdfSearchQuery,
   pdfThumbnailPages,
   pdfPageHeight,
+  pdfFitPageScale,
 } from './pdf-viewer-model'
 
 test('clamps direct and event-driven pages to safe document bounds', () => {
@@ -41,6 +42,13 @@ test('preserves placeholder geometry across fit, zoom and rotation', () => {
   assert.equal(pdfPageHeight({ sourceSize, rotation: 0, fitWidth: true, pageWidth: 300, scale: 1 }), 450)
   assert.equal(pdfPageHeight({ sourceSize, rotation: 90, fitWidth: true, pageWidth: 300, scale: 1 }), 200)
   assert.equal(pdfPageHeight({ sourceSize, rotation: 0, fitWidth: false, scale: 1.5 }), 1350)
+})
+
+test('fits each page inside both viewport dimensions after rotation', () => {
+  const sourceSize = { width: 600, height: 900 }
+  assert.equal(pdfFitPageScale({ sourceSize, rotation: 0, viewportWidth: 300, viewportHeight: 300 }), 1 / 3)
+  assert.equal(pdfFitPageScale({ sourceSize, rotation: 90, viewportWidth: 300, viewportHeight: 300 }), 1 / 3)
+  assert.equal(pdfFitPageScale({ sourceSize, rotation: 0, viewportWidth: 1200, viewportHeight: 900 }), 1)
 })
 
 test('bounds each search pass and reports when coverage is complete', () => {

@@ -5,7 +5,7 @@ import test from 'node:test'
 test('the shared PDF viewer owns one responsive scroller and fit-width toolbar', async () => {
   const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /new ResizeObserver\(updateWidth\)/)
+  assert.match(source, /new ResizeObserver\(updateViewport\)/)
   assert.match(source, /Fit width/)
   assert.match(source, /flex-wrap/)
   assert.match(source, /min-h-0 w-full flex-1 justify-center overflow-auto/)
@@ -60,4 +60,14 @@ test('the responsive thumbnail strip is bounded and synchronized to the current 
   assert.match(source, /overflow-x-auto overscroll-x-contain/)
   assert.match(source, /Earlier pages/)
   assert.match(source, /Later pages/)
+})
+
+test('Fit page uses both viewer dimensions and preserves the active page on resize', async () => {
+  const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /Fit page/)
+  assert.match(source, /pdfFitPageScale\(\{ sourceSize: pageSizes\[page\], rotation, viewportWidth: pageWidth, viewportHeight: pageViewportHeight \}\)/)
+  assert.match(source, /setPageViewportHeight\(Math\.max\(1, container\.clientHeight - verticalPadding\)\)/)
+  assert.match(source, /\[fitPage, fitWidth, pageNumber, pageViewportHeight, pageWidth\]/)
+  assert.match(source, /setFitPage\(false\)/)
 })

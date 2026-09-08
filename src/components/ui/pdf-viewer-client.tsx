@@ -15,6 +15,7 @@ import {
   nextPdfSearchBatch,
   normalizePdfSearchQuery,
   PDF_SEARCH_BATCH_SIZE,
+  pdfFitPageScale,
   pdfPageHeight,
   pdfThumbnailPages,
 } from './pdf-viewer-model';
@@ -38,8 +39,10 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [pageNumber, setPageNumber] = useState<number>(() => clampPdfPage(initialPage));
   const [scale, setScale] = useState<number>(1.0);
   const [fitWidth, setFitWidth] = useState(true);
+  const [fitPage, setFitPage] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [pageWidth, setPageWidth] = useState<number>();
+  const [pageViewportHeight, setPageViewportHeight] = useState<number>();
   const [pageSizes, setPageSizes] = useState<Record<number, { width: number; height: number }>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchQuery, setActiveSearchQuery] = useState('');
@@ -94,6 +97,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     setPageNumber(clampPdfPage(initialPage));
     setScale(1);
     setFitWidth(true);
+    setFitPage(false);
     setRotation(0);
     setSearchQuery('');
     setActiveSearchQuery('');
@@ -121,15 +125,27 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const updateWidth = () => {
+    const updateViewport = () => {
       const horizontalPadding = window.innerWidth < 640 ? 16 : 32;
+      const verticalPadding = window.innerWidth < 640 ? 16 : 32;
       setPageWidth(Math.max(1, container.clientWidth - horizontalPadding));
+      setPageViewportHeight(Math.max(1, container.clientHeight - verticalPadding));
     };
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    updateViewport();
+    const observer = new ResizeObserver(updateViewport);
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!fitWidth && !fitPage) return;
+    shouldScrollToPageRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      scrollPageIntoView(pageNumber);
+      shouldScrollToPageRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitPage, fitWidth, pageNumber, pageViewportHeight, pageWidth]);
 
   function onDocumentLoadSuccess(document: PDFDocumentProxy): void {
     pdfDocumentRef.current = document;
@@ -202,12 +218,20 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
 
   function zoomBy(delta: number) {
     setFitWidth(false);
+    setFitPage(false);
     setScale(current => Math.min(3, Math.max(0.5, current + delta)));
     preserveCurrentPageAfterLayout();
   }
 
   function fitPageWidth() {
     setFitWidth(true);
+    setFitPage(false);
+    preserveCurrentPageAfterLayout();
+  }
+
+  function fitWholePage() {
+    setFitWidth(false);
+    setFitPage(true);
     preserveCurrentPageAfterLayout();
   }
 
@@ -226,7 +250,19 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   }
 
   function pageHeight(page: number) {
+    if (fitPage) {
+      const sourceSize = pageSizes[page];
+      const rotated = rotation % 180 !== 0;
+      const height = rotated ? (sourceSize?.width ?? 612) : (sourceSize?.height ?? 792);
+      return height * pdfFitPageScale({ sourceSize, rotation, viewportWidth: pageWidth, viewportHeight: pageViewportHeight });
+    }
     return pdfPageHeight({ sourceSize: pageSizes[page], rotation, fitWidth, pageWidth, scale });
+  }
+
+  function pageScale(page: number) {
+    return fitPage
+      ? pdfFitPageScale({ sourceSize: pageSizes[page], rotation, viewportWidth: pageWidth, viewportHeight: pageViewportHeight })
+      : scale;
   }
 
   function changeSearchQuery(value: string) {
@@ -384,7 +420,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           <ZoomOut size={16} />
         </Button>
         <span className="w-12 text-center text-sm font-medium text-[var(--text-primary)]">
-          {fitWidth ? 'Fit' : `${Math.round(scale * 100)}%`}
+          {fitWidth ? 'Width' : fitPage ? 'Page' : `${Math.round(scale * 100)}%`}
         </span>
         <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom in" title="Zoom in" onClick={() => zoomBy(0.2)}>
           <ZoomIn size={16} />
@@ -392,6 +428,10 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         <Button type="button" variant="outline" className="min-h-11" onClick={fitPageWidth} aria-pressed={fitWidth}>
           <PanelTop size={16} aria-hidden="true" />
           Fit width
+        </Button>
+        <Button type="button" variant="outline" className="min-h-11" onClick={fitWholePage} aria-pressed={fitPage}>
+          <PanelTop size={16} aria-hidden="true" />
+          Fit page
         </Button>
         <Button
           type="button"
@@ -581,7 +621,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
                   <Page
                     pageNumber={page}
                     width={fitWidth ? pageWidth : undefined}
-                    scale={fitWidth ? undefined : scale}
+                    scale={fitWidth ? undefined : pageScale(page)}
                     rotate={rotation}
                     onLoadSuccess={(proxy) => recordPageSize(page, proxy)}
                     customTextRenderer={searchResults.includes(page)

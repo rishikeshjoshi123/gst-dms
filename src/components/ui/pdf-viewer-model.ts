@@ -44,6 +44,24 @@ export function pdfPageHeight({
   return Math.max(1, height * scale)
 }
 
+export function pdfFitPageScale({
+  sourceSize = DEFAULT_PDF_PAGE_SIZE,
+  rotation,
+  viewportWidth,
+  viewportHeight,
+}: {
+  sourceSize?: { width: number; height: number }
+  rotation: number
+  viewportWidth?: number
+  viewportHeight?: number
+}) {
+  const rotated = rotation % 180 !== 0
+  const width = rotated ? sourceSize.height : sourceSize.width
+  const height = rotated ? sourceSize.width : sourceSize.height
+  if (!viewportWidth || !viewportHeight) return 1
+  return Math.max(0.1, Math.min(viewportWidth / width, viewportHeight / height))
+}
+
 export function normalizePdfSearchQuery(value: string) {
   return value.trim().replace(/\s+/g, ' ').slice(0, 100)
 }

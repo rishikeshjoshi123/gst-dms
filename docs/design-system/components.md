@@ -37,6 +37,7 @@ Use [`pdf-viewer.tsx`](../../src/components/ui/pdf-viewer.tsx) for an authorised
 
 - The viewer may render the requested page before it knows the PDF page count, then clamps it to the real bounds after loading. An omitted or rejected locator starts at page 1.
 - Keep page, zoom, rotation, search, and thumbnail controls outside the PDF body scroller. Previous/next and zoom controls are shared icon buttons with accessible names and the shared effective 44px touch target; ambiguous disclosures use visible labels.
+- Fit page uses both available viewer dimensions and the rotated source-page geometry; resize or disclosure changes preserve the active page rather than inheriting a stale scroll offset.
 - Native-PDF text search runs in explicit bounded batches and reports completed page coverage without implying OCR coverage. The thumbnail disclosure is a horizontal, labelled page navigator with at most five nearby thumbnail canvases; it synchronizes to the current page without adding another vertical scroll owner.
 - A viewer reference should describe page location and toolbar behaviour without simulating a document or creating a second source-viewer implementation.
 

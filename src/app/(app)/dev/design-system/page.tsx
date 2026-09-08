@@ -78,6 +78,7 @@ export default function DesignSystemPage() {
             <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom out</span>
             <span className="px-2 font-medium text-[var(--text-primary)]">100%</span>
             <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Zoom in</span>
+            <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Fit page</span>
             <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface-hover)] px-3 py-2">Show thumbnails</span>
           </div>
           <div className="mt-3 flex gap-2 overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-2" aria-label="Thumbnail navigator reference">
