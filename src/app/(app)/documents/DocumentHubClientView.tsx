@@ -64,6 +64,8 @@ type DetailTab = 'overview' | 'placement'
 type DocumentHubClientViewProps = {
   initialDocuments: InboxQueueDocument[]
   initialQueueError: string | null
+  initialQueueTotal: number
+  initialNextOffset: number
   matters: MatterOption[]
   preselectedMatterId?: string
   preselectedIntakeId?: string
@@ -187,11 +189,16 @@ function intakeStateCopy(document: InboxQueueDocument) {
 export function DocumentHubClientView({
   initialDocuments,
   initialQueueError,
+  initialQueueTotal,
+  initialNextOffset,
   matters,
   preselectedMatterId,
   preselectedIntakeId,
 }: DocumentHubClientViewProps) {
   const [documents, setDocuments] = useState(() => uniqueDocuments(initialDocuments))
+  const [queueTotal, setQueueTotal] = useState(initialQueueTotal)
+  const [nextOffset, setNextOffset] = useState(initialNextOffset)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     initialDocuments.some((document) => document.id === preselectedIntakeId)
       ? preselectedIntakeId ?? null
@@ -212,12 +219,20 @@ export function DocumentHubClientView({
   const [isOffline, setIsOffline] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isDiscardOpen, setIsDiscardOpen] = useState(false)
-  const [renderedQueueProps, setRenderedQueueProps] = useState({ initialDocuments, initialQueueError })
+  const [renderedQueueProps, setRenderedQueueProps] = useState({
+    initialDocuments,
+    initialQueueError,
+    initialQueueTotal,
+    initialNextOffset,
+  })
   const [isActionPending, startActionTransition] = useTransition()
   const uploadButtonRef = useRef<HTMLButtonElement>(null)
   const sourceButtonRef = useRef<HTMLButtonElement>(null)
   const selectedIdRef = useRef(selectedId)
+  const documentsRef = useRef(documents)
+  const loadedPageOffsetsRef = useRef([0])
   const sourceRequestGeneration = useRef(0)
+  const queueRequestGeneration = useRef(0)
   const actionKeys = useRef(new Map<string, string>())
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
@@ -236,19 +251,31 @@ export function DocumentHubClientView({
     selectedIdRef.current = selectedId
   }, [selectedId])
 
+  useEffect(() => {
+    documentsRef.current = documents
+  }, [documents])
+
   if (
     renderedQueueProps.initialDocuments !== initialDocuments
     || renderedQueueProps.initialQueueError !== initialQueueError
+    || renderedQueueProps.initialQueueTotal !== initialQueueTotal
+    || renderedQueueProps.initialNextOffset !== initialNextOffset
   ) {
-    setRenderedQueueProps({ initialDocuments, initialQueueError })
+    setRenderedQueueProps({ initialDocuments, initialQueueError, initialQueueTotal, initialNextOffset })
     if (initialQueueError) {
       setRefreshError(`${initialQueueError} Showing the last loaded documents.`)
     } else {
       setRefreshError(null)
       setDocuments(uniqueDocuments(initialDocuments))
+      setQueueTotal(initialQueueTotal)
+      setNextOffset(initialNextOffset)
       setLastSuccessfulRefreshAt(freshnessClock)
     }
   }
+
+  useEffect(() => {
+    loadedPageOffsetsRef.current = [0]
+  }, [initialDocuments, initialNextOffset, initialQueueError, initialQueueTotal])
 
   useEffect(() => {
     if (preselectedMatterId && selectedMatterContext) {
@@ -347,13 +374,41 @@ export function DocumentHubClientView({
   }
 
   const refreshQueue = useCallback(async () => {
+    const generation = queueRequestGeneration.current + 1
+    queueRequestGeneration.current = generation
+    setIsLoadingMore(false)
     try {
-      const result = await getStagedDocuments()
-      const reconciled = reconcileInboxQueue(documents, result)
+      const offsets = [...loadedPageOffsetsRef.current]
+      const results = await Promise.all(offsets.map((offset, index) => getStagedDocuments({
+        offset,
+        includeId: index === 0 ? selectedIdRef.current ?? undefined : undefined,
+      })))
+      if (queueRequestGeneration.current !== generation) return
+
+      const failedResult = results.find((result) => !result.ok)
+      if (failedResult && !failedResult.ok) {
+        const reconciled = reconcileInboxQueue(documentsRef.current, failedResult)
+        setRefreshError(reconciled.error)
+        return
+      }
+
+      const successfulResults = results.filter((result) => result.ok)
+      const firstResult = successfulResults[0]
+      if (!firstResult) return
+      const reconciled = reconcileInboxQueue(documentsRef.current, {
+        ...firstResult,
+        documents: successfulResults.flatMap((result) => result.documents),
+      })
       setRefreshError(reconciled.error)
+      documentsRef.current = reconciled.documents
       setDocuments(reconciled.documents)
-      if (result.ok) setLastSuccessfulRefreshAt(Date.now())
-      if (result.ok && selectedId && !reconciled.documents.some((document) => document.id === selectedId)) {
+      setQueueTotal(firstResult.total)
+      const retainedOffsets = offsets.filter((offset) => offset === 0 || offset < firstResult.total)
+      loadedPageOffsetsRef.current = retainedOffsets
+      setNextOffset(Math.max(...retainedOffsets) + firstResult.limit)
+      setLastSuccessfulRefreshAt(Date.now())
+      const selectedId = selectedIdRef.current
+      if (selectedId && !reconciled.documents.some((document) => document.id === selectedId)) {
         sourceRequestGeneration.current += 1
         selectedIdRef.current = null
         setIsSourcePending(false)
@@ -371,7 +426,36 @@ export function DocumentHubClientView({
           : 'The queue could not be refreshed. Showing the last loaded documents.',
       )
     }
-  }, [documents, preselectedMatterId, router, selectedId])
+  }, [preselectedMatterId, router])
+
+  async function loadMoreDocuments() {
+    if (isLoadingMore || nextOffset >= queueTotal) return
+    const generation = queueRequestGeneration.current + 1
+    queueRequestGeneration.current = generation
+    setIsLoadingMore(true)
+    try {
+      const result = await getStagedDocuments({ offset: nextOffset })
+      if (queueRequestGeneration.current !== generation) return
+      if (!result.ok) {
+        setRefreshError(`${result.error} Showing the last loaded documents.`)
+        return
+      }
+
+      const mergedDocuments = uniqueDocuments([...documentsRef.current, ...result.documents])
+      documentsRef.current = mergedDocuments
+      setDocuments(mergedDocuments)
+      setQueueTotal(result.total)
+      loadedPageOffsetsRef.current = [...loadedPageOffsetsRef.current, result.offset]
+      setNextOffset(result.offset + result.limit)
+      setRefreshError(null)
+      setLastSuccessfulRefreshAt(Date.now())
+    } catch (error) {
+      if (queueRequestGeneration.current !== generation) return
+      setRefreshError(error instanceof Error ? error.message : 'More documents could not be loaded.')
+    } finally {
+      if (queueRequestGeneration.current === generation) setIsLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -455,19 +539,14 @@ export function DocumentHubClientView({
 
       actionKeys.current.delete(`assign:${intakeId}`)
       const remainingDocuments = documents.filter((document) => document.id !== intakeId)
+      documentsRef.current = remainingDocuments
       setDocuments(remainingDocuments)
+      setQueueTotal((current) => Math.max(0, current - 1))
       closeDetails()
       toast.success('Document assigned to the matter')
 
       try {
-        const result = await getStagedDocuments()
-        const reconciled = reconcileInboxQueue(remainingDocuments, result)
-        if (reconciled.error) {
-          setRefreshError(`Assignment completed. ${reconciled.error}`)
-          return
-        }
-        setDocuments(reconciled.documents)
-        setLastSuccessfulRefreshAt(Date.now())
+        await refreshQueue()
       } catch {
         setRefreshError('Assignment completed. The remaining queue could not be refreshed, so the last loaded items are still shown.')
       }
@@ -488,7 +567,10 @@ export function DocumentHubClientView({
       }
 
       actionKeys.current.delete(`discard:${intakeId}`)
-      setDocuments((current) => current.filter((document) => document.id !== intakeId))
+      const remainingDocuments = documents.filter((document) => document.id !== intakeId)
+      documentsRef.current = remainingDocuments
+      setDocuments(remainingDocuments)
+      setQueueTotal((current) => Math.max(0, current - 1))
       setIsDiscardOpen(false)
       closeDetails()
       toast.success('Upload discarded')
@@ -528,12 +610,14 @@ export function DocumentHubClientView({
           id="document-hub-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search documents"
+          placeholder="Search loaded documents"
           className="h-11 pl-9 sm:h-9"
         />
       </div>
       <p className="shrink-0 text-xs text-[var(--text-muted)]" aria-live="polite">
-        {filteredDocuments.length} of {documents.length} documents
+        {query.trim()
+          ? `${filteredDocuments.length} matches in ${documents.length} loaded · ${queueTotal} total`
+          : `${documents.length} of ${queueTotal} documents`}
       </p>
       <p
         className="shrink-0 text-xs text-[var(--text-muted)]"
@@ -562,9 +646,20 @@ export function DocumentHubClientView({
         <div className="flex min-h-64 items-center justify-center p-6 text-center">
           <div>
             <Search className="mx-auto size-6 text-[var(--text-muted)]" aria-hidden="true" />
-            <h2 className="mt-3 text-section-heading">No matching documents</h2>
-            <p className="mt-1 text-body text-[var(--text-muted)]">Clear the search to return to the full queue.</p>
-            <Button type="button" variant="outline" className="mt-4" onClick={() => setQuery('')}>Clear search</Button>
+            <h2 className="mt-3 text-section-heading">No matches in loaded documents</h2>
+            <p className="mt-1 text-body text-[var(--text-muted)]">
+              {nextOffset < queueTotal
+                ? 'Load more documents to extend this search, or clear it to return to the loaded queue.'
+                : 'Clear the search to return to the full queue.'}
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button type="button" variant="outline" onClick={() => setQuery('')}>Clear search</Button>
+              {nextOffset < queueTotal && (
+                <Button type="button" variant="outline" onClick={loadMoreDocuments} loading={isLoadingMore}>
+                  Load more documents
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -645,6 +740,13 @@ export function DocumentHubClientView({
               )
             })}
           </div>
+          {nextOffset < queueTotal && (
+            <div className="flex justify-center border-t border-[var(--border)] p-3">
+              <Button type="button" variant="outline" onClick={loadMoreDocuments} loading={isLoadingMore}>
+                Load more documents
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>

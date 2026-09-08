@@ -6,6 +6,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { getCurrentOrgId } from './org'
 import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
+import { normalizeInboxQueuePage, type InboxQueuePageOptions } from '@/lib/inbox-pagination'
 
 export type InboxQueueDocument = {
   id: string
@@ -25,52 +26,103 @@ export type InboxQueueDocument = {
 
 /** Canonical Inbox projection; legacy staged rows are retirement history. */
 export type InboxQueueReadResult =
-  | { ok: true; documents: InboxQueueDocument[] }
+  | { ok: true; documents: InboxQueueDocument[]; total: number; offset: number; limit: number }
   | { ok: false; error: string }
 
-export async function getStagedDocuments(): Promise<InboxQueueReadResult> {
+const ACTIVE_INTAKE_STATES = ['awaiting_upload', 'uploaded', 'validating', 'processing', 'ready', 'duplicate', 'failed'] as const
+const INBOX_QUEUE_SELECT = 'id, state, failure_code, created_at, intended_matter_id, upload_session:upload_sessions(declared_filename)'
+
+type CanonicalIntakeRow = {
+  id: string
+  state: string
+  failure_code: string | null
+  created_at: string
+  intended_matter_id: string | null
+  upload_session: unknown
+}
+
+function projectInboxDocument(item: CanonicalIntakeRow): InboxQueueDocument {
+  const session = item.upload_session as { declared_filename: string } | null
+  return {
+    id: item.id,
+    source_kind: 'canonical_intake',
+    storage_path: session?.declared_filename ?? 'Untitled PDF',
+    status: canonicalInboxStatus(item.state),
+    created_at: item.created_at,
+    intake_matter_id: item.intended_matter_id,
+    suggested_client: null,
+    suggested_matter: null,
+    suggested_matter_ids: null,
+    suggestion_reason: canonicalInboxReason(item.state, item.failure_code),
+    raw_metadata: null,
+    canonical_intake_state: item.state,
+    canonical_failure_code: item.failure_code,
+  }
+}
+
+export async function getStagedDocuments(options: InboxQueuePageOptions = {}): Promise<InboxQueueReadResult> {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { ok: false, error: 'No active organisation is available.' }
+  const { offset, limit, includeId } = normalizeInboxQueuePage(options)
 
   // Lifecycle tables intentionally have no browser table grant. The server
   // resolves the active organisation and returns only canonical Intake rows.
   const service = createServiceClient()
-  const { data: intakeItems, error } = await service
+  const { data: intakeItems, error, count } = await service
     .from('intake_items')
-    .select('id, state, failure_code, created_at, intended_matter_id, upload_session:upload_sessions(declared_filename)')
+    .select(INBOX_QUEUE_SELECT, { count: 'exact' })
     .eq('org_id', orgId)
-    .in('state', ['awaiting_upload', 'uploaded', 'validating', 'processing', 'ready', 'duplicate', 'failed'])
+    .in('state', ACTIVE_INTAKE_STATES)
     .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(offset, offset + limit - 1)
 
-  if (error) {
+  if (error || count === null) {
     console.error('Failed to load canonical inbox intakes:', error)
     return { ok: false, error: 'The document queue could not be loaded.' }
   }
 
-  const documents = (intakeItems ?? []).map((item) => {
-    const session = item.upload_session as unknown as { declared_filename: string } | null
-    return {
-      id: item.id,
-      source_kind: 'canonical_intake' as const,
-      storage_path: session?.declared_filename ?? 'Untitled PDF',
-      status: canonicalInboxStatus(item.state),
-      created_at: item.created_at,
-      intake_matter_id: item.intended_matter_id,
-      suggested_client: null,
-      suggested_matter: null,
-      suggested_matter_ids: null,
-      suggestion_reason: canonicalInboxReason(item.state, item.failure_code),
-      raw_metadata: null,
-      canonical_intake_state: item.state,
-      canonical_failure_code: item.failure_code,
+  const rows = (intakeItems ?? []) as unknown as CanonicalIntakeRow[]
+  if (includeId && !rows.some((item) => item.id === includeId)) {
+    const { data: selectedItem, error: selectedError } = await service
+      .from('intake_items')
+      .select(INBOX_QUEUE_SELECT)
+      .eq('org_id', orgId)
+      .eq('id', includeId)
+      .in('state', ACTIVE_INTAKE_STATES)
+      .maybeSingle()
+
+    if (selectedError) {
+      console.error('Failed to load the selected canonical inbox intake:', selectedError)
+      return { ok: false, error: 'The selected document could not be loaded.' }
     }
-  })
-  return { ok: true, documents }
+    if (selectedItem) rows.push(selectedItem as unknown as CanonicalIntakeRow)
+  }
+
+  return {
+    ok: true,
+    documents: rows.map(projectInboxDocument),
+    total: count,
+    offset,
+    limit,
+  }
 }
 
 export async function getStagedDocumentCount() {
-  const result = await getStagedDocuments()
-  return result.ok ? result.documents.length : 0
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return 0
+
+  const { count, error } = await createServiceClient()
+    .from('intake_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .in('state', ACTIVE_INTAKE_STATES)
+
+  if (error || count === null) {
+    console.error('Failed to count canonical inbox intakes:', error)
+    return 0
+  }
+  return count
 }
 
 export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: string, idempotencyKey: string) {

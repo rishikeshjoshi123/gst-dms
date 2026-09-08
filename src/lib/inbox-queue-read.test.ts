@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises'
 const existing = [{ id: 'existing' }] as InboxQueueDocument[]
 
 test('a successful empty queue clears the last snapshot', () => {
-  const result = reconcileInboxQueue(existing, { ok: true, documents: [] })
+  const result = reconcileInboxQueue(existing, { ok: true, documents: [], total: 0, offset: 0, limit: 50 })
   assert.deepEqual(result, { documents: [], error: null })
 })
 

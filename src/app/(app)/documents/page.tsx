@@ -14,13 +14,15 @@ export default async function DocumentsPage({ searchParams }: DocumentsPageProps
   const matterId = typeof resolvedParams.matterId === 'string' ? resolvedParams.matterId : undefined
   const intakeId = typeof resolvedParams.intakeId === 'string' ? resolvedParams.intakeId : undefined
 
-  const queueResult = await getStagedDocuments()
+  const queueResult = await getStagedDocuments({ includeId: intakeId })
   const matters = await getMatters()
 
   return (
     <DocumentHubClientView
       initialDocuments={queueResult.ok ? queueResult.documents : []}
       initialQueueError={queueResult.ok ? null : queueResult.error}
+      initialQueueTotal={queueResult.ok ? queueResult.total : 0}
+      initialNextOffset={queueResult.ok ? queueResult.offset + queueResult.limit : 0}
       matters={matters}
       preselectedMatterId={matterId}
       preselectedIntakeId={intakeId}

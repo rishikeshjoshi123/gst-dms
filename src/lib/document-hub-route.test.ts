@@ -19,7 +19,7 @@ test('makes documents the queue owner and inbox a redirect-only compatibility ro
   const documentsPage = readFileSync(new URL('../app/(app)/documents/page.tsx', import.meta.url), 'utf8')
   const inboxPage = readFileSync(new URL('../app/(app)/inbox/page.tsx', import.meta.url), 'utf8')
 
-  assert.match(documentsPage, /getStagedDocuments\(\)/)
+  assert.match(documentsPage, /getStagedDocuments\(\{ includeId: intakeId \}\)/)
   assert.match(documentsPage, /<DocumentHubClientView/)
   assert.doesNotMatch(documentsPage, /InboxClientView/)
   assert.match(inboxPage, /permanentRedirect\(documentHubPath\(await searchParams\)\)/)
