@@ -35,7 +35,7 @@ export async function getDocumentsByMatter(matterId: string) {
   let all = data ?? []
   const docIds = all.map(d => d.id)
 
-  let links: any[] = []
+  let links: Database['public']['Tables']['document_links']['Row'][] = []
   if (docIds.length > 0) {
     const { data: linksData } = await supabase
       .from('document_links')
@@ -99,16 +99,20 @@ export async function getNeedsReviewDocuments() {
 
 // ── Upload Directly to a Matter ───────────────────────────────────
 
-export async function uploadToMatter(matterId: string, formData: FormData) {
-  return uploadToDocumentIntake(formData, matterId)
+type DocumentUploadReservationInput = {
+  filename: string
+  declaredBytes: number
+  intendedMatterId: string | null
+  idempotencyKey: string
 }
 
-/**
- * Stores a PDF through the one canonical reservation/finalisation pipeline.
- * An omitted intended matter deliberately leaves the intake unassigned for
- * global Inbox triage; the browser never writes a storage path or intake row.
- */
-export async function uploadToDocumentIntake(formData: FormData, intendedMatterId: string | null = null) {
+type DocumentUploadFinalizationInput = {
+  uploadSessionId: string
+  idempotencyKey: string
+}
+
+/** Reserve canonical lifecycle rows before the browser transfers any bytes. */
+export async function reserveDocumentUpload(input: DocumentUploadReservationInput) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return uploadFailureResult('No active organisation.', 'terminal')
@@ -116,15 +120,21 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return uploadFailureResult('Not authenticated.', 'terminal')
 
-  const file = formData.get('file') as File
-  if (!file) return uploadFailureResult('No file provided.', 'terminal')
-
-  const idempotencyKey = uploadIdempotencyKey(formData.get('upload_idempotency_key'))
-  if (!idempotencyKey) return uploadFailureResult('This upload could not be prepared. Please choose the file again.', 'terminal')
+  const idempotencyKey = uploadIdempotencyKey(input.idempotencyKey)
+  const intendedMatterId = input.intendedMatterId === null ? null : uploadIdempotencyKey(input.intendedMatterId)
+  if (
+    !idempotencyKey
+    || typeof input.filename !== 'string'
+    || !Number.isSafeInteger(input.declaredBytes)
+    || input.declaredBytes <= 0
+    || (input.intendedMatterId !== null && !intendedMatterId)
+  ) {
+    return uploadFailureResult('This upload could not be prepared. Please choose the file again.', 'terminal')
+  }
   const { data: reservations, error: reservationError } = await supabase.rpc('reserve_document_upload', {
-    p_filename: file.name,
+    p_filename: input.filename,
     p_mime: 'application/pdf',
-    p_declared_bytes: file.size,
+    p_declared_bytes: input.declaredBytes,
     p_intended_matter: intendedMatterId as string,
     p_idempotency: idempotencyKey,
   })
@@ -142,9 +152,73 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   }
 
   const storage = createServiceClient()
+  const { data: signedUpload, error: signedUploadError } = await storage.storage
+    .from(reservation.bucket_id)
+    .createSignedUploadUrl(reservation.object_key, { upsert: false })
+
+  if (signedUploadError || !signedUpload) {
+    console.error('Document signed upload URL creation failed:', signedUploadError)
+    return uploadFailureResult('Could not prepare the private upload. Please try again.')
+  }
+
+  return {
+    success: true as const,
+    uploadSessionId: reservation.upload_session_id,
+    intakeId: reservation.intake_item_id,
+    bucketName: reservation.bucket_id,
+    objectName: reservation.object_key,
+    signedUploadToken: signedUpload.token,
+    tusEndpoint: resumableStorageEndpoint(),
+    expiresAt: reservation.expires_at,
+  }
+}
+
+/** Observe and finalise the exact reserved object after its direct transfer. */
+export async function finalizeDocumentUpload(input: DocumentUploadFinalizationInput) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return uploadFailureResult('No active organisation.', 'terminal')
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return uploadFailureResult('Not authenticated.', 'terminal')
+
+  const idempotencyKey = uploadIdempotencyKey(input.idempotencyKey)
+  const uploadSessionId = uploadIdempotencyKey(input.uploadSessionId)
+  if (!idempotencyKey || !uploadSessionId) return uploadFailureResult('This upload could not be finalised safely.', 'terminal')
+
+  const storage = createServiceClient()
+  const { data: session, error: sessionError } = await storage
+    .from('upload_sessions')
+    .select('id, asset_id, state, expires_at')
+    .eq('id', uploadSessionId)
+    .eq('org_id', orgId)
+    .eq('created_by', user.id)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle()
+
+  if (sessionError || !session || session.state !== 'reserved' || new Date(session.expires_at).getTime() <= Date.now()) {
+    return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  }
+
+  const { data: asset, error: assetError } = await storage
+    .from('file_assets')
+    .select('id, bucket_id, object_key')
+    .eq('id', session.asset_id)
+    .eq('org_id', orgId)
+    .eq('availability', 'reserved')
+    .maybeSingle()
+
+  if (assetError || !asset) return uploadFailureResult('This upload reservation is no longer available.', 'terminal')
+  const { data: intake } = await storage
+    .from('intake_items')
+    .select('intended_matter_id')
+    .eq('upload_session_id', uploadSessionId)
+    .eq('org_id', orgId)
+    .maybeSingle()
+
   const recordObservedBytes = async (observedBytes: number) => {
     const { data, error } = await storage.rpc('record_document_upload_observed_bytes', {
-      p_session: reservation.upload_session_id,
+      p_session: uploadSessionId,
       p_observed_bytes: observedBytes,
     })
     if (error || data?.[0]?.code !== 'ok') {
@@ -157,7 +231,7 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   }
   const recordStorageDeletion = async () => {
     const { data, error } = await storage.rpc('record_document_asset_storage_deleted', {
-      p_asset_id: reservation.asset_id,
+      p_asset_id: asset.id,
     })
     const code = data?.[0]?.code
     if (error || !storageDeletionWasRecorded(code)) {
@@ -170,7 +244,7 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
     return true
   }
   const removeTerminalAsset = async () => {
-    const { error } = await storage.storage.from(reservation.bucket_id).remove([reservation.object_key])
+    const { error } = await storage.storage.from(asset.bucket_id).remove([asset.object_key])
     if (error) {
       // A failed physical deletion must remain counted; do not tombstone it.
       console.error('Terminal document asset could not be deleted:', error)
@@ -180,7 +254,7 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   }
   const failUpload = async (errorCode: 'upload_failed' | 'invalid_pdf' | 'storage_missing' | 'upload_rejected') => {
     const { data, error } = await storage.rpc('fail_document_upload', {
-      p_session: reservation.upload_session_id,
+      p_session: uploadSessionId,
       // `validation_failed` is the durable lifecycle code for a server-read
       // object rejected by completion policy; `upload_rejected` is only a UI
       // categorisation and is not accepted by the database command.
@@ -199,20 +273,13 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
     return true
   }
 
-  const { error: uploadError } = await storage.storage
-    .from(reservation.bucket_id)
-    .upload(reservation.object_key, file, { contentType: 'application/pdf', upsert: false })
-  // An object may already exist when a request timed out after Storage accepted
-  // the bytes. Read the reserved key before treating that retry as a failure.
   const { data: storedObject, error: downloadError } = await storage.storage
-    .from(reservation.bucket_id)
-    .download(reservation.object_key)
+    .from(asset.bucket_id)
+    .download(asset.object_key)
   if (downloadError || !storedObject) {
-    console.error('Reserved document storage upload or observation failed:', uploadError ?? downloadError)
-    const terminalised = await failUpload(uploadError ? 'upload_failed' : 'storage_missing')
-    return terminalised
-      ? uploadFailureResult(uploadError ? 'The PDF upload did not complete.' : 'The uploaded PDF could not be verified.', 'terminal')
-      : uploadFailureResult('The uploaded PDF could not be recorded safely. Retry this file.')
+    console.error('Reserved document storage observation failed:', downloadError)
+    await failUpload('storage_missing')
+    return uploadFailureResult('The uploaded PDF could not be verified. Retry this file.')
   }
 
   const observation = await observeStoredPdf(storedObject)
@@ -227,7 +294,7 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   }
 
   const { data: completions, error: completionError } = await storage.rpc('complete_document_upload', {
-    p_session: reservation.upload_session_id,
+    p_session: uploadSessionId,
     p_observed_bytes: observation.byteSize,
     p_sha256: observation.sha256,
     p_detected_mime: observation.detectedMime,
@@ -264,8 +331,20 @@ export async function uploadToDocumentIntake(formData: FormData, intendedMatterI
   // and scheduled recovery remain the authority if the gateway is unavailable.
   scheduleDocumentOutboxWake()
   revalidatePath('/documents')
-  if (intendedMatterId) revalidatePath(`/matters/${intendedMatterId}`)
+  revalidatePath('/', 'layout')
+  if (intake?.intended_matter_id) revalidatePath(`/matters/${intake.intended_matter_id}`)
   return { success: true, intakeId: completion.intake_item_id }
+}
+
+function resumableStorageEndpoint() {
+  const base = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!)
+  if (base.hostname.endsWith('.supabase.co')) {
+    base.hostname = base.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co')
+  }
+  base.pathname = '/storage/v1/upload/resumable'
+  base.search = ''
+  base.hash = ''
+  return base.toString()
 }
 
 function documentUploadError(code: string) {

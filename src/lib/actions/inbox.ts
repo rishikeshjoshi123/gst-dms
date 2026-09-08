@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
-import { uploadToDocumentIntake } from './document'
 import { getCurrentOrgId } from './org'
 import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
 
@@ -66,16 +65,6 @@ export async function getStagedDocuments(): Promise<InboxQueueDocument[]> {
 
 export async function getStagedDocumentCount() {
   return (await getStagedDocuments()).length
-}
-
-export async function uploadToInbox(formData: FormData) {
-  // Matter context is only canonical Intake context; it never creates a
-  // staging-bucket object or staged_documents row.
-  const matterId = formData.get('matterId')
-  const intendedMatterId = typeof matterId === 'string' && matterId.length > 0 ? matterId : null
-  const result = await uploadToDocumentIntake(formData, intendedMatterId)
-  if ('success' in result) revalidatePath('/', 'layout')
-  return result
 }
 
 export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: string, idempotencyKey: string) {

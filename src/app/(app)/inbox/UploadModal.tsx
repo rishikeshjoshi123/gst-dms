@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { uploadToInbox } from '@/lib/actions/inbox'
+import { uploadDocumentFile } from '@/lib/uploads/resumable-document-upload'
 import { X, Loader2, FileText, UploadCloud, CheckCircle2, AlertCircle, Sparkles, Plus, FolderOpen, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -31,6 +31,7 @@ interface FileEntry {
   status: FileStatus
   error?: string
   retryable?: boolean
+  progress?: number
 }
 
 export function UploadModal({ onClose, matterId, matterName, inline = false, returnFocusRef }: UploadModalProps) {
@@ -96,12 +97,9 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     for (const entry of pending) {
       setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e))
 
-      const formData = new FormData()
-      formData.append('file', entry.file)
-      formData.append('upload_idempotency_key', entry.idempotencyKey)
-      if (matterId) formData.append('matterId', matterId)
-
-      const res = await uploadToInbox(formData)
+      const res = await uploadDocumentFile(entry.file, matterId ?? null, entry.idempotencyKey, progress => {
+        setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, progress } : e))
+      })
       if ('error' in res) {
         const retryable = res.retryable !== false
         setEntries(prev => prev.map(e => e.id === entry.id ? {
@@ -141,6 +139,8 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
   // begin transfer. There is no second "submit" decision to make.
   useEffect(() => {
     if (!isUploading && entries.some(entry => entry.status === 'pending')) {
+      // The queued file selection is the external event this effect consumes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void handleUpload()
     }
     // handleUpload intentionally reads the latest entries snapshot above.
@@ -336,7 +336,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
                           ? (entry.error || 'Upload failed. You can retry it.')
                           : isTerminal
                           ? (entry.error || 'This file was not added. Choose a different file or resolve the issue shown.')
-                          : isDone ? 'Uploaded successfully' : isUpl ? 'Uploading…' : formatBytes(entry.file.size)}
+                          : isDone ? 'Uploaded successfully' : isUpl ? `Uploading… ${entry.progress ?? 0}%` : formatBytes(entry.file.size)}
                       </span>
                     </div>
 

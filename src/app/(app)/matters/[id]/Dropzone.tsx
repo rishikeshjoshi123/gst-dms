@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
-import { uploadToMatter } from '@/lib/actions/document'
+import { uploadDocumentFile } from '@/lib/uploads/resumable-document-upload'
 import { UploadCloud, File as FileIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
-type QueuedUpload = { file: File; idempotencyKey: string; error?: string; retryable?: boolean }
+type QueuedUpload = { file: File; idempotencyKey: string; error?: string; retryable?: boolean; progress?: number }
 
 export function Dropzone({ matterId }: { matterId: string }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -59,10 +59,11 @@ export function Dropzone({ matterId }: { matterId: string }) {
       const retryableKeys = new Set<string>()
       const terminalMessages: string[] = []
       for (const queuedFile of files) {
-        const formData = new FormData()
-        formData.append('file', queuedFile.file)
-        formData.append('upload_idempotency_key', queuedFile.idempotencyKey)
-        const result = await uploadToMatter(matterId, formData)
+        const result = await uploadDocumentFile(queuedFile.file, matterId, queuedFile.idempotencyKey, progress => {
+          setFiles(current => current.map(upload => upload.idempotencyKey === queuedFile.idempotencyKey
+            ? { ...upload, progress }
+            : upload))
+        })
         if ('error' in result) {
           errorCount++
           if (result.retryable) {
@@ -138,13 +139,16 @@ export function Dropzone({ matterId }: { matterId: string }) {
 
       {files.length > 0 && (
         <div className="flex flex-col gap-2">
-          {files.map(({ file, idempotencyKey, error }, i) => (
+          {files.map(({ file, idempotencyKey, error, progress }, i) => (
             <div key={idempotencyKey} className="flex items-center justify-between p-3 rounded-md border border-[--border-subtle] bg-[--bg-surface]">
               <div className="flex min-w-0 items-center gap-3">
                 <FileIcon size={16} className="text-[--text-muted]" />
                 <div className="min-w-0">
                   <span className="block text-sm text-[--text-primary] truncate max-w-[200px] sm:max-w-xs">{file.name}</span>
                   {error && <span className="block text-xs text-[--danger]">{error}</span>}
+                  {uploadState === 'uploading' && progress !== undefined && !error && (
+                    <span className="block text-xs text-[--text-muted]">Uploading {progress}%</span>
+                  )}
                 </div>
                 <span className="shrink-0 text-xs text-[--text-muted]">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
               </div>

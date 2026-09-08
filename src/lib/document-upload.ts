@@ -62,7 +62,7 @@ export async function observeStoredPdf(blob: Blob): Promise<StoredPdfObservation
   }
 }
 
-export function uploadIdempotencyKey(value: FormDataEntryValue | null): string | null {
+export function uploadIdempotencyKey(value: unknown): string | null {
   return typeof value === 'string' && UUID_PATTERN.test(value) ? value : null
 }
 
