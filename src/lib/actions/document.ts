@@ -15,6 +15,7 @@ import {
 } from '@/lib/document-upload'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
+import { pdfSourceLookupFailureCode } from '@/lib/pdf-source-access'
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -396,27 +397,37 @@ export async function setDocumentClass(
 export async function getDocumentVersionSignedUrl(documentVersionId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
 
   const { data: grants, error: grantError } = await supabase.rpc('get_document_version_read_grant', {
     p_document_version_id: documentVersionId,
   })
   const grant = grants?.[0]
-  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
-    return { error: 'This document version is not available.' }
+  const bucketId = grant?.bucket_id
+  const objectKey = grant?.object_key
+  const grantFailureCode = pdfSourceLookupFailureCode({
+    lookupFailed: Boolean(grantError),
+    sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
+  })
+  if (grantFailureCode) {
+    if (grantError) console.error('Failed to resolve versioned document read grant:', grantError)
+    return grantFailureCode === 'access_temporary'
+      ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
+      : { error: 'This document version is not available.', code: grantFailureCode }
   }
+  if (!bucketId || !objectKey) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
   const storage = createServiceClient()
   const { data, error } = await storage.storage
-    .from(grant.bucket_id)
-    .createSignedUrl(grant.object_key, 60 * 15)
+    .from(bucketId)
+    .createSignedUrl(objectKey, 60 * 15)
 
   if (error || !data) {
     console.error('Failed to create versioned document URL:', error)
-    return { error: error?.message ?? 'Failed to generate view link.' }
+    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
   }
 
-  return { url: data.signedUrl }
+  return { url: data.signedUrl, code: 'ok' as const }
 }
 
 /**
@@ -431,7 +442,7 @@ export async function getCanonicalDocumentVersionSignedUrl(
   expectedMatterId?: string,
 ) {
   const exactDocument = await getCanonicalAssignedDocument(documentId, expectedMatterId)
-  if (!exactDocument) return { error: 'This document version is not available.' }
+  if (!exactDocument) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
   const document = exactDocument.state === 'trash'
     ? exactDocument.data.record
@@ -448,7 +459,16 @@ export async function getCanonicalDocumentVersionSignedUrl(
     .eq('document_id', document.id)
     .maybeSingle()
 
-  if (error || !version) return { error: 'This document version is not available.' }
+  const versionFailureCode = pdfSourceLookupFailureCode({
+    lookupFailed: Boolean(error),
+    sourceAvailable: Boolean(version),
+  })
+  if (versionFailureCode) {
+    if (error) console.error('Failed to resolve canonical document version:', error)
+    return versionFailureCode === 'access_temporary'
+      ? { error: 'PDF source access is temporarily unavailable.', code: versionFailureCode }
+      : { error: 'This document version is not available.', code: versionFailureCode }
+  }
 
   return exactDocument.state === 'trash'
     ? getTrashedDocumentVersionSignedUrl(exactDocument.expectedMatterId, documentId, documentVersionId)
@@ -468,7 +488,7 @@ export async function getTrashedDocumentVersionSignedUrl(
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
 
   const { data: grants, error: grantError } = await supabase.rpc('get_trashed_document_version_read_grant', {
     p_document_id: documentId,
@@ -476,38 +496,64 @@ export async function getTrashedDocumentVersionSignedUrl(
     p_document_version_id: documentVersionId,
   })
   const grant = grants?.[0]
-  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
-    return { error: 'This document version is not available.' }
+  const bucketId = grant?.bucket_id
+  const objectKey = grant?.object_key
+  const grantFailureCode = pdfSourceLookupFailureCode({
+    lookupFailed: Boolean(grantError),
+    sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
+  })
+  if (grantFailureCode) {
+    if (grantError) console.error('Failed to resolve trashed document read grant:', grantError)
+    return grantFailureCode === 'access_temporary'
+      ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
+      : { error: 'This document version is not available.', code: grantFailureCode }
   }
+  if (!bucketId || !objectKey) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
   const storage = createServiceClient()
   const { data, error } = await storage.storage
-    .from(grant.bucket_id)
-    .createSignedUrl(grant.object_key, 60 * 15)
-  if (error || !data) return { error: error?.message ?? 'Failed to generate view link.' }
-  return { url: data.signedUrl }
+    .from(bucketId)
+    .createSignedUrl(objectKey, 60 * 15)
+  if (error || !data) {
+    console.error('Failed to create trashed document URL:', error)
+    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
+  }
+  return { url: data.signedUrl, code: 'ok' as const }
 }
 
 /** Create an authorised short-lived PDF URL for a ready, unassigned intake. */
 export async function getIntakeItemSignedUrl(intakeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
 
   const { data: grants, error: grantError } = await supabase.rpc('get_intake_item_read_grant', {
     p_intake_id: intakeId,
   })
   const grant = grants?.[0]
-  if (grantError || !grant || grant.code !== 'ok' || !grant.bucket_id || !grant.object_key) {
-    return { error: 'This intake PDF is not available for preview.' }
+  const bucketId = grant?.bucket_id
+  const objectKey = grant?.object_key
+  const grantFailureCode = pdfSourceLookupFailureCode({
+    lookupFailed: Boolean(grantError),
+    sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
+  })
+  if (grantFailureCode) {
+    if (grantError) console.error('Failed to resolve intake document read grant:', grantError)
+    return grantFailureCode === 'access_temporary'
+      ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
+      : { error: 'This intake PDF is not available for preview.', code: grantFailureCode }
   }
+  if (!bucketId || !objectKey) return { error: 'This intake PDF is not available for preview.', code: 'source_unavailable' as const }
 
   const storage = createServiceClient()
   const { data, error } = await storage.storage
-    .from(grant.bucket_id)
-    .createSignedUrl(grant.object_key, 60 * 15)
-  if (error || !data) return { error: error?.message ?? 'Failed to generate view link.' }
-  return { url: data.signedUrl }
+    .from(bucketId)
+    .createSignedUrl(objectKey, 60 * 15)
+  if (error || !data) {
+    console.error('Failed to create intake document URL:', error)
+    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
+  }
+  return { url: data.signedUrl, code: 'ok' as const }
 }
 
 

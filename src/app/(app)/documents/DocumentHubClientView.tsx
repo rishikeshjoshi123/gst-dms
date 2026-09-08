@@ -580,8 +580,8 @@ export function DocumentHubClientView({
     return () => window.clearInterval(timer)
   }, [])
 
-  async function openSource() {
-    if (!selectedDocument || !selectedActions.canPreview) return
+  async function openSource(): Promise<string | null> {
+    if (!selectedDocument || !selectedActions.canPreview) return null
     const subjectId = selectedDocument.id
     const generation = sourceRequestGeneration.current + 1
     sourceRequestGeneration.current = generation
@@ -589,15 +589,17 @@ export function DocumentHubClientView({
     setSourceError(null)
     try {
       const result = await getIntakeItemSignedUrl(selectedDocument.id)
-      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return
+      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return null
       if (result.error || !result.url) {
         setSourceError(result.error || 'The PDF could not be opened.')
-        return
+        return null
       }
       setSourceUrl(result.url)
-    } catch (error) {
-      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return
-      setSourceError(error instanceof Error ? error.message : 'The PDF could not be opened.')
+      return result.url
+    } catch {
+      if (sourceRequestGeneration.current !== generation || selectedIdRef.current !== subjectId) return null
+      setSourceError('PDF source access is temporarily unavailable.')
+      return null
     } finally {
       if (sourceRequestGeneration.current === generation) setIsSourcePending(false)
     }
@@ -850,7 +852,7 @@ export function DocumentHubClientView({
         </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-overlay)]">
-        <PdfViewer url={sourceUrl} />
+        <PdfViewer url={sourceUrl} onRequestSourceRefresh={openSource} />
       </div>
     </section>
   ) : null

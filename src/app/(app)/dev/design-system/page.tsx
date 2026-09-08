@@ -85,6 +85,15 @@ export default function DesignSystemPage() {
             {[10, 11, 12, 13, 14].map(page => <span key={page} className={`flex h-16 w-12 shrink-0 items-end justify-center rounded-[var(--radius-sm)] border p-1 text-[10px] ${page === 12 ? 'border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--text-primary)]' : 'border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)]'}`}>{page}</span>)}
           </div>
           <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">Illustrative toolbar and thumbnail strip only — not an interactive PDF. The production strip renders at most five labelled nearby thumbnails with explicit earlier/later navigation.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="PDF source failure references">
+            {[
+              ['Password-protected PDF', 'Upload an unencrypted PDF copy.'],
+              ['Unreadable PDF', 'Upload a valid readable PDF copy.'],
+              ['PDF file unavailable', 'Return to the record or contact an administrator.'],
+              ['PDF access needs refreshing', 'Refresh PDF access.'],
+              ['Page could not be rendered', 'Retry only the affected page.'],
+            ].map(([title, recovery]) => <div key={title} className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-2"><p className="text-xs font-semibold text-[var(--text-primary)]">{title}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{recovery}</p></div>)}
+          </div>
         </div>
       </section>
       <section className="border-t border-[var(--border)] py-6">

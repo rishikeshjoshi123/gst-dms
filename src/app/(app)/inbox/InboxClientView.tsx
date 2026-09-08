@@ -355,11 +355,15 @@ export function InboxClientView({
     })
   }
 
-  async function handleViewDocument() {
-    if (!activeDoc) return
+  async function handleViewDocument(): Promise<string | null> {
+    if (!activeDoc) return null
     const res = await getIntakeItemSignedUrl(activeDoc.id)
-    if (res.error || !res.url) toast.error(res.error || 'Failed to generate signed URL')
-    else setViewDocumentUrl(res.url)
+    if (res.error || !res.url) {
+      toast.error(res.error || 'Failed to generate signed URL')
+      return null
+    }
+    setViewDocumentUrl(res.url)
+    return res.url
   }
 
   async function handleOpenCanonicalDuplicate() {
@@ -820,6 +824,7 @@ export function InboxClientView({
           url={viewDocumentUrl}
           title={activeDoc.storage_path.split('/').pop()}
           onClose={() => setViewDocumentUrl(null)}
+          onRequestSourceRefresh={handleViewDocument}
           returnFocusRef={viewPdfButtonRef}
         />
       )}

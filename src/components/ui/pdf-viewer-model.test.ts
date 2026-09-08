@@ -3,14 +3,18 @@ import test from 'node:test'
 
 import {
   clampPdfPage,
+  classifyPdfSourceFailure,
   highlightPdfText,
   isPdfPageInRenderWindow,
   isPdfThumbnailInRenderWindow,
   nextPdfSearchBatch,
   normalizePdfSearchQuery,
   pdfThumbnailPages,
+  pdfSourceFailureFromAccessCode,
+  pdfSourceFailureCopy,
   pdfPageHeight,
   pdfFitPageScale,
+  retryPdfSourceAccess,
 } from './pdf-viewer-model'
 
 test('clamps direct and event-driven pages to safe document bounds', () => {
@@ -64,4 +68,60 @@ test('normalizes bounded queries and safely highlights untrusted PDF text', () =
     highlightPdfText('<script>GST & GST</script>', 'GST'),
     '&lt;script&gt;<mark style="background:var(--warning-muted);color:inherit">GST</mark> &amp; <mark style="background:var(--warning-muted);color:inherit">GST</mark>&lt;/script&gt;',
   )
+})
+
+test('classifies stable PDF.js failures without exposing private error messages', () => {
+  assert.equal(classifyPdfSourceFailure({ name: 'PasswordException', message: 'secret detail' }), 'encrypted')
+  assert.equal(classifyPdfSourceFailure({ name: 'InvalidPDFException' }), 'malformed')
+  assert.equal(classifyPdfSourceFailure({ name: 'FormatError' }), 'malformed')
+  assert.equal(classifyPdfSourceFailure({ name: 'ResponseException', status: 403 }), 'unavailable')
+  assert.equal(classifyPdfSourceFailure({ name: 'AbortException' }), null)
+  assert.equal(classifyPdfSourceFailure(new TypeError('Failed to fetch a private URL')), 'render_failed')
+  assert.equal(classifyPdfSourceFailure(new Error('private detail')), 'render_failed')
+  assert.equal(pdfSourceFailureFromAccessCode('source_unavailable'), 'missing')
+  assert.equal(pdfSourceFailureFromAccessCode('access_temporary'), 'unavailable')
+  assert.equal(pdfSourceFailureFromAccessCode('not_authenticated'), 'unavailable')
+  assert.deepEqual(pdfSourceFailureCopy('missing'), {
+    title: 'PDF file unavailable',
+    detail: 'This stored PDF is not available. Return to the document record or contact an administrator if the source should be restored.',
+    retryable: false,
+    retryLabel: null,
+  })
+  assert.deepEqual(pdfSourceFailureCopy('unavailable'), {
+    title: 'PDF access needs refreshing',
+    detail: 'The secure view link may have expired, or the source could not be retrieved. Refresh access and try again.',
+    retryable: true,
+    retryLabel: 'Refresh PDF access',
+  })
+  assert.deepEqual(pdfSourceFailureCopy('render_failed'), {
+    title: 'PDF could not be opened',
+    detail: 'The viewer could not open this PDF. Try loading it again.',
+    retryable: true,
+    retryLabel: 'Retry PDF',
+  })
+})
+
+test('renews caller-owned signed access and keeps route-owned retry behavior distinct', async () => {
+  let routeRefreshes = 0
+  const refreshed = await retryPdfSourceAccess({
+    currentUrl: 'https://storage.test/expired',
+    requestFreshUrl: async () => 'https://storage.test/fresh',
+    refreshRoute: () => { routeRefreshes += 1 },
+  })
+  assert.equal(refreshed, 'https://storage.test/fresh')
+  assert.equal(routeRefreshes, 0)
+
+  const retained = await retryPdfSourceAccess({
+    currentUrl: 'https://storage.test/server-owned',
+    refreshRoute: () => { routeRefreshes += 1 },
+  })
+  assert.equal(retained, 'https://storage.test/server-owned')
+  assert.equal(routeRefreshes, 1)
+
+  const failedRenewal = await retryPdfSourceAccess({
+    currentUrl: 'https://storage.test/expired',
+    requestFreshUrl: async () => null,
+    refreshRoute: () => { routeRefreshes += 1 },
+  })
+  assert.equal(failedRenewal, null)
 })

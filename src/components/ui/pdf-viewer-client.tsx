@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Document, Page, pdfjs } from 'react-pdf';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MessageSquarePlus, PanelLeft, PanelTop, RotateCw, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, ZoomIn, ZoomOut, MessageSquarePlus, PanelLeft, PanelTop, RefreshCw, RotateCw, Search, X } from 'lucide-react';
 import { Button } from './button';
 import { Input } from './input';
 import {
   clampPdfPage,
+  classifyPdfSourceFailure,
   highlightPdfText,
   isPdfPageInRenderWindow,
   nextPdfSearchBatch,
@@ -18,6 +20,9 @@ import {
   pdfFitPageScale,
   pdfPageHeight,
   pdfThumbnailPages,
+  pdfSourceFailureCopy,
+  retryPdfSourceAccess,
+  type PdfSourceFailure,
 } from './pdf-viewer-model';
 
 // Configure the worker for pdf.js
@@ -27,12 +32,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 type PdfViewerProps = {
-  url: string
+  url: string | null
   /** One-based source-locator page. It is clamped when the PDF reports its length. */
   initialPage?: number
+  initialFailure?: PdfSourceFailure
+  onRequestSourceRefresh?: () => Promise<string | null>
 }
 
-export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
+export function PdfViewer({ url, initialPage = 1, initialFailure, onRequestSourceRefresh }: PdfViewerProps) {
+  const router = useRouter();
   const searchInputId = useId();
   const thumbnailStripId = useId();
   const [numPages, setNumPages] = useState<number>();
@@ -52,7 +60,14 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   const [isSearchPending, setIsSearchPending] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
-  const [renderedSource, setRenderedSource] = useState({ url, initialPage });
+  const [sourceFailure, setSourceFailure] = useState<PdfSourceFailure | null>(() => initialFailure ?? (url ? null : 'unavailable'));
+  const [activeUrl, setActiveUrl] = useState(url);
+  const [isSourceRetryPending, setIsSourceRetryPending] = useState(false);
+  const [sourceRetryError, setSourceRetryError] = useState<string | null>(null);
+  const [documentAttempt, setDocumentAttempt] = useState(0);
+  const [pageFailures, setPageFailures] = useState<Record<number, boolean>>({});
+  const [pageAttempts, setPageAttempts] = useState<Record<number, number>>({});
+  const [renderedSource, setRenderedSource] = useState({ url, initialPage, initialFailure });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageElementsRef = useRef(new Map<number, HTMLElement>());
   const shouldScrollToPageRef = useRef(true);
@@ -87,9 +102,9 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     return () => window.removeEventListener('JUMP_TO_PDF_PAGE', handleJump as EventListener);
   }, [numPages]);
 
-  if (renderedSource.url !== url || renderedSource.initialPage !== initialPage) {
+  if (renderedSource.url !== url || renderedSource.initialPage !== initialPage || renderedSource.initialFailure !== initialFailure) {
     const urlChanged = renderedSource.url !== url;
-    setRenderedSource({ url, initialPage });
+    setRenderedSource({ url, initialPage, initialFailure });
     if (urlChanged) {
       setNumPages(undefined);
       setPageSizes({});
@@ -107,6 +122,13 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
     setIsSearchPending(false);
     setSearchError(null);
     setThumbnailsOpen(false);
+    setSourceFailure(initialFailure ?? (url ? null : 'unavailable'));
+    setActiveUrl(url);
+    setIsSourceRetryPending(false);
+    setSourceRetryError(null);
+    setDocumentAttempt(0);
+    setPageFailures({});
+    setPageAttempts({});
     setSelection(null);
   }
 
@@ -148,12 +170,60 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   }, [fitPage, fitWidth, pageNumber, pageViewportHeight, pageWidth]);
 
   function onDocumentLoadSuccess(document: PDFDocumentProxy): void {
+    setSourceFailure(null);
     pdfDocumentRef.current = document;
     setNumPages(document.numPages);
     setPageNumber(page => {
       shouldScrollToPageRef.current = true;
       return clampPdfPage(page, document.numPages);
     });
+  }
+
+  function presentSourceFailure(failure: PdfSourceFailure | null) {
+    if (!failure) return;
+    searchGenerationRef.current += 1;
+    pdfDocumentRef.current = null;
+    setNumPages(undefined);
+    setIsSearchPending(false);
+    setThumbnailsOpen(false);
+    setSourceFailure(failure);
+  }
+
+  function onDocumentLoadError(error: unknown) {
+    presentSourceFailure(classifyPdfSourceFailure(error));
+  }
+
+  function onDocumentSourceError(error: unknown) {
+    if (classifyPdfSourceFailure(error) === null) return;
+    presentSourceFailure('unavailable');
+  }
+
+  async function retrySource() {
+    setIsSourceRetryPending(true);
+    setSourceRetryError(null);
+    try {
+      const refreshedUrl = await retryPdfSourceAccess({
+        currentUrl: activeUrl,
+        requestFreshUrl: onRequestSourceRefresh,
+        refreshRoute: router.refresh,
+      });
+      if (!refreshedUrl) {
+        if (onRequestSourceRefresh) setSourceRetryError('PDF access could not be refreshed. Try again.');
+        return;
+      }
+      setActiveUrl(refreshedUrl);
+      setSourceFailure(null);
+      setDocumentAttempt(attempt => attempt + 1);
+    } catch {
+      setSourceRetryError('PDF access could not be refreshed. Try again.');
+    } finally {
+      setIsSourceRetryPending(false);
+    }
+  }
+
+  function retryPage(page: number) {
+    setPageFailures(current => ({ ...current, [page]: false }));
+    setPageAttempts(current => ({ ...current, [page]: (current[page] ?? 0) + 1 }));
   }
 
   useEffect(() => {
@@ -390,12 +460,13 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
   };
 
   const thumbnailPages = numPages ? pdfThumbnailPages(pageNumber, numPages) : [];
+  const sourceFailureCopy = sourceFailure ? pdfSourceFailureCopy(sourceFailure) : null;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--surface)]">
       {/* Toolbar */}
       <div className="z-10 flex min-h-14 w-full shrink-0 flex-wrap items-center justify-center gap-1 border-b border-[var(--border)] bg-[var(--surface)] p-2 sm:gap-2">
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Previous page" title="Previous page" onClick={previousPage} disabled={pageNumber <= 1}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Previous page" title="Previous page" onClick={previousPage} disabled={Boolean(sourceFailure) || pageNumber <= 1}>
           <ChevronLeft size={16} />
         </Button>
         <label className="flex min-h-11 items-center gap-1 text-sm font-medium text-[var(--text-primary)]">
@@ -405,31 +476,32 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
             min={1}
             max={numPages}
             value={pageNumber}
+            disabled={Boolean(sourceFailure)}
             onChange={event => requestPage(Number(event.target.value) || 1)}
             className="h-9 w-14 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-2 text-center text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
           />
           <span className="whitespace-nowrap text-[var(--text-muted)]">of {numPages || '--'}</span>
         </label>
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Next page" title="Next page" onClick={nextPage} disabled={pageNumber >= (numPages || 1)}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Next page" title="Next page" onClick={nextPage} disabled={Boolean(sourceFailure) || pageNumber >= (numPages || 1)}>
           <ChevronRight size={16} />
         </Button>
 
         <div className="mx-1 hidden h-6 w-px bg-[var(--border)] sm:block" />
 
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom out" title="Zoom out" onClick={() => zoomBy(-0.2)}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom out" title="Zoom out" onClick={() => zoomBy(-0.2)} disabled={Boolean(sourceFailure)}>
           <ZoomOut size={16} />
         </Button>
         <span className="w-12 text-center text-sm font-medium text-[var(--text-primary)]">
           {fitWidth ? 'Width' : fitPage ? 'Page' : `${Math.round(scale * 100)}%`}
         </span>
-        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom in" title="Zoom in" onClick={() => zoomBy(0.2)}>
+        <Button variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label="Zoom in" title="Zoom in" onClick={() => zoomBy(0.2)} disabled={Boolean(sourceFailure)}>
           <ZoomIn size={16} />
         </Button>
-        <Button type="button" variant="outline" className="min-h-11" onClick={fitPageWidth} aria-pressed={fitWidth}>
+        <Button type="button" variant="outline" className="min-h-11" onClick={fitPageWidth} aria-pressed={fitWidth} disabled={Boolean(sourceFailure)}>
           <PanelTop size={16} aria-hidden="true" />
           Fit width
         </Button>
-        <Button type="button" variant="outline" className="min-h-11" onClick={fitWholePage} aria-pressed={fitPage}>
+        <Button type="button" variant="outline" className="min-h-11" onClick={fitWholePage} aria-pressed={fitPage} disabled={Boolean(sourceFailure)}>
           <PanelTop size={16} aria-hidden="true" />
           Fit page
         </Button>
@@ -438,6 +510,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           variant="outline"
           className="min-h-11"
           onClick={rotateClockwise}
+          disabled={Boolean(sourceFailure)}
           aria-label={`Rotate PDF clockwise. Current rotation ${rotation} degrees`}
           title={`Current rotation: ${rotation}°`}
         >
@@ -449,6 +522,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           variant="outline"
           className="min-h-11"
           onClick={() => setThumbnailsOpen(open => !open)}
+          disabled={Boolean(sourceFailure)}
           aria-expanded={thumbnailsOpen}
           aria-controls={thumbnailStripId}
         >
@@ -521,12 +595,34 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
         {searchError && <p role="alert" className="w-full text-xs text-[var(--danger)]">{searchError}</p>}
       </form>
 
+      {sourceFailureCopy ? (
+        <div role="alert" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-[var(--bg-overlay)] p-6 text-center">
+          <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--danger-muted)] text-[var(--danger)]">
+            <FileText className="size-5" aria-hidden="true" />
+          </span>
+          <div className="max-w-md space-y-1">
+            <h2 className="text-section-heading text-[var(--text-primary)]">{sourceFailureCopy.title}</h2>
+            <p className="text-body text-[var(--text-secondary)]">{sourceFailureCopy.detail}</p>
+          </div>
+          {sourceFailureCopy.retryable && (
+            <Button type="button" variant="outline" className="min-h-11" onClick={() => void retrySource()} loading={isSourceRetryPending}>
+              <RefreshCw className="size-4" aria-hidden="true" />
+              {sourceFailureCopy.retryLabel}
+            </Button>
+          )}
+          {sourceRetryError && <p role="alert" className="text-sm text-[var(--danger)]">{sourceRetryError}</p>}
+        </div>
+      ) : (
       <Document
-        file={url}
+        key={`${activeUrl}:${documentAttempt}`}
+        file={activeUrl!}
         onLoadSuccess={onDocumentLoadSuccess}
+        onLoadError={onDocumentLoadError}
+        onSourceError={onDocumentSourceError}
+        onPassword={() => presentSourceFailure('encrypted')}
         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
-        loading={<div className="p-10 font-medium text-[var(--text-muted)] animate-pulse">Loading PDF Document...</div>}
-        error={<div className="p-10 font-medium text-[var(--danger)]">Failed to load PDF. Please try again later.</div>}
+        loading={<div role="status" className="flex min-h-0 flex-1 animate-pulse items-center justify-center p-10 font-medium text-[var(--text-muted)] motion-reduce:animate-none">Loading PDF source…</div>}
+        error={<div role="alert" className="p-10 font-medium text-[var(--danger)]">PDF could not be opened.</div>}
       >
         {thumbnailsOpen && numPages && (
           <nav
@@ -597,7 +693,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           role="region"
           aria-label="PDF page viewer"
           aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"
-          className="custom-scrollbar relative flex min-h-0 w-full flex-1 justify-center overflow-auto bg-[var(--bg-overlay)] p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:p-4"
+          className="custom-scrollbar relative flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-auto bg-[var(--bg-overlay)] p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] sm:p-4"
           onMouseUp={handleMouseUp}
           onKeyDown={handleViewerKeyDown}
         >
@@ -618,19 +714,29 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
                 style={{ minHeight: estimatedHeight }}
               >
                 {shouldRender ? (
-                  <Page
-                    pageNumber={page}
-                    width={fitWidth ? pageWidth : undefined}
-                    scale={fitWidth ? undefined : pageScale(page)}
-                    rotate={rotation}
-                    onLoadSuccess={(proxy) => recordPageSize(page, proxy)}
-                    customTextRenderer={searchResults.includes(page)
-                      ? ({ str }) => highlightPdfText(str, activeSearchQuery)
-                      : undefined}
-                    className="shadow-[var(--shadow-lg)]"
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                  />
+                  pageFailures[page] ? (
+                    <div role="alert" className="flex min-h-44 w-full max-w-md flex-col items-center justify-center gap-3 border border-[var(--border)] bg-[var(--surface)] p-4 text-center">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Page {page} could not be rendered.</p>
+                      <Button type="button" variant="outline" className="min-h-11" onClick={() => retryPage(page)}>Retry page</Button>
+                    </div>
+                  ) : (
+                    <Page
+                      key={`${page}:${pageAttempts[page] ?? 0}`}
+                      pageNumber={page}
+                      width={fitWidth ? pageWidth : undefined}
+                      scale={fitWidth ? undefined : pageScale(page)}
+                      rotate={rotation}
+                      onLoadSuccess={(proxy) => recordPageSize(page, proxy)}
+                      onLoadError={() => setPageFailures(current => ({ ...current, [page]: true }))}
+                      onRenderError={() => setPageFailures(current => ({ ...current, [page]: true }))}
+                      customTextRenderer={searchResults.includes(page)
+                        ? ({ str }) => highlightPdfText(str, activeSearchQuery)
+                        : undefined}
+                      className="shadow-[var(--shadow-lg)]"
+                      renderTextLayer={true}
+                      renderAnnotationLayer={true}
+                    />
+                  )
                 ) : (
                   <div
                     aria-hidden="true"
@@ -659,6 +765,7 @@ export function PdfViewer({ url, initialPage = 1 }: PdfViewerProps) {
           )}
         </div>
       </Document>
+      )}
     </div>
   );
 }

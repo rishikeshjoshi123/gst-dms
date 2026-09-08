@@ -1,7 +1,79 @@
+import type { PdfSourceAccessFailureCode } from '@/lib/pdf-source-access'
+
 export const PDF_PAGE_RENDER_RADIUS = 2
 export const PDF_THUMBNAIL_RENDER_RADIUS = 2
 export const DEFAULT_PDF_PAGE_SIZE = { width: 612, height: 792 }
 export const PDF_SEARCH_BATCH_SIZE = 25
+
+export type PdfSourceFailure = 'encrypted' | 'malformed' | 'missing' | 'unavailable' | 'render_failed'
+
+export function pdfSourceFailureFromAccessCode(code: PdfSourceAccessFailureCode): PdfSourceFailure {
+  return code === 'source_unavailable' ? 'missing' : 'unavailable'
+}
+
+export async function retryPdfSourceAccess({
+  currentUrl,
+  requestFreshUrl,
+  refreshRoute,
+}: {
+  currentUrl: string | null
+  requestFreshUrl?: () => Promise<string | null>
+  refreshRoute: () => void
+}) {
+  if (requestFreshUrl) return requestFreshUrl()
+  refreshRoute()
+  return currentUrl
+}
+
+export function classifyPdfSourceFailure(error: unknown): PdfSourceFailure | null {
+  if (!error || typeof error !== 'object') return 'render_failed'
+  const name = 'name' in error && typeof error.name === 'string' ? error.name : ''
+  if (name === 'AbortException' || name === 'RenderingCancelledException') return null
+  if (name === 'PasswordException') return 'encrypted'
+  if (name === 'InvalidPDFException' || name === 'FormatError') return 'malformed'
+  if (name === 'ResponseException') return 'unavailable'
+  return 'render_failed'
+}
+
+export function pdfSourceFailureCopy(kind: PdfSourceFailure) {
+  switch (kind) {
+    case 'encrypted':
+      return {
+        title: 'Password-protected PDF',
+        detail: 'This source cannot be opened here. Upload an unencrypted PDF copy to make it viewable.',
+        retryable: false,
+        retryLabel: null,
+      }
+    case 'malformed':
+      return {
+        title: 'Unreadable PDF',
+        detail: 'This file is not a valid readable PDF. Upload a valid PDF copy to continue.',
+        retryable: false,
+        retryLabel: null,
+      }
+    case 'missing':
+      return {
+        title: 'PDF file unavailable',
+        detail: 'This stored PDF is not available. Return to the document record or contact an administrator if the source should be restored.',
+        retryable: false,
+        retryLabel: null,
+      }
+    case 'unavailable':
+      return {
+        title: 'PDF access needs refreshing',
+        detail: 'The secure view link may have expired, or the source could not be retrieved. Refresh access and try again.',
+        retryable: true,
+        retryLabel: 'Refresh PDF access',
+      }
+    case 'render_failed':
+      return {
+        title: 'PDF could not be opened',
+        detail: 'The viewer could not open this PDF. Try loading it again.',
+        retryable: true,
+        retryLabel: 'Retry PDF',
+      }
+  }
+}
 
 export function clampPdfPage(page: number, numPages?: number) {
   const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1

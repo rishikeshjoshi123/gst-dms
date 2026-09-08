@@ -9,10 +9,11 @@ interface DocumentViewerModalProps {
   url: string
   title?: string
   onClose: () => void
+  onRequestSourceRefresh?: () => Promise<string | null>
   returnFocusRef?: React.RefObject<HTMLButtonElement | null>
 }
 
-export function DocumentViewerModal({ url, title = 'Document Viewer', onClose, returnFocusRef }: DocumentViewerModalProps) {
+export function DocumentViewerModal({ url, title = 'Document Viewer', onClose, onRequestSourceRefresh, returnFocusRef }: DocumentViewerModalProps) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
@@ -37,7 +38,7 @@ export function DocumentViewerModal({ url, title = 'Document Viewer', onClose, r
 
         {/* Viewer Content */}
         <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--border)]">
-          <PdfViewer url={url} />
+          <PdfViewer url={url} onRequestSourceRefresh={onRequestSourceRefresh} />
         </div>
       </DialogContent>
     </Dialog>
