@@ -605,65 +605,9 @@ export async function getIntakeItemSignedUrl(intakeId: string) {
 }
 
 
-export async function updateDocumentMetadata(docId: string, metadataKey: string, newValue: any) {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation' }
-
-  // Get current metadata
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('raw_metadata, matter_id')
-    .eq('id', docId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!doc) return { error: 'Document not found' }
-
-  let currentMetadata = doc.raw_metadata as any || {}
-  
-  const columnMap: Record<string, string> = {
-    doc_type: 'doc_type',
-    reference_number: 'reference_number',
-    doc_date: 'doc_date',
-    financial_year: 'financial_year',
-    tax_period: 'tax_period',
-  }
-
-  const updatePayload: any = {}
-
-  if (metadataKey.includes('.')) {
-    // nested update for extracted_amounts
-    const [parent, child] = metadataKey.split('.')
-    if (!currentMetadata[parent]) currentMetadata[parent] = {}
-    currentMetadata[parent][child] = newValue
-  } else {
-    currentMetadata[metadataKey] = newValue
-    if (columnMap[metadataKey]) {
-      updatePayload[columnMap[metadataKey]] = newValue
-    }
-  }
-
-  updatePayload.raw_metadata = currentMetadata
-
-  const { error } = await supabase
-    .from('documents')
-    .update(updatePayload)
-    .eq('id', docId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-
-  if (error) return { error: error.message }
-
-  if (doc.matter_id) {
-    revalidatePath(`/matters/${doc.matter_id}`)
-  }
-  revalidatePath(canonicalDocumentPath(docId))
-  
-  return { success: true }
+export async function updateDocumentMetadata(docId: string, metadataKey: string, newValue: unknown) {
+  void [docId, metadataKey, newValue]
+  return { error: 'Legacy metadata editing is unavailable. Use the governed inspector correction workflow.' }
 }
 
 export async function createManualLink(

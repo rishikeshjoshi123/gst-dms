@@ -21,7 +21,6 @@ test('document record mutations invalidate their canonical reader', () => {
     assert.match(exportedFunction(source, name), /revalidatePath\(canonicalDocumentPath\(documentId\)\)/, name)
   }
 
-  assert.match(exportedFunction(source, 'updateDocumentMetadata'), /revalidatePath\(canonicalDocumentPath\(docId\)\)/)
 })
 
 test('relationship mutations invalidate both canonical document readers', () => {
@@ -58,6 +57,15 @@ test('legacy document copy fails before storage or direct document insertion', (
   assert.ok(copyGuard >= 0 && copyGuard < clientCreation)
   assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.insert/)
   assert.doesNotMatch(reassign, /\.storage\s*\.from\('documents'\)\s*\.upload/)
+})
+
+test('legacy metadata editing fails before client creation or direct document update', () => {
+  const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
+  const metadataUpdate = exportedFunction(source, 'updateDocumentMetadata')
+
+  assert.doesNotMatch(metadataUpdate, /createClient\(\)/)
+  assert.doesNotMatch(metadataUpdate, /\.from\('documents'\)\s*\.update/)
+  assert.match(metadataUpdate, /governed inspector correction workflow/)
 })
 
 test('chaining review mutations invalidate the exact document whose status and reason changed', () => {
