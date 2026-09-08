@@ -12,7 +12,7 @@ States: `planned`, `building`, `review`, `integrated`, `deployed`, `deferred`. M
 | --- | --- | --- | --- | --- | --- |
 | D01 | Reproducible application build and type/CI checks. [D01-T01](delivery-evidence/D01-T01.md) restores nullable-RPC refinement; [D01-T02](delivery-evidence/D01-T02.md) clears the app/worker build boundary; [D01-T03](delivery-evidence/D01-T03.md) pins npm/Node 24 and Trigger; [D01-T04](delivery-evidence/D01-T04.md) stabilizes signed-URL union narrowing. | [Delivery workflow](plans/operations/2026-09-08-agent-delivery-workflow.md), [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md) | review | Verify pre-deployment database replay, record lint baseline, and obtain independent QA. Remote Trigger preview/rehearsal remains a release gate. | 4, 15; CI/runtime |
 | D02 | Viewer and note-author boundaries hold across live commands and direct database access; member displays use the safe directory. [D02-T01](delivery-evidence/D02-T01.md) secures note removal; [D02-T02](delivery-evidence/D02-T02.md) governs client writes; [D02-T03](delivery-evidence/D02-T03.md) removes global Auth-admin identity reconstruction; [D02-T04](delivery-evidence/D02-T04.md) governs matter writes. | [Organisation](plans/platform/2026-08-26-organisation-administration.md), [Notes](plans/features/2026-08-25-notes-and-case-brief.md) | review | Independent QA and clean replay remain; close document writes and add live note-moderation reason UX. | 2, 3; directory privacy |
-| D03 | Pilot scope is explicit and enforced, including development-only usage, signup, Wiki generation, and retention. | [Pilot](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md), [Platform](plans/platform/2026-08-27-platform-operations.md) | planned | Development Usage restriction can proceed independently. Production retention activation requires PILOT-RETENTION-SCOPE-2026-09-08; exact release matrix and remote acceptance remain unverified. | 1; release-policy gaps |
+| D03 | Pilot scope is explicit and enforced, including development-only usage, signup, Wiki generation, and retention. [D03-T01](delivery-evidence/D03-T01.md) denies the legacy Usage route and global pricing action outside development. | [Pilot](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md), [Platform](plans/platform/2026-08-27-platform-operations.md) | review | Signup and Wiki generation boundaries remain; production retention activation requires PILOT-RETENTION-SCOPE-2026-09-08. The exact release matrix, independent QA, and remote acceptance remain unverified. | 1; release-policy gaps |
 | D04 | Global and matter uploads transfer directly to private Storage with bounded in-session resumption, visible progress and safe finalization. Current bytes traverse Server Actions. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D01/D02 boundaries; prove deployed 25 MiB upload, interrupted transfer, expired authorization, cancel/finalize race, duplicate and retry without repeated effects. | 5; resumable-upload discussion |
 | D05 | Attach the first PDF to a metadata-only record while preserving record ID, notes, relationships and human metadata. | [Lifecycle](plans/platform/2026-08-24-document-record-and-file-lifecycle.md), [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md) | planned | D04; one explicit destination, no automatic metadata merge, conflict Review, concurrent first-attachment denial/idempotency. Replacement UI remains deferred. | PDF identity discussion |
 | D06 | Hub and Workbench show the correct selected source, accept successful empty results, and remain usable on a phone. | [Hub](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md), [Realtime](plans/platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | planned | Distinguish empty/error; fence late signing responses; verify selected metadata freshness, 320/360px, dark mode, touch, keyboard and 200% zoom in actual consumers. Freshness wiring follows the approved selective transport. | 10, 11, 14; freshness |
@@ -33,7 +33,7 @@ September 8 scan covered the indexed feature, platform, design-system and operat
 
 ## Active tranche card
 
-None active while D02-T04 is recorded and the document direct-write tranche is scoped.
+None active while D03-T01 is recorded and the D02 document direct-write tranche is scoped.
 
 ## Known baseline failures
 
@@ -43,13 +43,14 @@ Historical evidence only; reconcile the newer handoff before execution. Keep unr
 | --- | --- | --- |
 | B02 | Same historical snapshot: broad ESLint reported existing debt. This is not a blanket waiver for changed-file lint or new diagnostics. | D01 baseline owner unassigned; recheck affected files/configuration and at the release gate. |
 | B03 | Local Docker/Supabase is healthy; migration history is current through `00123`, and additive `00124`–`00127` were applied explicitly with rollback SQL, concurrency where relevant, type-generation and schema-lint evidence. A clean reset still fails before replay because Supabase CLI 2.111.0 cannot inspect the service (`LegacyDbBootstrapError`). | D01 setup; diagnose CLI/Docker compatibility or rebuild the disposable stack before claiming clean replay. Additive tranches must disclose this limit. |
-| B04 | The Next 16.2.9 webpack production build passes under Node 24, but three default Turbopack attempts for `92c4dea` remained silent in compilation for over three minutes, including from a fresh generated cache, and were stopped. Earlier D01/D02 revisions passed the same default build. | Recheck before the next code commit; diagnose only if the stall repeats, and never treat a timed-out build as passing. |
 
 Recheck when affected code/environment changes or release acceptance requires it. A baseline label never excuses a new regression.
 
 ## Verification receipts
 
 [D01-T01](delivery-evidence/D01-T01.md), [D01-T02](delivery-evidence/D01-T02.md), [D01-T03](delivery-evidence/D01-T03.md), and [D01-T04](delivery-evidence/D01-T04.md) record build/type/runtime repairs. [D02-T01](delivery-evidence/D02-T01.md), [D02-T02](delivery-evidence/D02-T02.md), [D02-T03](delivery-evidence/D02-T03.md), and [D02-T04](delivery-evidence/D02-T04.md) record note/client/directory/matter authorization closures. Independent QA and remaining acceptance/release gates keep D01 and D02 in review.
+
+[D03-T01](delivery-evidence/D03-T01.md) records the enforced development-only Usage boundary. Signup, Wiki generation, retention policy, independent QA, and exact release acceptance keep D03 in review.
 
 ## Resume
 
