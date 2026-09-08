@@ -18,3 +18,21 @@ test('note removal handles command denials and revalidates returned context', ()
   assert.match(removal, /result\.document_id/)
   assert.match(removal, /already_removed/)
 })
+
+test('every live note-removal consumer supplies the shared moderation-reason workflow', () => {
+  const dialog = readFileSync(new URL('../../components/notes/RemoveNoteDialog.tsx', import.meta.url), 'utf8')
+  const consumers = [
+    readFileSync(new URL('../../components/matters/MatterNotesTab.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../components/matters/TimelineDocumentDetail.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../../app/(app)/notes/NotesClientView.tsx', import.meta.url), 'utf8'),
+  ]
+
+  assert.match(dialog, /Moderation reason/)
+  assert.match(dialog, /8–500 characters/)
+  assert.match(dialog, /onRemove\(reason\.trim\(\) \|\| undefined\)/)
+  for (const consumer of consumers) {
+    assert.match(consumer, /<RemoveNoteDialog/)
+    assert.match(consumer, /deleteNote\(noteId, moderationReason\)/)
+    assert.match(consumer, /if \(res\.error\)[\s\S]*return false[\s\S]*setPending(?:DeleteNoteId|NoteDeleteId)\(null\)/)
+  }
+})

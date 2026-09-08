@@ -16,6 +16,7 @@ import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metada
 import { deleteDocument } from '@/lib/actions/document'
 import { reprocessDocument } from '@/lib/actions/reprocess'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { RemoveNoteDialog } from '@/components/notes/RemoveNoteDialog'
 import { ReassignDocumentDialog } from './ReassignDocumentDialog'
 import { MoveRight } from 'lucide-react'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
@@ -195,17 +196,19 @@ export function TimelineDocumentDetail({
     })
   }
 
-  const handleDeleteNote = async () => {
-    if (readOnly) return
-    if (!pendingNoteDeleteId) return
+  const handleDeleteNote = async (moderationReason?: string) => {
+    if (readOnly) return false
+    if (!pendingNoteDeleteId) return false
     const noteId = pendingNoteDeleteId
-    const res = await deleteNote(noteId)
-    setPendingNoteDeleteId(null)
+    const res = await deleteNote(noteId, moderationReason)
     if (res.error) {
       toast.error(res.error)
+      return false
     } else {
+      setPendingNoteDeleteId(null)
       setNotes(prev => prev.filter(n => n.id !== noteId))
-      toast.success('Note deleted')
+      toast.success('Note removed')
+      return true
     }
   }
 
@@ -639,14 +642,10 @@ export function TimelineDocumentDetail({
         isPending={isDeleting}
       />}
 
-      {!readOnly && <ConfirmDialog
+      {!readOnly && <RemoveNoteDialog
         isOpen={!!pendingNoteDeleteId}
         onClose={() => setPendingNoteDeleteId(null)}
-        onConfirm={handleDeleteNote}
-        title="Delete Note?"
-        description="Are you sure you want to delete this note? This action cannot be undone."
-        confirmText="Delete Note"
-        variant="destructive"
+        onRemove={handleDeleteNote}
       />}
 
       {!readOnly && <ReassignDocumentDialog

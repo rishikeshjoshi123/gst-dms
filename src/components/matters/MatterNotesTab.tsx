@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Plus, Search, Pin, Trash2, FileText, Edit2, AlertCircle, MessageSquarePlus, CornerDownRight, ExternalLink, ArrowLeft } from 'lucide-react'
 import { createNote, updateNote, deleteNote } from '@/lib/actions/notes'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { RemoveNoteDialog } from '@/components/notes/RemoveNoteDialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -156,18 +156,20 @@ export function MatterNotesTab({
 
   const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
 
-  const handleDeleteNote = async () => {
-    if (readOnly) return
-    if (!pendingDeleteNoteId) return
+  const handleDeleteNote = async (moderationReason?: string) => {
+    if (readOnly) return false
+    if (!pendingDeleteNoteId) return false
     const noteId = pendingDeleteNoteId
-    const res = await deleteNote(noteId)
-    setPendingDeleteNoteId(null)
+    const res = await deleteNote(noteId, moderationReason)
     if (res.error) {
       toast.error(res.error)
+      return false
     } else {
+      setPendingDeleteNoteId(null)
       setNotes(prev => prev.filter(n => n.id !== noteId))
       if (selectedThreadId === noteId) setSelectedThreadId(null)
-      toast.success('Note deleted')
+      toast.success('Note removed')
+      return true
     }
   }
 
@@ -565,14 +567,10 @@ export function MatterNotesTab({
         </DialogContent>
       </Dialog>}
 
-      {!readOnly && <ConfirmDialog
+      {!readOnly && <RemoveNoteDialog
         isOpen={!!pendingDeleteNoteId}
         onClose={() => setPendingDeleteNoteId(null)}
-        onConfirm={handleDeleteNote}
-        title="Delete Note?"
-        description="Are you sure you want to delete this note? This action cannot be undone."
-        confirmText="Delete Note"
-        variant="destructive"
+        onRemove={handleDeleteNote}
       />}
     </div>
   )

@@ -9,7 +9,7 @@ import {
   StickyNote, Filter, X, ChevronLeft
 } from 'lucide-react'
 import { updateNote, deleteNote, createNote } from '@/lib/actions/notes'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { RemoveNoteDialog } from '@/components/notes/RemoveNoteDialog'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { NoteTaskSummary } from '@/components/tasks/NoteTaskSummary'
@@ -109,15 +109,16 @@ export function NotesClientView({
 
   const [pendingDeleteNoteId, setPendingDeleteNoteId] = useState<string | null>(null)
 
-  const handleDeleteNote = async () => {
-    if (!pendingDeleteNoteId) return
+  const handleDeleteNote = async (moderationReason?: string) => {
+    if (!pendingDeleteNoteId) return false
     const noteId = pendingDeleteNoteId
-    const res = await deleteNote(noteId)
+    const res = await deleteNote(noteId, moderationReason)
+    if (res.error) { toast.error(res.error); return false }
     setPendingDeleteNoteId(null)
-    if (res.error) { toast.error(res.error); return }
     setNotes(prev => prev.filter(n => n.id !== noteId))
     if (selectedThreadId === noteId) setSelectedThreadId(null)
-    toast.success('Note deleted')
+    toast.success('Note removed')
+    return true
   }
 
   const startEditing = (note: any) => { setEditingNoteId(note.id); setEditContent(note.content) }
@@ -575,14 +576,10 @@ export function NotesClientView({
         </div>
       </div>
 
-      <ConfirmDialog
+      <RemoveNoteDialog
         isOpen={!!pendingDeleteNoteId}
         onClose={() => setPendingDeleteNoteId(null)}
-        onConfirm={handleDeleteNote}
-        title="Delete Note?"
-        description="Are you sure you want to delete this note? This action cannot be undone."
-        confirmText="Delete Note"
-        variant="destructive"
+        onRemove={handleDeleteNote}
       />
     </div>
   )
