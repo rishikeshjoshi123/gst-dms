@@ -22,6 +22,7 @@ import {
   VERTEX_DOCUMENT_MODEL,
 } from '@/lib/ai/vertex'
 import { acquireDocumentPageText } from '@/lib/documents/page-acquisition'
+import { isCaseBriefGenerationEnabled } from '@/lib/pilot-release-policy'
 
 const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
 const EXTRACTION_SCHEMA_VERSION = 'document-extraction-v2'
@@ -439,6 +440,10 @@ export const generateMatterWiki = task({
     factor: 2,
   },
   run: async (payload: { matterId: string; orgId: string; triggeredBy: string }) => {
+    if (!isCaseBriefGenerationEnabled()) {
+      return { success: false, reason: 'disabled_by_release_policy' }
+    }
+
     const { matterId, orgId, triggeredBy } = payload
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>

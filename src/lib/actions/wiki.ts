@@ -5,6 +5,7 @@ import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { tasks } from '@trigger.dev/sdk'
+import { isCaseBriefGenerationEnabled } from '@/lib/pilot-release-policy'
 
 async function matterBelongsToActiveOrg(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -71,6 +72,10 @@ export async function updateWikiSection(sectionId: string, content: string, matt
 }
 
 export async function triggerWikiGeneration(matterId: string) {
+  if (!isCaseBriefGenerationEnabled()) {
+    return { error: 'Case Brief generation is not available in this release.' }
+  }
+
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
   if (!orgId) return { error: 'No active organisation' }

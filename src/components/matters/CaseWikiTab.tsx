@@ -1,51 +1,41 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
-import { Sparkles, Edit2, Check, X, RefreshCw } from 'lucide-react'
+import { Sparkles, Edit2, Check, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { Button } from '@/components/ui/button'
-import { updateWikiSection, triggerWikiGeneration } from '@/lib/actions/wiki'
+import { updateWikiSection } from '@/lib/actions/wiki'
+import type { Database, Json } from '@/lib/supabase/database.types'
 
-export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { matterId: string; initialSections: any[]; readOnly?: boolean }) {
-  const [sections, setSections] = useState(initialSections)
+type WikiSection = Database['public']['Tables']['wiki_sections']['Row']
+
+function wikiText(content: Json) {
+  if (typeof content !== 'string') return ''
+  try {
+    const parsed: unknown = JSON.parse(content)
+    if (typeof parsed === 'object' && parsed !== null && 'text' in parsed && typeof parsed.text === 'string') {
+      return parsed.text
+    }
+  } catch {}
+  return ''
+}
+
+export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { matterId: string; initialSections: WikiSection[]; readOnly?: boolean }) {
+  const [localEdits, setLocalEdits] = useState<Record<string, string>>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState<string>('')
-  const [isGenerating, setIsGenerating] = useState(false)
 
-  useEffect(() => {
-    setSections(initialSections)
-  }, [initialSections])
+  const sections = initialSections.map((section) => localEdits[section.id] === undefined
+    ? section
+    : { ...section, content: JSON.stringify({ text: localEdits[section.id] }), is_user_edited: true })
 
-  const handleGenerate = async () => {
-    if (readOnly) return
-    setIsGenerating(true)
-    const toastId = toast.loading('Triggering Case Synthesis...')
-    const res = await triggerWikiGeneration(matterId)
-    if (res.error) {
-      toast.error(res.error, { id: toastId })
-      setIsGenerating(false)
-    } else {
-      toast.success('Synthesis started! Synthesizing the case wiki in the background (takes 1-2 mins).', {
-        id: toastId,
-        duration: 5000
-      })
-      // Keep isGenerating true to avoid multi-clicks, it will reset on page reload
-    }
-  }
-
-  const startEditing = (section: any) => {
+  const startEditing = (section: WikiSection) => {
     if (readOnly) return
     setEditingId(section.id)
-    try {
-      const parsed = JSON.parse(section.content || '{}')
-      setEditContent(parsed.text || '')
-    } catch {
-      setEditContent('')
-    }
+    setEditContent(wikiText(section.content))
   }
 
-  const saveEdit = async (section: any) => {
+  const saveEdit = async (section: WikiSection) => {
     if (readOnly) return
     const toastId = toast.loading('Saving section edits...')
     const res = await updateWikiSection(section.id, editContent, matterId)
@@ -53,13 +43,7 @@ export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { m
       toast.error(res.error, { id: toastId })
     } else {
       toast.success('Section updated successfully!', { id: toastId })
-      // Update local state to reflect changes immediately
-      setSections(prev => prev.map(s => {
-        if (s.id === section.id) {
-          return { ...s, content: JSON.stringify({ text: editContent }), is_user_edited: true }
-        }
-        return s
-      }))
+      setLocalEdits((previous) => ({ ...previous, [section.id]: editContent }))
       setEditingId(null)
     }
   }
@@ -68,23 +52,10 @@ export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { m
     return (
       <div className="py-16 flex flex-col items-center justify-center text-[var(--text-muted)] border border-dashed border-[var(--border-strong)] rounded-lg bg-[var(--surface)]">
         <Sparkles size={40} className="mb-4 text-[var(--primary)] opacity-80" />
-        <h3 className="text-xl font-medium text-[var(--text-primary)] mb-2">CaseWiki</h3>
-        <p className="text-sm max-w-md text-center mb-6 leading-relaxed">
-          The CaseWiki provides an automated synthesized summary of the entire matter history, key arguments, and outstanding tasks based on uploaded documents.
+        <h3 className="text-xl font-medium text-[var(--text-primary)] mb-2">Case Brief</h3>
+        <p className="text-sm max-w-md text-center leading-relaxed">
+          Case Brief generation is not available in this release. Existing compatibility content remains readable when present.
         </p>
-        {!readOnly && <Button onClick={handleGenerate} disabled={isGenerating} className="bg-[var(--primary)] hover:opacity-90 text-white">
-          {isGenerating ? (
-            <>
-              <RefreshCw size={16} className="mr-2 animate-spin" />
-              Synthesizing Wiki...
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} className="mr-2" />
-              Generate Case Wiki
-            </>
-          )}
-        </Button>}
       </div>
     )
   }
@@ -92,27 +63,12 @@ export function CaseWikiTab({ matterId, initialSections, readOnly = false }: { m
   const orderedKeys = ['executive_summary', 'key_arguments', 'outstanding_tasks']
   const orderedSections = orderedKeys
     .map(key => sections.find(s => s.section_key === key))
-    .filter(Boolean)
+    .filter((section): section is WikiSection => Boolean(section))
 
   return (
     <div className="flex flex-col gap-6 py-2">
-      {!readOnly && <div className="flex justify-end mb-2">
-        <Button onClick={handleGenerate} disabled={isGenerating} variant="outline" size="sm">
-          {isGenerating ? (
-            <RefreshCw size={14} className="mr-2 animate-spin" />
-          ) : (
-            <RefreshCw size={14} className="mr-2" />
-          )}
-          {isGenerating ? 'Regenerating...' : 'Regenerate Wiki'}
-        </Button>
-      </div>}
-      
-      {orderedSections.map((section: any) => {
-        let textContent = ''
-        try {
-          const parsed = JSON.parse(section.content || '{}')
-          textContent = parsed.text || ''
-        } catch {}
+      {orderedSections.map((section) => {
+        const textContent = wikiText(section.content)
 
         const isEditing = editingId === section.id
 
