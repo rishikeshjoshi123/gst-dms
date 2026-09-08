@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
@@ -12,7 +12,6 @@ import {
   FileText,
   Inbox,
   Loader2,
-  RefreshCw,
   Search,
   Trash2,
   Upload,
@@ -49,6 +48,7 @@ import {
 import { getIntakeItemSignedUrl } from '@/lib/actions/document'
 import { canonicalIntakeActions } from '@/lib/inbox-compat'
 import { reconcileInboxQueue } from '@/lib/inbox-queue-read'
+import { freshnessLabel } from '@/lib/freshness'
 import { cn } from '@/lib/utils'
 
 type MatterOption = {
@@ -205,7 +205,11 @@ export function DocumentHubClientView({
   const [sourceError, setSourceError] = useState<string | null>(null)
   const [refreshError, setRefreshError] = useState<string | null>(initialQueueError)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState<number | null>(
+    () => initialQueueError ? null : Date.now(),
+  )
+  const [freshnessClock, setFreshnessClock] = useState(() => Date.now())
+  const [isOffline, setIsOffline] = useState(false)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [isDiscardOpen, setIsDiscardOpen] = useState(false)
   const [renderedQueueProps, setRenderedQueueProps] = useState({ initialDocuments, initialQueueError })
@@ -242,6 +246,7 @@ export function DocumentHubClientView({
     } else {
       setRefreshError(null)
       setDocuments(uniqueDocuments(initialDocuments))
+      setLastSuccessfulRefreshAt(freshnessClock)
     }
   }
 
@@ -341,16 +346,23 @@ export function DocumentHubClientView({
     window.requestAnimationFrame(() => sourceButtonRef.current?.focus())
   }
 
-  async function refreshQueue() {
-    setIsRefreshing(true)
-    setRefreshError(null)
+  const refreshQueue = useCallback(async () => {
     try {
       const result = await getStagedDocuments()
       const reconciled = reconcileInboxQueue(documents, result)
       setRefreshError(reconciled.error)
       setDocuments(reconciled.documents)
+      if (result.ok) setLastSuccessfulRefreshAt(Date.now())
       if (result.ok && selectedId && !reconciled.documents.some((document) => document.id === selectedId)) {
-        closeDetails()
+        sourceRequestGeneration.current += 1
+        selectedIdRef.current = null
+        setIsSourcePending(false)
+        setSelectedId(null)
+        setDetailTab('overview')
+        setSourceUrl(null)
+        setSourceError(null)
+        setActionError(null)
+        router.replace(documentHubPath({ matterId: preselectedMatterId }), { scroll: false })
       }
     } catch (error) {
       setRefreshError(
@@ -358,10 +370,50 @@ export function DocumentHubClientView({
           ? error.message
           : 'The queue could not be refreshed. Showing the last loaded documents.',
       )
-    } finally {
-      setIsRefreshing(false)
     }
-  }
+  }, [documents, preselectedMatterId, router, selectedId])
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let cancelled = false
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer)
+      if (document.visibilityState === 'hidden') return
+      const jitteredDelay = 55_000 + Math.floor(Math.random() * 10_001)
+      timer = setTimeout(async () => {
+        if (navigator.onLine) await refreshQueue()
+        if (!cancelled) schedule()
+      }, jitteredDelay)
+    }
+    const reconcileOnFocus = () => {
+      setIsOffline(!navigator.onLine)
+      if (document.visibilityState === 'visible' && navigator.onLine) void refreshQueue()
+      schedule()
+    }
+
+    queueMicrotask(() => {
+      if (!cancelled) setIsOffline(!navigator.onLine)
+    })
+    schedule()
+    window.addEventListener('focus', reconcileOnFocus)
+    window.addEventListener('online', reconcileOnFocus)
+    window.addEventListener('offline', reconcileOnFocus)
+    document.addEventListener('visibilitychange', reconcileOnFocus)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('focus', reconcileOnFocus)
+      window.removeEventListener('online', reconcileOnFocus)
+      window.removeEventListener('offline', reconcileOnFocus)
+      document.removeEventListener('visibilitychange', reconcileOnFocus)
+    }
+  }, [refreshQueue])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setFreshnessClock(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   async function openSource() {
     if (!selectedDocument || !selectedActions.canPreview) return
@@ -415,6 +467,7 @@ export function DocumentHubClientView({
           return
         }
         setDocuments(reconciled.documents)
+        setLastSuccessfulRefreshAt(Date.now())
       } catch {
         setRefreshError('Assignment completed. The remaining queue could not be refreshed, so the last loaded items are still shown.')
       }
@@ -482,11 +535,13 @@ export function DocumentHubClientView({
       <p className="shrink-0 text-xs text-[var(--text-muted)]" aria-live="polite">
         {filteredDocuments.length} of {documents.length} documents
       </p>
+      <p
+        className="shrink-0 text-xs text-[var(--text-muted)]"
+        title="Live updates are unavailable. This foreground view periodically checks the authoritative queue."
+      >
+        {freshnessLabel(lastSuccessfulRefreshAt, freshnessClock, isOffline)}
+      </p>
       <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" variant="outline" onClick={refreshQueue} loading={isRefreshing}>
-          {!isRefreshing && <RefreshCw className="size-4" aria-hidden="true" />}
-          Refresh queue
-        </Button>
         <Button ref={uploadButtonRef} type="button" onClick={() => setIsUploadOpen(true)}>
           <Upload className="size-4" aria-hidden="true" />
           Upload PDFs
