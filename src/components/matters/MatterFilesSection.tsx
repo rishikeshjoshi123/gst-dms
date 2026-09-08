@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import { ArrowUpRight, FileText } from 'lucide-react'
 
-import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
-import { buildMatterDocumentSelectionHref } from '@/lib/matters/workspace-route'
+import type { MatterSupportingFilesPage } from '@/lib/matters/workspace-read'
+import { matterFilesVisibleRange } from '@/lib/matters/workspace-files-page'
+import { buildMatterDocumentSelectionHref, buildMatterFilesPageHref } from '@/lib/matters/workspace-route'
 import { buildMatterInspectorHref, MATTER_INSPECTOR_LABELS, type MatterInspectorView } from '@/lib/matters/workspace-route'
 
 type SupportingFile = {
@@ -18,7 +20,8 @@ type SupportingFile = {
 
 export function MatterFilesSection({
   matterId,
-  documents,
+  page,
+  selectedDocument,
   selectedDocumentId,
   selectionUnavailable,
   inspectorMetadata,
@@ -26,21 +29,31 @@ export function MatterFilesSection({
   queryEntries,
 }: {
   matterId: string
-  documents: SupportingFile[]
+  page: MatterSupportingFilesPage
+  selectedDocument: SupportingFile | null
   selectedDocumentId: string | null
   selectionUnavailable: boolean
   inspectorMetadata?: DocumentInspectorMetadata
   inspector: MatterInspectorView
   queryEntries: Array<[string, string]>
 }) {
-  const selected = documents.find((document) => document.id === selectedDocumentId) ?? null
+  const selected = selectedDocument?.id === selectedDocumentId ? selectedDocument : null
+  const range = matterFilesVisibleRange(page)
+  const hasPrevious = page.offset > 0
+  const hasNext = page.offset + page.items.length < page.total
+  const previousOffset = Math.max(0, page.offset - page.limit)
+  const nextOffset = page.offset + page.items.length
+  const rangeLabel = page.total === 0
+    ? '0 files'
+    : `Showing ${range.start}–${range.end} of ${page.total} ${page.total === 1 ? 'file' : 'files'}`
+  const returnTo = buildMatterReturnPath(matterId, queryEntries)
 
   return (
     <div className="flex min-h-full flex-col gap-3">
       <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Supporting files</h2>
-          <p className="text-xs text-[var(--text-muted)]">Evidence and supporting material for this matter.</p>
+          <p className="text-xs text-[var(--text-muted)]">{rangeLabel}</p>
         </div>
         <Link
           href={`/documents?matterId=${encodeURIComponent(matterId)}`}
@@ -96,7 +109,7 @@ export function MatterFilesSection({
                 Close overview
               </Link>
               <Link
-                href={canonicalDocumentPath(selected.id, { matterId })}
+                href={canonicalDocumentPath(selected.id, { matterId, returnTo })}
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--primary)] px-3 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
               >
                 Open selected file <ArrowUpRight size={15} aria-hidden="true" />
@@ -106,7 +119,7 @@ export function MatterFilesSection({
         </aside>
       )}
 
-      {documents.length === 0 ? (
+      {page.total === 0 ? (
         <div className="flex min-h-64 flex-col items-center justify-center gap-2 border border-dashed border-[var(--border-strong)] bg-[var(--surface)] p-6 text-center">
           <FileText size={24} aria-hidden="true" className="text-[var(--text-muted)]" />
           <h3 className="font-semibold text-[var(--text-primary)]">No supporting files</h3>
@@ -114,7 +127,7 @@ export function MatterFilesSection({
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Supporting files">
-          {documents.map((document) => {
+          {page.items.map((document) => {
             const fileName = document.display_title || document.effective_filename || 'Untitled document'
             const isSelected = document.id === selectedDocumentId
             return (
@@ -137,7 +150,7 @@ export function MatterFilesSection({
                     Inspect file
                   </Link>
                   <Link
-                    href={canonicalDocumentPath(document.id, { matterId })}
+                    href={canonicalDocumentPath(document.id, { matterId, returnTo })}
                     className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
                   >
                     Open in Workbench <ArrowUpRight size={14} aria-hidden="true" />
@@ -147,6 +160,53 @@ export function MatterFilesSection({
             )
           })}
         </ul>
+      )}
+
+      {page.total > 0 && (
+        <nav
+          aria-label="Supporting files pages"
+          className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+        >
+          <p className="text-sm text-[var(--text-secondary)]">{rangeLabel}</p>
+          <div className="flex items-center gap-2">
+            {hasPrevious ? (
+              <Link
+                href={buildMatterFilesPageHref(matterId, queryEntries, {
+                  offset: previousOffset,
+                  limit: page.limit,
+                })}
+                className="inline-flex min-h-11 min-w-20 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              >
+                Previous
+              </Link>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="inline-flex min-h-11 min-w-20 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-sm font-medium text-[var(--text-disabled)]"
+              >
+                Previous
+              </span>
+            )}
+            {hasNext ? (
+              <Link
+                href={buildMatterFilesPageHref(matterId, queryEntries, {
+                  offset: nextOffset,
+                  limit: page.limit,
+                })}
+                className="inline-flex min-h-11 min-w-20 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+              >
+                Next
+              </Link>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="inline-flex min-h-11 min-w-20 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] px-3 text-sm font-medium text-[var(--text-disabled)]"
+              >
+                Next
+              </span>
+            )}
+          </div>
+        </nav>
       )}
     </div>
   )

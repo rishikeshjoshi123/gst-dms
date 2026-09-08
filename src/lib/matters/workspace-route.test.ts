@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   buildMatterDocumentSelectionHref,
+  buildMatterFilesPageHref,
   buildMatterInspectorHref,
   buildMatterSectionHref,
   loadOnlyActiveMatterSection,
@@ -16,6 +17,7 @@ import {
 import { acceptedSectionSelection } from './workspace-selection'
 
 const documentId = '00000000-0000-4000-8000-000000000001'
+const defaultFilesPage = { offset: 0, limit: 50 }
 
 test('uses the fixed canonical order and defaults invalid or omitted sections to Timeline', () => {
   assert.deepEqual(MATTER_SECTION_IDS, [
@@ -29,13 +31,28 @@ test('uses the fixed canonical order and defaults invalid or omitted sections to
 
 test('parses selection only for Timeline or Files and rejects malformed or repeated ids', () => {
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'timeline', document: documentId, inspector: 'notes' }), {
-    section: 'timeline', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes',
+    section: 'timeline', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes', filesPage: defaultFilesPage,
   })
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: 'malformed' }).selectedDocumentId, null)
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: [documentId, documentId] }).selectedDocumentId, null)
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'details', document: documentId, inspector: 'notes' }), {
-    section: 'details', selectionRequested: false, selectedDocumentId: null, inspector: 'overview',
+    section: 'details', selectionRequested: false, selectedDocumentId: null, inspector: 'overview', filesPage: defaultFilesPage,
   })
+})
+
+test('parses bounded Files paging and fails repeated or malformed paging values closed', () => {
+  assert.deepEqual(
+    parseMatterWorkspaceRoute({ section: 'files', filesOffset: '100', filesLimit: '25' }).filesPage,
+    { offset: 100, limit: 25 },
+  )
+  assert.deepEqual(
+    parseMatterWorkspaceRoute({ section: 'files', filesOffset: '-1', filesLimit: '0' }).filesPage,
+    defaultFilesPage,
+  )
+  assert.deepEqual(
+    parseMatterWorkspaceRoute({ filesOffset: ['50', '100'], filesLimit: ['25', '50'] }).filesPage,
+    defaultFilesPage,
+  )
 })
 
 test('section hrefs preserve unrelated and repeated query state', () => {
@@ -97,6 +114,27 @@ test('inspector hrefs preserve selection and repeated query state', () => {
   assert.equal(url.searchParams.get('document'), documentId)
   assert.equal(url.searchParams.get('inspector'), 'relationships')
   assert.deepEqual(url.searchParams.getAll('filter'), ['one', 'two'])
+})
+
+test('Files page hrefs replace owned paging keys and preserve selection, inspector, and repeated query state', () => {
+  const href = buildMatterFilesPageHref('matter/one', [
+    ['section', 'files'],
+    ['document', documentId],
+    ['inspector', 'notes'],
+    ['filter', 'evidence'],
+    ['filter', 'correspondence'],
+    ['filesOffset', '0'],
+    ['filesOffset', '999'],
+    ['filesLimit', '10'],
+  ], { offset: 50, limit: 50 })
+  const url = new URL(href, 'https://casechain.test')
+  assert.equal(url.pathname, '/matters/matter%2Fone')
+  assert.equal(url.searchParams.get('section'), 'files')
+  assert.equal(url.searchParams.get('filesOffset'), '50')
+  assert.equal(url.searchParams.has('filesLimit'), false)
+  assert.equal(url.searchParams.get('document'), documentId)
+  assert.equal(url.searchParams.get('inspector'), 'notes')
+  assert.deepEqual(url.searchParams.getAll('filter'), ['evidence', 'correspondence'])
 })
 
 test('mobile uses four direct sections plus More for the fixed four secondary sections', () => {

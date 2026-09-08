@@ -3,8 +3,10 @@ import { getWikiSections } from '@/lib/actions/wiki'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
 import { shapeDocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 import {
+  createSupportingFilesSnapshotPage,
   readActiveNoteDocumentOptions,
   readActiveProceedings,
+  readActiveSupportingFileSelection,
   readActiveSupportingFiles,
   readSelectedDocumentNotes,
   readTransitionalTimelineLinks,
@@ -97,15 +99,19 @@ async function TimelineSection({
 
 async function FilesSection({ matterId, exactMatter, route, queryEntries }: ActiveSectionProps) {
   const readOnly = exactMatter.state === 'trash'
-  const documents = readOnly
-    ? exactMatter.data.documents.filter((document) => document.document_class === 'supporting')
-    : await readActiveSupportingFiles(matterId)
-  const accepted = acceptedSectionSelection(
-    route.selectedDocumentId,
-    matterId,
-    'supporting',
-    documents.map(({ id, matter_id, document_class }) => ({ id, matter_id, document_class })),
-  )
+  const page = readOnly
+    ? createSupportingFilesSnapshotPage(exactMatter.data.documents, route.filesPage)
+    : await readActiveSupportingFiles(matterId, route.filesPage)
+  const accepted = readOnly
+    ? acceptedSectionSelection(
+        route.selectedDocumentId,
+        matterId,
+        'supporting',
+        exactMatter.data.documents,
+      )
+    : route.selectedDocumentId
+      ? await readActiveSupportingFileSelection(matterId, route.selectedDocumentId)
+      : null
   const selectionUnavailable = route.selectionRequested && !accepted
   const inspectorMetadataByDocumentId = accepted
     ? readOnly
@@ -116,7 +122,8 @@ async function FilesSection({ matterId, exactMatter, route, queryEntries }: Acti
   return (
     <MatterFilesSection
       matterId={matterId}
-      documents={documents}
+      page={page}
+      selectedDocument={accepted}
       selectedDocumentId={accepted?.id ?? null}
       selectionUnavailable={selectionUnavailable}
       inspectorMetadata={accepted ? inspectorMetadataByDocumentId[accepted.id] : undefined}

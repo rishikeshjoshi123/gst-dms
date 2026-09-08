@@ -10,7 +10,7 @@ import {
   getCanonicalDocumentVersionSignedUrl,
   getDocumentsByMatter,
 } from '@/lib/actions/document'
-import { parseCanonicalDocumentUrlState } from '@/lib/canonical-document-route'
+import { parseCanonicalDocumentUrlState, safeMatterReturnPath } from '@/lib/canonical-document-route'
 import { getNotes } from '@/lib/actions/notes'
 import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
@@ -32,6 +32,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
   const isTrashReadOnly = exactDocument.state === 'trash'
   const doc = isTrashReadOnly ? exactDocument.data.record : exactDocument.record
   const matterId = doc.matter_id
+  const matterReturnPath = safeMatterReturnPath(sourceLocator.returnTo, matterId) ?? `/matters/${matterId}`
 
   const sourcePage = sourceLocator.page ?? 1
   const selectedVersionId = sourceLocator.sourceState === 'invalid'
@@ -77,7 +78,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
 
   const breadcrumbs = [
     { label: 'Documents', href: '/documents' },
-    { label: doc.matters?.title || 'Matter', href: `/matters/${matterId}` },
+    { label: doc.matters?.title || 'Matter', href: matterReturnPath },
     { label: documentTitle },
   ]
 
@@ -88,7 +89,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
 
       <div className="flex shrink-0 items-center gap-4">
         <Link
-          href={`/matters/${matterId}`}
+          href={matterReturnPath}
           className="flex min-h-11 items-center gap-2 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
         >
           <ArrowLeft size={16} aria-hidden="true" />

@@ -3,10 +3,118 @@ import 'server-only'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/database.types'
+import {
+  clampMatterFilesOffset,
+  compareSupportingFilesNewestFirst,
+  isActiveSupportingFileCandidate,
+  normalizeMatterFilesPage,
+  paginateMatterFiles,
+  type MatterFilesPageRequest,
+} from './workspace-files-page'
 
 export type MatterWorkspaceDocument = Database['public']['Tables']['documents']['Row']
 export type MatterWorkspaceLink = Database['public']['Tables']['document_links']['Row']
 type NoteQuoteLocator = Database['public']['Functions']['get_note_quote_locators']['Returns'][number]
+
+const SUPPORTING_FILE_SELECT = [
+  'id',
+  'org_id',
+  'matter_id',
+  'document_class',
+  'record_state',
+  'deleted_at',
+  'display_title',
+  'effective_filename',
+  'document_category',
+  'reference_number',
+  'content_availability',
+  'created_at',
+  'effective_size_bytes',
+  'lifecycle_revision',
+].join(', ')
+
+type SupportingFileInternalRow = Pick<MatterWorkspaceDocument,
+  | 'id'
+  | 'org_id'
+  | 'matter_id'
+  | 'document_class'
+  | 'record_state'
+  | 'deleted_at'
+  | 'display_title'
+  | 'effective_filename'
+  | 'document_category'
+  | 'reference_number'
+  | 'content_availability'
+  | 'created_at'
+  | 'effective_size_bytes'
+  | 'lifecycle_revision'
+>
+
+export type MatterSupportingFileSummary = Omit<SupportingFileInternalRow,
+  | 'org_id'
+  | 'record_state'
+  | 'deleted_at'
+  | 'lifecycle_revision'
+  | 'content_availability'
+  | 'effective_size_bytes'
+> & {
+  content_availability: SupportingFileInternalRow['content_availability'] | null
+  effective_size_bytes: number | null
+  revision: number | null
+}
+
+export type MatterSupportingFilesPage = {
+  items: MatterSupportingFileSummary[]
+  total: number
+  offset: number
+  limit: number
+  fetchedAt: string
+  /** No collection revision exists yet; item revisions and fetchedAt are authoritative. */
+  sourceRevision: null
+}
+
+function projectSupportingFile(row: SupportingFileInternalRow): MatterSupportingFileSummary {
+  return {
+    id: row.id,
+    matter_id: row.matter_id,
+    document_class: row.document_class,
+    display_title: row.display_title,
+    effective_filename: row.effective_filename,
+    document_category: row.document_category,
+    reference_number: row.reference_number,
+    content_availability: row.content_availability,
+    created_at: row.created_at,
+    effective_size_bytes: row.effective_size_bytes,
+    revision: row.lifecycle_revision,
+  }
+}
+
+function activeSupportingFilesQuery(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  matterId: string,
+  orgId: string,
+  exactCount: boolean,
+) {
+  const query = exactCount
+    ? supabase.from('documents').select(SUPPORTING_FILE_SELECT, { count: 'exact' })
+    : supabase.from('documents').select(SUPPORTING_FILE_SELECT)
+
+  return query
+    .eq('org_id', orgId)
+    .eq('matter_id', matterId)
+    .eq('document_class', 'supporting')
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+}
+
+function assertSupportingFileRows(
+  rows: SupportingFileInternalRow[],
+  scope: { orgId: string; matterId: string; selectedId?: string },
+) {
+  if (rows.some((row) => !isActiveSupportingFileCandidate(row, scope))) {
+    throw new Error('Unable to load the supporting document section.')
+  }
+}
 
 async function readActiveMatterDocuments(
   matterId: string,
@@ -98,9 +206,109 @@ export function readActiveProceedings(matterId: string) {
   return readActiveMatterDocuments(matterId, 'proceeding')
 }
 
-/** Files deliberately reads only active supporting documents. */
-export function readActiveSupportingFiles(matterId: string) {
-  return readActiveMatterDocuments(matterId, 'supporting')
+/** Files reads one exact, bounded active-supporting page without browser storage data. */
+export async function readActiveSupportingFiles(
+  matterId: string,
+  request: MatterFilesPageRequest = {},
+): Promise<MatterSupportingFilesPage> {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  const normalized = normalizeMatterFilesPage(request)
+  if (!orgId) {
+    return {
+      items: [],
+      total: 0,
+      ...normalized,
+      fetchedAt: new Date().toISOString(),
+      sourceRevision: null,
+    }
+  }
+  const authorizedOrgId = orgId
+
+  async function readPage(offset: number) {
+    const { data, error, count } = await activeSupportingFilesQuery(
+      supabase,
+      matterId,
+      authorizedOrgId,
+      true,
+    )
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + normalized.limit - 1)
+
+    if (error || count === null) throw new Error('Unable to load the supporting document section.')
+    const rows = (data ?? []) as unknown as SupportingFileInternalRow[]
+    assertSupportingFileRows(rows, { orgId: authorizedOrgId, matterId })
+    return { rows, total: count }
+  }
+
+  let offset = normalized.offset
+  let result = await readPage(offset)
+  // A stale or hostile overflow offset is moved to the last page. Re-read so
+  // its rows and exact total come from the same database statement.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const clamped = clampMatterFilesOffset(offset, normalized.limit, result.total)
+    if (clamped === offset) break
+    offset = clamped
+    result = await readPage(offset)
+  }
+
+  return {
+    items: result.rows.map(projectSupportingFile),
+    total: result.total,
+    offset,
+    limit: normalized.limit,
+    fetchedAt: new Date().toISOString(),
+    sourceRevision: null,
+  }
+}
+
+/** Validate an off-page Files selection under exactly the page reader's fences. */
+export async function readActiveSupportingFileSelection(matterId: string, documentId: string) {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return null
+
+  const { data, error } = await activeSupportingFilesQuery(supabase, matterId, orgId, false)
+    .eq('id', documentId)
+    .maybeSingle()
+  if (error) throw new Error('Unable to load the selected supporting document.')
+  if (!data) return null
+
+  const row = data as unknown as SupportingFileInternalRow
+  assertSupportingFileRows([row], { orgId, matterId, selectedId: documentId })
+  return projectSupportingFile(row)
+}
+
+/** Trash uses its already-authorised exact snapshot and never issues an active read. */
+export function createSupportingFilesSnapshotPage(
+  documents: readonly Pick<MatterWorkspaceDocument,
+    | 'id'
+    | 'matter_id'
+    | 'document_class'
+    | 'display_title'
+    | 'effective_filename'
+    | 'document_category'
+    | 'reference_number'
+    | 'created_at'
+  >[],
+  request: MatterFilesPageRequest = {},
+): MatterSupportingFilesPage {
+  const supporting = documents
+    .filter((document) => document.document_class === 'supporting')
+    .sort(compareSupportingFilesNewestFirst)
+  const page = paginateMatterFiles(supporting, request)
+  return {
+    ...page,
+    items: page.items.map((document) => ({
+      ...document,
+      content_availability: null,
+      effective_size_bytes: null,
+      revision: null,
+    })),
+    fetchedAt: new Date().toISOString(),
+    sourceRevision: null,
+  }
 }
 
 /** Notes needs only safe, same-matter option identity rather than full document rows. */

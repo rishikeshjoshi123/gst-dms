@@ -2,7 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { canonicalDocumentPath, legacyCanonicalDocumentRedirectPath, parseCanonicalDocumentUrlState } from './canonical-document-route'
+import {
+  buildMatterReturnPath,
+  canonicalDocumentPath,
+  legacyCanonicalDocumentRedirectPath,
+  parseCanonicalDocumentUrlState,
+  safeMatterReturnPath,
+} from './canonical-document-route'
 
 test('builds the canonical active document route without matter lineage', () => {
   assert.equal(canonicalDocumentPath('document-id'), '/documents/document-id')
@@ -27,6 +33,36 @@ test('allowlists one scalar immutable version and one positive safe PDF page', (
   assert.equal(
     canonicalDocumentPath('document-id', { matterId: 'matter', version, page: '42' }),
     `/documents/document-id?matterId=matter&version=${version}&page=42`,
+  )
+})
+
+test('round-trips an exact same-matter return path and rejects open or cross-matter returns', () => {
+  const returnTo = buildMatterReturnPath('matter/one', [
+    ['section', 'files'],
+    ['filesOffset', '50'],
+    ['filter', 'evidence'],
+    ['filter', 'correspondence'],
+    ['returnTo', '/matters/old'],
+  ])
+  assert.equal(
+    returnTo,
+    '/matters/matter%2Fone?section=files&filesOffset=50&filter=evidence&filter=correspondence',
+  )
+  assert.equal(safeMatterReturnPath(returnTo, 'matter/one'), returnTo)
+  assert.equal(safeMatterReturnPath('/matters/other?section=files', 'matter/one'), null)
+  assert.equal(safeMatterReturnPath('//evil.example/matters/matter%2Fone', 'matter/one'), null)
+  assert.equal(safeMatterReturnPath('https://evil.example/matters/matter%2Fone', 'matter/one'), null)
+
+  const documentPath = canonicalDocumentPath('document-id', { matterId: 'matter/one', returnTo })
+  const parsed = new URL(documentPath, 'https://casechain.test')
+  assert.equal(parsed.searchParams.get('returnTo'), returnTo)
+  assert.equal(
+    parseCanonicalDocumentUrlState({ matterId: 'matter/one', returnTo }).returnTo,
+    returnTo,
+  )
+  assert.equal(
+    canonicalDocumentPath('document-id', { matterId: 'matter/one', returnTo: '/matters/other' }),
+    '/documents/document-id?matterId=matter%2Fone',
   )
 })
 
@@ -109,7 +145,7 @@ test('matter read-only compositions preserve each document Trash lineage without
   const notesTab = readFileSync(new URL('../components/matters/MatterNotesTab.tsx', import.meta.url), 'utf8')
   const timelineGraph = readFileSync(new URL('../components/matters/TimelineGraph.tsx', import.meta.url), 'utf8')
 
-  assert.match(matterFiles, /canonicalDocumentPath\(document\.id, \{ matterId \}\)/)
+  assert.match(matterFiles, /canonicalDocumentPath\(document\.id, \{ matterId, returnTo \}\)/)
   assert.match(graphNode, /canonicalDocumentPath\(doc\.id, readOnly \? \{ matterId: doc\.matter_id \} : \{\}\)/)
   assert.match(timelineGraph, /data:\s*\{[\s\S]*doc,[\s\S]*readOnly,[\s\S]*\}/)
   assert.match(notesTab, /documents\.find\(document => document\.id === selectedThread\?\.document_id\)\?\.matter_id/)

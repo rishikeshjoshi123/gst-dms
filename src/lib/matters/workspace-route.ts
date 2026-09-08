@@ -1,3 +1,5 @@
+import { MATTER_FILES_DEFAULT_LIMIT, normalizeMatterFilesPage } from './workspace-files-page'
+
 export const MATTER_SECTION_IDS = [
   'timeline',
   'files',
@@ -51,6 +53,10 @@ export type MatterWorkspaceRouteState = {
   selectionRequested: boolean
   selectedDocumentId: string | null
   inspector: MatterInspectorView
+  filesPage: {
+    offset: number
+    limit: number
+  }
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -80,6 +86,10 @@ export function parseMatterWorkspaceRoute(
     inspector: inspectorValue && INSPECTOR_VIEWS.has(inspectorValue as MatterInspectorView)
       ? inspectorValue as MatterInspectorView
       : 'overview',
+    filesPage: normalizeMatterFilesPage({
+      offset: scalar(query.filesOffset),
+      limit: scalar(query.filesLimit),
+    }),
   }
 }
 
@@ -113,7 +123,27 @@ export function buildMatterSectionHref(
     search.delete('inspector')
   }
   if (targetSection !== 'timeline') search.delete('view')
+  if (currentSection !== targetSection || targetSection !== 'files') {
+    search.delete('filesOffset')
+    search.delete('filesLimit')
+  }
 
+  return `/matters/${encodeURIComponent(matterId)}?${search.toString()}`
+}
+
+export function buildMatterFilesPageHref(
+  matterId: string,
+  currentEntries: Iterable<readonly [string, string]>,
+  page: { offset: number; limit: number },
+) {
+  const normalized = normalizeMatterFilesPage(page)
+  const search = new URLSearchParams()
+  for (const [key, value] of currentEntries) {
+    if (key !== 'filesOffset' && key !== 'filesLimit') search.append(key, value)
+  }
+  search.set('section', 'files')
+  if (normalized.offset > 0) search.set('filesOffset', String(normalized.offset))
+  if (normalized.limit !== MATTER_FILES_DEFAULT_LIMIT) search.set('filesLimit', String(normalized.limit))
   return `/matters/${encodeURIComponent(matterId)}?${search.toString()}`
 }
 
