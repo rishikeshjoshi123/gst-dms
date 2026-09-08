@@ -8,10 +8,98 @@ import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { randomUUID } from 'node:crypto'
+import {
+  escapeMatterDestinationLike,
+  MATTER_DESTINATION_RESULT_LIMIT,
+  normalizeMatterDestinationSearch,
+  type MatterDestinationSearchOptions,
+} from '@/lib/matter-destination-search'
 
 // ── Types ─────────────────────────────────────────────────────────
 
 import { MatterStatus, FINANCIAL_YEARS } from '../constants'
+
+export type MatterDestinationOption = {
+  id: string
+  title: string | null
+  matter_code: string | null
+  financial_year: string | null
+  clients: { name: string | null } | null
+}
+
+export type MatterDestinationSearchResult =
+  | { ok: true; matters: MatterDestinationOption[] }
+  | { ok: false; error: string }
+
+const MATTER_DESTINATION_SELECT = 'id, title, matter_code, financial_year, clients(id, name)'
+
+function uniqueMatterDestinations(rows: MatterDestinationOption[]) {
+  return Array.from(new Map(rows.map((matter) => [matter.id, matter])).values())
+}
+
+export async function searchMatterDestinations(
+  options: MatterDestinationSearchOptions = {},
+): Promise<MatterDestinationSearchResult> {
+  const supabase = await createClient()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) return { ok: false, error: 'No active organisation is available.' }
+  const { query, includeIds } = normalizeMatterDestinationSearch(options)
+
+  const includedRequest = includeIds.length > 0
+    ? supabase
+        .from('matters')
+        .select(MATTER_DESTINATION_SELECT)
+        .eq('org_id', orgId)
+        .eq('record_state', 'active')
+        .is('deleted_at', null)
+        .in('id', includeIds)
+    : Promise.resolve({ data: [], error: null })
+
+  const baseQuery = () => supabase
+    .from('matters')
+    .select(MATTER_DESTINATION_SELECT)
+    .eq('org_id', orgId)
+    .eq('record_state', 'active')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(MATTER_DESTINATION_RESULT_LIMIT)
+
+  const matchRequests = query
+    ? (() => {
+        const pattern = `%${escapeMatterDestinationLike(query)}%`
+        return [
+          baseQuery().ilike('title', pattern),
+          baseQuery().ilike('matter_code', pattern),
+          baseQuery().ilike('financial_year', pattern),
+          supabase
+            .from('matters')
+            .select('id, title, matter_code, financial_year, clients!inner(id, name)')
+            .eq('org_id', orgId)
+            .eq('record_state', 'active')
+            .is('deleted_at', null)
+            .ilike('clients.name', pattern)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
+            .limit(MATTER_DESTINATION_RESULT_LIMIT),
+        ]
+      })()
+    : [baseQuery()]
+
+  const [includedResult, ...matchResults] = await Promise.all([includedRequest, ...matchRequests])
+  const failedResult = [includedResult, ...matchResults].find((result) => result.error)
+  if (failedResult?.error) {
+    console.error('Failed to search matter destinations:', failedResult.error)
+    return { ok: false, error: 'Matter destinations could not be loaded.' }
+  }
+
+  const included = (includedResult.data ?? []) as unknown as MatterDestinationOption[]
+  const matches = uniqueMatterDestinations(matchResults.flatMap((result) =>
+    (result.data ?? []) as unknown as MatterDestinationOption[]))
+    .slice(0, MATTER_DESTINATION_RESULT_LIMIT)
+
+  return { ok: true, matters: uniqueMatterDestinations([...included, ...matches]) }
+}
 
 // ── Read Matters ──────────────────────────────────────────────────
 

@@ -45,19 +45,15 @@ import {
   getStagedDocuments,
   type InboxQueueDocument,
 } from '@/lib/actions/inbox'
+import {
+  searchMatterDestinations,
+  type MatterDestinationOption,
+} from '@/lib/actions/matter'
 import { getIntakeItemSignedUrl } from '@/lib/actions/document'
 import { canonicalIntakeActions } from '@/lib/inbox-compat'
 import { reconcileInboxQueue } from '@/lib/inbox-queue-read'
 import { freshnessLabel } from '@/lib/freshness'
 import { cn } from '@/lib/utils'
-
-type MatterOption = {
-  id: string
-  title: string | null
-  matter_code: string | null
-  financial_year: string | null
-  clients: { name: string | null } | null
-}
 
 type DetailTab = 'overview' | 'placement'
 
@@ -66,7 +62,8 @@ type DocumentHubClientViewProps = {
   initialQueueError: string | null
   initialQueueTotal: number
   initialNextOffset: number
-  matters: MatterOption[]
+  initialMatters: MatterDestinationOption[]
+  initialMatterLookupError: string | null
   preselectedMatterId?: string
   preselectedIntakeId?: string
 }
@@ -79,6 +76,10 @@ type StatusPresentation = {
 
 function uniqueDocuments(documents: InboxQueueDocument[]) {
   return Array.from(new Map(documents.map((document) => [document.id, document])).values())
+}
+
+function uniqueMatterOptions(matters: MatterDestinationOption[]) {
+  return Array.from(new Map(matters.map((matter) => [matter.id, matter])).values())
 }
 
 function fileName(document: InboxQueueDocument) {
@@ -135,7 +136,7 @@ function formatReceivedAt(value: string) {
   }).format(date)
 }
 
-function matterLabel(matter: MatterOption | undefined) {
+function matterLabel(matter: MatterDestinationOption | undefined) {
   if (!matter) return 'Matter unavailable'
   const identity = [matter.clients?.name, matter.title].filter(Boolean).join(' · ')
   return matter.matter_code ? `${identity} · ${matter.matter_code}` : identity || 'Untitled matter'
@@ -191,7 +192,8 @@ export function DocumentHubClientView({
   initialQueueError,
   initialQueueTotal,
   initialNextOffset,
-  matters,
+  initialMatters,
+  initialMatterLookupError,
   preselectedMatterId,
   preselectedIntakeId,
 }: DocumentHubClientViewProps) {
@@ -199,6 +201,11 @@ export function DocumentHubClientView({
   const [queueTotal, setQueueTotal] = useState(initialQueueTotal)
   const [nextOffset, setNextOffset] = useState(initialNextOffset)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [matterOptions, setMatterOptions] = useState(initialMatters)
+  const [destinationMatches, setDestinationMatches] = useState<MatterDestinationOption[]>([])
+  const [destinationQuery, setDestinationQuery] = useState('')
+  const [isDestinationPending, setIsDestinationPending] = useState(false)
+  const [matterLookupError, setMatterLookupError] = useState<string | null>(initialMatterLookupError)
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     initialDocuments.some((document) => document.id === preselectedIntakeId)
       ? preselectedIntakeId ?? null
@@ -224,6 +231,8 @@ export function DocumentHubClientView({
     initialQueueError,
     initialQueueTotal,
     initialNextOffset,
+    initialMatters,
+    initialMatterLookupError,
   })
   const [isActionPending, startActionTransition] = useTransition()
   const uploadButtonRef = useRef<HTMLButtonElement>(null)
@@ -233,13 +242,15 @@ export function DocumentHubClientView({
   const loadedPageOffsetsRef = useRef([0])
   const sourceRequestGeneration = useRef(0)
   const queueRequestGeneration = useRef(0)
+  const destinationRequestGeneration = useRef(0)
+  const placementSubjectRef = useRef<string | null>(selectedId)
   const actionKeys = useRef(new Map<string, string>())
   const router = useRouter()
   const { setBreadcrumbs } = useBreadcrumbs()
 
   const matterById = useMemo(
-    () => new Map(matters.map((matter) => [matter.id, matter])),
-    [matters],
+    () => new Map(matterOptions.map((matter) => [matter.id, matter])),
+    [matterOptions],
   )
   const selectedDocument = documents.find((document) => document.id === selectedId) ?? null
   const selectedActions = canonicalIntakeActions(selectedDocument?.canonical_intake_state ?? '')
@@ -260,8 +271,17 @@ export function DocumentHubClientView({
     || renderedQueueProps.initialQueueError !== initialQueueError
     || renderedQueueProps.initialQueueTotal !== initialQueueTotal
     || renderedQueueProps.initialNextOffset !== initialNextOffset
+    || renderedQueueProps.initialMatters !== initialMatters
+    || renderedQueueProps.initialMatterLookupError !== initialMatterLookupError
   ) {
-    setRenderedQueueProps({ initialDocuments, initialQueueError, initialQueueTotal, initialNextOffset })
+    setRenderedQueueProps({
+      initialDocuments,
+      initialQueueError,
+      initialQueueTotal,
+      initialNextOffset,
+      initialMatters,
+      initialMatterLookupError,
+    })
     if (initialQueueError) {
       setRefreshError(`${initialQueueError} Showing the last loaded documents.`)
     } else {
@@ -271,6 +291,9 @@ export function DocumentHubClientView({
       setNextOffset(initialNextOffset)
       setLastSuccessfulRefreshAt(freshnessClock)
     }
+    setMatterOptions(initialMatters)
+    setDestinationMatches([])
+    setMatterLookupError(initialMatterLookupError)
   }
 
   useEffect(() => {
@@ -303,14 +326,22 @@ export function DocumentHubClientView({
 
   useEffect(() => {
     if (!selectedDocument) {
+      placementSubjectRef.current = null
       // Clear the dependent form control when the selected subject disappears.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMatterId('')
       return
     }
     const intendedMatter = selectedDocument.intake_matter_id
-    setSelectedMatterId(intendedMatter && matterById.has(intendedMatter) ? intendedMatter : '')
-  }, [matterById, selectedDocument])
+    if (placementSubjectRef.current !== selectedDocument.id) {
+      placementSubjectRef.current = selectedDocument.id
+      setSelectedMatterId(intendedMatter && matterById.has(intendedMatter) ? intendedMatter : '')
+      return
+    }
+    if (!selectedMatterId && intendedMatter && matterById.has(intendedMatter)) {
+      setSelectedMatterId(intendedMatter)
+    }
+  }, [matterById, selectedDocument, selectedMatterId])
 
   const filteredDocuments = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -327,6 +358,54 @@ export function DocumentHubClientView({
         .includes(normalizedQuery)
     })
   }, [documents, matterById, query])
+
+  const hydrateMatterOptions = useCallback(async (queueDocuments: readonly InboxQueueDocument[]) => {
+    const includeIds = queueDocuments.flatMap((document) =>
+      document.intake_matter_id ? [document.intake_matter_id] : [])
+    if (includeIds.length === 0) return
+
+    try {
+      const result = await searchMatterDestinations({ includeIds })
+      if (!result.ok) return
+      setMatterOptions((current) => uniqueMatterOptions([...current, ...result.matters]))
+    } catch {
+      // Queue rows remain usable with an explicit unavailable destination label.
+    }
+  }, [])
+
+  useEffect(() => {
+    const generation = destinationRequestGeneration.current + 1
+    destinationRequestGeneration.current = generation
+    if (!selectedActions.canAssign) return
+    const timer = window.setTimeout(async () => {
+      setIsDestinationPending(true)
+      try {
+        const result = await searchMatterDestinations({
+          query: destinationQuery,
+          includeIds: selectedMatterId ? [selectedMatterId] : [],
+        })
+        if (destinationRequestGeneration.current !== generation) return
+        if (!result.ok) {
+          setMatterLookupError(result.error)
+          return
+        }
+
+        setMatterOptions((current) => uniqueMatterOptions([...current, ...result.matters]))
+        setDestinationMatches(result.matters)
+        setMatterLookupError(null)
+        if (selectedMatterId && !result.matters.some((matter) => matter.id === selectedMatterId)) {
+          setSelectedMatterId('')
+        }
+      } catch (error) {
+        if (destinationRequestGeneration.current !== generation) return
+        setMatterLookupError(error instanceof Error ? error.message : 'Matter destinations could not be loaded.')
+      } finally {
+        if (destinationRequestGeneration.current === generation) setIsDestinationPending(false)
+      }
+    }, destinationQuery ? 250 : 0)
+
+    return () => window.clearTimeout(timer)
+  }, [destinationQuery, selectedActions.canAssign, selectedMatterId])
 
   function actionKey(kind: 'assign' | 'discard', intakeId: string) {
     const mapKey = `${kind}:${intakeId}`
@@ -399,6 +478,7 @@ export function DocumentHubClientView({
         ...firstResult,
         documents: successfulResults.flatMap((result) => result.documents),
       })
+      for (const result of successfulResults) void hydrateMatterOptions(result.documents)
       setRefreshError(reconciled.error)
       documentsRef.current = reconciled.documents
       setDocuments(reconciled.documents)
@@ -426,7 +506,7 @@ export function DocumentHubClientView({
           : 'The queue could not be refreshed. Showing the last loaded documents.',
       )
     }
-  }, [preselectedMatterId, router])
+  }, [hydrateMatterOptions, preselectedMatterId, router])
 
   async function loadMoreDocuments() {
     if (isLoadingMore || nextOffset >= queueTotal) return
@@ -442,6 +522,7 @@ export function DocumentHubClientView({
       }
 
       const mergedDocuments = uniqueDocuments([...documentsRef.current, ...result.documents])
+      void hydrateMatterOptions(result.documents)
       documentsRef.current = mergedDocuments
       setDocuments(mergedDocuments)
       setQueueTotal(result.total)
@@ -898,21 +979,62 @@ export function DocumentHubClientView({
             </div>
             {selectedActions.canAssign ? (
               <div className="space-y-2">
-                <Label htmlFor="document-hub-matter">Matter</Label>
-                <select
-                  id="document-hub-matter"
-                  value={selectedMatterId}
-                  onChange={(event) => setSelectedMatterId(event.target.value)}
-                  className="min-h-11 w-full rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]"
+                <Label htmlFor="document-hub-matter-search">Matter</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
+                  <Input
+                    id="document-hub-matter-search"
+                    value={destinationQuery}
+                    onChange={(event) => setDestinationQuery(event.target.value)}
+                    placeholder="Search by client, matter, code, or financial year"
+                    className="h-11 pl-9"
+                    aria-controls="document-hub-matter-results"
+                  />
+                </div>
+                <div
+                  id="document-hub-matter-results"
+                  role="listbox"
+                  aria-label="Matter destinations"
+                  aria-busy={isDestinationPending}
+                  className="custom-scrollbar max-h-56 overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)]"
                 >
-                  <option value="">Choose a matter</option>
-                  {matters.map((matter) => (
-                    <option key={matter.id} value={matter.id}>{matterLabel(matter)}</option>
-                  ))}
-                </select>
-                {matters.length === 0 && (
-                  <p className="text-xs leading-5 text-[var(--text-muted)]">No accessible active matters are available for assignment.</p>
+                  {destinationMatches.map((matter) => {
+                    const isSelected = matter.id === selectedMatterId
+                    return (
+                      <button
+                        key={matter.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => setSelectedMatterId(matter.id)}
+                        className={cn(
+                          'flex min-h-11 w-full items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]',
+                          isSelected && 'bg-[var(--accent-muted)]',
+                        )}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-[var(--text-primary)]">{matter.title || 'Untitled matter'}</span>
+                          <span className="block truncate text-xs text-[var(--text-muted)]">
+                            {[matter.clients?.name, matter.matter_code, matter.financial_year].filter(Boolean).join(' · ') || 'Matter details unavailable'}
+                          </span>
+                        </span>
+                        {isSelected && <Check className="size-4 shrink-0 text-[var(--primary)]" aria-hidden="true" />}
+                      </button>
+                    )
+                  })}
+                  {!isDestinationPending && destinationMatches.length === 0 && (
+                    <p className="p-4 text-center text-xs text-[var(--text-muted)]">No accessible active matters match this search.</p>
+                  )}
+                  {isDestinationPending && destinationMatches.length === 0 && (
+                    <p className="p-4 text-center text-xs text-[var(--text-muted)]">Searching matters…</p>
+                  )}
+                </div>
+                {destinationQuery && destinationMatches.length > 0 && (
+                  <p className="text-xs leading-5 text-[var(--text-muted)]">
+                    Showing the current selection, when present, and up to 20 matches. Refine the search to narrow the list.
+                  </p>
                 )}
+                {matterLookupError && <p role="alert" className="text-xs leading-5 text-[var(--danger)]">{matterLookupError}</p>}
               </div>
             ) : (
               <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-overlay)] p-4">
