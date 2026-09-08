@@ -6,6 +6,7 @@ import { AlertTriangle, X, ArrowRight, FolderOpen, Building2 } from 'lucide-reac
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 export function NeedsAttentionPanel({ documents }: { documents: any[] }) {
   const [isPending, startTransition] = useTransition()
@@ -13,7 +14,11 @@ export function NeedsAttentionPanel({ documents }: { documents: any[] }) {
 
   function handleDismiss(id: string) {
     startTransition(async () => {
-      await dismissReviewFlag(id)
+      const result = await dismissReviewFlag(id)
+      if ('error' in result && result.error) {
+        toast.error(result.error)
+        return
+      }
       router.refresh()
     })
   }

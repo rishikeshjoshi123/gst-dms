@@ -295,32 +295,8 @@ export async function reassignDocumentMatter(
 // ── Dismiss Needs-Review Flag ─────────────────────────────────────
 
 export async function dismissReviewFlag(documentId: string) {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
-
-  const { data: updatedDocument, error } = await supabase
-    .from('documents')
-    .update({
-      status: 'analyzed',
-      review_reason: null,
-    })
-    .eq('id', documentId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    console.error('Dismiss review flag error:', error)
-    return { error: error.message }
-  }
-  if (!updatedDocument) return { error: 'Document not found or is read-only in Trash.' }
-
-  revalidatePath('/documents')
-  revalidatePath(canonicalDocumentPath(documentId))
-  return { success: true }
+  void documentId
+  return { error: 'Legacy review dismissal is unavailable. Resolve typed Review items instead.' }
 }
 
 // ── Promote / Demote document class ──────────────────────────────

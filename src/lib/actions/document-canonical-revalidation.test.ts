@@ -13,7 +13,6 @@ test('document record mutations invalidate their canonical reader', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
 
   for (const name of [
-    'dismissReviewFlag',
     'deleteDocument',
   ]) {
     assert.match(exportedFunction(source, name), /revalidatePath\(canonicalDocumentPath\(documentId\)\)/, name)
@@ -66,11 +65,16 @@ test('legacy metadata editing fails before client creation or direct document up
   assert.match(metadataUpdate, /governed inspector correction workflow/)
 })
 
-test('chaining review mutations invalidate the exact document whose status and reason changed', () => {
+test('legacy review status updates are absent from document and chaining actions', () => {
+  const documentSource = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
   const source = readFileSync(new URL('./chaining.ts', import.meta.url), 'utf8')
+  const dismiss = exportedFunction(documentSource, 'dismissReviewFlag')
 
-  assert.equal((source.match(/\.select\('id'\)\.maybeSingle\(\)/g) ?? []).length, 2)
-  assert.equal((source.match(/revalidatePath\(canonicalDocumentPath\(reviewedDocument\.id\)\)/g) ?? []).length, 2)
+  assert.doesNotMatch(dismiss, /createClient\(\)/)
+  assert.doesNotMatch(dismiss, /\.from\('documents'\)\s*\.update/)
+  assert.match(dismiss, /typed Review items/)
+  assert.doesNotMatch(source, /\.from\('documents'\)\.update/)
+  assert.doesNotMatch(source, /status: 'needs_review'/)
 })
 
 test('legacy classification fails before client creation or destructive link changes', () => {
