@@ -16,11 +16,22 @@ test('the shared PDF viewer owns one responsive scroller and fit-width toolbar',
 test('the shared viewer rotates and scopes keyboard page navigation to its focusable region', async () => {
   const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
 
+  assert.match(source, /function rotateClockwise\(\)/)
   assert.match(source, /setRotation\(current => \(current \+ 90\) % 360\)/)
   assert.match(source, /rotate=\{rotation\}/)
   assert.match(source, /aria-keyshortcuts="ArrowLeft ArrowRight PageUp PageDown Home End"/)
   assert.match(source, /target\.closest\('button, input, select, textarea, a, \[contenteditable="true"\]'\)/)
   assert.match(source, /setRotation\(0\)/)
-  assert.match(source, /setPageNumber\(clampPage\(e\.detail\.pageNumber, numPages\)\)/)
-  assert.match(source, /Number\.isFinite\(page\) \? Math\.trunc\(page\) : 1/)
+  assert.match(source, /const nextPage = clampPdfPage\(e\.detail\.pageNumber, numPages\)/)
+})
+
+test('continuous scrolling renders a bounded page window and synchronizes the dominant page', async () => {
+  const source = await readFile(new URL('./pdf-viewer-client.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /isPdfPageInRenderWindow\(page, pageNumber\)/)
+  assert.match(source, /new IntersectionObserver/)
+  assert.match(source, /data-pdf-page=\{page\}/)
+  assert.match(source, /container\.scrollTo\(\{ top:/)
+  assert.doesNotMatch(source, /scrollIntoView/)
+  assert.match(source, /pageNumber: selection\.pageNumber/)
 })
