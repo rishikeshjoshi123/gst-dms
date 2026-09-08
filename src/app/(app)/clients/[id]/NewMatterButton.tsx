@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { createMatter } from '@/lib/actions/matter'
 import { FINANCIAL_YEARS } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ export function NewMatterButton({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const idempotencyKey = useRef(crypto.randomUUID())
   const router = useRouter()
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -21,12 +22,14 @@ export function NewMatterButton({ clientId }: { clientId: string }) {
     setError(null)
     const formData = new FormData(e.currentTarget)
     formData.append('client_id', clientId)
+    formData.set('idempotencyKey', idempotencyKey.current)
 
     startTransition(async () => {
       const result = await createMatter(formData)
       if (result?.error) {
         setError(result.error)
       } else {
+        idempotencyKey.current = crypto.randomUUID()
         setOpen(false)
         router.push(`/matters/${result.id}`)
       }

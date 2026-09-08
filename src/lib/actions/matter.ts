@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { generateDefaultMatterTitle } from '@/lib/utils/matterNaming'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { randomUUID } from 'node:crypto'
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export async function createMatter(formData: FormData) {
   const financialYear = formData.get('financial_year') as string
   const description = (formData.get('description') as string)?.trim() || null
   const status = (formData.get('status') as MatterStatus) || 'active'
+  const idempotencyKey = (formData.get('idempotencyKey') as string)?.trim() || randomUUID()
 
   if (!clientId) return { error: 'Client is required.' }
   if (!financialYear) return { error: 'Financial year is required.' }
@@ -105,27 +107,30 @@ export async function createMatter(formData: FormData) {
     finalTitle = await generateDefaultMatterTitle(supabase, orgId, clientId, client.name, financialYear)
   }
 
-  const { data, error } = await supabase
-    .from('matters')
-    .insert({
-      org_id: orgId,
-      client_id: clientId,
-      title: finalTitle,
-      financial_year: financialYear,
-      description,
-      status,
-    })
-    .select('id, matter_code')
-    .single()
-
-  if (error || !data) {
-    console.error('Create matter error:', error)
-    return { error: error?.message ?? 'Failed to create matter.' }
+  const { data: command, error: commandError } = await supabase.rpc('create_matter_command', {
+    p_client_id: clientId,
+    p_title: finalTitle,
+    p_financial_year: financialYear,
+    p_description: description ?? '',
+    p_status: status,
+    p_idempotency_key: idempotencyKey,
+  })
+  const result = command?.[0]
+  if (commandError || !result || result.code !== 'ok' || !result.matter_id) {
+    console.error('Create matter command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      invalid_request: 'Check the matter title, financial year, and description.',
+      not_allowed: 'You do not have permission to create matters.',
+      context_unavailable: 'The selected client is no longer active.',
+      identifier_conflict: 'An active matter already uses this client and financial year, or its code conflicted. Choose another year or try again.',
+      idempotency_conflict: 'This submission key was already used for another request.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Failed to create matter.' }
   }
 
   revalidatePath('/matters'); revalidatePath('/dashboard')
   revalidatePath(`/clients/${clientId}`)
-  return { success: true, id: data.id, matterCode: data.matter_code }
+  return { success: true, id: result.matter_id }
 }
 
 // ── Update Matter ─────────────────────────────────────────────────
@@ -137,7 +142,8 @@ export async function updateMatterDetails(
     financialYear?: string
     description?: string | null
     status?: MatterStatus
-  }
+  },
+  options: { expectedRevision?: number; idempotencyKey?: string } = {},
 ) {
   const supabase = await createClient()
   const orgId = await getCurrentOrgId()
@@ -156,7 +162,7 @@ export async function updateMatterDetails(
   // Fetch current matter to get client_id for revalidation
   const { data: existingMatter } = await supabase
     .from('matters')
-    .select('client_id')
+    .select('client_id, title, financial_year, description, status, revision')
     .eq('id', matterId)
     .eq('org_id', orgId)
     .eq('record_state', 'active')
@@ -164,43 +170,46 @@ export async function updateMatterDetails(
     .maybeSingle()
   if (!existingMatter) return { error: 'Matter not found or is read-only in Trash.' }
 
-  const updateFields: any = {}
-  if (payload.title !== undefined) updateFields.title = payload.title.trim()
-  if (payload.financialYear !== undefined) updateFields.financial_year = payload.financialYear
-  if (payload.description !== undefined) updateFields.description = payload.description?.trim() || null
-  if (payload.status !== undefined) updateFields.status = payload.status
-
-  const { data: updatedMatter, error } = await supabase
-    .from('matters')
-    .update(updateFields)
-    .eq('id', matterId)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    console.error('Update matter error:', error)
-    return { error: error.message }
+  const expectedRevision = options.expectedRevision ?? existingMatter.revision
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
+    return { error: 'Refresh this matter before saving changes.' }
   }
-  if (!updatedMatter) return { error: 'Matter not found or is read-only in Trash.' }
+  const financialYear = payload.financialYear ?? existingMatter.financial_year
+  const { data: command, error: commandError } = await supabase.rpc('update_matter_command', {
+    p_matter_id: matterId,
+    p_expected_revision: expectedRevision,
+    p_title: payload.title?.trim() ?? existingMatter.title,
+    p_financial_year: financialYear,
+    p_description: payload.description === undefined
+      ? (existingMatter.description ?? '')
+      : (payload.description?.trim() ?? ''),
+    p_status: payload.status ?? existingMatter.status,
+    p_idempotency_key: options.idempotencyKey ?? randomUUID(),
+  })
+  const result = command?.[0]
+  if (commandError || !result || result.code !== 'ok') {
+    console.error('Update matter command error:', commandError ?? result?.code)
+    const messages: Record<string, string> = {
+      invalid_request: 'Check the matter title, financial year, and description.',
+      not_allowed: 'You do not have permission to update matters.',
+      context_unavailable: 'Matter not found or is read-only in Trash.',
+      conflict: 'This matter changed. Refresh before saving again.',
+      idempotency_conflict: 'This submission key was already used for another request.',
+    }
+    return { error: messages[result?.code ?? ''] ?? 'Failed to update matter.' }
+  }
 
-  // If financial year was updated, synchronize documents with 'Unknown FY' or missing FY
   if (payload.financialYear && payload.financialYear !== 'Unknown FY') {
     const { data: updatedDocuments } = await supabase
       .from('documents')
-      .update({ financial_year: payload.financialYear })
+      .select('id')
       .eq('matter_id', matterId)
       .eq('org_id', orgId)
       .eq('record_state', 'active')
       .is('deleted_at', null)
-      .or(`financial_year.eq.Unknown FY,financial_year.is.null`)
-      .select('id')
+      .eq('financial_year', payload.financialYear)
 
-    for (const document of updatedDocuments ?? []) {
-      revalidatePath(canonicalDocumentPath(document.id))
-    }
+    for (const document of updatedDocuments ?? []) revalidatePath(canonicalDocumentPath(document.id))
   }
 
   revalidatePath('/matters'); revalidatePath('/dashboard')
@@ -226,29 +235,7 @@ export async function updateMatter(id: string, formData: FormData) {
 // ── Archive / Close Matter ────────────────────────────────────────
 
 export async function setMatterStatus(id: string, status: MatterStatus) {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return { error: 'No active organisation.' }
-
-  const { data: updatedMatter, error } = await supabase
-    .from('matters')
-    .update({ status })
-    .eq('id', id)
-    .eq('org_id', orgId)
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    console.error('Set matter status error:', error)
-    return { error: error.message }
-  }
-  if (!updatedMatter) return { error: 'Matter not found or is read-only in Trash.' }
-
-  revalidatePath('/matters'); revalidatePath('/dashboard')
-  revalidatePath(`/matters/${id}`)
-  return { success: true }
+  return updateMatterDetails(id, { status })
 }
 
 
@@ -261,7 +248,6 @@ export async function autoLinkUnlinkedDocuments(matterId: string) {
 
   const res = await reevaluateMatterLinks(supabase, matterId, orgId, user.id)
   
-  const { revalidatePath } = require('next/cache')
   revalidatePath(`/matters/${matterId}`)
   
   return res

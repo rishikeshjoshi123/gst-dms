@@ -17,6 +17,7 @@ interface MatterDetails {
   financial_year: string | null
   status: MatterStatus
   description: string | null
+  revision: number
   clients?: {
     name?: string | null
     gstin?: string | null
@@ -30,6 +31,7 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const matterTrashIdempotencyKey = useRef<string | null>(null)
+  const matterUpdateIdempotencyKey = useRef<string | null>(null)
   const [title, setTitle] = useState(matter.title || '')
   const [financialYear, setFinancialYear] = useState(matter.financial_year || 'Unknown FY')
   const [status, setStatus] = useState<MatterStatus>(matter.status || 'active')
@@ -73,16 +75,23 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
     }
 
     startTransition(async () => {
+      if (!matterUpdateIdempotencyKey.current) {
+        matterUpdateIdempotencyKey.current = crypto.randomUUID()
+      }
       const res = await updateMatterDetails(matter.id, {
         title: title.trim(),
         financialYear,
         status,
         description: description.trim() || null,
+      }, {
+        expectedRevision: matter.revision,
+        idempotencyKey: matterUpdateIdempotencyKey.current,
       })
 
       if (res.error) {
         toast.error(res.error)
       } else {
+        matterUpdateIdempotencyKey.current = null
         toast.success('Matter details updated successfully!')
         setIsEditing(false)
       }
@@ -90,6 +99,7 @@ export function MatterDetailsTab({ matter, readOnly = false }: { matter: MatterD
   }
 
   const handleCancel = () => {
+    matterUpdateIdempotencyKey.current = null
     setTitle(matter.title || '')
     setFinancialYear(matter.financial_year || 'Unknown FY')
     setStatus(matter.status || 'active')

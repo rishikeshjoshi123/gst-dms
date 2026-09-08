@@ -2069,6 +2069,53 @@ export type Database = {
           },
         ]
       }
+      matter_command_receipts: {
+        Row: {
+          actor_user_id: string
+          client_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          client_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          client_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          matter_id?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matter_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matters: {
         Row: {
           active_trash_membership_id: string | null
@@ -2081,6 +2128,7 @@ export type Database = {
           matter_code: string | null
           org_id: string
           record_state: Database["public"]["Enums"]["resource_record_state"]
+          revision: number
           status: Database["public"]["Enums"]["matter_status"]
           title: string
         }
@@ -2095,6 +2143,7 @@ export type Database = {
           matter_code?: string | null
           org_id: string
           record_state?: Database["public"]["Enums"]["resource_record_state"]
+          revision?: number
           status?: Database["public"]["Enums"]["matter_status"]
           title: string
         }
@@ -2109,6 +2158,7 @@ export type Database = {
           matter_code?: string | null
           org_id?: string
           record_state?: Database["public"]["Enums"]["resource_record_state"]
+          revision?: number
           status?: Database["public"]["Enums"]["matter_status"]
           title?: string
         }
@@ -7438,6 +7488,23 @@ export type Database = {
           revision: number | null
         }[]
       }
+      create_matter_command: {
+        Args: {
+          p_client_id: string
+          p_description: string
+          p_financial_year: string
+          p_idempotency_key: string
+          p_status: Database["public"]["Enums"]["matter_status"]
+          p_title: string
+        }
+        Returns: {
+          client_id: string | null
+          code: string
+          matter_id: string | null
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
       create_metadata_only_document: {
         Args: {
           p_display_title: string
@@ -9336,6 +9403,24 @@ export type Database = {
         Returns: {
           client_id: string | null
           code: string
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
+      update_matter_command: {
+        Args: {
+          p_description: string
+          p_expected_revision: number
+          p_financial_year: string
+          p_idempotency_key: string
+          p_matter_id: string
+          p_status: Database["public"]["Enums"]["matter_status"]
+          p_title: string
+        }
+        Returns: {
+          client_id: string | null
+          code: string
+          matter_id: string | null
           replayed: boolean
           revision: number | null
         }[]

@@ -7,6 +7,11 @@ const nullableRpcFields = {
     client_id: 'string',
     revision: 'number',
   },
+  create_matter_command: {
+    client_id: 'string',
+    matter_id: 'string',
+    revision: 'number',
+  },
   create_note_with_optional_task: {
     note_id: 'string',
     task_id: 'string',
@@ -74,6 +79,11 @@ const nullableRpcFields = {
   },
   update_client_command: {
     client_id: 'string',
+    revision: 'number',
+  },
+  update_matter_command: {
+    client_id: 'string',
+    matter_id: 'string',
     revision: 'number',
   },
 }
