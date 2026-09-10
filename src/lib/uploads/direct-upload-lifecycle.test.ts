@@ -71,3 +71,11 @@ test('all live upload callers recover identity and expose a labelled 44px transf
     assert.match(source, /'cancelled' in/)
   }
 })
+
+test('the shared upload modal keeps an all-cancelled batch open for same-file reselection', async () => {
+  const source = await readFile(callers[1], 'utf8')
+
+  assert.match(source, /let hasCancelledOutcome = false/)
+  assert.match(source, /if \('cancelled' in res\) \{\s*hasCancelledOutcome = true/)
+  assert.match(source, /!hasTerminalOutcome && !hasCancelledOutcome/)
+})

@@ -32,6 +32,7 @@ test('server actions exchange metadata and opaque identifiers, never browser fil
   )
 
   assert.match(uploadBoundary, /createSignedUploadUrl\(reservation\.object_key, \{ upsert: false \}\)/)
+  assert.match(uploadBoundary, /storage\/v1\/upload\/resumable\/sign/)
   assert.match(uploadBoundary, /\.eq\('created_by', user\.id\)/)
   assert.match(uploadBoundary, /\.download\(asset\.object_key\)/)
   assert.match(uploadBoundary, /get_document_upload_completion_receipt/)

@@ -395,7 +395,9 @@ function resumableStorageEndpoint() {
   if (base.hostname.endsWith('.supabase.co')) {
     base.hostname = base.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co')
   }
-  base.pathname = '/storage/v1/upload/resumable'
+  // Signed upload tokens are verified only by Storage's signed TUS route.
+  // The authenticated route treats the request as an ordinary RLS upload.
+  base.pathname = '/storage/v1/upload/resumable/sign'
   base.search = ''
   base.hash = ''
   return base.toString()

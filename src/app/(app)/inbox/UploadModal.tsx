@@ -95,6 +95,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
 
     let hasRetryableError = false
     let hasTerminalOutcome = false
+    let hasCancelledOutcome = false
     for (const entry of pending) {
       setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e))
 
@@ -104,6 +105,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
         setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, control: control ?? undefined } : e))
       })
       if ('cancelled' in res) {
+        hasCancelledOutcome = true
         setEntries(prev => prev.filter(e => e.id !== entry.id))
         continue
       }
@@ -123,7 +125,7 @@ export function UploadModal({ onClose, matterId, matterName, inline = false, ret
     }
 
     setIsUploading(false)
-    if (!hasRetryableError && !hasTerminalOutcome) {
+    if (!hasRetryableError && !hasTerminalOutcome && !hasCancelledOutcome) {
       setAllDone(true)
       router.refresh()
       // Once the canonical Intake upload succeeds, return to the queue.

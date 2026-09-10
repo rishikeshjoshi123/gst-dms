@@ -27,6 +27,12 @@ INSERT INTO public.organisations (id, name, created_by) VALUES
   ('b0010000-0000-0000-0000-000000000001', 'Acceptance Chambers', 'a0010000-0000-0000-0000-000000000001'),
   ('b0010000-0000-0000-0000-000000000002', 'Foreign Chambers', 'a0010000-0000-0000-0000-000000000003');
 
+-- Two cancelled signed-upload sessions conservatively retain the 50 MiB token
+-- ceiling apiece. Give this disposable tenant room to prove same-file
+-- reselection without weakening the production/default-policy SQL fixture.
+INSERT INTO public.organisation_storage_policies (org_id, unique_asset_entitlement_bytes) VALUES
+  ('b0010000-0000-0000-0000-000000000001', 268435456);
+
 INSERT INTO public.org_members (org_id, user_id, role, joined_at) VALUES
   ('b0010000-0000-0000-0000-000000000001', 'a0010000-0000-0000-0000-000000000002', 'viewer', '2026-01-02T00:00:00Z'),
   ('b0010000-0000-0000-0000-000000000001', 'a0010000-0000-0000-0000-000000000004', 'admin', '2026-01-04T00:00:00Z'),
@@ -56,6 +62,7 @@ INSERT INTO public.clients (id, org_id, name) VALUES
 
 INSERT INTO public.matters (id, org_id, client_id, title, matter_code, financial_year, work_state, current_forum) VALUES
   ('d0010000-0000-0000-0000-000000000001', 'b0010000-0000-0000-0000-000000000001', 'c0010000-0000-0000-0000-000000000001', 'Aster GST appeal', 'AC/GST/2026/001', '2025-26', 'active', 'tribunal'),
+  ('d0020000-0000-4000-8000-000000000001', 'b0010000-0000-0000-0000-000000000001', 'c0010000-0000-0000-0000-000000000001', 'Aster upload acceptance', 'AC/GST/2026/UPLOAD', '2024-25', 'active', 'adjudication'),
   ('d0010000-0000-0000-0000-000000000002', 'b0010000-0000-0000-0000-000000000002', 'c0010000-0000-0000-0000-000000000002', 'Foreign confidential matter', 'FC/GST/2026/001', '2025-26', 'active', 'adjudication');
 
 INSERT INTO public.documents (

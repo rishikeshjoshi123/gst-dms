@@ -22,3 +22,4 @@ const playwright = nodeModuleLaunch(
   ['test', 'tests/acceptance/matter-workbench.spec.ts'],
 )
 run(playwright.command, playwright.args)
+run(nodeExec, ['scripts/acceptance/verify-browser-uploads.mjs'])
