@@ -206,7 +206,7 @@ export function SettingsClient({
           </DialogHeader>
 
           <form onSubmit={handleInvite} className="flex flex-col gap-4 mt-2">
-            <FormField label="Email address" required error={inviteError ?? undefined}>
+            <FormField label="Email address" htmlFor="invite-email" required error={inviteError ?? undefined}>
               <Input
                 id="invite-email"
                 name="email"
@@ -219,7 +219,7 @@ export function SettingsClient({
               />
             </FormField>
 
-            <FormField label="Role">
+            <FormField label="Role" htmlFor="invite-role">
               <select
                 id="invite-role"
                 name="role"

@@ -46,7 +46,7 @@ export default function SignupPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <FormField label="Full name" required>
+        <FormField label="Full name" htmlFor="full_name" required>
           <Input
             id="full_name"
             name="full_name"
@@ -59,7 +59,7 @@ export default function SignupPage() {
           />
         </FormField>
 
-        <FormField label="Work email" required>
+        <FormField label="Work email" htmlFor="email" required>
           <Input
             id="email"
             name="email"
@@ -71,7 +71,7 @@ export default function SignupPage() {
           />
         </FormField>
 
-        <FormField label="Password" required>
+        <FormField label="Password" htmlFor="password" required>
           <Input
             id="password"
             name="password"
@@ -84,7 +84,7 @@ export default function SignupPage() {
           />
         </FormField>
 
-        <FormField label="Confirm password" required>
+        <FormField label="Confirm password" htmlFor="confirm_password" required>
           <Input
             id="confirm_password"
             name="confirm_password"

@@ -18,6 +18,9 @@
     "test:db:migrations": "node --test scripts/check-supabase-migrations.test.mjs",
     "test:db:types": "node --test scripts/refine-supabase-types.test.mjs",
     "test:runtime-contract": "node --test scripts/runtime-contract.test.mjs",
+    "acceptance:db": "sh scripts/acceptance/local-fixtures.sh",
+    "acceptance:smoke": "playwright test tests/acceptance/matter-workbench.spec.ts",
+    "acceptance:local": "node scripts/acceptance/run-local.mjs",
     "typecheck": "tsc --noEmit --pretty false",
     "trigger:dev": "npx trigger.dev@latest dev",
     "db:migrations:check": "node scripts/check-supabase-migrations.mjs",
@@ -62,6 +65,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/dagre": "^0.7.5",
     "@types/node": "^24.13.3",

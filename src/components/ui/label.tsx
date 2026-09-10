@@ -25,6 +25,7 @@ function Label({ className, required, children, ...props }: LabelProps) {
 /** Convenient wrapper: Label + Input + error text */
 export function FormField({
   label,
+  htmlFor,
   required,
   error,
   hint,
@@ -32,6 +33,7 @@ export function FormField({
   className,
 }: {
   label: string
+  htmlFor: string
   required?: boolean
   error?: string
   hint?: string
@@ -40,7 +42,7 @@ export function FormField({
 }) {
   return (
     <div className={cn('flex flex-col', className)}>
-      <Label required={required}>{label}</Label>
+      <Label htmlFor={htmlFor} required={required}>{label}</Label>
       {hint && <p className="mb-2 text-xs text-[--text-muted]">{hint}</p>}
       {children}
       {error && (

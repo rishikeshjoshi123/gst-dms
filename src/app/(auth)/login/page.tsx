@@ -21,7 +21,7 @@ export default function LoginPage() {
       </div>
 
       <form action={formAction} className="flex flex-col gap-4">
-        <FormField label="Email address" required>
+        <FormField label="Email address" htmlFor="email" required>
           <Input
             id="email"
             name="email"
@@ -33,7 +33,7 @@ export default function LoginPage() {
           />
         </FormField>
 
-        <FormField label="Password" required>
+        <FormField label="Password" htmlFor="password" required>
           <Input
             id="password"
             name="password"

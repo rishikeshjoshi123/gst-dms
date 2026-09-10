@@ -1,0 +1,28 @@
+-- Auth stores email as varchar, and PL/pgSQL does not infer the declared table
+-- types for untyped empty rows. Keep every public return type explicit.
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.get_team_directory(p_query text DEFAULT NULL,p_role text DEFAULT NULL,p_state text DEFAULT NULL,p_limit integer DEFAULT 50,p_offset integer DEFAULT 0)
+RETURNS TABLE(outcome_code text,membership_id uuid,user_id uuid,display_name text,professional_title text,role public.org_member_role,is_owner boolean,state public.organisation_membership_state,joined_at timestamptz,capabilities text[],authorised_email text,total_count bigint,page_offset integer)
+LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path=pg_catalog,public AS $$
+DECLARE eligible_count integer; caller record; normalized_query text; escaped_query text; canonical_offset integer; visible_total bigint;
+BEGIN
+  IF auth.uid() IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 10000 OR (p_role IS NOT NULL AND p_role NOT IN ('admin','associate','viewer')) OR (p_state IS NOT NULL AND p_state NOT IN ('active','suspended')) THEN
+    RETURN QUERY SELECT 'unavailable'::text,NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::public.org_member_role,NULL::boolean,NULL::public.organisation_membership_state,NULL::timestamptz,NULL::text[],NULL::text,0::bigint,0::integer; RETURN;
+  END IF;
+  normalized_query:=NULLIF(btrim(p_query),'');
+  IF normalized_query IS NOT NULL AND char_length(normalized_query)>120 THEN RETURN QUERY SELECT 'unavailable'::text,NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::public.org_member_role,NULL::boolean,NULL::public.organisation_membership_state,NULL::timestamptz,NULL::text[],NULL::text,0::bigint,0::integer; RETURN; END IF;
+  escaped_query := replace(replace(replace(normalized_query, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_');
+  SELECT count(*) INTO eligible_count FROM public.get_my_organisation_context() context WHERE context.state='active' AND 'team.view'=ANY(context.capabilities);
+  IF eligible_count<>1 THEN RETURN QUERY SELECT 'unavailable'::text,NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::public.org_member_role,NULL::boolean,NULL::public.organisation_membership_state,NULL::timestamptz,NULL::text[],NULL::text,0::bigint,0::integer; RETURN; END IF;
+  SELECT context.org_id,context.is_owner,context.role INTO caller FROM public.get_my_organisation_context() context WHERE context.state='active' AND 'team.view'=ANY(context.capabilities);
+  SELECT count(*) INTO visible_total FROM (SELECT NULLIF(btrim(profile.display_name),'') display_name,CASE WHEN (caller.is_owner OR caller.role='admin' OR membership.user_id=auth.uid()) AND auth_user.email_confirmed_at IS NOT NULL THEN auth_user.email::text ELSE NULL END authorised_email FROM public.organisation_memberships membership LEFT JOIN public.user_profiles profile ON profile.user_id=membership.user_id LEFT JOIN auth.users auth_user ON auth_user.id=membership.user_id WHERE membership.org_id=caller.org_id AND membership.state IN ('active','suspended') AND (membership.state='active' OR caller.is_owner OR caller.role='admin') AND (p_role IS NULL OR membership.role::text=p_role) AND (p_state IS NULL OR membership.state::text=p_state)) v WHERE normalized_query IS NULL OR v.display_name ILIKE '%'||escaped_query||'%' ESCAPE E'\\' OR v.authorised_email ILIKE '%'||escaped_query||'%' ESCAPE E'\\';
+  canonical_offset:=CASE WHEN visible_total=0 THEN 0 ELSE least(p_offset,((visible_total-1)/p_limit)::integer*p_limit) END;
+  IF visible_total=0 THEN RETURN QUERY SELECT 'ok'::text,NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::public.org_member_role,NULL::boolean,NULL::public.organisation_membership_state,NULL::timestamptz,NULL::text[],NULL::text,0::bigint,0::integer; RETURN; END IF;
+  RETURN QUERY WITH visible AS (SELECT membership.id membership_id,membership.user_id,NULLIF(btrim(profile.display_name),'') display_name,NULLIF(btrim(profile.professional_title),'') professional_title,membership.role,(organisation.owner_membership_id=membership.id) is_owner,membership.state,membership.joined_at,public.organisation_member_capabilities(membership.role,organisation.owner_membership_id=membership.id,membership.state) capabilities,CASE WHEN (caller.is_owner OR caller.role='admin' OR membership.user_id=auth.uid()) AND auth_user.email_confirmed_at IS NOT NULL THEN auth_user.email::text ELSE NULL END authorised_email FROM public.organisation_memberships membership JOIN public.organisations organisation ON organisation.id=membership.org_id LEFT JOIN public.user_profiles profile ON profile.user_id=membership.user_id LEFT JOIN auth.users auth_user ON auth_user.id=membership.user_id WHERE membership.org_id=caller.org_id AND membership.state IN ('active','suspended') AND (membership.state='active' OR caller.is_owner OR caller.role='admin') AND (p_role IS NULL OR membership.role::text=p_role) AND (p_state IS NULL OR membership.state::text=p_state)) SELECT 'ok',v.membership_id,v.user_id,v.display_name,v.professional_title,v.role,v.is_owner,v.state,v.joined_at,v.capabilities,v.authorised_email,visible_total,canonical_offset FROM visible v WHERE normalized_query IS NULL OR v.display_name ILIKE '%'||escaped_query||'%' ESCAPE E'\\' OR v.authorised_email ILIKE '%'||escaped_query||'%' ESCAPE E'\\' ORDER BY CASE WHEN v.state='active' THEN 0 ELSE 1 END,lower(coalesce(v.display_name,'')),v.membership_id LIMIT p_limit OFFSET canonical_offset;
+END; $$;
+
+REVOKE ALL ON FUNCTION public.get_team_directory(text,text,text,integer,integer) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.get_team_directory(text,text,text,integer,integer) TO authenticated;
+
+COMMIT;

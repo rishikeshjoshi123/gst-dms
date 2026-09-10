@@ -1,4 +1,5 @@
 -- Run after migration 00138 against a disposable local Supabase database.
+\set ON_ERROR_STOP on
 BEGIN;
 
 DO $setup$

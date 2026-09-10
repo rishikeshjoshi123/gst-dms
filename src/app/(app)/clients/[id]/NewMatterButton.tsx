@@ -50,7 +50,7 @@ export function NewMatterButton({ clientId }: { clientId: string }) {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
-            <FormField label="Matter Title" required hint="Cosmetic title for your reference">
+            <FormField label="Matter Title" htmlFor="title" required hint="Cosmetic title for your reference">
               <Input
                 id="title"
                 name="title"
@@ -63,7 +63,7 @@ export function NewMatterButton({ clientId }: { clientId: string }) {
               />
             </FormField>
 
-            <FormField label="Financial Year" required>
+            <FormField label="Financial Year" htmlFor="financial_year" required>
               <select
                 id="financial_year"
                 name="financial_year"
@@ -78,7 +78,7 @@ export function NewMatterButton({ clientId }: { clientId: string }) {
               </select>
             </FormField>
 
-            <FormField label="Description">
+            <FormField label="Description" htmlFor="description">
               <textarea
                 id="description"
                 name="description"

@@ -54,7 +54,7 @@ export function NewClientButton() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
-            <FormField label="Client name" required>
+            <FormField label="Client name" htmlFor="name" required>
               <Input
                 id="name"
                 name="name"
@@ -69,6 +69,7 @@ export function NewClientButton() {
 
             <FormField
               label="GSTIN"
+              htmlFor="gstin"
               hint="15-character GST Identification Number — used for AI document routing"
             >
               <Input
@@ -82,7 +83,7 @@ export function NewClientButton() {
               />
             </FormField>
 
-            <FormField label="PAN">
+            <FormField label="PAN" htmlFor="pan">
               <Input
                 id="pan"
                 name="pan"
