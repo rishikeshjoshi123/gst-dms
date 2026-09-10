@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
+if (Number(process.versions.node.split('.')[0]) !== 24) {
+  throw new Error(
+    `Local acceptance requires Node 24 exactly; received ${process.versions.node} from ${process.execPath}.`,
+  )
+}
+
 export default defineConfig({
   testDir: './tests/acceptance',
   fullyParallel: false,

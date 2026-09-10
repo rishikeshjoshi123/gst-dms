@@ -1,6 +1,10 @@
 import { spawn, spawnSync } from 'node:child_process'
+import { acceptanceProjectPath, nodeModuleLaunch, requireNode24 } from './runtime.mjs'
 
-const status = spawnSync('./node_modules/.bin/supabase', ['status', '-o', 'env'], {
+const nodeExec = requireNode24()
+const supabaseCli = acceptanceProjectPath('node_modules/supabase/dist/supabase.js')
+
+const status = spawnSync(nodeExec, [supabaseCli, 'status', '-o', 'env'], {
   cwd: process.cwd(),
   encoding: 'utf8',
 })
@@ -49,7 +53,11 @@ const env = {
   DOCUMENT_AI_OCR_PROCESSOR_VERSION: '',
 }
 
-const child = spawn('/opt/homebrew/bin/npm', ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', '3100'], {
+const next = nodeModuleLaunch(
+  acceptanceProjectPath('node_modules/next/dist/bin/next'),
+  ['dev', '--hostname', '127.0.0.1', '--port', '3100'],
+)
+const child = spawn(next.command, next.args, {
   cwd: process.cwd(),
   env,
   stdio: 'inherit',

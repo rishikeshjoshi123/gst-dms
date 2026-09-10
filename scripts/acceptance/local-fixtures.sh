@@ -1,11 +1,17 @@
 #!/bin/sh
 set -eu
 
-PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
-export PATH
-
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repository_root"
+
+node_exec=${ACCEPTANCE_NODE_EXEC:-${npm_node_execpath:-}}
+if [ -z "$node_exec" ]; then
+  node_exec=$(command -v node)
+fi
+if [ ! -x "$node_exec" ] || ! "$node_exec" -e 'if (Number(process.versions.node.split(".")[0]) !== 24) process.exit(1)'; then
+  echo "Local acceptance requires Node 24 exactly." >&2
+  exit 1
+fi
 
 docker_bin=$(command -v docker)
 supabase_bin="$repository_root/node_modules/.bin/supabase"
@@ -17,7 +23,7 @@ if [ -z "$project_id" ] || [ -z "$db_port" ] || [ ! -x "$supabase_bin" ]; then
   exit 1
 fi
 
-status_env=$($supabase_bin status -o env)
+status_env=$("$node_exec" "$supabase_bin" status -o env)
 api_url=$(printf '%s\n' "$status_env" | sed -n 's/^API_URL="\{0,1\}\([^" ]*\)"\{0,1\}$/\1/p')
 db_url=$(printf '%s\n' "$status_env" | sed -n 's/^DB_URL="\{0,1\}\([^" ]*\)"\{0,1\}$/\1/p')
 inbucket_url=$(printf '%s\n' "$status_env" | sed -n 's/^INBUCKET_URL="\{0,1\}\([^" ]*\)"\{0,1\}$/\1/p')
@@ -52,7 +58,7 @@ if [ "$(printf '%s\n' "$db_container" | sed '/^$/d' | wc -l | tr -d ' ')" != "1"
 fi
 
 echo "Resetting disposable local Supabase project '$project_id' on 127.0.0.1:$db_port..."
-$supabase_bin db reset --local --no-seed
+"$node_exec" "$supabase_bin" db reset --local --no-seed
 
 db_container=$(resolve_db_container)
 if [ "$db_container" != "supabase_db_$project_id" ]; then
