@@ -18,17 +18,18 @@ the rest of the approved portfolio.
 - Check this queue at tranche boundaries while a task is running. Editing the
   file does not wake a finished task; resume it with a message or the reusable
   implementation prompt. Settled technical repairs belong in the ledger.
-- Continue with the next independent approved canonical tranche. If the chosen
-  work is blocked or the ready queue is exhausted, search across all of `docs/`
-  and add other executable approved outcomes to the delivery ledger. One open
-  entry does not block the whole goal; preserve explicit deferrals and do not
-  treat this file as approval by itself.
+- Continue with the next independent approved outcome within the user-selected
+  objective and its prerequisites. A blocked item does not authorise portfolio
+  expansion. Use the workflow's current bounded queue; preserve explicit
+  exclusions and do not treat this file as approval by itself.
 - When the user resolves an entry, preserve its dated decision in
   `docs/decision-history/` and keep a short link under **Resolved**. Retain its
   canonical-plan link and implementation evidence; an approved decision is not
   proof that dependent implementation is finished. Preserve existing anchors.
 
 ## Open decision index
+
+September 10: [pre-pilot disposal and normal create-or-join onboarding](decision-history/2026-09-10-planning-and-pre-pilot-policy.md) are user decisions, not open questions. Real-client retention activation, minimum October administration, Matter identity, Review visual approval and enabled AI scope remain unsettled. The removal entry below concerns broader administrative dependencies; it does not make manual first-owner provisioning necessary.
 
 Read this index at startup and the affected entries below. Detailed history is under [Resolved](#resolved); read a dated record only when its decision is relevant.
 
@@ -37,7 +38,8 @@ Read this index at startup and the affected entries below. Detailed history is u
 | [PILOT-RETENTION-SCOPE-2026-09-08](#pilot-retention-scope-2026-09-08--resolve-conflicting-production-activation-rules) | D03/D13: production retention activation; independent repairs continue. |
 | [ORG-ASSOCIATE-ACCESS-CATALOGUE-2026-09-04](#org-associate-access-catalogue-2026-09-04--associate-feature-grants) | D03 when grants are enabled; existing Viewer repairs remain independent. |
 | [WORK-REVIEW-CONCEPT-2026-09-01](#work-review-concept-2026-09-01--review-workspace-direction) | D08 live Review UI/D13; Task-reader repair remains independent. |
-| [ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01](#org-departure-team-concept-2026-09-01--departure-and-team-impact-workflow) | Live Team/departure consumer; independent approved work can continue. |
+| [ORG-ADMIN-REMOVAL-DEPENDENCY-BOUNDARY-2026-09-08](#org-admin-removal-dependency-boundary-2026-09-08--truthful-impact-for-not-yet-canonical-domains) | D15 administrative removal; unrelated approved work continues. |
+| [MATTER-IDENTIFIER-POLICY-2026-09-08](#matter-identifier-policy-2026-09-08--external-proceeding-identity-and-collision-rules) | D09 matter identity/create/placement/Restore; unrelated reader work continues. |
 | [AI-ACQUISITION-BENCHMARK-THRESHOLDS-2026-09-03](#ai-acquisition-benchmark-thresholds-2026-09-03--ocr-quality-gate-thresholds) | D12 OCR/retrieval cutover; other application work remains independent. |
 
 ## Open
@@ -105,60 +107,27 @@ Read this index at startup and the affected entries below. Detailed history is u
   decision here, then implement the smallest secure Review producer/consumer
   closure.
 
-### ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01 — Departure and Team impact workflow
+### ORG-ADMIN-REMOVAL-DEPENDENCY-BOUNDARY-2026-09-08 — Truthful impact for not-yet-canonical domains
 
-- **Delivery dependency/resume owner:** D03 only if the departure consumer is enabled; next implementation coordinator (task identity unassigned). User decision/date pending; implementation commit not implemented. Broader departure UI remains outside the active repair sequence.
-- **Date/domain/plan:** 2026-09-01 · Organisation Administration ·
-  Organisation Administration, Team Access, and Personal Settings.
-- **Decision needed:** approve the material Team/member-inspector and
-  self-service departure-impact direction before replacing the current legacy
-  remove-member action with the approved typed departure/administrative
-  removal commands.
-- **Why the approved contract does not settle it:** the plan specifies impact
-  projections, explicit dispositions, role/Owner constraints, and mobile
-  behavior, but the existing Settings member removal UI has no reviewed
-  departure/confirmation concept.
-- **Recommended direction:** create a compact fixture-only concept with a
-  Team list/detail workspace, Owner/Admin departure queue, explicit impact
-  summary and reassignment/disposition confirmation, plus a separate
-  self-service countdown/withdrawal flow. It must not expose another member's
-  reason/dependency details to ordinary members.
-- **Alternatives/consequences:** retaining the old direct removal flow would
-  bypass the approved impact/confirmation contract; delaying this UI does not
-  block independent approved backend foundations or other portfolio domains.
-- **Concept:** `/dev/organisation-departure-team-concept` (fixture-only;
-  no live membership mutation).
-- **Current review state:** the agreed revision hides scheduled departure from
-  ordinary Team projections, keeps planned departure separate from immediate
-  administrative removal, and replaces the removal dialog with a dedicated
-  impact-and-disposition workspace. The Team collection now uses the approved
-  compact operational-table anatomy, whole-row keyboard/pointer selection,
-  one compact 48px desktop row contract for Members and Departure queue,
-  stable column proportions, and a 60/40 split that removes repeated fields
-  when its inspector opens. The collection keeps Person to a short name-only
-  index;
-  full work area, email, and joined date move to member details. Its small left
-  collection gutter remains fixed across both states.
-  The inspector has one consistent width plus aligned fixed header,
-  independent body scroller, and action footer. Its body uses a compact
-  scan-first hierarchy: departure timing, the two real work areas to pass on,
-  the member's actual teammate note, and a dense access summary without nested
-  card repetition. The self-service `Before leaving` and `My departure`
-  surfaces use one consistent 3:2 desktop alignment grid for summary, timing,
-  work, and teammate context, then collapse to the same single-column mobile
-  flow. Their ordinary-language impact is limited to open
-  tasks and important dates that genuinely belong to the member. Shared Review
-  items are excluded: departure only releases a temporary active claim and the
-  item stays in Review. The teammate note is described as useful context rather
-  than a work-moving control. Undefined `Matter responsibility` and irrelevant
-  administrator-coverage jargon are not shown to an ordinary departing member.
-  `My departure` places request and withdrawal actions inside its summary on
-  desktop, without a repeated header, and retains a mobile bottom action bar.
-  Current-tree desktop and 320px checks pass; final user visual approval remains
-  outstanding before the live caller is replaced.
-- **Exact resume action:** review and approve that concept, record the decision
-  here, then replace the legacy live removal caller with the smallest secure
-  departure/administrative-removal closure.
+- **Delivery dependency/resume owner:** D15 administrative removal; next implementation coordinator. The approved Team/departure visual direction remains resolved and must not be reopened.
+- **Date/domain/plan:** 2026-09-08 · Organisation Administration · [Organisation Administration, Team Access, and Personal Settings](plans/platform/2026-08-26-organisation-administration.md#membership-lifecycle-and-offboarding).
+- **Decision needed:** choose whether the first live administrative-removal closure must first add canonical accountable-deadline and addressed-notification ownership/lifecycle foundations, or whether the plan should define a truthful current-domain boundary that omits categories which do not yet have canonical ownership state. Review claims, cost grants, and digest schedules likewise do not exist and cannot be represented as zero dependencies.
+- **Why it cannot be inferred:** the approved removal contract requires a current impact projection and explicit dispositions for accountable verified deadlines plus lifecycle effects across notifications, Review claims, grants, and schedules. The live schema has canonical Tasks, but legacy deadlines have no assignee/verification/revision identity; Review claims, cost grants, and digest schedules are absent; notification reads are not membership-fenced. Hard-coded zero counts or inferred ownership would misrepresent the approved contract, while silently pulling every future domain into D15 would materially expand scope.
+- **Recommended direction:** add the smallest canonical addressed-notification access fence and historical-identity preservation required for immediate removal, and sequence a real accountable-deadline ownership slice before enabling removal. Treat absent Review/grant/digest domains as explicitly not yet applicable in the canonical plan rather than displaying invented zero checks. Then implement the approved Team impact/disposition workflow with atomic Task reassignment/unassignment, stale-impact and concurrency fencing, durable history, and immediate access revocation.
+- **Safe independent work:** D09 matter identity, D11 bounded Matter navigation, remaining D06 source/freshness work, and other approved work that does not enable removal or fabricate impact. Do not reconnect `removeMember`, expose a destructive shortcut, or implement self-service departure while this boundary is open.
+- **User decision/date:** pending.
+- **Resume action:** record the chosen boundary in the canonical Organisation plan, then issue one decision-complete D15 administrative-removal writer brief with SQL/concurrency, historical-author, removed-session, notification, and responsive browser acceptance.
+
+### MATTER-IDENTIFIER-POLICY-2026-09-08 — External proceeding identity and collision rules
+
+- **Delivery dependency/resume owner:** D09 matter identity correction; next implementation coordinator.
+- **Date/domain/plan:** 2026-09-08 · Document Hub / Trash · [Matter identity correction](plans/features/2026-08-25-document-hub-ingestion-and-workbench.md#matter-identity-correction) and [Restore](plans/platform/2026-08-24-resource-trash-retention-and-purge.md#restoration).
+- **Decision needed:** approve the initial typed external matter-identifier policy: supported kind and issuer/system namespace; structured components and normalization; collision scope; verification authority/provenance; correction/revocation; and active/Trash/reuse behavior for each kind.
+- **Why it cannot be inferred:** the plan requires `matter_identifiers` with uniqueness rules appropriate to each identifier type but does not enumerate those rules. The current schema has only organisation-unique CaseChain `matter_code` plus the unsafe client/FY index. Treating document references, GSTIN/PAN, titles, or financial year as verified proceeding identity could merge distinct proceedings or block legitimate records.
+- **Recommended direction:** define a small versioned identifier matrix for explicit human-verified proceeding/portal/case keys, preserve issuer/system namespaces and provenance, and forbid OCR/fuzzy evidence from asserting verified identity. Align create/update, destination lookup, Restore, and purge to the same lifecycle rules; repair concurrent CaseChain code allocation before removing the client/FY index.
+- **Safe independent work:** D11 bounded Matter readers/navigation and other approved work not changing matter identity. Do not drop `idx_matters_unique_client_fy`, loosen Restore conflicts, or add inferred identifier backfill before this decision.
+- **User decision/date:** pending.
+- **Resume action:** update the canonical Document Hub plan with the approved matrix, then issue one D09 writer brief covering audit/backfill, identifier-aware commands, code allocation, destination selection, Restore, purge cleanup, SQL/concurrency, browser acceptance, and independent QA.
 
 ### AI-ACQUISITION-BENCHMARK-THRESHOLDS-2026-09-03 — OCR quality-gate thresholds
 
@@ -194,7 +163,15 @@ Read this index at startup and the affected entries below. Detailed history is u
 
 ## Resolved
 
+### 2026-09-10 — Pre-pilot data and normal onboarding
+
+[Recorded user decisions](decision-history/2026-09-10-planning-and-pre-pilot-policy.md). D03/D13 require normal create-or-join implementation; prior restriction receipts are historical. No reset or implementation resumption occurred.
+
 Dated receipts are preserved separately. Earlier links remain valid through these pointers. Read relevant decisions; old next-action text does not replace the current handoff.
+
+### ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01 — Departure and Team impact workflow
+
+**Resolved 2026-09-08:** the user approved the current revised concept. [Recorded decision and resume conditions](decision-history/2026-09-08-organisation-departure-team-concept.md). D15 may proceed when technical prerequisites are ready; its live implementation remains pending.
 
 ### 2026-09-08 — Source scope and single-task implementation workflow
 

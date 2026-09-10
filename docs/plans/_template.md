@@ -36,7 +36,13 @@ Document changes to public APIs, component contracts, types, schemas, events, co
 
 ## Testing and Acceptance Criteria
 
+Use meaningful capability IDs where implementation needs tracking; link exact acceptance sections from a Delivery Coverage map. Keep status in the ledger rather than duplicating it in the plan.
+
 List observable completion criteria, failure/security cases and required checks for each outcome. Distinguish local and deployment gates. Link shared contracts instead of duplicating definitions; do not replace necessary acceptance detail with a word-count target.
+
+## Delivery Coverage
+
+Map capability ID, exact requirement/acceptance anchor, owning ledger outcome and evidence pointer. Declare coverage `partial` until the stated scope is fully mapped; unmapped requirements are unknown. A plan-only proposal may say `Not inventoried`. Preserve IDs across revisions and identify rework when a requirement changes. See the plan-evolution workflow through the plan index.
 
 ## Assumptions
 

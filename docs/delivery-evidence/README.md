@@ -2,7 +2,7 @@
 
 Durable verification records live here so the [working ledger](../delivery-ledger.md) remains small. This is supporting evidence, not a second backlog or plan archive. Follow the [delivery workflow](../plans/operations/2026-09-08-agent-delivery-workflow.md#decisions-tracking-and-handoff).
 
-No implementation receipts exist yet. Create a record only for an actual completed or parked tranche; do not pre-create empty files for the backlog.
+Existing receipts record completed or parked tranches. Create another only for an actual reviewed or parked checkpoint; do not pre-create empty files for the backlog.
 
 ## Reading
 
@@ -14,7 +14,7 @@ Use one compact file per durable tranche, named `D02-T01.md`, for example. Recor
 
 Each receipt records:
 
-- **Outcome / tranche / owner task / date:** stable IDs, observable result and exact canonical plan/acceptance section.
+- **Outcome / tranche / owner task / date:** stable IDs, observable result, exact canonical plan/acceptance section and its revision/date. Older receipts require relevant contract reconciliation, not blanket re-testing.
 - **Base and tested code:** commit plus explicitly identified dirty changes; no ambiguous evidence for a moving checkout.
 - **Developer evidence:** acceptance criterion, command/scenario, result and environment; list failed/unrun checks and relevant artifacts.
 - **Independent QA:** reviewer/task reference, inspected revision, independently checked behavior and result, or `pending` / `not required` with the workflow reason.

@@ -2,7 +2,7 @@
 title: Organisation Administration, Team Access, and Personal Settings
 status: in-progress
 created: 2026-08-26
-updated: 2026-09-08
+updated: 2026-09-10
 owners:
   - product
   - engineering
@@ -53,12 +53,38 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 
 ## Decisions
 
+### Normal signup and create-or-join onboarding
+
+- The user confirmed this product flow on September 10: email signup, email verification, then an onboarding page offering `Create organisation` and showing invitations pending for that verified account. A prior invitation is not a signup prerequisite. See the [decision record](../../decision-history/2026-09-10-planning-and-pre-pilot-policy.md).
+- Pending invitations are prominent so an invited member can join the intended organisation instead of accidentally creating another. Joining and creating remain explicit choices; neither occurs merely by viewing a page or following an email link.
+- At every successful login without an active/suspended organisation membership, show the verified account's pending invitations, including invitations from different organisations, and a distinct `Create organisation` view/action. Re-evaluate this on return visits; onboarding is not a one-time dismissed screen. An empty invitation list still offers creation. The user explicitly reconfirmed the one-organisation rule on September 10; several pending invitations do not imply several memberships.
+- Creation is a normal authenticated product command that atomically creates the organisation, its initial Admin membership and explicit Owner authority, default configuration and required audit/outbox effects. It is idempotent and shares the per-user serialization/one-membership rules with invitation acceptance. Do not revive a service-role multi-step browser action.
+- An existing active member proceeds to the organisation workspace; a suspended membership follows the suspended-access contract. Showing multiple invitations does not authorise membership in multiple organisations under the current contract.
+- Invitation lookup is bound to the authenticated verified account, remains non-disclosing, and rechecks expiry/revocation at acceptance. The user cannot select another person's email to enumerate invitations.
+- Accept the clean signup → create → invite member and signup → accept pending invitation journeys, including verification return, concurrent create/accept, duplicate submission, expired/revoked invitation and suspended access.
+- This supersedes invite-only signup/manual first-owner provisioning as a pilot product requirement. D03-T02/T04 remain historical evidence for the former policy; D03/D13 require new implementation/acceptance. It does not authorise deployment or waive the owning operational gates for expansion beyond the first real-client organisation.
+
+### Last member and empty organisation follow-up
+
+The user explicitly deferred a separate discussion of sole-member departure, empty-organisation retention/deletion and the former member's right to return. Record the unresolved product cases in [the topic note](../../discovery/last-member-and-empty-organisation.md); do not implement an exception by simply deleting last-Owner/Admin checks. This follow-up is not an immediate signup or local-acceptance prerequisite. Its final lifecycle and recovery policy remain unapproved.
+
+### Delivery coverage
+
+Coverage is **partial**, covering inspected entry/access work only. Other sections have not been fully mapped; no plan-completion percentage follows. Status remains in the ledger; this map identifies requirements and evidence, not a second status table.
+
+| Capability | Requirement / acceptance | Outcome | Evidence pointer |
+| --- | --- | --- | --- |
+| ORG-ENTRY | [Normal create-or-join entry](#normal-signup-and-create-or-join-onboarding) | D03, D13 | [D03-T02](../../delivery-evidence/D03-T02.md), [D03-T04](../../delivery-evidence/D03-T04.md) describe the superseded restriction; new acceptance is required |
+| ORG-DIRECTORY | [Team member projection](#team-directory-and-member-profiles) | D15 | [D15-T01](../../delivery-evidence/D15-T01.md) |
+| ORG-INVITES | [Invitation lifecycle](#invitation-lifecycle) | D15, D13 | [Ledger](../../delivery-ledger.md): live journey acceptance remains explicit |
+| ORG-ACCESS | [Membership lifecycle](#membership-lifecycle-and-offboarding) | D02, D15 | [Ledger](../../delivery-ledger.md): directory work does not close administration |
+
 ### Existing caller and directory closure
 
 - [D02 in the delivery ledger](../../delivery-ledger.md) is an immediate live-path repair: client create/update must check the canonical mutation capability, not only login or membership before a service-role write. Inventory and close the parallel direct table/column-grant/RLS paths for client, matter and document mutations; `is_org_member` alone includes Viewers and is not edit authority.
 - Test exported actions and direct database/API access as Viewer, operational Associate, Admin, inactive member and another tenant. Frontend hiding and one corrected service helper do not close a second permissive database route.
 - Matter, Notes and Activity readers consume the same safe member-directory projection as Team. Remove global Auth-admin directory reconstruction; email visibility remains self/admin scoped and historical authors use safe snapshots.
-- Public organization creation during the invite-bound pilot must be denied at its command/database boundary unless explicitly allowed by the recorded release policy. This does not alter the broader approved onboarding architecture.
+- The September 10 create-or-join decision supersedes the old invite-bound creation denial. Implement the governed creation command under the onboarding contract; a flag change alone does not replace the current disabled action safely.
 
 ### Product surfaces and navigation
 
@@ -196,6 +222,8 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 
 ### UI layout and state contract
 
+The user approved the current `/dev/organisation-departure-team-concept` shape on **2026-09-08**. The [dated decision](../../decision-history/2026-09-08-organisation-departure-team-concept.md) identifies the revised reference and resolves `ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01`; the live consumer remains to be implemented and verified.
+
 - Team, Organisation settings, and My settings use stable compact page/workspace headers and one deliberate content scroller. Do not introduce explanatory hero cards that push the first usable row or form below the fold.
 - Desktop Team keeps its workbar and table header outside the scrolling rows. Selection creates a stable approximately 60/40 table/inspector split: the table relinquishes width rather than being covered, and every member or departure record uses the same bounded inspector width. The whole row selects the record with pointer input, while the visible identity remains a real keyboard-operable button; do not add a redundant row-action column. A selected member inspector may scroll independently while preserving its identity/actions. Mobile uses one principal list/detail scroller rather than a compressed table.
 - Ordinary Team projections preserve collaboration context without disclosing departure administration: a member with a scheduled departure continues to appear `Active` until execution, and another member's notice, reason, dependency counts, handover, authorised email, and access history are omitted. Owner/Admin retain the separate departure queue and governed member inspector.
@@ -219,16 +247,15 @@ The goal is not to make Settings larger. It is to establish a secure tenancy and
 - Migration `00122_membership_departure_cases_foundation` adds private, FORCE-RLS departure-case storage bound at insert to one canonical membership generation and that member's accepted notice snapshot. It accepts only a complete validated 30/60 snapshot or an explicit all-NULL `legacy_unavailable` state, keeps the case facts immutable (including its ID), serializes state/revision changes, and prevents a second coordinator-open case for the same membership.
 - There is intentionally no browser grant, RPC, coordinator, Team/My settings UI, or legacy member-removal connection. Direct authenticated reads/writes are denied. The focused disposable-database fixture and independent read-only QA passed on 2026-09-05.
 - Migration `00123_organisation_membership_identity_immutability` now freezes every membership generation's ID, organisation, user, generation number, joined instant, and creation instant while preserving lifecycle updates, the legacy role bridge, and the immutable notice snapshot. The focused disposable-database fixture and fresh adversarial QA passed on 2026-09-05.
-- The remaining typed departure/early-release command closure still requires a safe live consumer and must not infer UI or legacy-removal policy while `ORG-DEPARTURE-TEAM-CONCEPT-2026-09-01` remains open. Continue another independent approved live-consumer closure first when dependency order permits.
+- The remaining typed departure/early-release command closure now has an approved visual direction. Claim D15 in the delivery ledger when its technical prerequisites are ready, pairing commands with the smallest safe live consumer and the required acceptance rather than adding dormant RPCs.
 
-**Current approval boundary:** the existing legacy Settings member-removal
-control has no approved impact/disposition workflow and must not be connected to
-the typed departure or administrative-removal commands. The fixture-only Team
-and self-service departure concept at `/dev/organisation-departure-team-concept`
-is tracked in
-[Approval-based blockers](../../approval-based-blockers.md#org-departure-team-concept-2026-09-01--departure-and-team-impact-workflow).
-Approve that fixture-only concept before replacing the live removal caller;
-continue independent approved foundations in the meantime.
+**Current implementation boundary:** visual approval was recorded on 2026-09-08
+and the [Team/departure blocker is resolved](../../approval-based-blockers.md#org-departure-team-concept-2026-09-01--departure-and-team-impact-workflow).
+Replace the legacy Settings removal caller with the approved impact/disposition
+workflow and typed commands; do not connect destructive commands directly to the
+old control. No repeat visual approval is needed for the approved shape. The
+canonical permission, transaction, lifecycle and live-consumer acceptance gates
+remain required; the separate Associate grant catalogue remains undecided.
 
 1. **Introduce profile and membership foundations.** Add expanded portable professional profiles, surrogate membership IDs/generations, explicit membership state, membership notice snapshots, organisation owner membership, capability definitions, constraints, timestamps, tenant-safe member projections, and self-only contribution projection contracts.
 2. **Backfill ownership and profiles.** Convert each creator's current Admin membership into the explicit Owner; seed profiles from safe auth metadata through a trusted job; report missing creators, duplicate memberships, invalid roles, and organisations without exactly one eligible Owner.

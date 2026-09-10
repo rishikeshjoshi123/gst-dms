@@ -2,7 +2,7 @@
 title: Document Record and File Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-09-08
+updated: 2026-09-10
 owners:
   - product
   - engineering
@@ -45,6 +45,10 @@ This plan does not decide whether the import product begins with a CaseChain-own
 The lifecycle must support direct matter upload, global intake, metadata-only record creation, later file attachment, safe replacement, exact duplicate handling, proceeding/supporting reclassification, recoverable deletion, conservative pilot quotas, and stable evidence locators.
 
 ## Decisions
+
+### Current pre-pilot data phase
+
+The [September 10 user decision](../../decision-history/2026-09-10-planning-and-pre-pilot-policy.md) supersedes requirements below that preserve disposable legacy test data or compatibility solely for that data. During this phase an authorised overhaul may rebuild/re-baseline or remove obsolete tables/callers instead of carrying historical test records forward. Keep the resulting schema, application, workers, types and fixtures coherent; do not weaken canonical tenant, immutable-source or human-decision semantics. Historical cutover records below remain evidence of prior work, not instructions to repeat it. Once real-client onboarding is declared, safe migration/data-preservation requirements apply. This documentation change executes no reset or remote operation.
 
 ### First-release attachment and deferred replacement
 

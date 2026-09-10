@@ -1,6 +1,25 @@
 // Human-edited public articles. The canonical technical contracts continue to
 // live in docs/plans; this layer explains their intent to a broader audience.
 export const planArticles = {
+  'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md': {
+    deck: 'The workflow makes regular product discussions useful without turning project documentation into a growing collection of competing instructions.',
+    intro: 'CaseChain already has plans, implementation records and a decision queue. This approach connects those sources so an idea can become a clear product decision, with an honest account of the work it adds or changes.',
+    flowCaption: 'From an idea to a traceable change',
+    flow: ['Understand what exists', 'Explore the useful alternatives', 'Record the decision and its impact'],
+    sections: [
+      { heading: 'Two ways to begin', paragraphs: [
+        'The user can ask for a few worthwhile discussion topics or bring a creative idea. In either case, the discussion begins with the relevant user journey, existing plans and available implementation evidence. The agent should challenge assumptions and explain alternatives using concrete examples.',
+        'A short session focuses on one meaningful choice. An idea may be accepted, deferred or left with an unresolved question. Discussion does not automatically approve a feature or start implementation.',
+      ]},
+      { heading: 'Know what a change affects', paragraphs: [
+        'An agreed requirement replaces the old wording in its canonical plan. If working code follows the previous requirement, the delivery record identifies the necessary adaptation and fresh checks. Historical evidence remains valid for the behaviour it actually tested; it cannot prove that a new requirement is already satisfied.',
+      ]},
+      { heading: 'Keep the system maintainable', paragraphs: [
+        'Plans own intended behaviour, the ledger owns current delivery state, and verification receipts own test evidence. Material decisions are recorded once. Unfinished ideas receive a short topic note only when they are worth revisiting. Coverage links connect requirements to implementation without maintaining progress twice.',
+        'Agents read the chosen topic and its dependencies instead of loading the entire archive. Large plans are split only where separate capabilities make that useful. The workflow needs no new project service or mandatory skill.',
+      ]},
+    ],
+  },
   'docs/plans/operations/2026-09-08-agent-delivery-workflow.md': {
     deck: 'CaseChain development will proceed through one implementation task with a durable goal, clear outcomes, independent checks and a reusable handoff.',
     intro: 'The architecture plans remain valuable, but delivery needs its own evidence. This workflow connects each selected improvement to the user behavior it must deliver and the checks that establish whether it works.',
@@ -15,7 +34,7 @@ export const planArticles = {
         'Routine checks can use a narrowly scoped reviewer. Permissions, migrations, asynchronous processing and source identity receive stronger independent scrutiny. Repair loops are bounded: a persistent failure receives a focused diagnosis rather than endless retries or an automatic pass.',
       ]},
       { heading: 'A fresh task can continue', paragraphs: [
-        'Canonical plans record decisions. A delivery ledger indexes current outcomes, tested revisions and integration evidence. The handoff identifies the next step and unfinished work. A user decision blocks its dependent outcome while the coordinator searches the wider documentation for other approved work, including outcomes not yet in the ledger.',
+        'Canonical plans record decisions. A delivery ledger indexes current outcomes, tested revisions and integration evidence. The handoff identifies the next step and unfinished work. A user decision blocks its dependent outcome while the coordinator checks other approved work within the selected objective and its prerequisites, including scoped outcomes not yet in the ledger.',
         'The durable goal continues across verified tranches. Developer and independent reviewer results remain separate, and a fresh task checks relevant evidence against the current code before relying on it. A partial repair cannot complete its parent capability, and a local commit does not imply production verification.',
       ]},
     ],

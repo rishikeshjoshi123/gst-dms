@@ -54,6 +54,8 @@ Every page and pane must have one deliberate scroll owner. Accidental nested scr
 | --- | --- |
 | Data table | Prioritized card/list with drill-down |
 | Split-pane list and detail | Explicit list/detail navigation |
+| Full table plus contextual sidebar | Adaptive table at wide desktop; full-screen detail below the split threshold |
+| Queue/sidebar with on-demand source | Queue → details → source; Back restores details, then queue |
 | Timeline graph | Chronological timeline list fallback |
 | Persistent metadata panel | Drawer or collapsible section |
 | Horizontal action row | Wrapped actions or stacked footer |
@@ -61,6 +63,8 @@ Every page and pane must have one deliberate scroll owner. Accidental nested scr
 | Wide dialog | Phone-sized dialog, drawer, or dedicated page |
 
 Do not hide a capability merely because it does not fit. Change its presentation.
+
+For progressive-disclosure queue workspaces, the unselected table uses the available width. At the wide split threshold, selection may reduce it to approximately 60% only after redundant columns are removed and the remaining cells still scan cleanly; otherwise navigate to full-screen detail. Source content replaces the collection and never appears as an additional narrow pane. On desktop, a field-specific filter may open from its visible table heading. When headings disappear on mobile or a column is removed in the selected split, preserve any active filter and expose an equivalent compact labelled control near Search. Filters always apply without navigation.
 
 ## Layout rules
 

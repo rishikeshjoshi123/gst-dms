@@ -11,6 +11,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Save every decision-complete plan under the appropriate domain folder in `docs/plans/` using `docs/plans/_template.md`.
 - Use a `YYYY-MM-DD-descriptive-slug.md` filename, update the existing canonical file for revisions, and keep `docs/plans/README.md` indexed.
 - Do not store secrets, credentials, private reasoning, brainstorming notes, or transient task checklists in the plan archive.
+- For product brainstorming or plan enhancement, use `docs/planning-prompt.md`; distinguish proposals from approved changes and reopen affected implementation acceptance. Discussion/documentation does not launch implementation.
+- Apply the current data phase in `docs/decision-history/2026-09-10-planning-and-pre-pilot-policy.md`: pre-pilot legacy/test data is disposable; real-client onboarding activates preservation requirements. Verify the execution target and preserve unrelated working-tree changes.
 <!-- END:repository-plan-archive -->
 
 <!-- BEGIN:single-task-delivery -->

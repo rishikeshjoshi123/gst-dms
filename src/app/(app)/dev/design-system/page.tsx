@@ -108,6 +108,24 @@ export default function DesignSystemPage() {
           </div>
         </div>
       </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Motion rhythm</h2>
+        <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">Hover or focus these specimens. Feedback begins immediately: micro-state changes complete in 150ms, while a user-triggered pane or disclosure completes in 250ms.</p>
+        <div className="mt-4 grid max-w-3xl gap-3 sm:grid-cols-2">
+          <button type="button" className="group rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3 text-left outline-none transition-colors duration-[var(--duration-fast)] ease-[var(--ease-smooth)] hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] motion-reduce:transition-none">
+            <span className="block text-sm font-semibold">Micro feedback</span>
+            <span className="mt-1 block text-xs text-[var(--text-muted)]">Colour, hover, focus, and tabs · 150ms</span>
+          </button>
+          <button type="button" className="group overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
+            <span className="block text-sm font-semibold">Structural transition</span>
+            <span className="mt-2 flex items-center gap-2"><span className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] bg-[var(--bg-overlay)]" /><span className="h-8 w-20 translate-x-1 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--accent-muted)] opacity-70 transition-[transform,opacity] duration-[var(--duration-base)] ease-[var(--ease-smooth)] group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 motion-reduce:translate-x-0 motion-reduce:opacity-100 motion-reduce:transition-none" /></span>
+            <span className="mt-1 block text-xs text-[var(--text-muted)]">Pane and disclosure movement · 250ms</span>
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-[var(--text-muted)]">No operational entry delay. Reduced motion removes spatial movement, and realtime rows never animate position.</p>
+      </section>
+
       <section className="border-t border-[var(--border)] py-6">
         <h2 className="text-base font-semibold">Binary settings</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">Switches keep one shared focus, motion, disabled, and effective touch-target contract.</p>
@@ -163,6 +181,40 @@ export default function DesignSystemPage() {
           context={<span className="hidden text-xs text-[var(--text-muted)] sm:inline">Verified facts only in solid totals</span>}
           actions={<><Button variant="outline" size="sm"><Users size={14} />Participants</Button><Button variant="outline" size="sm"><ListFilter size={14} />Filters</Button><Button size="sm"><Plus size={14} />Add entry</Button></>}
         />
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Low-surprise table disclosure</h2>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">The full table is the resting state. Selection opens an adaptive contextual sidebar, and explicit source viewing replaces the table instead of adding a third pane.</p>
+          </div>
+          <Badge variant="outline">Workspace rule</Badge>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {[
+            { label: '1 · Resting', left: 'Full table', right: 'All columns', detail: 'No empty detail pane and no PDF opened.' },
+            { label: '2 · Selected', left: '60% · 3 columns', right: '40% · sidebar', detail: 'Repeated columns yield to Overview and Extracted data.' },
+            { label: '3 · Source', left: 'PDF · cited page', right: 'Same sidebar', detail: 'Exact-page highlight, explicit Close, never a third pane.' },
+          ].map(({ label, left, right, detail }) => (
+            <div key={label} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <strong className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">{label}</strong>
+                <span className="text-[11px] text-[var(--text-muted)]">Stable anatomy</span>
+              </div>
+              <div className="mt-3 grid h-24 grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border-subtle)] text-xs">
+                <div className="flex items-center justify-center border-r border-[var(--border-subtle)] bg-[var(--surface-hover)] px-2 text-center font-medium text-[var(--text-secondary)]">{left}</div>
+                <div className="flex items-center justify-center px-2 text-center font-medium text-[var(--text-primary)]">{right}</div>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{detail}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]">
+          <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] px-2.5 py-1.5">Workbar: ownership scope · Search · collection action</span>
+          <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] px-2.5 py-1.5">Table heading: field-specific filter</span>
+          <span className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--surface)] px-2.5 py-1.5">Row marker ↔ sidebar summary: one processing state</span>
+        </div>
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
@@ -232,16 +284,10 @@ export default function DesignSystemPage() {
       </section>
 
       <section className="border-t border-[var(--border)] py-6">
-        <h2 className="text-base font-semibold">Live processing rail</h2>
+        <h2 className="text-base font-semibold">Selected-detail processing summary</h2>
         <div className="mt-4 max-w-xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="flex items-center justify-between gap-3"><strong className="text-sm font-medium">Appeal_Order_17-2025.pdf</strong><Badge variant="default" fixedWidth="lg">Processing</Badge></div>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">Extracting text and document fields · step 2 of 4</p>
-          <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Extracting, step 2 of 4">
-            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--success)]" />
-            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--primary)] ring-2 ring-[color-mix(in_srgb,var(--primary)_18%,transparent)]" />
-            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--border-strong)]" />
-            <span className="h-1 rounded-[var(--radius-sm)] bg-[var(--border-strong)]" />
-          </div>
+          <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-3 py-2.5" role="status"><span className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-muted)] text-[var(--primary)]"><Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /></span><div className="min-w-0"><p className="truncate text-xs font-semibold">Reading and extracting document</p><p className="mt-0.5 text-[11px] leading-4 text-[var(--text-secondary)]">12 of 28 pages are ready. Processing continues in the background.</p></div><Badge variant="outline" className="hidden sm:inline-flex">No action needed</Badge></div>
         </div>
       </section>
     </div>

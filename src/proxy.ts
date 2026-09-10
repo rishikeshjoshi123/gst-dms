@@ -58,6 +58,7 @@ export async function proxy(request: NextRequest) {
     '/dev/trash-permanent-delete-concept',
     '/dev/tasks-workspace-concept',
     '/dev/document-hub-workbench-concept',
+    '/dev/organisation-departure-team-concept',
   ]
   const isPublicRoute = pathname === '/' || publicRoutes.some((route) => route === '/api/invites/accept' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
 

@@ -21,6 +21,10 @@ export const planVisualReferences = {
   'docs/plans/features/2026-08-25-document-hub-ingestion-and-workbench.md': [
     { afterHeading: 'Document Hub experience', specimenId: 'document-hub-layout' },
   ],
+  'docs/plans/platform/2026-08-26-organisation-administration.md': [
+    // Shared anchored-chrome pattern; the plan links the approved Team fixture.
+    { afterHeading: 'UI layout and state contract', specimenId: 'stable-workspace-chrome' },
+  ],
 };
 
 // The portfolio's dependency order, adapted into a complete reading sequence.
@@ -45,5 +49,6 @@ export const portalReadingOrder = [
   'docs/plans/operations/2026-08-27-project-portal-and-github-pages.md',
   'docs/plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md',
   'docs/plans/operations/2026-09-08-agent-delivery-workflow.md',
+  'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md',
   'docs/plans/features/2026-09-03-interactive-demo-workspace.md',
 ];

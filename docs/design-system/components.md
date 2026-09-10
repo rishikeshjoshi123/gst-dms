@@ -131,6 +131,22 @@ In document review, queue, table, and split-pane workflows, separate stable chro
 - Mobile should use a compact sticky identity header or bottom action bar only when persistence is necessary for the task.
 - Avoid freezing so much content that the usable body becomes cramped.
 
+### Progressive-disclosure queue workspaces
+
+Operational queue pages must preserve a low-surprise anatomy:
+
+- Use the shared application header and a compact collection workbar. Do not repeat the selected record's identity across the global header, workbar, and detail panel.
+- When the collection is truly empty, show one centered empty workspace without artificial left/right panes. The primary create/upload action belongs in that state.
+- Default to a full-width compact table. Open a contextual detail sidebar only after selection; on wide desktop, prefer an approximately 60/40 table/sidebar split and deliberately remove table columns repeated in the sidebar so the remaining columns do not become cramped.
+- A contextual sidebar follows the approved anatomy: stable tabs and Close control, one scrolling body, and a fixed action footer. Use a small number of task-oriented tabs when they prevent one long mixed-content panel.
+- A cognitively dense source artifact such as a PDF is absent until the user explicitly asks to view the original or a cited source location. An explicit source action replaces the table while the detail sidebar stays anchored; never add a third pane.
+- Keep selected-detail slots in one stable order across records. Dynamic content changes inside those slots; it does not move actions or change scroll ownership. Do not label every record `Needs attention`; name the summary for its real state, such as placement decision, processing status, duplicate match, file problem, or document ready.
+- Put workflow actions in stable workbar, detail, or footer regions. Repeated rows prioritize identity, comparison, and selection rather than tiny action labels.
+- Use a hybrid filtering contract for real tables: global scope/search remains in the collection workbar, while a filter that maps cleanly to one visible column opens from that column heading. Show a persistent active indicator and provide a clear path to reset it. Do not force this pattern onto cards, timelines, hidden columns, or non-tabular pages, and do not make a header control ambiguous with sorting.
+- Render compact scope switchers as one quiet semantic surface with a filled active segment. Do not put an outlined active button inside an outlined container; the nested strokes create a false double-focus state.
+- Ordinary filters open as an anchored menu, popover, or compact inline disclosure and update the current collection in place. Do not route an ordinary filter task through a modal or separate screen.
+- Treat structural surprise as a limited budget: selection may update values and state, while any mode change must be visibly labelled, user-initiated, reversible, and preserve return context.
+
 ## Trash read-only context strip
 
 Use `TrashReadOnlyStrip` immediately below stable route context whenever an exact canonical Client, Matter, or Document route is rendering an authorised trashed record.

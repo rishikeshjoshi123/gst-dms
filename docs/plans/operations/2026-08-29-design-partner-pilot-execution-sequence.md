@@ -2,7 +2,7 @@
 title: Design Partner Pilot Execution Sequence
 status: proposed
 created: 2026-08-29
-updated: 2026-09-08
+updated: 2026-09-10
 owners:
   - product
   - engineering
@@ -25,7 +25,7 @@ related:
 
 Reorder implementation around a production-safe vertical slice for the first design-partner pilot without weakening the approved architecture or its independent QA standard. Reconcile the actual checkout and close build/authorization gaps, then move through identity, human Review, Document Hub/Workbench, a bounded Matter workspace, and pilot operations as one observable client journey. Use the delivery ledger for current progress rather than replaying an old checkpoint.
 
-The client handoff is a production-hosted, invite-bound pilot: the design partner opens the production URL, signs up with a preauthorised email, verifies the account, enters the pilot organisation, and uploads original litigation PDFs. An internal pre-production rehearsal may use synthetic or sanitised fixtures, but it is not the promised client deliverable. The production pilot opens only after tenant isolation, durable document processing, human-reviewed extraction, deployment, Supabase Pro managed-database-backup verification, the documented object-recovery limitation, monitoring, and release acceptance pass. Independent database/object backup and restore testing remain a mandatory expansion gate before a second production organisation, not a blocker for this one-client release.
+The client handoff is a production-hosted pilot with normal onboarding: the design partner opens the production URL, signs up by email, verifies the account, creates an organisation or accepts a pending invitation, and uploads original litigation PDFs. An internal pre-production rehearsal may use synthetic or sanitised fixtures, but it is not the promised client deliverable. The production pilot opens only after tenant isolation, durable document processing, human-reviewed extraction, deployment, Supabase Pro managed-database-backup verification, the documented object-recovery limitation, monitoring, and release acceptance pass. Independent database/object backup and restore testing remain a mandatory expansion gate before a second production organisation, not a blocker for this one-client release.
 
 ## Context and Goals
 
@@ -50,6 +50,12 @@ The first pilot validates document-centric GST-litigation work. It is not a prom
 
 ## Decisions
 
+### September 10 user corrections
+
+The user subsequently accepted the [non-critical execution/documentation recommendations](../../decision-history/2026-09-10-planning-and-pre-pilot-policy.md#non-critical-october-recommendations-accepted): focused increments, repeatable acceptance, bounded helpers/repairs, selective tracking, early staging preparation, an October 4 freeze target and stabilisation before the October 12–15 presentation. These operating decisions do not await approval of the entire assessment. This plan remains proposed because critical retention/access/identity/AI and final release choices are unresolved; its old breadth/defer statements do not supersede the user's graph priority or the current bounded run.
+
+The [recorded user decisions](../../decision-history/2026-09-10-planning-and-pre-pilot-policy.md) establish disposable pre-pilot test data and normal signup/create-or-join entry. They supersede legacy-data-preservation and manual/invite-only bootstrap assumptions, without activating production services or resolving retention/other pending release choices. This pilot proposal still requires the graph-first October scope reconciliation described in the [current assessment](../../reviews/2026-09-10-october-release-reassessment.md).
+
 ### September review corrections and execution scope
 
 - Use one implementation task and one active code writer; no parallel implementation worktrees are required. Bounded helpers and risk-appropriate independent QA follow the delivery workflow. Continue ready approved repair outcomes while a release-specific decision is pending.
@@ -70,7 +76,7 @@ The first pilot validates document-centric GST-litigation work. It is not a prom
 ### Pilot audience and operating envelope
 
 - The pilot is one design-partner organisation with a small preauthorised user group and PDF-only source documents hosted through the production application URL.
-- Signup is self-service from the client's perspective but invite-bound or email-allowlisted during the pilot. The user opens the link, creates and verifies the account, and completes the approved organisation invitation. Public unauthorised organisation creation is not part of this release.
+- Signup follows the September 10 normal create-or-join decision: verify email, then offer organisation creation and pending invitations for that account. Creation atomically establishes the first Owner/Admin through the application. Prior invitation or manual internal provisioning is not required; one-membership and invitation security contracts remain. Production expansion still requires its owning operational gates.
 - The internal rehearsal environment uses synthetic or sanitised representative documents. It is not sent as the client deliverable and contains no confidential client records or production credentials.
 - The client handoff is a controlled confidential-data production pilot. It requires passing the release gate in this plan and begins with manual support, bounded storage/model quotas, and a documented incident path.
 - The pilot organisation begins with `manual_suggestions` as its initial document-placement policy. Global uploads remain in Intake for a human assignment decision unless an Owner/Admin later makes an explicit, audited opt-in to an approved automatic mode after its evidence-quality gate passes; matter-context uploads retain the user's declared destination.
@@ -84,7 +90,7 @@ The first pilot validates document-centric GST-litigation work. It is not a prom
 
 The first confidential-data pilot includes:
 
-- a production application URL with production authentication redirects, verified-email signup, invite-bound organisation entry, and one-organisation membership enforcement;
+- a production application URL with production authentication redirects, verified-email signup, normal create-or-join onboarding, pending invitations, and one-organisation membership enforcement;
 - production email delivery for verification, invitation, and mandatory security messages using a configured provider rather than local/default development mail behavior;
 - a minimal Team/member view sufficient to understand access and invite the approved pilot users;
 - client and matter navigation using secured organisation-scoped projections;
@@ -188,7 +194,7 @@ The first pilot explicitly defers:
 
 ### 8. Hand over the production link and begin the controlled pilot
 
-1. Send the production URL and invite/preauthorise the approved client email. The client signs up, verifies the address, joins the pilot organisation, and completes one guided canary upload before broader original-PDF testing.
+1. After release approval, provide the production URL. The first client signs up, verifies the address and creates the organisation through the normal flow; subsequent members can accept invitations shown during onboarding. Complete one guided canary upload before broader original-PDF testing.
 2. Onboard the design partner with explicit supported workflows, known deferred capabilities, manual Review policy, storage/model limits, support channel, retention/deletion procedure, and incident procedure.
 3. Monitor every upload/processing failure, Review exception, signed-file denial, quota alert, managed-backup status, search-index failure, and unusual usage pattern during the initial observation window.
 4. Expand enabled capabilities only through verified canonical tranches. Do not equate partner demand with permission to bypass source, authorisation, migration, or recovery contracts.
@@ -222,7 +228,7 @@ Resume in this order, adjusted by observed partner value:
 - First attachment preserves document identity and human metadata; matched metadata never merges distinct documents automatically. Existing quotes/historical links remain source-specific. Replacement UI is absent.
 - The reviewed legacy defects are closed or their unsafe entry points are denied: valid-empty Hub refresh, wrong-source race, generic Review dismissal, stale Task Review rows, same-client/year Matter/Restore identity, non-atomic Move/Copy, and hidden overdue dates. Every enabled path has its ledger evidence.
 
-- An invite-bound test user can sign up through the deployed pre-production URL and complete the exact supported journey: open/create a matter, upload a representative synthetic/sanitised PDF through matter upload or global Inbox, observe truthful processing state, inspect or resolve a Review exception, place the document, open the exact current version in Workbench, and reopen it from the Matter workspace.
+- A test user can sign up through the deployed pre-production URL, create an organisation or accept a pending invitation, and complete the exact supported journey: open/create a matter, upload a representative synthetic/sanitised PDF through matter upload or global Inbox, observe truthful processing state, inspect or resolve a Review exception, place the document, open the exact current version in Workbench, and reopen it from the Matter workspace.
 - The journey works with keyboard-only use and at desktop and phone widths without hidden primary actions, page-level horizontal overflow, nested-scroll traps, inaccessible status, or loss of context.
 - Synthetic duplicate, malformed/encrypted PDF, processing failure, and revoked-access scenarios show bounded actionable states and cannot corrupt canonical document or AI state.
 - Disabled or deferred capabilities are absent or explicitly labelled; no control claims automation, deletion, search quality, or authoritative AI behavior that is not implemented.
@@ -253,7 +259,7 @@ Resume in this order, adjusted by observed partner value:
 
 ## Assumptions
 
-- The design partner expects a production URL and self-service signup. During the controlled pilot, this means invite-bound or preauthorised-email signup rather than anonymous public organisation creation.
+- The design partner expects a production URL and normal self-service signup, followed by verified-account organisation creation or invitation acceptance. No manual first-owner setup is assumed.
 - The initial confidential pilot is deliberately small, closely monitored, and limited to PDF workflows already governed by the canonical document and provenance contracts.
 - The client has authority to provide the original litigation PDFs for testing; that authority, permitted processing purpose, retention, return/deletion, and user list will be confirmed before production upload.
 - The weekly Codex quota may pause implementation. Timeline commitments use active engineering ranges plus the account's displayed reset date rather than assuming uninterrupted execution.

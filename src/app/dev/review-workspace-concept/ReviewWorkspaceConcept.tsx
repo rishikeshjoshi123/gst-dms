@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTheme } from 'next-themes'
 import {
   AlertCircle,
   ArrowLeft,
@@ -19,18 +20,29 @@ import {
   ListChecks,
   LockKeyhole,
   Moon,
+  MoreHorizontal,
   RefreshCw,
-  Scale,
   Search,
   ShieldCheck,
   Sun,
+  X,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -39,9 +51,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-type Role = 'associate' | 'viewer'
+type Role = 'owner_admin' | 'associate' | 'viewer'
 type PreviewState = 'default' | 'loading' | 'empty' | 'error' | 'long_content' | 'stale'
 type ReviewType = 'extraction_conflict' | 'ambiguous_placement' | 'relationship_conflict' | 'deadline_verification' | 'financial_verification'
 type ReviewStatus = 'open' | 'in_progress' | 'superseded'
@@ -374,20 +387,16 @@ const previewLabels: Record<PreviewState, string> = {
 
 function ConceptRail() {
   return (
-    <div className="relative z-20 hidden h-full w-16 shrink-0 md:block">
-      <aside className="group/sidebar absolute inset-y-0 left-0 z-30 flex w-16 flex-col overflow-hidden border-r border-[var(--sidebar-border,var(--border))] bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] transition-[width,box-shadow] duration-200 hover:w-56 hover:shadow-[var(--shadow-xl)] focus-within:w-56 focus-within:shadow-[var(--shadow-xl)]">
+    <aside className="hidden h-full w-16 shrink-0 flex-col overflow-hidden border-r border-[var(--sidebar-border,var(--border))] bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] md:flex" aria-label="Primary navigation preview">
         <div className="flex h-14 shrink-0 items-center border-b border-[var(--sidebar-border,var(--border))] px-4">
           <Gavel className="size-5 shrink-0 text-[var(--sidebar-accent)]" aria-hidden="true" />
-          <span className="ml-3 whitespace-nowrap text-sm font-semibold text-[var(--on-sidebar)] opacity-0 transition-opacity group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">CaseChain</span>
         </div>
         <div className="px-2 py-4">
-          <button type="button" aria-current="page" className="flex min-h-11 w-full items-center rounded-[var(--radius-sm)] bg-[var(--sidebar-active)] px-3 text-[var(--on-sidebar)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-accent)]">
+          <button type="button" aria-current="page" aria-label="Review" title="Review" className="flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] bg-[var(--sidebar-active)] text-[var(--on-sidebar)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--sidebar-accent)]">
             <ListChecks className="size-4 shrink-0" aria-hidden="true" />
-            <span className="ml-3 whitespace-nowrap text-sm font-medium opacity-0 transition-opacity group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">Review</span>
           </button>
         </div>
-      </aside>
-    </div>
+    </aside>
   )
 }
 
@@ -427,6 +436,7 @@ function PreviewMenu({ state, role, onState, onRole }: { state: PreviewState; ro
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Permission state</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={role} onValueChange={(value) => onRole(value as Role)}>
+          <DropdownMenuRadioItem value="owner_admin">Owner / Admin · all decisions</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="associate">Associate · permitted decisions</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="viewer">Viewer · read only</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
@@ -435,30 +445,25 @@ function PreviewMenu({ state, role, onState, onRole }: { state: PreviewState; ro
   )
 }
 
-function PreviewBanner({ state, role, dark, onState, onRole, onDark }: { state: PreviewState; role: Role; dark: boolean; onState: (state: PreviewState) => void; onRole: (role: Role) => void; onDark: () => void }) {
+function WorkspaceHeader({ state, role, dark, onState, onRole, onDark, onAbout }: { state: PreviewState; role: Role; dark: boolean; onState: (state: PreviewState) => void; onRole: (role: Role) => void; onDark: () => void; onAbout: () => void }) {
+  const roleLabel = role === 'owner_admin' ? 'Owner / Admin' : role === 'viewer' ? 'Viewer · read only' : 'Associate'
   return (
-    <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--warning)] bg-[var(--warning-muted)] px-3 py-2 lg:px-4">
-      <ShieldCheck className="size-4 shrink-0 text-[var(--warning)]" aria-hidden="true" />
-      <p className="min-w-0 flex-1 text-xs leading-5 text-[var(--text-secondary)]"><span className="font-semibold text-[var(--text-primary)]">Fixture-only Review preview.</span> No Review records, decisions, sources, notifications, or RPCs are read or written.</p>
-      <div className="ml-auto flex items-center gap-2">
-        <PreviewMenu state={state} role={role} onState={onState} onRole={onRole} />
-        <Button variant="outline" size="icon" onClick={onDark} aria-label={dark ? 'Use light appearance' : 'Use dark appearance'} aria-pressed={dark}>
-          {dark ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function WorkspaceHeader({ role }: { role: Role }) {
-  return (
-    <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2 md:px-5">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-3 md:px-5">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-overlay)] text-[var(--text-secondary)] md:hidden"><ListChecks className="size-4" aria-hidden="true" /></div>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2"><span className="hidden text-xs text-[var(--text-muted)] sm:inline">Apex Tax Advocates</span><ChevronRight className="hidden size-3 text-[var(--text-muted)] sm:block" aria-hidden="true" /><h1 className="truncate text-lg font-semibold">Review</h1></div>
         <p className="truncate text-xs text-[var(--text-muted)]">Human decisions with typed evidence and one owning resolver</p>
       </div>
-      <Badge variant={role === 'viewer' ? 'muted' : 'outline'} className="shrink-0"><LockKeyhole className="size-3" aria-hidden="true" />{role === 'viewer' ? 'Viewer · read only' : 'Associate'}</Badge>
+      <Badge variant="warning" className="hidden shrink-0 lg:inline-flex"><ShieldCheck className="size-3" aria-hidden="true" />Fixture only</Badge>
+      <Badge variant={role === 'viewer' ? 'muted' : 'outline'} className="hidden shrink-0 sm:inline-flex"><LockKeyhole className="size-3" aria-hidden="true" />{roleLabel}</Badge>
+      <PreviewMenu state={state} role={role} onState={onState} onRole={onRole} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="More preview controls"><MoreHorizontal className="size-4" aria-hidden="true" /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={onDark}>{dark ? <Sun className="size-4" aria-hidden="true" /> : <Moon className="size-4" aria-hidden="true" />}{dark ? 'Use light appearance' : 'Use dark appearance'}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onAbout}><Info className="size-4" aria-hidden="true" />About this fixture</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   )
 }
@@ -491,11 +496,10 @@ function Fact({ label, children, wide = false }: { label: string; children: Reac
   return <div className={cn('min-w-0', wide && 'sm:col-span-2')}><dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">{label}</dt><dd className="mt-0.5 break-words text-xs leading-5 text-[var(--text-secondary)]">{children}</dd></div>
 }
 
-function QueueRow({ item, selected, onSelect }: { item: ReviewItem; selected: boolean; onSelect: () => void }) {
+function MobileQueueRow({ item, selected, onSelect }: { item: ReviewItem; selected: boolean; onSelect: () => void }) {
   const Icon = typeIcons[item.type]
   return (
-    <article className={cn('border-b border-[var(--border-subtle)] bg-[var(--surface)] transition-colors', selected ? 'bg-[var(--accent-muted)]' : 'hover:bg-[var(--surface-hover)]')}>
-      <div className="p-3 lg:p-4">
+    <button type="button" onClick={onSelect} className={cn('w-full border-b border-[var(--border-subtle)] bg-[var(--surface)] p-3 text-left transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]', selected && 'bg-[var(--accent-muted)]')}>
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]"><Icon className="size-4" aria-hidden="true" /></span>
           <div className="min-w-0 flex-1">
@@ -504,20 +508,34 @@ function QueueRow({ item, selected, onSelect }: { item: ReviewItem; selected: bo
             <p className="mt-1 break-words text-xs text-[var(--text-muted)]">{item.client} · {item.matter}</p>
           </div>
         </div>
-        <dl className="mt-3 grid min-w-0 gap-x-4 gap-y-2 border-t border-[var(--border-subtle)] pt-3 sm:grid-cols-2">
-          <Fact label="Reason" wide>{item.reason}</Fact>
-          <Fact label="Impact" wide>{item.impact}</Fact>
-          <Fact label="Age">{item.age}</Fact>
-          <Fact label="Owner">{item.owner ?? 'Unassigned organisation queue'}</Fact>
-          <Fact label="Evidence availability">{item.evidenceAvailability} · {item.evidence.length} {item.evidence.length === 1 ? 'item' : 'items'}</Fact>
-          <Fact label="Primary decision">{item.decision.label}</Fact>
-        </dl>
-        <Button variant={selected ? 'secondary' : 'outline'} size="sm" className="mt-3 w-full justify-between sm:w-auto" onClick={onSelect}>
-          <span className="truncate">{item.status === 'superseded' ? 'Inspect stale evidence' : `Review: ${item.decision.label}`}</span>
-          <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
-        </Button>
-      </div>
-    </article>
+        <p className="mt-2 line-clamp-1 text-xs text-[var(--text-secondary)]"><span className="font-medium">Why:</span> {item.reason}</p>
+        <p className="mt-1 line-clamp-1 text-xs text-[var(--text-muted)]"><span className="font-medium">Impact:</span> {item.impact}</p>
+        <div className="mt-2 flex min-w-0 items-center gap-2 text-[11px] text-[var(--text-muted)]"><span className="min-w-0 flex-1 truncate">{item.owner ?? 'Unassigned'} · {item.age} · {item.evidenceAvailability} · {item.decision.label}</span><ChevronRight className="size-4 shrink-0" aria-hidden="true" /></div>
+    </button>
+  )
+}
+
+function DesktopQueueTable({ items, selectedId, onSelect }: { items: ReviewItem[]; selectedId: string | null; onSelect: (item: ReviewItem) => void }) {
+  return (
+    <Table>
+      <TableCaption className="sr-only">Review items with reason, impact, ownership, age, evidence, and primary decision.</TableCaption>
+      <TableHeader className="sticky top-0 z-10 bg-[var(--surface)]">
+        <TableRow><TableHead className="w-[28%]">Review item</TableHead><TableHead className="w-[34%]">Why / impact</TableHead><TableHead className="w-[18%]">Owner / age</TableHead><TableHead className="w-[20%]">Evidence / decision</TableHead></TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((item) => {
+          const Icon = typeIcons[item.type]
+          return (
+            <TableRow key={item.id} data-state={selectedId === item.id ? 'selected' : undefined} tabIndex={0} className="h-[76px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]" onClick={() => onSelect(item)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(item) } }}>
+              <TableCell className="px-3 py-2"><div className="flex min-w-0 items-start gap-2"><span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-overlay)]"><Icon className="size-3.5" aria-hidden="true" /></span><div className="min-w-0"><div className="flex items-center gap-1.5"><Badge fixedWidth="lg" variant={statusVariants[item.status]}>{statusLabels[item.status]}</Badge><PriorityLabel priority={item.priority} /></div><p className="mt-1 truncate text-xs font-semibold text-[var(--text-primary)]">{item.title}</p><p className="truncate text-[11px] text-[var(--text-muted)]">{item.client} · {item.matter}</p></div></div></TableCell>
+              <TableCell className="px-3 py-2"><p className="line-clamp-1 text-xs text-[var(--text-secondary)]"><span className="font-medium text-[var(--text-primary)]">Why:</span> {item.reason}</p><p className="mt-1 line-clamp-1 text-xs text-[var(--text-muted)]"><span className="font-medium">Impact:</span> {item.impact}</p></TableCell>
+              <TableCell className="px-3 py-2"><p className="truncate text-xs font-medium">{item.owner ?? 'Unassigned'}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{item.age} · {item.typeLabel}</p></TableCell>
+              <TableCell className="px-3 py-2"><p className="text-xs">{item.evidenceAvailability} · {item.evidence.length}</p><p className="mt-1 line-clamp-1 text-[11px] text-[var(--text-muted)]">{item.decision.label}</p></TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -538,12 +556,13 @@ function StatePanel({ kind, onRetry }: { kind: 'empty' | 'error' | 'filtered'; o
   )
 }
 
-function QueueBody({ state, items, selectedId, onSelect, onRetry }: { state: PreviewState; items: ReviewItem[]; selectedId: string | null; onSelect: (item: ReviewItem) => void; onRetry: () => void }) {
+function QueueBody({ state, items, selectedId, onSelect, onRetry, desktop = false }: { state: PreviewState; items: ReviewItem[]; selectedId: string | null; onSelect: (item: ReviewItem) => void; onRetry: () => void; desktop?: boolean }) {
   if (state === 'loading') return <QueueLoading />
   if (state === 'empty') return <StatePanel kind="empty" />
   if (state === 'error') return <StatePanel kind="error" onRetry={onRetry} />
   if (items.length === 0) return <StatePanel kind="filtered" />
-  return items.map((item) => <QueueRow key={item.id} item={item} selected={selectedId === item.id} onSelect={() => onSelect(item)} />)
+  if (desktop) return <DesktopQueueTable items={items} selectedId={selectedId} onSelect={onSelect} />
+  return items.map((item) => <MobileQueueRow key={item.id} item={item} selected={selectedId === item.id} onSelect={() => onSelect(item)} />)
 }
 
 function EvidenceCard({ evidence }: { evidence: Evidence }) {
@@ -563,7 +582,7 @@ function EvidenceCard({ evidence }: { evidence: Evidence }) {
 function DecisionPanel({ item, role, selectedOption, onSelectOption }: { item: ReviewItem; role: Role; selectedOption: string; onSelectOption: (id: string) => void }) {
   const superseded = item.status === 'superseded'
   const readOnly = role === 'viewer'
-  const authorityRequired = !item.associateCanResolve
+  const authorityRequired = !item.associateCanResolve && role !== 'owner_admin'
   const optionsDisabled = superseded || readOnly || authorityRequired
   const disabledReason = superseded
     ? 'This item is superseded. Its historical evidence is read-only and no outdated decision can be applied.'
@@ -571,12 +590,14 @@ function DecisionPanel({ item, role, selectedOption, onSelectOption }: { item: R
       ? 'Viewer access is read-only. Viewers cannot be assigned actionable Review or record decisions.'
       : authorityRequired
         ? 'This financial decision requires Owner/Admin authority. The Associate may inspect evidence but cannot resolve it.'
-        : 'This fixture accepts a local option selection for visual review, but recording remains disabled.'
+        : role === 'owner_admin' && !item.associateCanResolve
+          ? 'Owner/Admin authority is active. Select an option to inspect the confirmation step; recording remains disabled in this fixture.'
+          : 'Select an option to inspect the confirmation step; recording remains disabled in this fixture.'
 
   return (
     <section aria-labelledby="decision-heading" className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
       <div className="border-b border-[var(--border-subtle)] p-4"><p className="text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">Typed resolver · {item.decision.kind.replaceAll('_', ' ')}</p><h3 id="decision-heading" className="mt-1 text-sm font-semibold">{item.decision.label}</h3><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{item.decision.instruction}</p></div>
-      {item.decision.options.length > 0 && <fieldset className="space-y-2 p-4" disabled={optionsDisabled}><legend className="sr-only">{item.decision.label} options</legend>{item.decision.options.map((option) => <label key={option.id} className={cn('flex min-h-11 items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3 transition-colors', !optionsDisabled && 'cursor-pointer hover:bg-[var(--surface-hover)]', selectedOption === option.id && 'border-[var(--accent)] bg-[var(--accent-muted)]', optionsDisabled && 'opacity-70')}><input type="radio" name={`decision-${item.id}`} value={option.id} checked={selectedOption === option.id} onChange={() => onSelectOption(option.id)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span className="min-w-0"><span className="block break-words text-xs font-medium text-[var(--text-primary)]">{option.label}</span><span className="mt-1 block break-words text-xs leading-5 text-[var(--text-muted)]">{option.explanation}</span></span></label>)}</fieldset>}
+      {item.decision.options.length > 0 && <fieldset className="space-y-2 p-4 pt-2" disabled={optionsDisabled}><legend className="px-1 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">Decision options</legend>{item.decision.options.map((option) => <label key={option.id} className={cn('flex min-h-11 items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-3 transition-colors', !optionsDisabled && 'cursor-pointer hover:bg-[var(--surface-hover)]', selectedOption === option.id && 'border-[var(--accent)] bg-[var(--accent-muted)]', optionsDisabled && 'opacity-70')}><input type="radio" name={`decision-${item.id}`} value={option.id} checked={selectedOption === option.id} onChange={() => onSelectOption(option.id)} className="mt-0.5 size-4 accent-[var(--accent)]" /><span className="min-w-0"><span className="block break-words text-xs font-medium text-[var(--text-primary)]">{option.label}</span><span className="mt-1 block break-words text-xs leading-5 text-[var(--text-muted)]">{option.explanation}</span></span></label>)}</fieldset>}
       <div className={cn('border-t p-3', superseded ? 'border-[var(--warning)] bg-[var(--warning-muted)]' : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)]')}>
         <p className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]"><LockKeyhole className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{disabledReason}</p>
       </div>
@@ -584,73 +605,114 @@ function DecisionPanel({ item, role, selectedOption, onSelectOption }: { item: R
   )
 }
 
-function DetailContent({ item, role, onPreviewSource }: { item: ReviewItem; role: Role; onPreviewSource: () => void }) {
-  const [selectedOption, setSelectedOption] = useState('')
+function DetailContent({ item, role, selectedOption, onSelectOption, onPreviewSource }: { item: ReviewItem; role: Role; selectedOption: string; onSelectOption: (id: string) => void; onPreviewSource: () => void }) {
   return (
     <div className="space-y-4 p-3 lg:p-4">
       {item.status === 'superseded' && <section role="status" className="rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-muted)] p-4"><div className="flex items-start gap-3"><RefreshCw className="mt-0.5 size-5 shrink-0 text-[var(--warning)]" aria-hidden="true" /><div><h3 className="text-sm font-semibold">Source changed · decision superseded</h3><p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">Revision {item.revision} cannot resolve the current source. {item.replacementId ? `Replacement fixture ${item.replacementId} owns the current conflict.` : 'Refresh current evidence before deciding.'}</p></div></div></section>}
       <section aria-labelledby="context-heading" className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 id="context-heading" className="text-sm font-semibold">Decision boundary</h3><p className="mt-1 text-xs text-[var(--text-muted)]">One Review item, one typed resolver, one source revision.</p></div><Button variant="outline" size="sm" onClick={onPreviewSource}><FileSearch className="size-4" aria-hidden="true" />Preview exact source</Button></div><dl className="mt-4 grid gap-x-5 gap-y-3 sm:grid-cols-2"><Fact label="Reason" wide>{item.reason}</Fact><Fact label="Impact" wide>{item.impact}</Fact><Fact label="Client">{item.client}</Fact><Fact label="Matter">{item.matter}</Fact><Fact label="Document">{item.document}</Fact><Fact label="Source authority">{item.sourceVersion} · Review revision {item.revision}</Fact></dl></section>
       <section aria-labelledby="evidence-heading"><div className="flex flex-wrap items-end justify-between gap-2"><div><h3 id="evidence-heading" className="text-sm font-semibold">Evidence first</h3><p className="mt-1 text-xs text-[var(--text-muted)]">Review the typed source facts before choosing a decision.</p></div><Badge variant={item.evidenceAvailability === 'Complete' ? 'outline' : item.evidenceAvailability === 'Partial' ? 'warning' : 'muted'}>{item.evidenceAvailability} · {item.evidence.length}</Badge></div><div className="mt-3 space-y-2">{item.evidence.map((evidence) => <EvidenceCard key={evidence.id} evidence={evidence} />)}</div></section>
-      <DecisionPanel item={item} role={role} selectedOption={selectedOption} onSelectOption={setSelectedOption} />
+      <DecisionPanel item={item} role={role} selectedOption={selectedOption} onSelectOption={onSelectOption} />
     </div>
   )
 }
 
-function DetailHeader({ item, mobile, onBack }: { item: ReviewItem; mobile?: boolean; onBack?: () => void }) {
+function DetailHeader({ item, mobile, onBack, onClose }: { item: ReviewItem; mobile?: boolean; onBack?: () => void; onClose?: () => void }) {
   const Icon = typeIcons[item.type]
   return (
-    <div className={cn('shrink-0 border-b border-[var(--border)] bg-[var(--surface)] p-3 lg:p-4', mobile && 'sticky top-0 z-10')}>
+    <div className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] p-3 lg:p-4">
       <div className="flex min-w-0 items-start gap-3">
         {mobile && <Button variant="ghost" size="icon" className="-ml-2 shrink-0" onClick={onBack} aria-label="Back to Review queue"><ArrowLeft className="size-5" aria-hidden="true" /></Button>}
         <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]"><Icon className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0 flex-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><span className="text-xs font-medium text-[var(--text-muted)]">{item.typeLabel}</span><Badge fixedWidth="lg" variant={statusVariants[item.status]}>{statusLabels[item.status]}</Badge><PriorityLabel priority={item.priority} /></div><h2 className="mt-1 break-words text-sm font-semibold leading-5">{item.title}</h2><p className="mt-1 break-words text-xs text-[var(--text-muted)]">Owner: {item.owner ?? 'Unassigned organisation queue'} · Age: {item.age}</p></div>
+        {!mobile && <Button variant="ghost" size="icon" className="-mr-2 shrink-0" onClick={onClose} aria-label="Close Review detail"><X className="size-4" aria-hidden="true" /></Button>}
       </div>
     </div>
   )
 }
 
-function DecisionFooter({ item, role, mobile = false }: { item: ReviewItem; role: Role; mobile?: boolean }) {
+function DecisionFooter({ item, role, selectedOption, onReview }: { item: ReviewItem; role: Role; selectedOption: string; onReview: () => void }) {
+  const canResolve = role !== 'viewer' && (item.associateCanResolve || role === 'owner_admin') && item.status !== 'superseded'
   const label = item.status === 'superseded'
     ? 'No decision — superseded'
     : role === 'viewer'
       ? 'Viewer cannot record decisions'
-      : !item.associateCanResolve
+      : !canResolve
         ? 'Owner / Admin decision required'
-        : `Record ${item.decision.label.toLowerCase()} — preview disabled`
+        : selectedOption
+          ? 'Review selected decision'
+          : 'Select a decision option'
   return (
-    <div className={cn('shrink-0 border-t border-[var(--border)] bg-[var(--surface)] p-3', mobile && 'sticky bottom-0 z-10')}>
-      <Button className="w-full" disabled><Check className="size-4" aria-hidden="true" />{label}</Button>
-      <p className="mt-2 text-center text-[11px] text-[var(--text-muted)]">Consequential controls are intentionally inert in this fixture.</p>
+    <div className="shrink-0 border-t border-[var(--border)] bg-[var(--surface)] p-3">
+      <Button className="w-full" disabled={!canResolve || !selectedOption} onClick={onReview}><Check className="size-4" aria-hidden="true" />{label}</Button>
+      <p className="mt-2 text-center text-[11px] text-[var(--text-muted)]">Review is local to this fixture; canonical recording remains unavailable.</p>
     </div>
   )
 }
 
-function DesktopDetail({ item, role, state, onPreviewSource, onRetry }: { item: ReviewItem; role: Role; state: PreviewState; onPreviewSource: () => void; onRetry: () => void }) {
+function DecisionReviewDialog({ item, selectedOption, open, onOpenChange }: { item: ReviewItem; selectedOption: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const option = item.decision.options.find((candidate) => candidate.id === selectedOption)
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showClose={false} className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Review decision before recording</DialogTitle>
+          <DialogDescription>Confirm the selected typed outcome and its source authority. This fixture cannot create a canonical decision.</DialogDescription>
+        </DialogHeader>
+        <dl className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-4">
+          <Fact label="Decision">{option?.label ?? 'No option selected'}</Fact>
+          <Fact label="Evidence basis">{option?.explanation ?? 'Return to the evidence and choose an option.'}</Fact>
+          <Fact label="Authority">{item.sourceVersion} · Review revision {item.revision}</Fact>
+        </dl>
+        <div className="mt-4 rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3 text-xs leading-5 text-[var(--text-secondary)]">
+          Fixture safeguard: the final record action is disabled and no RPC is invoked.
+        </div>
+        <DialogFooter>
+          <DialogClose asChild><Button variant="outline">Return to evidence</Button></DialogClose>
+          <Button disabled><Check className="size-4" aria-hidden="true" />Record decision — fixture disabled</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DesktopDetail({ item, role, state, onClose, onPreviewSource, onRetry }: { item: ReviewItem; role: Role; state: PreviewState; onClose: () => void; onPreviewSource: () => void; onRetry: () => void }) {
   const ready = state === 'default' || state === 'long_content' || state === 'stale'
-  return <aside className="flex min-h-0 min-w-0 flex-[1.08] flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--bg)]" aria-label={`Review detail for ${item.title}`}><DetailHeader item={item} /><div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: 'stable' }}>{state === 'loading' ? <div className="space-y-3 p-4" aria-busy="true"><p className="sr-only">Loading Review evidence and decision controls…</p><Skeleton className="h-32 w-full" /><Skeleton className="h-5 w-32" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-48 w-full" /></div> : state === 'error' ? <StatePanel kind="error" onRetry={onRetry} /> : <DetailContent key={item.id} item={item} role={role} onPreviewSource={onPreviewSource} />}</div>{ready && <DecisionFooter item={item} role={role} />}</aside>
+  const [selectedOption, setSelectedOption] = useState('')
+  const [reviewOpen, setReviewOpen] = useState(false)
+  return <aside className="flex min-h-0 w-[32rem] shrink-0 flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--bg)]" aria-label={`Review detail for ${item.title}`}><DetailHeader item={item} onClose={onClose} /><div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: 'stable' }}>{state === 'loading' ? <div className="space-y-3 p-4" aria-busy="true"><p className="sr-only">Loading Review evidence and decision controls…</p><Skeleton className="h-32 w-full" /><Skeleton className="h-5 w-32" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-48 w-full" /></div> : state === 'error' ? <StatePanel kind="error" onRetry={onRetry} /> : <DetailContent item={item} role={role} selectedOption={selectedOption} onSelectOption={setSelectedOption} onPreviewSource={onPreviewSource} />}</div>{ready && <DecisionFooter item={item} role={role} selectedOption={selectedOption} onReview={() => setReviewOpen(true)} />}<DecisionReviewDialog item={item} selectedOption={selectedOption} open={reviewOpen} onOpenChange={setReviewOpen} /></aside>
+}
+
+function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent showClose={false} className="sm:max-w-md"><DialogHeader><DialogTitle>Fixture-only Review concept</DialogTitle><DialogDescription>This page uses local deterministic fixtures to evaluate queue density, evidence hierarchy, decision authority, and responsive behavior. It does not read or write Review records, open source files, send notifications, or invoke RPCs.</DialogDescription></DialogHeader><DialogFooter><DialogClose asChild><Button>Close</Button></DialogClose></DialogFooter></DialogContent></Dialog>
 }
 
 function MobileDetail({ item, role, onBack, onPreviewSource }: { item: ReviewItem; role: Role; onBack: () => void; onPreviewSource: () => void }) {
-  return <section className="custom-scrollbar h-full min-h-0 overflow-y-auto overscroll-contain bg-[var(--bg)]" style={{ scrollbarGutter: 'stable' }} aria-label={`Review detail for ${item.title}`}><DetailHeader item={item} mobile onBack={onBack} /><DetailContent key={item.id} item={item} role={role} onPreviewSource={onPreviewSource} /><DecisionFooter item={item} role={role} mobile /></section>
-}
-
-function EmptyDetail() {
-  return <aside className="flex min-h-0 min-w-0 flex-[1.08] items-center justify-center border-l border-[var(--border)] bg-[var(--bg)] p-6 text-center"><div><Scale className="mx-auto size-7 text-[var(--text-muted)]" aria-hidden="true" /><h2 className="mt-3 text-sm font-semibold">Select one decision</h2><p className="mt-1 max-w-xs text-xs leading-5 text-[var(--text-muted)]">The selected item’s evidence, typed options, authority, and stale-version state appear here.</p></div></aside>
+  const [selectedOption, setSelectedOption] = useState('')
+  const [reviewOpen, setReviewOpen] = useState(false)
+  return <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--bg)]" aria-label={`Review detail for ${item.title}`}><DetailHeader item={item} mobile onBack={onBack} /><div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: 'stable' }}><DetailContent item={item} role={role} selectedOption={selectedOption} onSelectOption={setSelectedOption} onPreviewSource={onPreviewSource} /></div><DecisionFooter item={item} role={role} selectedOption={selectedOption} onReview={() => setReviewOpen(true)} /><DecisionReviewDialog item={item} selectedOption={selectedOption} open={reviewOpen} onOpenChange={setReviewOpen} /></section>
 }
 
 export function ReviewWorkspaceConcept() {
-  const [dark, setDark] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
+  const [themeReady, setThemeReady] = useState(false)
+  const dark = themeReady && resolvedTheme === 'dark'
   const [role, setRole] = useState<Role>('associate')
   const [previewState, setPreviewState] = useState<PreviewState>('default')
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<QueueScope>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
-  const [selectedId, setSelectedId] = useState<string>('review-ext-204')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const mobileListRef = useRef<HTMLElement>(null)
   const mobileListPosition = useRef(0)
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setThemeReady(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   const visibleItems = useMemo(() => {
     let items = reviewFixtures
@@ -670,7 +732,7 @@ export function ReviewWorkspaceConcept() {
     })
   }, [previewState, query, scope, statusFilter, typeFilter])
 
-  const selectedItem = visibleItems.find((item) => item.id === selectedId) ?? visibleItems[0] ?? null
+  const selectedItem = visibleItems.find((item) => item.id === selectedId) ?? null
 
   function selectItem(item: ReviewItem, mobile: boolean) {
     if (mobile) {
@@ -690,37 +752,33 @@ export function ReviewWorkspaceConcept() {
   function changePreview(state: PreviewState) {
     setPreviewState(state)
     setMobileDetail(false)
-    if (state === 'long_content') setSelectedId('review-long-507')
-    if (state === 'stale') {
-      setSelectedId('review-old-019')
-      setStatusFilter('all')
-    }
-    if (state === 'default') setSelectedId('review-ext-204')
+    setSelectedId(null)
+    if (state === 'stale') setStatusFilter('all')
     if (state === 'default') setStatusFilter('active')
   }
 
   const stateCount = previewState === 'loading' || previewState === 'empty' || previewState === 'error' ? 0 : visibleItems.length
 
   return (
-    <div className={cn('flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]', dark && 'dark')}>
-      <PreviewBanner state={previewState} role={role} dark={dark} onState={changePreview} onRole={setRole} onDark={() => setDark((current) => !current)} />
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <ConceptRail />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <WorkspaceHeader role={role} />
-          <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', mobileDetail && 'max-lg:hidden')}>
+          <WorkspaceHeader state={previewState} role={role} dark={dark} onState={changePreview} onRole={setRole} onDark={() => setTheme(dark ? 'light' : 'dark')} onAbout={() => setAboutOpen(true)} />
+          <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', mobileDetail && 'max-xl:hidden')}>
             <QueueWorkbar query={query} scope={scope} type={typeFilter} status={statusFilter} count={stateCount} onQuery={setQuery} onScope={setScope} onType={setTypeFilter} onStatus={setStatusFilter} />
-            <div className="hidden min-h-0 min-w-0 flex-1 overflow-hidden lg:flex">
-              <section aria-label="Review queue" className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)]" style={{ scrollbarGutter: 'stable' }}><QueueBody state={previewState} items={visibleItems} selectedId={selectedItem?.id ?? null} onSelect={(item) => selectItem(item, false)} onRetry={() => changePreview('default')} /></section>
-              {selectedItem && previewState !== 'empty' ? <DesktopDetail item={selectedItem} role={role} state={previewState} onPreviewSource={() => setAnnouncement('Fixture only: no canonical document, Matter, or signed asset was opened.')} onRetry={() => changePreview('default')} /> : <EmptyDetail />}
+            <div className="hidden min-h-0 min-w-0 flex-1 overflow-hidden xl:flex">
+              <section aria-label="Review queue" className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)]" style={{ scrollbarGutter: 'stable' }}><QueueBody desktop state={previewState} items={visibleItems} selectedId={selectedItem?.id ?? null} onSelect={(item) => selectItem(item, false)} onRetry={() => changePreview('default')} /></section>
+              {selectedItem && previewState !== 'empty' && <DesktopDetail key={selectedItem.id} item={selectedItem} role={role} state={previewState} onClose={() => setSelectedId(null)} onPreviewSource={() => setAnnouncement('Fixture only: no canonical document, Matter, or signed asset was opened.')} onRetry={() => changePreview('default')} />}
             </div>
-            <section ref={mobileListRef} aria-label="Review queue" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)] lg:hidden" style={{ scrollbarGutter: 'stable' }}><QueueBody state={previewState} items={visibleItems} selectedId={selectedItem?.id ?? null} onSelect={(item) => selectItem(item, true)} onRetry={() => changePreview('default')} /></section>
+            <section ref={mobileListRef} aria-label="Review queue" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--surface)] xl:hidden" style={{ scrollbarGutter: 'stable' }}><QueueBody state={previewState} items={visibleItems} selectedId={selectedItem?.id ?? null} onSelect={(item) => selectItem(item, true)} onRetry={() => changePreview('default')} /></section>
           </div>
-          <div className={cn('hidden min-h-0 flex-1 lg:hidden', mobileDetail && 'flex')}>
-            {selectedItem && <MobileDetail item={selectedItem} role={role} onBack={backToQueue} onPreviewSource={() => setAnnouncement('Fixture only: no canonical document, Matter, or signed asset was opened.')} />}
+          <div className={cn('hidden min-h-0 flex-1 xl:hidden', mobileDetail && 'flex')}>
+            {selectedItem && <MobileDetail key={selectedItem.id} item={selectedItem} role={role} onBack={backToQueue} onPreviewSource={() => setAnnouncement('Fixture only: no canonical document, Matter, or signed asset was opened.')} />}
           </div>
         </main>
       </div>
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <div className="sr-only" aria-live="polite">{announcement}</div>
     </div>
   )

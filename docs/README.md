@@ -1,12 +1,22 @@
 # Documentation map
 
-Use the [implementation prompt](implementation-prompt.md) to launch work. The [delivery workflow](plans/operations/2026-09-08-agent-delivery-workflow.md) is the execution rulebook; this page is a lookup map, not another mandatory startup read.
+Choose the entry point for the work you want. This page is a lookup map, not another mandatory startup read.
+
+| What you want | Start here |
+| --- | --- |
+| Suggest a topic or discuss your idea | [Product discussion prompt](planning-prompt.md): overlap, critique, alternatives and saved decisions |
+| Understand the October target and tradeoffs | [Current release assessment](reviews/2026-09-10-october-release-reassessment.md), reconciled with [September 10 decisions](decision-history/2026-09-10-planning-and-pre-pilot-policy.md); the pilot plan remains proposed |
+| See what is built, unverified or still missing | [Delivery ledger](delivery-ledger.md), then relevant receipts; coverage is partial, not a whole-app percentage |
+| See what needs your decision | [Open decision index](approval-based-blockers.md#open-decision-index) |
+| See the current implementation task/restart point | [Handoff](implementation-handoff.md); editing docs does not wake a stopped task |
+| Start authorised implementation | [Implementation prompt](implementation-prompt.md) → [current bounded run](plans/operations/2026-09-08-agent-delivery-workflow.md#current-bounded-run); no full assessment read required |
 
 ## Document roles
 
 | Need | Source | Read scope |
 | --- | --- | --- |
 | Execution authority and Goal mode | [Prompt](implementation-prompt.md) | Once when invoked; procedure belongs to the workflow. |
+| Product discussion and effects of changed requirements | [Discussion prompt](planning-prompt.md) → [plan evolution](plans/operations/2026-09-10-product-discussions-and-plan-evolution.md) | Chosen topic and its evidence; proposals are not approvals. |
 | Selection, helpers, QA and continuation | [Workflow](plans/operations/2026-09-08-agent-delivery-workflow.md) | Once per fresh task; revisit changed rules. |
 | Current work and restart point | [Ledger](delivery-ledger.md), [handoff](implementation-handoff.md) | Current entries, reconciled with code/evidence. |
 | Unsettled product decisions | [Open decision index](approval-based-blockers.md#open-decision-index) | Index, then affected entries; resolved receipts are linked separately. |
@@ -23,8 +33,12 @@ Use heading search, such as `rg -n '^#{2,4} ' <plan>`, then read complete releva
 
 Expand dependencies according to the change: permissions need role/RLS and tenancy contracts; source work needs identity/version/lifecycle rules; async changes need concurrency, replay and failure behavior; UI needs design-system, accessibility and approved visuals. If the boundary is unclear, read more before implementing.
 
-Record exact source sections in the active card so helpers receive the needed contract without the whole conversation. Reuse unchanged material within a task and read relevant diffs when code, plans or decisions change. Search the whole documentation inventory when discovering work; retrieve history selectively.
+Record exact source sections in the active card so helpers receive the needed contract without the whole conversation. Reuse unchanged material within a task and read relevant diffs when code, plans or decisions change. Search the selected objective and its dependencies when discovering work; retrieve history selectively.
 
 ## Maintenance
 
 Keep procedure in the workflow, product decisions in domain plans, present state in the ledger/handoff and detailed evidence in receipts. Revise canonical decisions in place and retain dated approvals. Use the [plan template](plans/_template.md); add navigation links instead of parallel summaries, copied schemas or repeated status narratives. No new tracker or document-generation system is required.
+
+An unfinished idea worth revisiting may have one compact topic note in `docs/discovery/`, created only when needed. Store the problem, alternatives, unsettled question and next step, not a transcript. On resolution retain a short disposition linking the canonical plan/decision. Do not put unfinished brainstorming into finalized plans or make every idea a blocker.
+
+When an agreed plan change affects existing code, preserve the old evidence and reopen affected acceptance in the ledger. Coverage maps link requirements to those outcomes without duplicating status. Split long plans by independently owned capabilities only when useful; preserve links and shared invariants. No fixed daily documentation chore or full-archive reread is required.

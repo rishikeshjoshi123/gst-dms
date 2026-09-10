@@ -1,10 +1,16 @@
 // Public-reader summaries. These are intentionally separate from docs/plans,
 // which remain the canonical, technical decision record.
 export const plainLanguagePlans = {
+  'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md': {
+    overview: 'A discussion workflow connects new ideas to existing plans, working features and the changes still needed.',
+    why: 'Product discussions should improve the application without creating conflicting plans or hidden rework.',
+    outcomes: ['Short discussions grounded in existing plans and evidence.', 'Clear decisions with visible implementation consequences.', 'One maintained source for each kind of project information.'],
+    steps: ['Choose a topic or bring an idea', 'Explore and decide', 'Update the plan and affected work'],
+  },
   'docs/plans/operations/2026-09-08-agent-delivery-workflow.md': {
-    overview: 'One implementation task follows a durable goal across ready approved improvements, with independent review and a compact record that a fresh task can resume.',
+    overview: 'One implementation task follows a durable goal within a selected scope, with independent review and a compact record that a fresh task can resume.',
     why: 'An approved design or a small commit does not prove that the combined application works.',
-    outcomes: ['A delivery index backed by code and verification evidence.', 'Bounded implementation and risk-appropriate review.', 'Continued work across approved plans when one outcome is blocked.'],
+    outcomes: ['A delivery index backed by code and verification evidence.', 'Bounded implementation and risk-appropriate review.', 'Continued work within the selected scope when one outcome is blocked.'],
     steps: ['Choose a ready outcome', 'Implement and verify', 'Record evidence and continue'],
   },
   'docs/plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md': {

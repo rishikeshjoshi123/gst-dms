@@ -57,9 +57,12 @@ Civic Ink is compact, never cramped.
 - Use Lucide icons already used by the application.
 - Pair unfamiliar or consequential icons with visible text or an accessible name.
 - Do not use emoji as operational icons.
-- Motion explains state change; it is not decoration. Prefer colour/fade transitions using `--duration-fast` or `--duration-base`.
+- Motion explains state change; it is not decoration. Tokens do not create motion by themselves; the owning shared component or workspace composition must opt into the approved transition.
+- Use `--duration-fast` (`150ms`) for hover, focus, colour, tabs, and other micro-feedback. Use `--duration-base` (`250ms`) for a user-triggered pane, drawer, disclosure, or closely related layout transition. Start immediately; do not add an artificial operational delay.
+- Reuse `--ease-smooth`. A transition may combine a small translation with opacity when that clarifies origin, but it must preserve stable anchors and must not move a control away from the pointer.
+- Do not animate ordinary realtime row position, large text reflow, PDF page rendering, or every data update. The `--duration-slow` token is not the default for operational layout changes.
 - Spinners indicate active indeterminate work. Stage-based processing must not invent a percentage.
-- Respect reduced-motion preferences and avoid continuous animation except for an active progress indicator.
+- Under `prefers-reduced-motion`, remove spatial movement and transition delay; preserve the same final state and focus behavior. Avoid continuous animation except for an active progress indicator.
 
 ## Scrollbars and scrolling
 
