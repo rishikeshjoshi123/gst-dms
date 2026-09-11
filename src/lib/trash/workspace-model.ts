@@ -67,6 +67,10 @@ export type TrashOperation = {
   includedItems: TrashIncludedItem[]
   restorePreflight: TrashRestorePreflight | null
   purgeImpact: TrashPurgeImpact | null
+  autoPurgeAt: string | null
+  remainingSeconds: number | null
+  retentionBlockerCount: number
+  retentionStatus: 'retained' | 'final_window' | 'blocked'
 }
 
 export type TrashWorkspaceData = {
@@ -128,6 +132,10 @@ export function shapeTrashWorkspaceRows(
         includedItems: [],
         restorePreflight: null,
         purgeImpact: null,
+        autoPurgeAt: null,
+        remainingSeconds: null,
+        retentionBlockerCount: 0,
+        retentionStatus: 'retained',
       }
       byId.set(row.operation_id, operation)
     }

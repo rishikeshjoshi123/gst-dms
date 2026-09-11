@@ -15,16 +15,20 @@ function formatTrashDate(value: string) {
 }
 
 function retentionGuidance(context: ExactResourceTrashContext) {
-  if (context.operationState === 'purge_scheduled') {
-    return context.retention.purgeScheduledAt
-      ? `Permanent deletion was scheduled on ${formatTrashDate(context.retention.purgeScheduledAt)}. The item remains readable until deletion begins.`
-      : 'Permanent deletion is scheduled. The item remains readable until deletion begins.'
-  }
   if (context.retention.blockerCount > 0) {
-    return `${context.retention.blockerCount} ${context.retention.blockerCount === 1 ? 'retention blocker protects' : 'retention blockers protect'} this Trash group.`
+    return `Permanent deletion is blocked by ${context.retention.blockerCount} active ${context.retention.blockerCount === 1 ? 'restriction' : 'restrictions'}. An Owner or Admin can review the status in Trash.`
   }
   if (context.retention.autoPurgeEnabled && context.retention.autoPurgeAt) {
-    return `Organisation policy schedules automatic permanent deletion after ${formatTrashDate(context.retention.autoPurgeAt)}.`
+    const remainingHours = Math.max(0, Math.ceil((new Date(context.retention.autoPurgeAt).getTime() - Date.now()) / 3_600_000))
+    if (remainingHours <= 7 * 24) {
+      const days = Math.floor(remainingHours / 24)
+      const hours = remainingHours % 24
+      const remaining = days > 0
+        ? `${days} ${days === 1 ? 'day' : 'days'}${hours ? ` ${hours} ${hours === 1 ? 'hour' : 'hours'}` : ''}`
+        : `${remainingHours} ${remainingHours === 1 ? 'hour' : 'hours'}`
+      return `Permanent deletion in ${remaining}. Restore the root Trash group before the recorded deadline.`
+    }
+    return `Organisation policy records permanent deletion for ${formatTrashDate(context.retention.autoPurgeAt)}.`
   }
   if (context.retention.mode === 'manual_only') {
     return 'Retention is manual. This Trash group stays available until an authorised permanent-deletion workflow is used.'
@@ -42,7 +46,7 @@ export function TrashReadOnlyStrip({ context }: { context: ExactResourceTrashCon
   const rootType = resourceLabel[context.rootResourceType]
   const lineage = inherited
     ? `This item was moved with ${rootType.toLowerCase()} “${context.rootResourceName}”. The ancestor Trash group must be restored; this item has no independent restore action.`
-    : `This ${resourceLabel[context.rootResourceType].toLowerCase()} is the root of the Trash group “${context.rootResourceName}”. Restoring returns the whole group; permanent deletion is not available.`
+    : `This ${resourceLabel[context.rootResourceType].toLowerCase()} is the root of the Trash group “${context.rootResourceName}”. Restoring returns the whole group; permanent deletion is managed from Trash.`
 
   return (
     <section

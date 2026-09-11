@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFile } from 'node:fs/promises'
 import { PILOT_RELEASE_MANIFEST, unresolvedPilotApprovals } from './pilot-release-manifest'
 
 test('the pilot manifest records the settled entry and AI boundaries', () => {
@@ -12,13 +13,23 @@ test('the pilot manifest records the settled entry and AI boundaries', () => {
   assert.ok(PILOT_RELEASE_MANIFEST.routes.developmentOnly.includes('/usage'))
 })
 
-test('unresolved retention decisions remain explicit production blockers', () => {
-  assert.deepEqual(unresolvedPilotApprovals(), ['automaticRetention', 'permanentPurge'])
+test('retention policy is approved while production purge workers remain release-gated', () => {
+  assert.deepEqual(unresolvedPilotApprovals(), [])
+  assert.equal(PILOT_RELEASE_MANIFEST.capabilities.automaticRetention, 'enabled')
+  assert.equal(PILOT_RELEASE_MANIFEST.capabilities.permanentPurge, 'enabled')
   assert.deepEqual(PILOT_RELEASE_MANIFEST.workers.approvalRequired, [
-    'project-trash-retention-team-attention',
     'dispatch-trash-permanent-delete',
     'reconcile-trash-permanent-delete',
   ])
+})
+
+test('the retired 24-hour Trash attention projection is not surfaced on Dashboard', async () => {
+  const [page, content] = await Promise.all([
+    readFile(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../app/(app)/dashboard/DashboardContent.tsx', import.meta.url), 'utf8'),
+  ])
+  assert.doesNotMatch(page, /getTrashRetentionTeamAttention|trashRetentionAttention/)
+  assert.doesNotMatch(content, /TrashRetentionTeamAttentionPanel|trashRetentionAttention/)
 })
 
 test('the manifest fixes the approved PDF and storage envelope', () => {

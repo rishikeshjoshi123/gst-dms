@@ -142,10 +142,11 @@ test('direct legacy commands reject trashed resource targets before mutating', a
   assert.match(exportedFunction(documentActions, 'dismissReviewFlag'), /Legacy review dismissal is unavailable/)
 })
 
-test('SQL projections expose allowlisted UI data and keep purge-scheduled Back to Trash valid', async () => {
-  const [projection, workspaceMigration, strip] = await Promise.all([
+test('SQL projections expose allowlisted UI data and exact logical expiry keeps Back to Trash safe', async () => {
+  const [projection, workspaceMigration, expiryMigration, strip] = await Promise.all([
     readFile(path.join(root, 'supabase/migrations/00086_exact_trashed_resource_projection.sql'), 'utf8'),
     readFile(path.join(root, 'supabase/migrations/00087_trash_workspace_purge_scheduled_visibility.sql'), 'utf8'),
+    readFile(path.join(root, 'supabase/migrations/00143_trash_logical_expiry_and_shared_intake.sql'), 'utf8'),
     readFile(path.join(root, 'src/components/trash/TrashReadOnlyStrip.tsx'), 'utf8'),
   ])
 
@@ -154,6 +155,13 @@ test('SQL projections expose allowlisted UI data and keep purge-scheduled Back t
   assert.match(projection, /'documents', CASE WHEN note_document\.id IS NULL/)
   assert.match(projection, /note\.document_id = ANY\(projected_document_ids\)/)
   assert.match(workspaceMigration, /'purge_scheduled'::public\.trash_operation_state/)
-  assert.match(strip, /operationState === 'purge_scheduled'/)
+  assert.match(expiryMigration, /clock_timestamp\(\)>=operation\.auto_purge_at/)
+  assert.match(expiryMigration, /FOR UPDATE/)
+  assert.match(expiryMigration, /trash_restore_deadline_expired/)
+  assert.match(expiryMigration, /WITH eligible_operations AS MATERIALIZED/)
+  assert.match(expiryMigration, /clock_timestamp\(\) < operation\.auto_purge_at[\s\S]*ORDER BY operation\.created_at DESC[\s\S]*LIMIT bounded_limit/)
+  assert.match(expiryMigration, /get_trashed_document_version_read_grant_before_logical_expiry/)
+  assert.match(strip, /Permanent deletion in/)
+  assert.match(strip, /Permanent deletion is blocked/)
   assert.match(strip, /href=\{`\/trash\?selected=/)
 })

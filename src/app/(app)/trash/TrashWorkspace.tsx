@@ -73,6 +73,19 @@ function formatDeletedAt(value: string, timeZone: string) {
   }
 }
 
+function retentionLabel(operation: TrashOperation) {
+  if (operation.retentionStatus === 'blocked') {
+    return `Permanent deletion blocked · ${operation.retentionBlockerCount} ${operation.retentionBlockerCount === 1 ? 'blocker' : 'blockers'}`
+  }
+  if (operation.retentionStatus !== 'final_window' || operation.remainingSeconds === null) return null
+  const totalHours = Math.max(0, Math.ceil(operation.remainingSeconds / 3600))
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+  if (days > 0 && hours > 0) return `Permanent deletion in ${days} ${days === 1 ? 'day' : 'days'} ${hours} ${hours === 1 ? 'hour' : 'hours'}`
+  if (days > 0) return `Permanent deletion in ${days} ${days === 1 ? 'day' : 'days'}`
+  return `Permanent deletion in ${totalHours} ${totalHours === 1 ? 'hour' : 'hours'}`
+}
+
 function ResourceMark({ type }: { type: TrashResourceType }) {
   const Icon = typeIcon[type]
   return (
@@ -87,7 +100,7 @@ function filterLabel(filter: TrashResourceFilter) {
   return `${typeLabel[filter]}s`
 }
 
-function IncludedTree({ operation }: { operation: TrashOperation }) {
+function IncludedTree({ operation, linksAvailable = true }: { operation: TrashOperation; linksAvailable?: boolean }) {
   const byParent = new Map<string, TrashIncludedItem[]>()
   for (const item of operation.includedItems) {
     const siblings = byParent.get(item.parentMembershipId) ?? []
@@ -114,7 +127,7 @@ function IncludedTree({ operation }: { operation: TrashOperation }) {
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="muted" fixedWidth="lg">Included</Badge>
-                      {item.canonicalPath && (
+                      {linksAvailable && item.canonicalPath && (
                         <Link href={item.canonicalPath} className="inline-flex min-h-11 items-center text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
                           Open read-only page
                         </Link>
@@ -151,6 +164,7 @@ function OperationRow({ operation, selected, timeZone, onSelect }: {
             <span className="mt-0.5 block max-w-[360px] truncate text-xs text-[var(--text-muted)]">
               {typeLabel[operation.resourceType]} · {operation.parentContext}
             </span>
+            {retentionLabel(operation) && <span className="mt-1 block text-xs font-medium text-[var(--warning)]">{retentionLabel(operation)}</span>}
           </span>
         </button>
       </TableCell>
@@ -187,6 +201,7 @@ function MobileOperationCard({ operation, timeZone, onSelect }: {
           <span className="text-xs font-medium text-[var(--text-muted)]">{typeLabel[operation.resourceType]}</span>
           <h2 className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)]">{operation.name}</h2>
           <p className="mt-1 break-words text-xs text-[var(--text-muted)]">{operation.parentContext}</p>
+          {retentionLabel(operation) && <p className="mt-2 text-xs font-medium text-[var(--warning)]">{retentionLabel(operation)}</p>}
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[var(--border-subtle)] pt-3 text-xs">
@@ -259,6 +274,9 @@ function DetailPanel({ operation, timeZone, mobile, onClose, onPermanentDelete }
   const purgeOperational = operation.purgeImpact?.operationState === 'purging'
     || operation.purgeImpact?.operationState === 'purge_failed'
   const showPurgeRoute = purgeOperational || operation.purgeImpact?.canPurge === true
+  const logicallyExpiredBlocked = operation.retentionStatus === 'blocked'
+    && operation.autoPurgeAt !== null
+    && operation.remainingSeconds === 0
   return (
     <aside
       aria-label={`Trash details for ${operation.name}`}
@@ -287,7 +305,12 @@ function DetailPanel({ operation, timeZone, mobile, onClose, onPermanentDelete }
           <Info className="mt-0.5 size-4 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
           <span>Trash item pages use their original canonical routes and remain read-only until their root Trash group is restored.</span>
         </div>
-        {operation.canonicalPath && (
+        {retentionLabel(operation) && (
+          <div role="status" className="mt-3 rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] bg-[var(--warning-muted)] p-3 text-sm font-medium text-[var(--warning)]">
+            {retentionLabel(operation)}
+          </div>
+        )}
+        {!logicallyExpiredBlocked && operation.canonicalPath && (
           <Link href={operation.canonicalPath} className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
             Open read-only {typeLabel[operation.resourceType].toLowerCase()}
           </Link>
@@ -303,7 +326,7 @@ function DetailPanel({ operation, timeZone, mobile, onClose, onPermanentDelete }
             <h3 id="included-items-heading" className="text-sm font-semibold">Items moved together</h3>
             <span className="text-right text-xs text-[var(--text-muted)]">{describeIncludedItems(operation)}</span>
           </div>
-          <div className="mt-3"><IncludedTree operation={operation} /></div>
+          <div className="mt-3"><IncludedTree operation={operation} linksAvailable={!logicallyExpiredBlocked} /></div>
         </section>
         <div className="mt-5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-3">
           <h3 className="text-sm font-semibold">Grouped item boundary</h3>

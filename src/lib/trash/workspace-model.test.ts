@@ -79,6 +79,8 @@ test('server and live UI sources preserve the root-only Restore boundary', () =>
   assert.match(reader, /getCurrentOrgId\(\)/)
   assert.match(reader, /p_limit: 50/)
   assert.doesNotMatch(reader, /createServiceClient/)
+  assert.doesNotMatch(reader, /user_profiles|auth\.getUser/)
+  assert.match(reader, /timeZone: 'Asia\/Kolkata'/)
   assert.match(ui, /Open read-only page/)
   assert.match(ui, /Open read-only \{typeLabel\[operation\.resourceType\]\.toLowerCase\(\)\}/)
   assert.match(ui, /hidden min-w-\[720px\] lg:block/)

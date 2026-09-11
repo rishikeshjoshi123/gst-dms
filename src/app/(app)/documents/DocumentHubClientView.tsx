@@ -66,6 +66,8 @@ type DocumentHubClientViewProps = {
   initialMatterLookupError: string | null
   preselectedMatterId?: string
   preselectedIntakeId?: string
+  currentUserId: string
+  canManageIntake: boolean
 }
 
 type StatusPresentation = {
@@ -187,7 +189,31 @@ function intakeStateCopy(document: InboxQueueDocument) {
   }
 }
 
-export function DocumentHubClientView({
+export function DocumentHubClientView(props: DocumentHubClientViewProps) {
+  if (!props.canManageIntake) {
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--bg)] p-4 text-[var(--text-primary)]">
+        <section className="mx-auto mt-8 w-full max-w-2xl rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--bg-overlay)] text-[var(--text-muted)]">
+              <Inbox className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h1 className="text-section-heading">Document intake is not available</h1>
+              <p className="mt-1 text-body text-[var(--text-secondary)]">
+                Your access does not include unplaced uploads. Documents assigned to matters remain available from those matters.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  return <ManagedDocumentHubClientView {...props} />
+}
+
+function ManagedDocumentHubClientView({
   initialDocuments,
   initialQueueError,
   initialQueueTotal,
@@ -196,7 +222,9 @@ export function DocumentHubClientView({
   initialMatterLookupError,
   preselectedMatterId,
   preselectedIntakeId,
+  currentUserId,
 }: DocumentHubClientViewProps) {
+  const [ownershipScope, setOwnershipScope] = useState<'mine' | 'all'>('mine')
   const [documents, setDocuments] = useState(() => uniqueDocuments(initialDocuments))
   const [queueTotal, setQueueTotal] = useState(initialQueueTotal)
   const [nextOffset, setNextOffset] = useState(initialNextOffset)
@@ -239,6 +267,7 @@ export function DocumentHubClientView({
   const sourceButtonRef = useRef<HTMLButtonElement>(null)
   const selectedIdRef = useRef(selectedId)
   const documentsRef = useRef(documents)
+  const ownershipScopeRef = useRef<'mine' | 'all'>('mine')
   const loadedPageOffsetsRef = useRef([0])
   const sourceRequestGeneration = useRef(0)
   const queueRequestGeneration = useRef(0)
@@ -265,6 +294,10 @@ export function DocumentHubClientView({
   useEffect(() => {
     documentsRef.current = documents
   }, [documents])
+
+  useEffect(() => {
+    ownershipScopeRef.current = ownershipScope
+  }, [ownershipScope])
 
   if (
     renderedQueueProps.initialDocuments !== initialDocuments
@@ -461,6 +494,7 @@ export function DocumentHubClientView({
       const results = await Promise.all(offsets.map((offset, index) => getStagedDocuments({
         offset,
         includeId: index === 0 ? selectedIdRef.current ?? undefined : undefined,
+        ownershipScope: ownershipScopeRef.current,
       })))
       if (queueRequestGeneration.current !== generation) return
 
@@ -514,7 +548,7 @@ export function DocumentHubClientView({
     queueRequestGeneration.current = generation
     setIsLoadingMore(true)
     try {
-      const result = await getStagedDocuments({ offset: nextOffset })
+      const result = await getStagedDocuments({ offset: nextOffset, ownershipScope })
       if (queueRequestGeneration.current !== generation) return
       if (!result.ok) {
         setRefreshError(`${result.error} Showing the last loaded documents.`)
@@ -537,6 +571,44 @@ export function DocumentHubClientView({
       if (queueRequestGeneration.current === generation) setIsLoadingMore(false)
     }
   }
+
+  const changeOwnershipScope = useCallback(async (nextScope: 'mine' | 'all') => {
+    if (nextScope === ownershipScopeRef.current) return
+    const generation = queueRequestGeneration.current + 1
+    queueRequestGeneration.current = generation
+    const result = await getStagedDocuments({ ownershipScope: nextScope })
+    if (queueRequestGeneration.current !== generation) return
+    if (!result.ok) {
+      setRefreshError(result.error)
+      window.localStorage.setItem(
+        `casechain:document-hub-scope:${currentUserId}`,
+        ownershipScopeRef.current,
+      )
+      return
+    }
+    ownershipScopeRef.current = nextScope
+    setOwnershipScope(nextScope)
+    window.localStorage.setItem(`casechain:document-hub-scope:${currentUserId}`, nextScope)
+    setSelectedId(null)
+    selectedIdRef.current = null
+    setSourceUrl(null)
+    setActionError(null)
+    setRefreshError(null)
+    documentsRef.current = result.documents
+    setDocuments(result.documents)
+    setQueueTotal(result.total)
+    setNextOffset(result.offset + result.limit)
+    loadedPageOffsetsRef.current = [0]
+    setLastSuccessfulRefreshAt(Date.now())
+    router.replace(documentHubPath({ matterId: preselectedMatterId }), { scroll: false })
+  }, [currentUserId, preselectedMatterId, router])
+
+  useEffect(() => {
+    const remembered = window.localStorage.getItem(`casechain:document-hub-scope:${currentUserId}`)
+    if (remembered !== 'all') return
+    const timer = window.setTimeout(() => void changeOwnershipScope('all'), 0)
+    return () => window.clearTimeout(timer)
+  }, [changeOwnershipScope, currentUserId])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -686,6 +758,22 @@ export function DocumentHubClientView({
 
   const queueWorkbar = (
     <header className="flex min-h-14 shrink-0 flex-col gap-2 border-b border-[var(--border)] bg-[var(--surface)] p-3 sm:flex-row sm:items-center">
+      <fieldset className="flex shrink-0 items-center rounded-[var(--radius-sm)] border border-[var(--border)] p-0.5">
+        <legend className="sr-only">Upload ownership</legend>
+        {(['mine', 'all'] as const).map((scope) => (
+          <Button
+            key={scope}
+            type="button"
+            variant={ownershipScope === scope ? 'secondary' : 'ghost'}
+            size="sm"
+            className="min-h-11 sm:min-h-9"
+            aria-pressed={ownershipScope === scope}
+            onClick={() => void changeOwnershipScope(scope)}
+          >
+            {scope === 'mine' ? 'My uploads' : 'All uploads'}
+          </Button>
+        ))}
+      </fieldset>
       <div className="relative min-w-0 flex-1">
         <Label htmlFor="document-hub-search" className="sr-only">Search document queue</Label>
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
@@ -728,16 +816,33 @@ export function DocumentHubClientView({
       {filteredDocuments.length === 0 ? (
         <div className="flex min-h-64 items-center justify-center p-6 text-center">
           <div>
-            <Search className="mx-auto size-6 text-[var(--text-muted)]" aria-hidden="true" />
-            <h2 className="mt-3 text-section-heading">No matches in loaded documents</h2>
+            {query.trim()
+              ? <Search className="mx-auto size-6 text-[var(--text-muted)]" aria-hidden="true" />
+              : <Inbox className="mx-auto size-6 text-[var(--text-muted)]" aria-hidden="true" />}
+            <h2 className="mt-3 text-section-heading">
+              {query.trim()
+                ? 'No matches in loaded documents'
+                : ownershipScope === 'mine' ? 'No uploads from you' : 'No uploads in intake'}
+            </h2>
             <p className="mt-1 text-body text-[var(--text-muted)]">
-              {nextOffset < queueTotal
+              {query.trim() && nextOffset < queueTotal
                 ? 'Load more documents to extend this search, or clear it to return to the loaded queue.'
-                : 'Clear the search to return to the full queue.'}
+                : query.trim()
+                  ? 'Clear the search to return to the full queue.'
+                  : ownershipScope === 'mine'
+                    ? 'Upload PDFs here, or choose All uploads to review shared organisation intake.'
+                    : 'Upload PDFs to add documents for organisation triage.'}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Button type="button" variant="outline" onClick={() => setQuery('')}>Clear search</Button>
-              {nextOffset < queueTotal && (
+              {query.trim() ? (
+                <Button type="button" variant="outline" onClick={() => setQuery('')}>Clear search</Button>
+              ) : (
+                <Button type="button" onClick={() => setIsUploadOpen(true)}>
+                  <Upload className="size-4" aria-hidden="true" />
+                  Upload PDFs
+                </Button>
+              )}
+              {query.trim() && nextOffset < queueTotal && (
                 <Button type="button" variant="outline" onClick={loadMoreDocuments} loading={isLoadingMore}>
                   Load more documents
                 </Button>
@@ -1092,24 +1197,7 @@ export function DocumentHubClientView({
         </div>
       )}
 
-      {documents.length === 0 ? (
-        <section className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6 text-center">
-          <div className="max-w-md">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-[var(--radius-md)] bg-[var(--accent-muted)] text-[var(--primary)]">
-              <Inbox className="size-6" aria-hidden="true" />
-            </span>
-            <h1 className="mt-4 text-page-title">No documents in intake</h1>
-            <p className="mt-2 text-body text-[var(--text-muted)]">
-              Upload PDF documents to start validation and place ready files in an existing matter.
-            </p>
-            <Button ref={uploadButtonRef} type="button" className="mt-5" onClick={() => setIsUploadOpen(true)}>
-              <Upload className="size-4" aria-hidden="true" />
-              Upload PDFs
-            </Button>
-          </div>
-        </section>
-      ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
           <section
             aria-label={sourceUrl && selectedDocument ? `PDF workspace for ${fileName(selectedDocument)}` : 'Document queue'}
             className={cn(
@@ -1121,8 +1209,7 @@ export function DocumentHubClientView({
             {sourcePane || <>{queueWorkbar}{queueTable}</>}
           </section>
           {detailPane}
-        </div>
-      )}
+      </div>
 
       {isUploadOpen && (
         <UploadModal

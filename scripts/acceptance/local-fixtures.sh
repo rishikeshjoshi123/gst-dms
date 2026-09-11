@@ -74,6 +74,7 @@ run_sql() {
 
 run_sql supabase/tests/team_directory_page.sql
 run_sql supabase/tests/document_upload_commands.sql
+run_sql supabase/tests/trash_logical_expiry_and_shared_intake.sql
 run_sql scripts/acceptance/seed.sql
 "$node_exec" scripts/acceptance/seed-storage.mjs
 

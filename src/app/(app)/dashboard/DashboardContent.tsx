@@ -5,15 +5,13 @@ import { searchAll, SearchResultItem } from '@/lib/actions/search'
 import { NeedsAttentionPanel } from './NeedsAttentionPanel'
 import {
   ArrowUpRight, FileText, Search, Users, FolderOpen, ShieldAlert,
-  Loader2, X, Activity, Calendar, Clock, ChevronRight, ChevronLeft,
+  Loader2, X, Activity, Calendar, ChevronRight, ChevronLeft,
   Zap, Link2, FileCheck, Info
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { formatDistanceToNow, isToday, isYesterday, differenceInCalendarWeeks } from 'date-fns'
 import { useBreadcrumbs } from '@/components/nav/BreadcrumbContext'
-import type { TrashRetentionTeamAttentionItem } from '@/lib/trash/retention-policy'
-import { TrashRetentionTeamAttentionPanel } from './TrashRetentionTeamAttentionPanel'
 import { getDeadlineDayStatus, type DeadlineAttentionPayload } from '@/lib/deadlines/attention'
 
 interface DashboardContentProps {
@@ -25,7 +23,6 @@ interface DashboardContentProps {
   statCards: Array<{ label: string; value: number; href: string }>
   activityLogs: any[]
   deadlineAttention: DeadlineAttentionPayload
-  trashRetentionAttention: TrashRetentionTeamAttentionItem[]
 }
 
 /* ─── Stat Card Config ─────────────────── */
@@ -134,7 +131,6 @@ export function DashboardContent({
   statCards,
   activityLogs,
   deadlineAttention,
-  trashRetentionAttention,
 }: DashboardContentProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResultItem[]>([])
@@ -335,8 +331,6 @@ export function DashboardContent({
           <NeedsAttentionPanel documents={needsReviewDocs} />
         </div>
       )}
-
-      <TrashRetentionTeamAttentionPanel items={trashRetentionAttention} />
 
       {/* ── Empty State (no clients) ──────────────────────────────── */}
       {stats.clients === 0 && (

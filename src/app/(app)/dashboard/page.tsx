@@ -5,7 +5,6 @@ import { getDeadlineAttention, getRecentActivityLogs } from '@/lib/actions/notif
 import { DashboardContent } from './DashboardContent'
 import type { Metadata } from 'next'
 import { getCurrentOrgId } from '@/lib/actions/org'
-import { getTrashRetentionTeamAttention } from '@/lib/trash/retention-policy'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -31,13 +30,12 @@ export default async function DashboardPage() {
   const orgId = await getCurrentOrgId()
   if (!orgId) redirect('/onboarding')
 
-  const [stats, { data: org }, needsReviewDocs, activityLogs, deadlineAttention, trashRetentionAttention] = await Promise.all([
+  const [stats, { data: org }, needsReviewDocs, activityLogs, deadlineAttention] = await Promise.all([
     getDashboardStats(orgId),
     supabase.from('organisations').select('name').eq('id', orgId).single(),
     getNeedsReviewDocuments(),
     getRecentActivityLogs(15),
     getDeadlineAttention(5),
-    getTrashRetentionTeamAttention(orgId),
   ])
 
   const firstName = user.user_metadata?.full_name?.split(' ')[0] ?? 'there'
@@ -61,7 +59,6 @@ export default async function DashboardPage() {
       statCards={statCards}
       activityLogs={activityLogs}
       deadlineAttention={deadlineAttention}
-      trashRetentionAttention={trashRetentionAttention}
     />
   )
 }

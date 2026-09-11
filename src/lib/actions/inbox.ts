@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
 import { getCurrentOrgId } from './org'
 import { canonicalInboxReason, canonicalInboxStatus } from '@/lib/inbox-compat'
@@ -22,6 +22,7 @@ export type InboxQueueDocument = {
   raw_metadata: null
   canonical_intake_state: string
   canonical_failure_code: string | null
+  is_mine: boolean
 }
 
 /** Canonical Inbox projection; legacy staged rows are retirement history. */
@@ -29,24 +30,22 @@ export type InboxQueueReadResult =
   | { ok: true; documents: InboxQueueDocument[]; total: number; offset: number; limit: number }
   | { ok: false; error: string }
 
-const ACTIVE_INTAKE_STATES = ['awaiting_upload', 'uploaded', 'validating', 'processing', 'ready', 'duplicate', 'failed'] as const
-const INBOX_QUEUE_SELECT = 'id, state, failure_code, created_at, intended_matter_id, upload_session:upload_sessions(declared_filename)'
-
 type CanonicalIntakeRow = {
   id: string
   state: string
   failure_code: string | null
   created_at: string
   intended_matter_id: string | null
-  upload_session: unknown
+  declared_filename: string
+  is_mine: boolean
+  total_count: number
 }
 
 function projectInboxDocument(item: CanonicalIntakeRow): InboxQueueDocument {
-  const session = item.upload_session as { declared_filename: string } | null
   return {
     id: item.id,
     source_kind: 'canonical_intake',
-    storage_path: session?.declared_filename ?? 'Untitled PDF',
+    storage_path: item.declared_filename || 'Untitled PDF',
     status: canonicalInboxStatus(item.state),
     created_at: item.created_at,
     intake_matter_id: item.intended_matter_id,
@@ -57,72 +56,40 @@ function projectInboxDocument(item: CanonicalIntakeRow): InboxQueueDocument {
     raw_metadata: null,
     canonical_intake_state: item.state,
     canonical_failure_code: item.failure_code,
+    is_mine: item.is_mine,
   }
 }
 
 export async function getStagedDocuments(options: InboxQueuePageOptions = {}): Promise<InboxQueueReadResult> {
   const orgId = await getCurrentOrgId()
   if (!orgId) return { ok: false, error: 'No active organisation is available.' }
-  const { offset, limit, includeId } = normalizeInboxQueuePage(options)
+  const { offset, limit, includeId, ownershipScope } = normalizeInboxQueuePage(options)
+  const supabase = await createClient()
+  const { data: intakeItems, error } = await supabase.rpc('get_document_hub_intake', {
+    p_scope: ownershipScope,
+    p_offset: offset,
+    p_limit: limit,
+    p_include_id: includeId,
+  })
 
-  // Lifecycle tables intentionally have no browser table grant. The server
-  // resolves the active organisation and returns only canonical Intake rows.
-  const service = createServiceClient()
-  const { data: intakeItems, error, count } = await service
-    .from('intake_items')
-    .select(INBOX_QUEUE_SELECT, { count: 'exact' })
-    .eq('org_id', orgId)
-    .in('state', ACTIVE_INTAKE_STATES)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true })
-    .range(offset, offset + limit - 1)
-
-  if (error || count === null) {
+  if (error) {
     console.error('Failed to load canonical inbox intakes:', error)
     return { ok: false, error: 'The document queue could not be loaded.' }
   }
-
-  const rows = (intakeItems ?? []) as unknown as CanonicalIntakeRow[]
-  if (includeId && !rows.some((item) => item.id === includeId)) {
-    const { data: selectedItem, error: selectedError } = await service
-      .from('intake_items')
-      .select(INBOX_QUEUE_SELECT)
-      .eq('org_id', orgId)
-      .eq('id', includeId)
-      .in('state', ACTIVE_INTAKE_STATES)
-      .maybeSingle()
-
-    if (selectedError) {
-      console.error('Failed to load the selected canonical inbox intake:', selectedError)
-      return { ok: false, error: 'The selected document could not be loaded.' }
-    }
-    if (selectedItem) rows.push(selectedItem as unknown as CanonicalIntakeRow)
-  }
+  const rows = (intakeItems ?? []) as CanonicalIntakeRow[]
 
   return {
     ok: true,
     documents: rows.map(projectInboxDocument),
-    total: count,
+    total: rows[0]?.total_count ?? 0,
     offset,
     limit,
   }
 }
 
 export async function getStagedDocumentCount() {
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return 0
-
-  const { count, error } = await createServiceClient()
-    .from('intake_items')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-    .in('state', ACTIVE_INTAKE_STATES)
-
-  if (error || count === null) {
-    console.error('Failed to count canonical inbox intakes:', error)
-    return 0
-  }
-  return count
+  const result = await getStagedDocuments({ ownershipScope: 'all', limit: 1 })
+  return result.ok ? result.total : 0
 }
 
 export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: string, idempotencyKey: string) {
@@ -132,17 +99,15 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
 
-  const service = createServiceClient()
-  const { data: intake, error: intakeError } = await service
-    .from('intake_items')
-    .select('id, org_id, state, upload_session:upload_sessions(declared_filename)')
-    .eq('id', intakeId)
-    .eq('org_id', orgId)
-    .single()
-  if (intakeError || !intake || intake.state !== 'ready') return { error: 'This intake is no longer ready for placement.' }
+  const { data: contexts, error: contextError } = await supabase.rpc('get_intake_item_triage_context', {
+    p_intake_id: intakeId,
+  })
+  const intake = contexts?.[0]
+  if (contextError || !intake || intake.code !== 'ok' || !intake.uploaded_by) {
+    return { error: 'This intake is no longer ready for placement.' }
+  }
 
-  const session = intake.upload_session as unknown as { declared_filename: string } | null
-  const displayTitle = session?.declared_filename
+  const displayTitle = intake.declared_filename
     ?.replace(/[\u0000-\u001F\u007F]/g, '')
     .replace(/\.pdf$/i, '')
     .trim() || 'Uploaded document'
@@ -150,7 +115,7 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
     p_intake_id: intakeId,
     p_matter_id: matterId,
     p_display_title: displayTitle.slice(0, 255),
-    p_expected_intake_uploader: user.id,
+    p_expected_intake_uploader: intake.uploaded_by,
     p_idempotency: idempotencyKey,
   })
   const result = data?.[0]

@@ -6,6 +6,7 @@ export type InboxQueuePageOptions = {
   offset?: number
   limit?: number
   includeId?: string
+  ownershipScope?: 'mine' | 'all'
 }
 
 export function normalizeInboxQueuePage(options: InboxQueuePageOptions = {}) {
@@ -21,5 +22,6 @@ export function normalizeInboxQueuePage(options: InboxQueuePageOptions = {}) {
     offset,
     limit: Math.min(requestedLimit, INBOX_QUEUE_MAX_PAGE_SIZE),
     includeId: requestedId && UUID_PATTERN.test(requestedId) ? requestedId : undefined,
+    ownershipScope: options.ownershipScope === 'all' ? 'all' as const : 'mine' as const,
   }
 }

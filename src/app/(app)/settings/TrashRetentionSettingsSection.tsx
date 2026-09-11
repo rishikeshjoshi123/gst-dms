@@ -135,7 +135,7 @@ export function TrashRetentionSettingsSection({
 
         <div className="flex items-start gap-2 border-t border-[var(--border-subtle)] pt-4 text-xs leading-5 text-[var(--text-muted)]">
           <BellRing className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden="true" />
-          <span>CaseChain adds one item to <strong className="font-semibold text-[var(--text-primary)]">Today → Team attention</strong> 24 hours before scheduled permanent deletion. Until deletion begins, authorised users can restore the group or use the separately governed permanent-delete flow from Trash.</span>
+          <span>Trash shows the remaining days or hours throughout a group&apos;s final seven days. Access and Restore end at the exact recorded deadline, while blocked cleanup remains truthfully marked for authorised Owners and Admins.</span>
         </div>
 
         <div className="flex min-h-11 flex-col gap-2 border-t border-[var(--border-subtle)] pt-4 sm:flex-row sm:items-center sm:justify-between">

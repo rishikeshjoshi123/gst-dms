@@ -37,8 +37,8 @@ export const PILOT_RELEASE_MANIFEST = {
     caseBriefGeneration: 'disabled' as PilotCapabilityState,
     generatedAnswers: 'disabled' as PilotCapabilityState,
     agents: 'disabled' as PilotCapabilityState,
-    automaticRetention: 'approval_required' as PilotCapabilityState,
-    permanentPurge: 'approval_required' as PilotCapabilityState,
+    automaticRetention: 'enabled' as PilotCapabilityState,
+    permanentPurge: 'enabled' as PilotCapabilityState,
   },
   workers: {
     enabled: [
@@ -51,7 +51,6 @@ export const PILOT_RELEASE_MANIFEST = {
     ],
     disabled: ['generate-matter-wiki', 'deadline-reminders'],
     approvalRequired: [
-      'project-trash-retention-team-attention',
       'dispatch-trash-permanent-delete',
       'reconcile-trash-permanent-delete',
     ],

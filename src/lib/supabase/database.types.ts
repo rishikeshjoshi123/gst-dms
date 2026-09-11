@@ -8056,6 +8056,24 @@ export type Database = {
           timezone: string
         }[]
       }
+      get_document_hub_intake: {
+        Args: {
+          p_include_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_scope?: string
+        }
+        Returns: {
+          created_at: string
+          declared_filename: string
+          failure_code: string | null
+          id: string
+          intended_matter_id: string | null
+          is_mine: boolean
+          state: Database["public"]["Enums"]["intake_item_state"]
+          total_count: number
+        }[]
+      }
       get_document_search_index_reprocess_input: {
         Args: { p_lease_token: string; p_processing_run_id: string }
         Returns: {
@@ -8148,7 +8166,72 @@ export type Database = {
           trashed_by: string
         }[]
       }
+      get_exact_resource_trash_context_before_logical_expiry: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          resource_id: string
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+        }[]
+      }
       get_exact_trashed_resource_projection: {
+        Args: {
+          p_expected_matter_id?: string
+          p_resource_id: string
+          p_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }
+        Returns: {
+          auto_purge_at: string
+          auto_purge_enabled: boolean
+          blocker_count: number
+          can_restore: boolean
+          cause: Database["public"]["Enums"]["resource_trash_cause"]
+          membership_id: string
+          operation_id: string
+          operation_state: Database["public"]["Enums"]["trash_operation_state"]
+          parent_membership_id: string
+          purge_eligible_at: string
+          purge_scheduled_at: string
+          related_documents: Json
+          related_inspector_metadata: Json
+          related_links: Json
+          related_matters: Json
+          related_notes: Json
+          related_wiki_sections: Json
+          resource_id: string
+          resource_record: Json
+          resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          retention_days: number
+          retention_mode: Database["public"]["Enums"]["trash_retention_mode"]
+          root_resource_id: string
+          root_resource_name: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          trashed_at: string
+          trashed_by: string
+          trashed_by_name: string
+        }[]
+      }
+      get_exact_trashed_resource_projection_before_logical_expiry: {
         Args: {
           p_expected_matter_id?: string
           p_resource_id: string
@@ -8274,6 +8357,14 @@ export type Database = {
           bucket_id: string
           code: string
           object_key: string
+        }[]
+      }
+      get_intake_item_triage_context: {
+        Args: { p_intake_id: string }
+        Returns: {
+          code: string
+          declared_filename: string
+          uploaded_by: string | null
         }[]
       }
       get_legacy_staged_document_action_source_grant: {
@@ -8643,6 +8734,15 @@ export type Database = {
           code: string
         }[]
       }
+      get_trash_restore_preflight_before_logical_expiry: {
+        Args: { p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          can_restore: boolean
+          code: string
+        }[]
+      }
       get_trash_retention_team_attention: {
         Args: { p_limit?: number; p_org_id: string }
         Returns: {
@@ -8690,7 +8790,66 @@ export type Database = {
           total_storage_bytes: number
         }[]
       }
+      get_trash_workspace_before_logical_expiry: {
+        Args: {
+          p_limit?: number
+          p_org_id: string
+          p_query?: string
+          p_resource_type?: Database["public"]["Enums"]["trash_resource_type"]
+          p_selected_operation_id?: string
+        }
+        Returns: {
+          deleted_at: string
+          deleted_by_name: string
+          included_client_count: number
+          included_document_count: number
+          included_matter_count: number
+          member_client_id: string
+          member_document_id: string
+          member_matter_id: string
+          member_membership_id: string
+          member_name: string
+          member_parent_membership_id: string
+          member_resource_id: string
+          member_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          operation_id: string
+          operation_storage_bytes: number
+          reason: string
+          root_client_id: string
+          root_document_id: string
+          root_matter_id: string
+          root_membership_id: string
+          root_name: string
+          root_parent_context: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+          row_kind: string
+          total_storage_bytes: number
+        }[]
+      }
+      get_trash_workspace_retention: {
+        Args: { p_operation_ids: string[]; p_org_id: string }
+        Returns: {
+          auto_purge_at: string | null
+          blocker_count: number
+          operation_id: string
+          remaining_seconds: number | null
+          retention_status: string
+        }[]
+      }
       get_trashed_document_version_read_grant: {
+        Args: {
+          p_document_id: string
+          p_document_version_id: string
+          p_expected_matter_id: string
+        }
+        Returns: {
+          bucket_id: string
+          code: string
+          object_key: string
+        }[]
+      }
+      get_trashed_document_version_read_grant_before_logical_expiry: {
         Args: {
           p_document_id: string
           p_document_version_id: string
@@ -9505,6 +9664,20 @@ export type Database = {
         }[]
       }
       restore_trash_operation: {
+        Args: { p_idempotency_key: string; p_operation_id: string }
+        Returns: {
+          blocker_code: string
+          blocking_operation_id: string
+          code: string
+          operation_id: string
+          root_client_id: string
+          root_document_id: string
+          root_matter_id: string
+          root_resource_id: string
+          root_resource_type: Database["public"]["Enums"]["trash_resource_type"]
+        }[]
+      }
+      restore_trash_operation_before_logical_expiry: {
         Args: { p_idempotency_key: string; p_operation_id: string }
         Returns: {
           blocker_code: string

@@ -7,6 +7,8 @@ const specs = {
   create_client_command: ['client_id: string', 'revision: number'],
   create_matter_command: ['client_id: string', 'matter_id: string', 'revision: number'],
   create_note_with_optional_task: ['note_id: string', 'task_id: string'],
+  get_document_hub_intake: ['failure_code: string', 'intended_matter_id: string'],
+  get_intake_item_triage_context: ['uploaded_by: string'],
   get_my_tasks: [
     'assignee_user_id: string',
     'client_id: string',
@@ -61,6 +63,7 @@ const specs = {
     'to_due_date: string',
     'to_due_timezone: string',
   ],
+  get_trash_workspace_retention: ['auto_purge_at: string', 'remaining_seconds: number'],
   record_completed_document_extraction_provider_usage: [
     'cost_micro_usd: number',
     'pricing_version_id: string',

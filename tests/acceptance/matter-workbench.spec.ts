@@ -130,7 +130,7 @@ test('Team owner sees suspended members and authorised emails', async ({ page })
   await login(page)
   await page.goto('/team')
 
-  await expect(page.getByText('4 members')).toBeVisible()
+  await expect(page.getByText('5 members')).toBeVisible()
   await page.getByRole('button', { name: /Suspended Associate/ }).click()
   const details = page.getByRole('complementary', { name: 'Member details' })
   await expect(details).toContainText('suspended@acceptance.test')
@@ -141,7 +141,7 @@ test('Team Viewer sees active peers but only their own email', async ({ page }) 
   await login(page, 'viewer@acceptance.test')
   await page.goto('/team')
 
-  await expect(page.getByText('3 members')).toBeVisible()
+  await expect(page.getByText('4 members')).toBeVisible()
   await expect(page.getByText('Suspended Associate')).toHaveCount(0)
 
   await page.getByRole('button', { name: /Acceptance Owner/ }).click()
@@ -157,6 +157,40 @@ test('Team Viewer sees active peers but only their own email', async ({ page }) 
   await page.getByLabel('Search members').fill('owner@acceptance.test')
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'No matching members' })).toBeVisible()
+})
+
+test('Document Hub defaults to My uploads, allows Associate shared Intake, and hides Intake from Viewer', async ({ page }) => {
+  await login(page, 'associate@acceptance.test')
+  await page.goto('/documents')
+  await expect(page.getByRole('button', { name: 'My uploads' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: /owner-shared-intake\.pdf/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'All uploads' }).click()
+  await expect(page.getByRole('button', { name: /owner-shared-intake\.pdf/ })).toBeVisible()
+
+  await page.context().clearCookies()
+  await login(page, 'viewer@acceptance.test')
+  await page.goto('/documents')
+  await expect(page.getByRole('heading', { name: 'Document intake is not available' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'My uploads' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'All uploads' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Upload PDFs' })).toHaveCount(0)
+  await expect(page.getByLabel('Search document queue')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /owner-shared-intake\.pdf/ })).toHaveCount(0)
+  await expect(page.locator('body')).not.toContainText('orgs/b0010000')
+})
+
+test('Trash shows final-seven-day time and restricted blocked status without Dashboard attention', async ({ page }) => {
+  await login(page)
+  await expect(page.locator('body')).not.toContainText('Team attention')
+  await page.goto('/trash')
+  await expect(page.getByText(/Permanent deletion in 6 days/).first()).toBeVisible()
+  await expect(page.getByText(/Permanent deletion blocked · 1 blocker/).first()).toBeVisible()
+  await expectNoPageHorizontalOverflow(page)
+
+  await page.context().clearCookies()
+  await login(page, 'viewer@acceptance.test')
+  await page.goto('/trash')
+  await expect(page.getByText('Blocked retention fixture')).toHaveCount(0)
 })
 
 test('Dashboard and Inbox lead to one authoritative local TUS completion', async ({ page }) => {
@@ -263,4 +297,14 @@ test('320px dark keyboard surfaces preserve targets, overflow, actions, and scro
   const searchTop = (await search.boundingBox())?.y
   await teamScroller.evaluate(element => { element.scrollTop = element.scrollHeight })
   expect(Math.abs(((await search.boundingBox())?.y ?? 0) - (searchTop ?? 0))).toBeLessThan(1)
+
+  await page.goto('/trash')
+  await expectNoPageHorizontalOverflow(page)
+  const finalWindow = page.getByRole('button', { name: /View details for Final-window retention fixture/ })
+  await expectMinimumTarget(finalWindow)
+  await finalWindow.focus()
+  await finalWindow.press('Enter')
+  const trashDetails = page.getByRole('complementary', { name: /Trash details/ })
+  await expect(trashDetails).toBeVisible()
+  await expect(trashDetails).toContainText(/Permanent deletion in 6 days/)
 })
