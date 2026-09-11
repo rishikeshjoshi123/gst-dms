@@ -5,14 +5,29 @@ if (!capturedMailUrl || !['127.0.0.1', 'localhost'].includes(new URL(capturedMai
   throw new Error('A loopback captured-mail URL is required for onboarding acceptance.')
 }
 
-async function signUp(page: Page, details: { name: string; email: string }) {
+async function signUp(page: Page, details: { name: string; email: string }, options: { dark?: boolean } = {}) {
   await page.goto('/signup')
+  if (options.dark) {
+    await page.getByRole('button', { name: 'Toggle color theme' }).click()
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  }
   await page.getByLabel('Full name').fill(details.name)
   await page.getByLabel('Work email').fill(details.email)
   await page.getByLabel(/^Password/).fill('Acceptance-pass-2026')
   await page.getByLabel('Confirm password').fill('Acceptance-pass-2026')
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByRole('status')).toContainText('check your email')
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const luminance = (hex: string) => {
+    const channels = hex.match(/[0-9a-f]{2}/gi)?.map((channel) => Number.parseInt(channel, 16) / 255) ?? []
+    const linear = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+  }
+  const first = luminance(foreground)
+  const second = luminance(background)
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
 }
 
 function collectStrings(value: unknown): string[] {
@@ -87,17 +102,37 @@ test.describe.serial('normal confirmation-required onboarding', () => {
 
   test('multiple pending invitations remain explicit and one can be accepted on a narrow dark viewport', async ({ page, request }) => {
     await page.setViewportSize({ width: 320, height: 720 })
-    await page.emulateMedia({ colorScheme: 'dark' })
-    await signUp(page, { name: 'Browser Joiner', email: 'join-browser@onboarding.test' })
+    await signUp(page, { name: 'Browser Joiner', email: 'join-browser@onboarding.test' }, { dark: true })
     await confirmEmail(page, request, 'join-browser@onboarding.test')
 
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/)
     await expect(page.getByRole('heading', { name: 'Pending invitations' })).toBeVisible()
+    const logout = page.getByRole('button', { name: 'Log out' })
+    await expect(logout).toBeVisible()
+    await expect(logout).toContainText('Log out')
     await expect(page.getByText('Bengaluru Indirect Tax Chambers')).toBeVisible()
     await expect(page.getByText(/A very long invited organisation name/)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Create organisation' })).toBeVisible()
     await expect(page.getByText(/expired/i)).toHaveCount(0)
     await expect(page.getByText(/revoked/i)).toHaveCount(0)
     await expect(page.getByText(/foreign-browser/i)).toHaveCount(0)
+
+    const darkTokens = await page.getByRole('heading', { name: 'Set up your workspace' }).evaluate((heading) => {
+      const rootStyles = getComputedStyle(document.documentElement)
+      return {
+        background: rootStyles.getPropertyValue('--bg').trim(),
+        surface: rootStyles.getPropertyValue('--surface').trim(),
+        textPrimary: rootStyles.getPropertyValue('--text-primary').trim(),
+        headingColor: getComputedStyle(heading).color,
+      }
+    })
+    expect(darkTokens).toEqual({
+      background: '#111720',
+      surface: '#18212c',
+      textPrimary: '#edf1f5',
+      headingColor: 'rgb(237, 241, 245)',
+    })
+    expect(contrastRatio(darkTokens.textPrimary, darkTokens.surface)).toBeGreaterThanOrEqual(4.5)
 
     const accepts = page.getByRole('button', { name: 'Accept invitation' })
     await expect(accepts).toHaveCount(2)

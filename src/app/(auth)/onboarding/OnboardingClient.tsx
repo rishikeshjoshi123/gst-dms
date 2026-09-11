@@ -66,7 +66,7 @@ export function OnboardingClient({
           </p>
         </div>
         <Button variant="outline" size="sm" className="shrink-0" onClick={() => startTransition(() => signOut())} disabled={isPending}>
-          <LogOut aria-hidden="true" size={14} /><span className="hidden sm:inline">Log out</span>
+          <LogOut aria-hidden="true" size={14} /><span>Log out</span>
         </Button>
       </header>
 

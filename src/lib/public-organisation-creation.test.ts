@@ -37,6 +37,8 @@ test('onboarding keeps invitations prominent and offers a distinct create action
   assert.match(onboardingClient, /Pending invitations/)
   assert.match(onboardingClient, /No pending invitations/)
   assert.match(onboardingClient, /Create organisation/)
+  assert.match(onboardingClient, /<span>Log out<\/span>/)
+  assert.doesNotMatch(onboardingClient, /hidden sm:inline">Log out/)
   assert.match(onboardingClient, /if \(input && !input\.value\) input\.value = crypto\.randomUUID\(\)/)
   assert.match(onboardingClient, /ref=\{setCreationIdempotencyKey\} type="hidden" name="idempotency_key"/)
   assert.match(onboardingClient, /acceptInvite/)
