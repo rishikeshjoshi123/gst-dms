@@ -16,8 +16,11 @@ test('live Timeline is bounded chronology, not the legacy graph or links', () =>
   assert.match(source, /buildMatterReturnPath/)
   assert.match(source, /lg:flex/)
   assert.doesNotMatch(source, /fixed inset-y-0/)
-  assert.match(source, /Relationships unavailable/)
-  assert.match(source, /Legacy document links are not shown/)
+  assert.match(source, /Effective relationships/)
+  assert.match(source, /No active Timeline relationships involve this proceeding/)
+  assert.match(source, /Timeline progression/)
+  assert.match(source, /describeMatterTimelineRelationship/)
+  assert.doesNotMatch(source, /Legacy document links/)
   assert.match(source, /MatterTimelineFilters/)
 })
 

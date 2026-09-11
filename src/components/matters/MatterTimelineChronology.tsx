@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
 import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
-import type { MatterTimelineChronologyPage } from '@/lib/matters/workspace-read'
-import { matterTimelineVisibleRange } from '@/lib/matters/workspace-timeline-page'
+import type { MatterTimelineChronologyPage, MatterTimelineRelationshipProjection } from '@/lib/matters/workspace-read'
+import { describeMatterTimelineRelationship, matterTimelineVisibleRange } from '@/lib/matters/workspace-timeline-page'
 import { buildMatterDocumentSelectionHref, buildMatterInspectorHref, buildMatterSectionHref, buildMatterTimelineFiltersHref, buildMatterTimelinePageHref, MATTER_INSPECTOR_LABELS, type MatterInspectorView } from '@/lib/matters/workspace-route'
 import { MatterTimelineCloseLink, MatterTimelineFocusCommit, MatterTimelineRowLink } from './MatterTimelineFocusBridge'
 import { MatterTimelineFilters } from './MatterTimelineFilters'
@@ -32,7 +32,7 @@ export type MatterTimelineNotePreview = {
   authorLabel: string | null
 }
 
-export function MatterTimelineChronology({ matterId, page, selectionUnavailable, queryEntries, filters, inspector, notePreview }: {
+export function MatterTimelineChronology({ matterId, page, selectionUnavailable, queryEntries, filters, inspector, notePreview, relationshipProjection }: {
   matterId: string
   page: MatterTimelineChronologyPage
   selectionUnavailable: boolean
@@ -40,6 +40,7 @@ export function MatterTimelineChronology({ matterId, page, selectionUnavailable,
   filters: string[]
   inspector: MatterInspectorView
   notePreview?: readonly MatterTimelineNotePreview[]
+  relationshipProjection: MatterTimelineRelationshipProjection
 }) {
   const range = matterTimelineVisibleRange(page)
   const returnTo = buildMatterReturnPath(matterId, queryEntries)
@@ -88,7 +89,34 @@ export function MatterTimelineChronology({ matterId, page, selectionUnavailable,
               <nav className="flex shrink-0 gap-1 border-b border-[var(--border)] px-3" aria-label="Inspector views">{(['overview', 'relationships', 'notes'] as const).map((view) => <Link scroll={false} key={view} href={buildMatterInspectorHref(matterId, queryEntries, view)} aria-current={inspector === view ? 'page' : undefined} className={inspector === view ? 'inline-flex min-h-11 items-center border-b-2 border-[var(--primary)] px-2 text-sm font-medium text-[var(--primary)]' : 'inline-flex min-h-11 items-center px-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}>{MATTER_INSPECTOR_LABELS[view]}</Link>)}</nav>
               <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                 {inspector === 'overview' && <dl className="space-y-3 text-sm"><div><dt className="text-[var(--text-muted)]">Document type</dt><dd className="text-[var(--text-primary)]">{selected.documentType || unavailable}</dd></div><div><dt className="text-[var(--text-muted)]">Reference</dt><dd className="text-[var(--text-primary)]">{selected.referenceNumber || unavailable}</dd></div><div><dt className="text-[var(--text-muted)]">Effective date</dt><dd className="text-[var(--text-primary)]">{date(selected.effectiveDate)}</dd></div><div><dt className="text-[var(--text-muted)]">Direction</dt><dd className="capitalize text-[var(--text-primary)]">{selected.direction || unavailable}</dd></div><div><dt className="text-[var(--text-muted)]">Content</dt><dd className="text-[var(--text-primary)]">{content(selected.contentAvailability)}</dd></div><div><dt className="text-[var(--text-muted)]">Attention</dt><dd className="text-[var(--text-primary)]">{attention(selected.attentionState)}</dd></div><div><dt className="text-[var(--text-muted)]">Procedural effect</dt><dd className="text-[var(--text-primary)]">{unavailable}</dd></div><div><dt className="text-[var(--text-muted)]">Key fact</dt><dd className="text-[var(--text-primary)]">{unavailable}</dd></div></dl>}
-                {inspector === 'relationships' && <div className="text-sm"><h4 className="font-medium text-[var(--text-primary)]">Relationships unavailable</h4><p className="mt-2 text-[var(--text-secondary)]">Effective relationship inspection is not available in this release. Legacy document links are not shown.</p></div>}
+                {inspector === 'relationships' && (
+                  <div className="text-sm">
+                    <h4 className="font-medium text-[var(--text-primary)]">Effective relationships</h4>
+                    {relationshipProjection.outcome === 'unavailable' ? (
+                      <p role="status" className="mt-2 text-[var(--text-secondary)]">Relationships are temporarily unavailable.</p>
+                    ) : relationshipProjection.relationships.length === 0 ? (
+                      <p className="mt-2 text-[var(--text-secondary)]">No active Timeline relationships involve this proceeding.</p>
+                    ) : (
+                      <ol className="mt-3 space-y-3">
+                        {relationshipProjection.relationships.map((relationship) => {
+                          const description = describeMatterTimelineRelationship(relationship, selected.id)
+                          return (
+                            <li key={relationship.id} className="border border-[var(--border)] bg-[var(--surface)] p-3">
+                              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                                {description.direction === 'outgoing' ? 'Outgoing' : 'Incoming'} · {relationship.verification === 'human' ? 'Human verified' : relationship.verification === 'policy_confirmed' ? 'Policy confirmed' : 'Provisional'}
+                              </p>
+                              <p className="mt-2 text-[var(--text-primary)]">{description.canonicalSentence}</p>
+                              <dl className="mt-2 border-t border-[var(--border)] pt-2">
+                                <dt className="text-xs text-[var(--text-muted)]">Timeline progression</dt>
+                                <dd className="mt-1 text-[var(--text-secondary)]">{description.progressionSentence}</dd>
+                              </dl>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                    )}
+                  </div>
+                )}
                 {inspector === 'notes' && <div className="text-sm"><h4 className="font-medium text-[var(--text-primary)]">Document notes</h4>{notePreview && notePreview.length > 0 ? <ol className="mt-3 space-y-3">{notePreview.map((note) => <li key={note.id} className="border-b border-[var(--border)] pb-3 last:border-0"><p className="whitespace-pre-wrap break-words text-[var(--text-primary)]">{note.content}</p><p className="mt-1 text-xs text-[var(--text-muted)]">{note.authorLabel || 'Author unavailable'} · {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(note.created_at))}</p></li>)}</ol> : <p className="mt-2 text-[var(--text-secondary)]">No notes are attached to this proceeding.</p>}<Link scroll={false} href={buildMatterSectionHref(matterId, queryEntries, 'notes')} className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 font-medium text-[var(--text-primary)]">Open Matter Notes</Link></div>}
               </div>
             </aside>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { clampMatterTimelineOffset, createMatterTimelineSnapshotPage, isMatterTimelineFilter, matterTimelineVisibleRange, normalizeMatterTimelinePage, shapeMatterTimelineSnapshotMetadata } from './workspace-timeline-page'
+import { clampMatterTimelineOffset, createMatterTimelineSnapshotPage, describeMatterTimelineRelationship, isMatterTimelineFilter, matterTimelineVisibleRange, normalizeMatterTimelinePage, shapeMatterTimelineRelationships, shapeMatterTimelineSnapshotMetadata } from './workspace-timeline-page'
 
 test('chronology paging rejects malformed input and caps hostile input', () => {
   assert.deepEqual(normalizeMatterTimelinePage({ offset: '-1', limit: '0', filters: ['x'.repeat(81), 'incoming', 'incoming'] }), { offset: 0, limit: 50, filters: [] })
@@ -22,6 +22,30 @@ test('chronology clamps stale offsets and reports exact ranges', () => {
   assert.equal(clampMatterTimelineOffset(250, 50, 250), 200)
   assert.equal(clampMatterTimelineOffset(0, 50, 0), 0)
   assert.deepEqual(matterTimelineVisibleRange({ offset: 200, total: 250, items: Array(50) }), { start: 201, end: 250 })
+})
+
+test('relationship projection shaping preserves catalogue phrases and both directions', () => {
+  const relationship = {
+    id: 'relationship-a', revision: 2,
+    canonicalSourceDocumentId: 'reply', canonicalTargetDocumentId: 'notice',
+    displayFromDocumentId: 'notice', displayToDocumentId: 'reply',
+    relationshipType: 'responds_to', canonicalPhrase: 'responds to',
+    progressionPhrase: 'answered by', verification: 'human',
+    canonicalSourceTitle: 'Reply', canonicalTargetTitle: 'Show Cause Notice',
+  }
+  const shaped = shapeMatterTimelineRelationships([
+    relationship,
+    { ...relationship, id: 'legacy', relationshipType: 'summarizes' },
+    { ...relationship, id: 'reversed', displayFromDocumentId: 'reply' },
+  ])
+  assert.deepEqual(shaped, [relationship])
+  assert.deepEqual(describeMatterTimelineRelationship(shaped[0], 'reply'), {
+    direction: 'outgoing',
+    canonicalSentence: 'Reply responds to Show Cause Notice.',
+    progressionSentence: 'Show Cause Notice answered by Reply.',
+  })
+  assert.equal(describeMatterTimelineRelationship(shaped[0], 'notice').direction, 'incoming')
+  assert.equal(describeMatterTimelineRelationship(shaped[0], 'other').direction, null)
 })
 
 test('Trash chronology uses exact-current metadata, deterministic ordering, filters, paging and fenced selection', () => {

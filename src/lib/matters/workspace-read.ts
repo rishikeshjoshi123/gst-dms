@@ -13,12 +13,14 @@ import {
 } from './workspace-files-page'
 import {
   normalizeMatterTimelinePage,
+  shapeMatterTimelineRelationships,
   type MatterTimelineChronologyItem,
   type MatterTimelineChronologyPage,
   type MatterTimelinePageRequest,
+  type MatterTimelineRelationshipProjection,
 } from './workspace-timeline-page'
 
-export type { MatterTimelineChronologyItem, MatterTimelineChronologyPage } from './workspace-timeline-page'
+export type { MatterTimelineChronologyItem, MatterTimelineChronologyPage, MatterTimelineRelationship, MatterTimelineRelationshipProjection } from './workspace-timeline-page'
 
 export type MatterWorkspaceDocument = Database['public']['Tables']['documents']['Row']
 export type MatterWorkspaceLink = Database['public']['Tables']['document_links']['Row']
@@ -242,6 +244,32 @@ export async function readMatterTimelineChronology(
     total: row.total, unfilteredTotal: row.unfiltered_total, offset: row.offset, limit: row.limit,
     fetchedAt: row.fetched_at, sourceRevision: row.source_revision,
     selected: row.selected && typeof row.selected === 'object' && !Array.isArray(row.selected) ? row.selected as MatterTimelineChronologyItem : null,
+  }
+}
+
+/** Selected-document relationship inspection uses only the governed effective projection. */
+export async function readMatterTimelineRelationships(
+  matterId: string,
+  selectedDocumentId: string,
+): Promise<MatterTimelineRelationshipProjection> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('read_matter_timeline_relationships', {
+    p_matter_id: matterId,
+    p_selected_document_id: selectedDocumentId,
+  })
+  if (error) throw new Error('Unable to load selected-document relationships.')
+  const row = (data ?? [])[0]
+  if (!row || row.outcome !== 'ok') {
+    return {
+      outcome: 'unavailable', relationships: [], sourceRevision: null,
+      fetchedAt: row?.fetched_at ?? new Date().toISOString(),
+    }
+  }
+  return {
+    outcome: 'ok',
+    relationships: shapeMatterTimelineRelationships(row.relationships),
+    sourceRevision: row.source_revision,
+    fetchedAt: row.fetched_at,
   }
 }
 

@@ -4,6 +4,8 @@ import test from 'node:test'
 import { refineSupabaseTypes } from './refine-supabase-types.mjs'
 
 const specs = {
+  activate_document_relationship: ['relationship_id: string', 'revision: number'],
+  archive_document_relationship: ['relationship_id: string', 'revision: number'],
   create_client_command: ['client_id: string', 'revision: number'],
   create_matter_command: ['client_id: string', 'matter_id: string', 'revision: number'],
   create_note_with_optional_task: ['note_id: string', 'task_id: string'],
@@ -126,6 +128,17 @@ function generatedFixture({ enumOrder = Object.keys(enumValues), trailing = '\n'
     ].join('\n')
   }).concat([
     [
+      '      read_matter_timeline_relationships: {',
+      '        Args: {',
+      '          p_matter_id: string',
+      '          p_selected_document_id?: string',
+      '        }',
+      '        Returns: {',
+      '          source_revision: string',
+      '        }[]',
+      '      }',
+    ].join('\n'),
+    [
       '      read_matter_timeline_chronology: {',
       '        Args: {',
       '          p_matter_id: string',
@@ -164,6 +177,7 @@ test('refines every known nullable RPC result and is idempotent', () => {
   )
   assert.equal([...createMatterBlock.matchAll(/matter_id: string \| null/g)].length, 2)
   assert.match(refined, /p_selected_document_id\?: string \| null/)
+  assert.match(refined, /read_matter_timeline_relationships:[\s\S]*source_revision: string \| null/)
   assert.match(refined, /p_query\?: string \| null/)
   assert.match(refined, /p_role\?: string \| null/)
   assert.match(refined, /p_state\?: string \| null/)

@@ -6,6 +6,7 @@ import {
   createSupportingFilesSnapshotPage,
   readActiveNoteDocumentOptions,
   readMatterTimelineChronology,
+  readMatterTimelineRelationships,
   readSelectedDocumentNotePreview,
   readActiveSupportingFileSelection,
   readActiveSupportingFiles,
@@ -50,10 +51,13 @@ async function TimelineSection({
           .map((note) => ({ id: note.id, content: note.content, created_at: note.created_at, authorLabel: null }))
       : await readSelectedDocumentNotePreview(matterId, page.selected.id)
     : []
+  const relationshipProjection = page.selected && route.inspector === 'relationships' && !isTrash
+    ? await readMatterTimelineRelationships(matterId, page.selected.id)
+    : { outcome: 'ok' as const, relationships: [], sourceRevision: null, fetchedAt: page.fetchedAt }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">
-      <MatterTimelineChronology matterId={matterId} page={page} selectionUnavailable={route.selectionRequested && !page.selected} queryEntries={queryEntries} filters={route.timelinePage.filters} inspector={route.inspector} notePreview={notePreview} />
+      <MatterTimelineChronology matterId={matterId} page={page} selectionUnavailable={route.selectionRequested && !page.selected} queryEntries={queryEntries} filters={route.timelinePage.filters} inspector={route.inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} />
     </div>
   )
 }

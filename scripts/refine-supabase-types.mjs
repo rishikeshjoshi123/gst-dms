@@ -3,6 +3,17 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const nullableRpcFields = {
+  activate_document_relationship: {
+    relationship_id: 'string',
+    revision: 'number',
+  },
+  archive_document_relationship: {
+    relationship_id: 'string',
+    revision: 'number',
+  },
+  read_matter_timeline_relationships: {
+    source_revision: 'string',
+  },
   create_client_command: {
     client_id: 'string',
     revision: 'number',

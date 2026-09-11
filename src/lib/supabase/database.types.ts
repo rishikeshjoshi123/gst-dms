@@ -1416,6 +1416,180 @@ export type Database = {
           },
         ]
       }
+      document_relationship_catalogue: {
+        Row: {
+          acyclic: boolean
+          allowed_source_classes: string[]
+          allowed_target_classes: string[]
+          canonical_phrase: string
+          catalogue_version: number
+          created_at: string
+          display_priority: number
+          progression_phrase: string
+          reject_same_type_inverse: boolean
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          timeline_visible: boolean
+        }
+        Insert: {
+          acyclic: boolean
+          allowed_source_classes: string[]
+          allowed_target_classes: string[]
+          canonical_phrase: string
+          catalogue_version: number
+          created_at?: string
+          display_priority: number
+          progression_phrase: string
+          reject_same_type_inverse: boolean
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          timeline_visible: boolean
+        }
+        Update: {
+          acyclic?: boolean
+          allowed_source_classes?: string[]
+          allowed_target_classes?: string[]
+          canonical_phrase?: string
+          catalogue_version?: number
+          created_at?: string
+          display_priority?: number
+          progression_phrase?: string
+          reject_same_type_inverse?: boolean
+          relationship_type?: Database["public"]["Enums"]["document_relationship_type"]
+          timeline_visible?: boolean
+        }
+        Relationships: []
+      }
+      document_relationship_command_receipts: {
+        Row: {
+          actor_user_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          relationship_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          relationship_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          relationship_id?: string
+          request_fingerprint?: string
+          result_code?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_relationship_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_relationship_command_receipts_relationship_org_fkey"
+            columns: ["org_id", "relationship_id"]
+            isOneToOne: false
+            referencedRelation: "document_relationships"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_relationship_decisions: {
+        Row: {
+          action: Database["public"]["Enums"]["document_relationship_decision_action"]
+          actor_user_id: string
+          created_at: string
+          decision_sequence: number
+          from_lifecycle:
+            | Database["public"]["Enums"]["document_relationship_lifecycle"]
+            | null
+          id: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          reason: string | null
+          relationship_id: string
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          resulting_revision: number
+          source_document_id: string
+          target_document_id: string
+          to_lifecycle: Database["public"]["Enums"]["document_relationship_lifecycle"]
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["document_relationship_decision_action"]
+          actor_user_id: string
+          created_at?: string
+          decision_sequence?: never
+          from_lifecycle?:
+            | Database["public"]["Enums"]["document_relationship_lifecycle"]
+            | null
+          id?: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          reason?: string | null
+          relationship_id: string
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          resulting_revision: number
+          source_document_id: string
+          target_document_id: string
+          to_lifecycle: Database["public"]["Enums"]["document_relationship_lifecycle"]
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["document_relationship_decision_action"]
+          actor_user_id?: string
+          created_at?: string
+          decision_sequence?: never
+          from_lifecycle?:
+            | Database["public"]["Enums"]["document_relationship_lifecycle"]
+            | null
+          id?: string
+          idempotency_key?: string
+          matter_id?: string
+          org_id?: string
+          reason?: string | null
+          relationship_id?: string
+          relationship_type?: Database["public"]["Enums"]["document_relationship_type"]
+          resulting_revision?: number
+          source_document_id?: string
+          target_document_id?: string
+          to_lifecycle?: Database["public"]["Enums"]["document_relationship_lifecycle"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_relationship_decisions_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_relationship_decisions_relationship_org_fkey"
+            columns: ["org_id", "relationship_id"]
+            isOneToOne: false
+            referencedRelation: "document_relationships"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_relationship_placement_effects: {
         Row: {
           created_at: string
@@ -1462,6 +1636,95 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_relationships: {
+        Row: {
+          activated_at: string
+          activated_by: string
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          catalogue_version: number
+          id: string
+          lifecycle_state: Database["public"]["Enums"]["document_relationship_lifecycle"]
+          matter_id: string
+          org_id: string
+          provenance: string
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          revision: number
+          source_document_id: string
+          target_document_id: string
+          updated_at: string
+          verification: Database["public"]["Enums"]["document_relationship_verification"]
+        }
+        Insert: {
+          activated_at?: string
+          activated_by: string
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          catalogue_version: number
+          id?: string
+          lifecycle_state?: Database["public"]["Enums"]["document_relationship_lifecycle"]
+          matter_id: string
+          org_id: string
+          provenance: string
+          relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          revision?: number
+          source_document_id: string
+          target_document_id: string
+          updated_at?: string
+          verification: Database["public"]["Enums"]["document_relationship_verification"]
+        }
+        Update: {
+          activated_at?: string
+          activated_by?: string
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          catalogue_version?: number
+          id?: string
+          lifecycle_state?: Database["public"]["Enums"]["document_relationship_lifecycle"]
+          matter_id?: string
+          org_id?: string
+          provenance?: string
+          relationship_type?: Database["public"]["Enums"]["document_relationship_type"]
+          revision?: number
+          source_document_id?: string
+          target_document_id?: string
+          updated_at?: string
+          verification?: Database["public"]["Enums"]["document_relationship_verification"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_relationships_catalogue_fkey"
+            columns: ["relationship_type", "catalogue_version"]
+            isOneToOne: false
+            referencedRelation: "document_relationship_catalogue"
+            referencedColumns: ["relationship_type", "catalogue_version"]
+          },
+          {
+            foreignKeyName: "document_relationships_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_relationships_source_org_fkey"
+            columns: ["org_id", "source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_relationships_target_org_fkey"
+            columns: ["org_id", "target_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -7239,6 +7502,24 @@ export type Database = {
           code: string
         }[]
       }
+      activate_document_relationship: {
+        Args: {
+          p_expected_source_revision: number
+          p_expected_target_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_reason: string
+          p_relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          p_source_document_id: string
+          p_target_document_id: string
+        }
+        Returns: {
+          code: string
+          relationship_id: string | null
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
       activity_metadata_is_safe: {
         Args: { p_contract: Json; p_metadata: Json }
         Returns: boolean
@@ -7287,6 +7568,20 @@ export type Database = {
           activity_event_id: string
           outbox_event_id: string
           replayed: boolean
+        }[]
+      }
+      archive_document_relationship: {
+        Args: {
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_relationship_id: string
+        }
+        Returns: {
+          code: string
+          relationship_id: string | null
+          replayed: boolean
+          revision: number | null
         }[]
       }
       assert_staged_document_adapter_retirement_ready: {
@@ -7842,6 +8137,10 @@ export type Database = {
         Returns: boolean
       }
       document_platform_retained_asset_bytes: { Args: never; Returns: number }
+      document_relationship_reason_is_safe: {
+        Args: { p_reason: string; p_required: boolean }
+        Returns: boolean
+      }
       document_retained_asset_bytes: {
         Args: { p_org_id: string }
         Returns: number
@@ -9409,6 +9708,15 @@ export type Database = {
           unfiltered_total: number
         }[]
       }
+      read_matter_timeline_relationships: {
+        Args: { p_matter_id: string; p_selected_document_id?: string }
+        Returns: {
+          fetched_at: string
+          outcome: string
+          relationships: Json
+          source_revision: string | null
+        }[]
+      }
       recompute_document_effective_metadata: {
         Args: { p_document_version_id: string }
         Returns: undefined
@@ -10232,6 +10540,34 @@ export type Database = {
         | "failed"
         | "cancelled"
       document_record_state: "active" | "trashed" | "purging" | "purged"
+      document_relationship_decision_action:
+        | "activate"
+        | "accept"
+        | "correct"
+        | "reject"
+        | "clear"
+        | "archive"
+      document_relationship_lifecycle:
+        | "active"
+        | "stale"
+        | "suspended"
+        | "archived"
+      document_relationship_type:
+        | "responds_to"
+        | "issued_pursuant_to"
+        | "arises_from"
+        | "challenges"
+        | "decides"
+        | "modifies"
+        | "supersedes"
+        | "remands"
+        | "gives_effect_to"
+        | "refers_to"
+        | "other"
+      document_relationship_verification:
+        | "human"
+        | "policy_confirmed"
+        | "provisional"
       document_version_state: "pending" | "current" | "superseded" | "failed"
       document_version_validation_state: "pending" | "valid" | "invalid"
       entity_type:
@@ -10757,6 +11093,38 @@ export const Constants = {
         "cancelled",
       ],
       document_record_state: ["active", "trashed", "purging", "purged"],
+      document_relationship_decision_action: [
+        "activate",
+        "accept",
+        "correct",
+        "reject",
+        "clear",
+        "archive",
+      ],
+      document_relationship_lifecycle: [
+        "active",
+        "stale",
+        "suspended",
+        "archived",
+      ],
+      document_relationship_type: [
+        "responds_to",
+        "issued_pursuant_to",
+        "arises_from",
+        "challenges",
+        "decides",
+        "modifies",
+        "supersedes",
+        "remands",
+        "gives_effect_to",
+        "refers_to",
+        "other",
+      ],
+      document_relationship_verification: [
+        "human",
+        "policy_confirmed",
+        "provisional",
+      ],
       document_version_state: ["pending", "current", "superseded", "failed"],
       document_version_validation_state: ["pending", "valid", "invalid"],
       entity_type: [

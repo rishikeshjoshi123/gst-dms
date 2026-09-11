@@ -61,6 +61,20 @@ test('Timeline selected-document notes use the narrow reader without the Notes m
   assert.match(chronologySource, /Open Matter Notes/)
 })
 
+test('Timeline selected-document relationships use only the narrow governed projection', () => {
+  const start = activeSectionSource.indexOf('function TimelineSection')
+  const end = activeSectionSource.indexOf('async function FilesSection', start)
+  const timelineBody = activeSectionSource.slice(start, end)
+  assert.match(timelineBody, /page\.selected && route\.inspector === 'relationships' && !isTrash/)
+  assert.match(timelineBody, /readMatterTimelineRelationships\(matterId, page\.selected\.id\)/)
+  const relationshipStart = readerSource.indexOf('export async function readMatterTimelineRelationships')
+  const relationshipEnd = readerSource.indexOf('/** Files reads', relationshipStart)
+  const relationshipReader = readerSource.slice(relationshipStart, relationshipEnd)
+  assert.match(relationshipReader, /supabase\.rpc\('read_matter_timeline_relationships'/)
+  assert.match(relationshipReader, /shapeMatterTimelineRelationships\(row\.relationships\)/)
+  assert.doesNotMatch(relationshipReader, /document_links|document_relationship_candidates|raw_metadata/)
+})
+
 test('URL inspector state is consumed and workspace capabilities remain server-derived', () => {
   assert.match(activeSectionSource, /inspector=\{route\.inspector\}/)
   assert.match(chronologySource, /buildMatterInspectorHref/)
@@ -98,4 +112,5 @@ test('secured chronology replaces graph-era live reads and excludes unsafe proje
   const chronologyReader = readerSource.slice(chronologyStart, chronologyEnd)
   assert.doesNotMatch(chronologyReader, /document_links|raw_metadata|readActiveProceedings/)
   assert.match(chronologyReader, /normalized\.filters/)
+  assert.doesNotMatch(readerSource, /\.from\('document_relationships'\)/)
 })

@@ -28,6 +28,78 @@ export type MatterTimelineChronologyPage = {
   selected: MatterTimelineChronologyItem | null
 }
 
+export type MatterTimelineRelationship = {
+  id: string
+  revision: number
+  canonicalSourceDocumentId: string
+  canonicalTargetDocumentId: string
+  displayFromDocumentId: string
+  displayToDocumentId: string
+  relationshipType: 'responds_to' | 'issued_pursuant_to' | 'arises_from' | 'challenges' | 'decides' | 'modifies' | 'supersedes' | 'remands' | 'gives_effect_to'
+  canonicalPhrase: string
+  progressionPhrase: string
+  verification: 'human' | 'policy_confirmed' | 'provisional'
+  canonicalSourceTitle: string
+  canonicalTargetTitle: string
+}
+
+export type MatterTimelineRelationshipProjection = {
+  outcome: 'ok' | 'unavailable'
+  relationships: MatterTimelineRelationship[]
+  sourceRevision: string | null
+  fetchedAt: string
+}
+
+const TIMELINE_RELATIONSHIP_TYPES = new Set<MatterTimelineRelationship['relationshipType']>([
+  'responds_to', 'issued_pursuant_to', 'arises_from', 'challenges', 'decides',
+  'modifies', 'supersedes', 'remands', 'gives_effect_to',
+])
+const RELATIONSHIP_VERIFICATIONS = new Set<MatterTimelineRelationship['verification']>([
+  'human', 'policy_confirmed', 'provisional',
+])
+
+/** Fail closed if the secured JSON projection ever drifts from its narrow UI contract. */
+export function shapeMatterTimelineRelationships(value: unknown): MatterTimelineRelationship[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((candidate): candidate is MatterTimelineRelationship => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false
+    const item = candidate as Record<string, unknown>
+    return typeof item.id === 'string'
+      && typeof item.revision === 'number' && Number.isSafeInteger(item.revision) && item.revision >= 1
+      && typeof item.canonicalSourceDocumentId === 'string'
+      && typeof item.canonicalTargetDocumentId === 'string'
+      && item.canonicalSourceDocumentId !== item.canonicalTargetDocumentId
+      && typeof item.displayFromDocumentId === 'string'
+      && typeof item.displayToDocumentId === 'string'
+      && item.displayFromDocumentId === item.canonicalTargetDocumentId
+      && item.displayToDocumentId === item.canonicalSourceDocumentId
+      && typeof item.relationshipType === 'string'
+      && TIMELINE_RELATIONSHIP_TYPES.has(item.relationshipType as MatterTimelineRelationship['relationshipType'])
+      && typeof item.canonicalPhrase === 'string' && item.canonicalPhrase.length > 0
+      && typeof item.progressionPhrase === 'string' && item.progressionPhrase.length > 0
+      && typeof item.verification === 'string'
+      && RELATIONSHIP_VERIFICATIONS.has(item.verification as MatterTimelineRelationship['verification'])
+      && typeof item.canonicalSourceTitle === 'string' && item.canonicalSourceTitle.length > 0
+      && typeof item.canonicalTargetTitle === 'string' && item.canonicalTargetTitle.length > 0
+  })
+}
+
+export function describeMatterTimelineRelationship(
+  relationship: MatterTimelineRelationship,
+  selectedDocumentId: string,
+) {
+  const direction = selectedDocumentId === relationship.canonicalSourceDocumentId
+    ? 'outgoing' as const
+    : selectedDocumentId === relationship.canonicalTargetDocumentId
+      ? 'incoming' as const
+      : null
+  return {
+    direction,
+    canonicalSentence: `${relationship.canonicalSourceTitle} ${relationship.canonicalPhrase} ${relationship.canonicalTargetTitle}.`,
+    progressionSentence: `${relationship.canonicalTargetTitle} ${relationship.progressionPhrase} ${relationship.canonicalSourceTitle}.`,
+  }
+}
+
 export type MatterTimelineSnapshotDocument = {
   id: string
   matter_id: string | null
