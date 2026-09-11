@@ -1,47 +1,42 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createHash } from 'node:crypto'
+import { z } from 'zod'
 
-const INVITATION_INTENT_COOKIE = 'organisation_invitation_intent'
-const hashInvitationIntent = (value: string) => createHash('sha256').update(value).digest('hex')
+const signupSchema = z.object({
+  fullName: z.string().trim().min(2).max(200).refine((value) => !/[\u0000-\u001f\u007f]/.test(value)),
+  email: z.string().trim().toLowerCase().email().max(320),
+  password: z.string().min(8).max(72),
+  confirmPassword: z.string(),
+}).refine((value) => value.password === value.confirmPassword)
 
 export async function signUp(formData: FormData) {
-  const cookieStore = await cookies()
-  const invitationIntent = cookieStore.get(INVITATION_INTENT_COOKIE)?.value
-  if (!invitationIntent) {
-    return { error: 'A valid organisation invitation is required to create an account.' }
+  const parsed = signupSchema.safeParse({
+    fullName: formData.get('full_name'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirm_password'),
+  })
+  if (!parsed.success) {
+    return { error: 'Enter a valid name, email address, and matching password of 8 to 72 characters.' }
   }
 
   const supabase = await createClient()
-  const email = (formData.get('email') as string)?.trim().toLowerCase()
-  const password = formData.get('password') as string
-  const fullName = formData.get('full_name') as string
-
-  const { data: eligibility, error: eligibilityError } = await supabase.rpc('validate_organisation_invitation_signup', {
-    p_nonce_hash: hashInvitationIntent(invitationIntent),
-    p_email: email,
-  })
-  if (eligibilityError || eligibility !== 'eligible') {
-    return { error: 'This invitation is unavailable or does not match that email address.' }
-  }
-
   const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
+    email: parsed.data.email,
+    password: parsed.data.password,
     options: {
-      data: { full_name: fullName },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      data: { full_name: parsed.data.fullName },
+      emailRedirectTo: new URL('/auth/callback?next=/onboarding', process.env.NEXT_PUBLIC_APP_URL ?? 'http://127.0.0.1:3000').toString(),
     },
   })
 
   if (error) {
-    return { error: error.message }
+    return { error: 'The account could not be created. Check the details and try again.' }
   }
 
-  if (data.session) redirect('/api/invites/accept')
+  if (data.session) redirect('/onboarding')
   return { success: true }
 }
 
@@ -49,18 +44,17 @@ export type SignInState = { error: string | null }
 
 export async function signIn(_previousState: SignInState, formData: FormData): Promise<SignInState> {
   const supabase = await createClient()
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const password = String(formData.get('password') ?? '')
+  if (!z.string().email().max(320).safeParse(email).success || password.length<1 || password.length>72) {
+    return { error: 'The email or password is incorrect.' }
+  }
 
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    return { error: error.message }
+    return { error: 'The email or password is incorrect.' }
   }
-
-  const cookieStore = await cookies()
-  const intent = cookieStore.get('organisation_invitation_intent')?.value
-  if (intent) redirect(`/api/invites/accept?next=${encodeURIComponent(cookieStore.get('organisation_invitation_next')?.value ?? '/dashboard')}`)
 
   // Canonical context is authoritative for active/suspended routing.
   const { data: { user } } = await supabase.auth.getUser()
@@ -72,6 +66,8 @@ export async function signIn(_previousState: SignInState, formData: FormData): P
     }
     if (context?.state === 'active') {
       // Save current org into cookie
+      const { cookies } = await import('next/headers')
+      const cookieStore = await cookies()
       cookieStore.set('current_org_id', context.org_id, {
         httpOnly: true,
         path: '/',
@@ -87,6 +83,7 @@ export async function signIn(_previousState: SignInState, formData: FormData): P
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
   cookieStore.delete('current_org_id')
   redirect('/login')

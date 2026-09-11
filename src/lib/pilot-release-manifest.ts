@@ -27,8 +27,8 @@ export const PILOT_RELEASE_MANIFEST = {
     viewer: 'read-only workspace access',
   },
   entry: {
-    signup: 'invitation_intent_and_matching_verified_email',
-    publicOrganisationCreation: 'disabled' as PilotCapabilityState,
+    signup: 'email_verification_then_create_or_join',
+    publicOrganisationCreation: 'enabled' as PilotCapabilityState,
     concurrentCurrentOrganisations: 1,
   },
   capabilities: {

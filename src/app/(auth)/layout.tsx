@@ -94,14 +94,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Center Form Card Container */}
         <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8">
-          <div className="w-full max-w-md">
+          <div className="w-full max-w-lg">
             {/* Logo for mobile */}
             <div className="flex lg:hidden items-center justify-center mb-6">
               <span className="text-lg font-bold text-[var(--text-primary)]">CaseChain</span>
             </div>
 
             {/* Form card */}
-            <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-8 shadow-sm animate-fade-in">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-5 shadow-sm animate-fade-in sm:p-8">
               {children}
             </div>
 

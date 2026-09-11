@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 const INTENT_COOKIE = 'organisation_invitation_intent'
 const NEXT_COOKIE = 'organisation_invitation_next'
@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const token = searchParams.get('token')
   const cookieIntent = request.cookies.get(INTENT_COOKIE)?.value
-  const intentNext = safePath(request.cookies.get(NEXT_COOKIE)?.value)
 
   if (!token && !cookieIntent) {
     return clearIntent(NextResponse.redirect(`${origin}/onboarding?invite_error=invalid_invitation`))
@@ -36,13 +35,7 @@ export async function GET(request: NextRequest) {
     return response
   }
 
-  const params = cookieIntent
-    ? { p_nonce_hash: hash(cookieIntent ?? ''), p_idempotency_key: randomUUID() }
-    : { p_selector_hash: hash(token ?? ''), p_idempotency_key: randomUUID() }
-  const { data } = await supabase.rpc('accept_organisation_invite', params)
-  const result = data?.[0]
-  const accepted = result?.code === 'accepted'
-  const response = clearIntent(NextResponse.redirect(`${origin}${accepted ? (searchParams.get('next') ? safePath(searchParams.get('next')) : intentNext) : '/onboarding?invite_error=invalid_invitation'}`))
-  if (accepted && result.org_id) response.cookies.set('current_org_id', result.org_id, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 24 * 365 })
-  return response
+  // Following an email link establishes intent only. Joining remains the
+  // explicit, authenticated action on onboarding.
+  return clearIntent(NextResponse.redirect(`${origin}/onboarding`))
 }

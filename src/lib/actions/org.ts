@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sendOrgInviteEmail } from '@/lib/email'
 import { randomUUID } from 'node:crypto'
 import { createInvitationSelector, hashInvitationOpaqueValue } from '@/lib/invitations'
-import { isPublicOrganisationCreationEnabled } from '@/lib/pilot-release-policy'
+import { z } from 'zod'
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -52,12 +52,26 @@ const invitationError = (code?: string) => {
 
 // ── Create Organisation ───────────────────────────────────────────
 
-export async function createOrganisation(_formData: FormData) {
-  void _formData
-  if (!isPublicOrganisationCreationEnabled()) {
-    return { error: 'A CaseChain invitation is required to join the pilot organisation.' }
+export async function createOrganisation(formData: FormData) {
+  const name = String(formData.get('name') ?? '').trim()
+  const idempotencyKey = String(formData.get('idempotency_key') ?? '')
+  if (name.length<2 || name.length>200 || /[\u0000-\u001f\u007f]/.test(name)) {
+    return { error: 'Enter an organisation name between 2 and 200 characters.' }
   }
-  return { error: 'Organisation creation is not configured for this release.' }
+  if (!z.string().uuid().safeParse(idempotencyKey).success) {
+    return { error: 'Refresh this page before creating an organisation.' }
+  }
+  const supabase = await createClient()
+  const { data,error } = await supabase.rpc('create_organisation', {
+    p_name: name,
+    p_idempotency_key: idempotencyKey,
+  })
+  const result = data?.[0]
+  if (error || !result || result.code!=='ok' || !result.org_id) {
+    return { error: 'The organisation could not be created. Refresh and try again.' }
+  }
+  await setCurrentOrg(result.org_id)
+  redirect('/dashboard')
 }
 
 // ── Switch Organisation ───────────────────────────────────────────

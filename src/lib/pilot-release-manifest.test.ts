@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises'
 import { PILOT_RELEASE_MANIFEST, unresolvedPilotApprovals } from './pilot-release-manifest'
 
 test('the pilot manifest records the settled entry and AI boundaries', () => {
-  assert.equal(PILOT_RELEASE_MANIFEST.entry.signup, 'invitation_intent_and_matching_verified_email')
-  assert.equal(PILOT_RELEASE_MANIFEST.entry.publicOrganisationCreation, 'disabled')
+  assert.equal(PILOT_RELEASE_MANIFEST.entry.signup, 'email_verification_then_create_or_join')
+  assert.equal(PILOT_RELEASE_MANIFEST.entry.publicOrganisationCreation, 'enabled')
   assert.equal(PILOT_RELEASE_MANIFEST.entry.concurrentCurrentOrganisations, 1)
   assert.equal(PILOT_RELEASE_MANIFEST.capabilities.caseBriefGeneration, 'disabled')
   assert.equal(PILOT_RELEASE_MANIFEST.capabilities.generatedAnswers, 'disabled')

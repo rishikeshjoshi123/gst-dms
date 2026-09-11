@@ -2553,6 +2553,41 @@ export type Database = {
           },
         ]
       }
+      organisation_creation_command_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          idempotency_key: string
+          requested_name: string
+          result_code: string
+          result_org_id: string | null
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          idempotency_key: string
+          requested_name: string
+          result_code: string
+          result_org_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          idempotency_key?: string
+          requested_name?: string
+          result_code?: string
+          result_org_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_creation_command_receipts_result_org_id_fkey"
+            columns: ["result_org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisation_invitation_accept_intents: {
         Row: {
           consumed_at: string | null

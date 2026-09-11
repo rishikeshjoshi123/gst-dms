@@ -23,3 +23,4 @@ const playwright = nodeModuleLaunch(
 )
 run(playwright.command, playwright.args)
 run(nodeExec, ['scripts/acceptance/verify-browser-uploads.mjs'])
+run(nodeExec, ['scripts/acceptance/run-onboarding-confirmation.mjs'])

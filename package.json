@@ -20,6 +20,7 @@
     "test:runtime-contract": "node --test scripts/runtime-contract.test.mjs",
     "acceptance:db": "sh scripts/acceptance/local-fixtures.sh",
     "acceptance:smoke": "playwright test tests/acceptance/matter-workbench.spec.ts",
+    "acceptance:onboarding": "node scripts/acceptance/run-onboarding-confirmation.mjs",
     "acceptance:local": "node scripts/acceptance/run-local.mjs",
     "typecheck": "tsc --noEmit --pretty false",
     "trigger:dev": "npx trigger.dev@latest dev",

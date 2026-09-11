@@ -23,4 +23,9 @@ uses a closed loopback Trigger endpoint, a non-routable Resend sentinel, and emp
 Google/Vertex credentials. No worker or provider call is part of this check.
 
 The seeded accounts are auto-confirmed feature fixtures. This command does not
-verify confirmation-required signup or email delivery acceptance.
+claim that those fixtures verify email delivery. After the feature checks, the
+runner starts a second disposable Supabase project on distinct loopback ports
+with email confirmation required, captures two local-only verification mails,
+follows their real links, and verifies both create and multi-invitation join
+onboarding. The isolated confirmation project is stopped and removed after the
+run, leaving the ordinary deterministic local profile unchanged.

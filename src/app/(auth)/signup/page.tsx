@@ -36,13 +36,13 @@ export default function SignupPage() {
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Create your account</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Create an account for your CaseChain invitation
+          Verify your email, then create or join an organisation
         </p>
       </div>
 
       {submitted ? (
         <div className="rounded-[var(--radius-md)] border border-[var(--success)] bg-[var(--success-muted)] px-4 py-4 text-sm text-[var(--text-primary)]" role="status">
-          Check your email to verify the account. After verification, CaseChain will complete your organisation invitation.
+          If the address can be registered, check your email for a verification link. After verification, you can create or join an organisation.
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
