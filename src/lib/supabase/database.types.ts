@@ -8072,6 +8072,26 @@ export type Database = {
           is_mine: boolean
           state: Database["public"]["Enums"]["intake_item_state"]
           total_count: number
+          uploaded_by: string
+          uploaded_by_name: string
+        }[]
+      }
+      get_document_hub_intake_before_uploader_context: {
+        Args: {
+          p_include_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_scope?: string
+        }
+        Returns: {
+          created_at: string
+          declared_filename: string
+          failure_code: string
+          id: string
+          intended_matter_id: string
+          is_mine: boolean
+          state: Database["public"]["Enums"]["intake_item_state"]
+          total_count: number
         }[]
       }
       get_document_search_index_reprocess_input: {

@@ -91,13 +91,14 @@ INSERT INTO public.file_assets (
 ) VALUES (
   'f0010000-0000-0000-0000-000000000003', 'b0010000-0000-0000-0000-000000000001', 'documents',
   'orgs/b0010000-0000-0000-0000-000000000001/assets/f0010000-0000-0000-0000-000000000003/original.pdf',
-  repeat('a',64), 128, 'application/pdf', 'available', 'a0010000-0000-0000-0000-000000000001', now(), 1
+  '85a3dab46944bea47387d4a11867fe7c62afa3855f5c4ef68a4c442b867fb5cb',
+  4564, 'application/pdf', 'available', 'a0010000-0000-0000-0000-000000000001', now(), 4
 );
 INSERT INTO public.upload_sessions (
   id,org_id,asset_id,declared_filename,declared_byte_size,state,created_by,uploaded_at,finalized_at
 ) VALUES (
   'f2010000-0000-0000-0000-000000000001','b0010000-0000-0000-0000-000000000001',
-  'f0010000-0000-0000-0000-000000000003','owner-shared-intake.pdf',128,'finalized',
+  'f0010000-0000-0000-0000-000000000003','owner-shared-intake.pdf',4564,'finalized',
   'a0010000-0000-0000-0000-000000000001',now(),now()
 );
 INSERT INTO public.intake_items (id,org_id,asset_id,upload_session_id,state,uploaded_by) VALUES (

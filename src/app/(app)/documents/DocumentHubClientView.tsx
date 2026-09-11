@@ -88,6 +88,10 @@ function fileName(document: InboxQueueDocument) {
   return document.storage_path.split('/').pop() || 'Untitled PDF'
 }
 
+function uploaderLabel(document: InboxQueueDocument) {
+  return document.is_mine ? 'You' : document.uploaded_by_name
+}
+
 function statusPresentation(document: InboxQueueDocument): StatusPresentation {
   switch (document.canonical_intake_state) {
     case 'uploaded':
@@ -315,23 +319,25 @@ function ManagedDocumentHubClientView({
       initialMatters,
       initialMatterLookupError,
     })
-    if (initialQueueError) {
-      setRefreshError(`${initialQueueError} Showing the last loaded documents.`)
-    } else {
-      setRefreshError(null)
-      setDocuments(uniqueDocuments(initialDocuments))
-      setQueueTotal(initialQueueTotal)
-      setNextOffset(initialNextOffset)
-      setLastSuccessfulRefreshAt(freshnessClock)
+    if (ownershipScope === 'mine') {
+      if (initialQueueError) {
+        setRefreshError(`${initialQueueError} Showing the last loaded documents.`)
+      } else {
+        setRefreshError(null)
+        setDocuments(uniqueDocuments(initialDocuments))
+        setQueueTotal(initialQueueTotal)
+        setNextOffset(initialNextOffset)
+        setLastSuccessfulRefreshAt(freshnessClock)
+      }
+      setMatterOptions(initialMatters)
+      setDestinationMatches([])
+      setMatterLookupError(initialMatterLookupError)
     }
-    setMatterOptions(initialMatters)
-    setDestinationMatches([])
-    setMatterLookupError(initialMatterLookupError)
   }
 
   useEffect(() => {
-    loadedPageOffsetsRef.current = [0]
-  }, [initialDocuments, initialNextOffset, initialQueueError, initialQueueTotal])
+    if (ownershipScope === 'mine') loadedPageOffsetsRef.current = [0]
+  }, [initialDocuments, initialNextOffset, initialQueueError, initialQueueTotal, ownershipScope])
 
   useEffect(() => {
     if (preselectedMatterId && selectedMatterContext) {
@@ -384,7 +390,7 @@ function ManagedDocumentHubClientView({
       const intendedMatter = document.intake_matter_id
         ? matterLabel(matterById.get(document.intake_matter_id))
         : 'Not set'
-      return [fileName(document), intendedMatter, document.suggestion_reason, formatReceivedAt(document.created_at)]
+      return [fileName(document), uploaderLabel(document), intendedMatter, document.suggestion_reason, formatReceivedAt(document.created_at)]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -858,6 +864,7 @@ function ManagedDocumentHubClientView({
               <TableHeader sticky>
                 <TableRow>
                   <TableHead>Document</TableHead>
+                  <TableHead className="w-44">Uploaded by</TableHead>
                   <TableHead className="w-36">Status</TableHead>
                   <TableHead className={cn('min-w-48', selectedDocument && 'hidden')}>Intended matter</TableHead>
                   <TableHead className={cn('min-w-56', selectedDocument && 'hidden')}>Reason</TableHead>
@@ -884,6 +891,11 @@ function ManagedDocumentHubClientView({
                             <span className="mt-1 block truncate text-xs text-[var(--text-muted)]" title={intendedMatter}>{intendedMatter}</span>
                           )}
                         </button>
+                      </TableCell>
+                      <TableCell className="text-sm text-[var(--text-secondary)]">
+                        <span className="block max-w-40 truncate" title={uploaderLabel(document)}>
+                          {uploaderLabel(document)}
+                        </span>
                       </TableCell>
                       <TableCell><StatusBadge document={document} /></TableCell>
                       <TableCell className={cn('text-sm text-[var(--text-secondary)]', selectedDocument && 'hidden')}>
@@ -920,6 +932,7 @@ function ManagedDocumentHubClientView({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-[var(--text-primary)]">{fileName(document)}</span>
                     <span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{intendedMatter}</span>
+                    <span className="mt-1 block truncate text-xs text-[var(--text-muted)]">Uploaded by {uploaderLabel(document)}</span>
                     <span className="mt-1 block text-xs text-[var(--text-muted)]">{formatReceivedAt(document.created_at)}</span>
                     {document.suggestion_reason && <span className="mt-1 line-clamp-2 block text-xs text-[var(--text-secondary)]">{document.suggestion_reason}</span>}
                   </span>
@@ -1046,6 +1059,10 @@ function ManagedDocumentHubClientView({
                       ? matterLabel(matterById.get(selectedDocument.intake_matter_id))
                       : 'Not set'}
                   </dd>
+                </div>
+                <div className="grid gap-1 p-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                  <dt className="text-xs text-[var(--text-muted)]">Uploaded by</dt>
+                  <dd className="break-words text-sm text-[var(--text-primary)]">{uploaderLabel(selectedDocument)}</dd>
                 </div>
                 <div className="grid gap-1 p-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-xs text-[var(--text-muted)]">Received</dt>

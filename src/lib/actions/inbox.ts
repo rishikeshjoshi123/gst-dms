@@ -23,6 +23,8 @@ export type InboxQueueDocument = {
   canonical_intake_state: string
   canonical_failure_code: string | null
   is_mine: boolean
+  uploaded_by: string
+  uploaded_by_name: string
 }
 
 /** Canonical Inbox projection; legacy staged rows are retirement history. */
@@ -38,6 +40,8 @@ type CanonicalIntakeRow = {
   intended_matter_id: string | null
   declared_filename: string
   is_mine: boolean
+  uploaded_by: string
+  uploaded_by_name: string
   total_count: number
 }
 
@@ -57,6 +61,8 @@ function projectInboxDocument(item: CanonicalIntakeRow): InboxQueueDocument {
     canonical_intake_state: item.state,
     canonical_failure_code: item.failure_code,
     is_mine: item.is_mine,
+    uploaded_by: item.uploaded_by,
+    uploaded_by_name: item.uploaded_by_name,
   }
 }
 

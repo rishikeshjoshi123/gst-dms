@@ -33,11 +33,15 @@ for (const key of ['API_URL', 'DB_URL', 'INBUCKET_URL', 'STORAGE_S3_URL']) {
 
 const assetId = 'f0010000-0000-0000-0000-000000000001'
 const missingAssetId = 'f0010000-0000-0000-0000-000000000002'
+const sharedAssetId = 'f0010000-0000-0000-0000-000000000003'
 const orgId = 'b0010000-0000-0000-0000-000000000001'
 const objectKey = `orgs/${orgId}/assets/${assetId}/original.pdf`
 const missingObjectKey = `orgs/${orgId}/assets/${missingAssetId}/original.pdf`
+const sharedObjectKey = `orgs/${orgId}/assets/${sharedAssetId}/original.pdf`
 const pdf = await readFile(acceptanceProjectPath('tests/acceptance/fixtures/synthetic-multi-page.pdf'))
+const sharedPdf = Buffer.concat([pdf, Buffer.from('\n% CaseChain shared Intake source\n')])
 const sha256 = createHash('sha256').update(pdf).digest('hex')
+const sharedSha256 = createHash('sha256').update(sharedPdf).digest('hex')
 const supabase = createClient(local.API_URL, local.SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
@@ -50,13 +54,17 @@ if (bucketError || !documentsBucket || documentsBucket.public) {
 
 const { error: cleanupError } = await supabase.storage
   .from('documents')
-  .remove([objectKey, missingObjectKey])
+  .remove([objectKey, missingObjectKey, sharedObjectKey])
 if (cleanupError) throw new Error(`Could not clear disposable acceptance objects: ${cleanupError.message}`)
 
 const { error: uploadError } = await supabase.storage
   .from('documents')
   .upload(objectKey, pdf, { contentType: 'application/pdf', upsert: false })
 if (uploadError) throw new Error(`Could not seed the synthetic PDF: ${uploadError.message}`)
+const { error: sharedUploadError } = await supabase.storage
+  .from('documents')
+  .upload(sharedObjectKey, sharedPdf, { contentType: 'application/pdf', upsert: false })
+if (sharedUploadError) throw new Error(`Could not seed the shared synthetic PDF: ${sharedUploadError.message}`)
 
 const { data: stored, error: downloadError } = await supabase.storage
   .from('documents')
@@ -65,6 +73,15 @@ if (downloadError || !stored) throw new Error('Could not verify the seeded synth
 const storedBytes = Buffer.from(await stored.arrayBuffer())
 if (createHash('sha256').update(storedBytes).digest('hex') !== sha256) {
   throw new Error('Seeded PDF bytes do not match the synthetic fixture.')
+}
+
+const { data: sharedStored, error: sharedDownloadError } = await supabase.storage
+  .from('documents')
+  .download(sharedObjectKey)
+if (sharedDownloadError || !sharedStored) throw new Error('Could not verify the shared synthetic PDF.')
+const sharedStoredBytes = Buffer.from(await sharedStored.arrayBuffer())
+if (createHash('sha256').update(sharedStoredBytes).digest('hex') !== sharedSha256) {
+  throw new Error('Shared seeded PDF bytes do not match the synthetic fixture.')
 }
 
 const { data: asset, error: assetError } = await supabase
@@ -81,6 +98,22 @@ if (assetError
   || asset.availability !== 'available'
   || asset.validated_page_count !== 4) {
   throw new Error('The seeded Storage object does not match its canonical file asset.')
+}
+
+const { data: sharedAsset, error: sharedAssetError } = await supabase
+  .from('file_assets')
+  .select('bucket_id, object_key, byte_size, sha256, availability, validated_page_count')
+  .eq('id', sharedAssetId)
+  .eq('org_id', orgId)
+  .single()
+if (sharedAssetError
+  || sharedAsset.bucket_id !== 'documents'
+  || sharedAsset.object_key !== sharedObjectKey
+  || sharedAsset.byte_size !== sharedPdf.byteLength
+  || sharedAsset.sha256 !== sharedSha256
+  || sharedAsset.availability !== 'available'
+  || sharedAsset.validated_page_count !== 4) {
+  throw new Error('The shared Storage object does not match its canonical file asset.')
 }
 
 const { data: version, error: versionError } = await supabase
@@ -113,4 +146,4 @@ if (documentError
 const { data: missingBytes } = await supabase.storage.from('documents').download(missingObjectKey)
 if (missingBytes) throw new Error('The source-failure fixture unexpectedly has a Storage object.')
 
-process.stdout.write(`Seeded and verified one ${pdf.byteLength}-byte synthetic PDF in local private Storage.\n`)
+process.stdout.write(`Seeded and verified private synthetic PDFs of ${pdf.byteLength} and ${sharedPdf.byteLength} bytes.\n`)

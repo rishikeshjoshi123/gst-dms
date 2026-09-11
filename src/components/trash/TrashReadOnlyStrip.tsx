@@ -8,7 +8,11 @@ const resourceLabel = { client: 'Client', matter: 'Matter', document: 'Document'
 
 function formatTrashDate(value: string) {
   try {
-    return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    return new Intl.DateTimeFormat('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Kolkata',
+    }).format(new Date(value))
   } catch {
     return value
   }

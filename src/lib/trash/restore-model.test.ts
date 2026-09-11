@@ -29,6 +29,7 @@ test('production callers use the typed Server Action and expose no permanent-del
   assert.match(control, /Restore group/)
   assert.match(control, /Independently trashed descendants stay/)
   assert.match(strip, /!inherited && context\.restorePreflight/)
+  assert.match(strip, /timeZone: 'Asia\/Kolkata'/)
   assert.match(workspace, /operation\.restorePreflight/)
   assert.doesNotMatch(`${control}\n${strip}\n${workspace}`, /Delete permanently/)
 })

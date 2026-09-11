@@ -15,6 +15,7 @@ DECLARE
   client_c uuid := '14320000-0000-0000-0000-000000000002';
   matter_a uuid := '14330000-0000-0000-0000-000000000001';
   matter_c uuid := '14330000-0000-0000-0000-000000000002';
+  matter_d uuid := '14330000-0000-0000-0000-000000000003';
   document_a uuid := '14340000-0000-0000-0000-000000000001';
   document_b uuid := '14340000-0000-0000-0000-000000000002';
   document_c uuid := '14340000-0000-0000-0000-000000000003';
@@ -23,6 +24,7 @@ DECLARE
   associate_intake uuid := '14380000-0000-0000-0000-000000000002';
   foreign_intake uuid := '14380000-0000-0000-0000-000000000003';
   row_count integer; outcome text; expired_deadline timestamptz;
+  assignment record; assignment_replay record;
 BEGIN
   INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
   VALUES
@@ -44,7 +46,8 @@ BEGIN
     (client_a,org_a,'Expiry client'),(client_c,org_a,'Expired client root');
   INSERT INTO public.matters(id,org_id,client_id,title,financial_year) VALUES
     (matter_a,org_a,client_a,'Expiry matter','2026-27'),
-    (matter_c,org_a,client_c,'Expired client descendant matter','2026-27');
+    (matter_c,org_a,client_c,'Expired client descendant matter','2026-27'),
+    (matter_d,org_a,client_a,'Shared Intake assignment target','2027-28');
   INSERT INTO public.documents(id,org_id,matter_id,display_title,created_by) VALUES
     (document_a,org_a,matter_a,'Expired descendant',owner_a),
     (document_b,org_a,matter_a,'Blocked document',owner_a),
@@ -173,10 +176,10 @@ BEGIN
 
   -- Synthetic canonical Intake rows for two tenant members and one foreign tenant.
   PERFORM set_config('request.jwt.claim.role','',true);
-  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,created_by,validated_at) VALUES
-    ('14350000-0000-0000-0000-000000000001',org_a,'documents','orgs/14300000-0000-0000-0000-000000000001/assets/14350000-0000-0000-0000-000000000001/original.pdf',repeat('1',64),100,'application/pdf','available',owner_a,now()),
-    ('14350000-0000-0000-0000-000000000002',org_a,'documents','orgs/14300000-0000-0000-0000-000000000001/assets/14350000-0000-0000-0000-000000000002/original.pdf',repeat('2',64),100,'application/pdf','available',associate_a,now()),
-    ('14350000-0000-0000-0000-000000000003',org_b,'documents','orgs/14300000-0000-0000-0000-000000000002/assets/14350000-0000-0000-0000-000000000003/original.pdf',repeat('3',64),100,'application/pdf','available',owner_b,now());
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,created_by,validated_at,validated_page_count) VALUES
+    ('14350000-0000-0000-0000-000000000001',org_a,'documents','orgs/14300000-0000-0000-0000-000000000001/assets/14350000-0000-0000-0000-000000000001/original.pdf',repeat('1',64),100,'application/pdf','available',owner_a,now(),1),
+    ('14350000-0000-0000-0000-000000000002',org_a,'documents','orgs/14300000-0000-0000-0000-000000000001/assets/14350000-0000-0000-0000-000000000002/original.pdf',repeat('2',64),100,'application/pdf','available',associate_a,now(),1),
+    ('14350000-0000-0000-0000-000000000003',org_b,'documents','orgs/14300000-0000-0000-0000-000000000002/assets/14350000-0000-0000-0000-000000000003/original.pdf',repeat('3',64),100,'application/pdf','available',owner_b,now(),1);
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_byte_size,state,created_by,uploaded_at,finalized_at) VALUES
     ('14360000-0000-0000-0000-000000000001',org_a,'14350000-0000-0000-0000-000000000001','owner.pdf',100,'finalized',owner_a,now(),now()),
     ('14360000-0000-0000-0000-000000000002',org_a,'14350000-0000-0000-0000-000000000002','associate.pdf',100,'finalized',associate_a,now(),now()),
@@ -191,6 +194,8 @@ BEGIN
   SELECT count(*) INTO row_count FROM public.get_document_hub_intake('mine',0,50,NULL);
   IF row_count<>1 OR NOT EXISTS(SELECT 1 FROM public.get_document_hub_intake('mine',0,50,NULL) WHERE id=associate_intake AND is_mine)
      OR (SELECT count(*) FROM public.get_document_hub_intake('all',0,50,NULL))<>2
+     OR NOT EXISTS(SELECT 1 FROM public.get_document_hub_intake('all',0,50,NULL)
+       WHERE id=owner_intake AND uploaded_by=owner_a AND uploaded_by_name='Team member')
      OR EXISTS(SELECT 1 FROM public.get_document_hub_intake('all',0,50,NULL) WHERE id=foreign_intake)
      OR NOT EXISTS(SELECT 1 FROM public.get_intake_item_triage_context(owner_intake) WHERE uploaded_by=owner_a)
      OR NOT EXISTS(SELECT 1 FROM public.get_intake_item_read_grant(owner_intake) WHERE code='ok' AND object_key LIKE 'orgs/%/original.pdf') THEN
@@ -228,8 +233,42 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM public.intake_items WHERE id=foreign_intake AND state='ready') THEN
     RAISE EXCEPTION 'foreign denial changed Intake state';
   END IF;
-  SELECT code INTO outcome FROM public.discard_intake_item(owner_intake,'14390000-0000-0000-0000-000000000003');
-  IF outcome<>'ok' THEN RAISE EXCEPTION 'Associate could not triage a shared Intake row'; END IF;
+  SELECT * INTO assignment FROM public.assign_intake_to_new_document(
+    owner_intake,matter_d,'Shared owner upload',owner_a,
+    '14390000-0000-0000-0000-000000000003'
+  );
+  IF assignment.code<>'ok'
+     OR NOT EXISTS(SELECT 1 FROM public.documents WHERE id=assignment.document_id AND created_by=owner_a)
+     OR NOT EXISTS(SELECT 1 FROM public.document_versions WHERE id=assignment.document_version_id AND created_by=owner_a)
+     OR assignment.lifecycle_revision<>(SELECT lifecycle_revision FROM public.documents WHERE id=assignment.document_id)
+     OR assignment.lifecycle_revision<>(SELECT lifecycle_revision FROM public.document_command_receipts
+       WHERE actor_user_id=associate_a AND command_kind='assign_intake'
+         AND idempotency_key='14390000-0000-0000-0000-000000000003')
+     OR NOT EXISTS(SELECT 1 FROM public.intake_item_assignments
+       WHERE intake_item_id=owner_intake AND document_id=assignment.document_id
+         AND document_version_id=assignment.document_version_id AND assigned_by=associate_a)
+     OR NOT EXISTS(SELECT 1 FROM public.activity_logs
+       WHERE entity_id=assignment.document_id AND action='document.intake_assigned' AND user_id=associate_a) THEN
+    RAISE EXCEPTION 'shared assignment did not separate uploader provenance from assigning actor';
+  END IF;
+  SELECT * INTO assignment_replay FROM public.assign_intake_to_new_document(
+    owner_intake,matter_d,'Shared owner upload',owner_a,
+    '14390000-0000-0000-0000-000000000003'
+  );
+  IF assignment_replay.code<>'ok'
+     OR assignment_replay.document_id<>assignment.document_id
+     OR assignment_replay.document_version_id<>assignment.document_version_id
+     OR assignment_replay.lifecycle_revision<>assignment.lifecycle_revision
+     OR assignment_replay.lifecycle_revision<>(SELECT lifecycle_revision FROM public.documents
+       WHERE id=assignment.document_id)
+     OR assignment_replay.lifecycle_revision<>(SELECT lifecycle_revision FROM public.document_command_receipts
+       WHERE actor_user_id=associate_a AND command_kind='assign_intake'
+         AND idempotency_key='14390000-0000-0000-0000-000000000003')
+     OR (SELECT count(*) FROM public.intake_item_assignments WHERE intake_item_id=owner_intake)<>1
+     OR (SELECT count(*) FROM public.activity_logs
+       WHERE entity_id=assignment.document_id AND action='document.intake_assigned')<>1 THEN
+    RAISE EXCEPTION 'shared assignment idempotent replay drifted';
+  END IF;
 END $fixture$;
 
 DO $privileges$
@@ -237,6 +276,7 @@ BEGIN
   IF has_function_privilege('anon','public.get_document_hub_intake(text,integer,integer,uuid)','EXECUTE')
      OR has_function_privilege('service_role','public.get_document_hub_intake(text,integer,integer,uuid)','EXECUTE')
      OR NOT has_function_privilege('authenticated','public.get_document_hub_intake(text,integer,integer,uuid)','EXECUTE')
+     OR has_function_privilege('authenticated','public.get_document_hub_intake_before_uploader_context(text,integer,integer,uuid)','EXECUTE')
      OR has_function_privilege('authenticated','public.get_trash_workspace_before_logical_expiry(uuid,text,public.trash_resource_type,uuid,integer)','EXECUTE')
      OR has_function_privilege('authenticated','public.get_exact_trashed_resource_projection_before_logical_expiry(public.trash_resource_type,uuid,uuid)','EXECUTE')
      OR has_table_privilege('authenticated','public.intake_items','SELECT') THEN

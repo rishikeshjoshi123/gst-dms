@@ -11,6 +11,8 @@ const cancelledFilename = 'acceptance-browser-cancel.pdf'
 const ownerId = 'a0010000-0000-0000-0000-000000000001'
 const orgId = 'b0010000-0000-0000-0000-000000000001'
 const completionSuffix = '\n% CaseChain browser upload completion fixture\n'
+const sharedSuffix = '\n% CaseChain shared Intake source\n'
+const sharedAssetId = 'f0010000-0000-0000-0000-000000000003'
 
 const nodeExec = requireNode24()
 const supabaseCli = acceptanceProjectPath('node_modules/supabase/dist/supabase.js')
@@ -125,4 +127,27 @@ for (const session of cancelled) {
   }
 }
 
-process.stdout.write('Verified one finalized TUS upload and two same-file cancelled sessions in local database and private Storage.\n')
+const { data: sharedAsset, error: sharedAssetError } = await supabase
+  .from('file_assets')
+  .select('bucket_id, object_key, byte_size, sha256, availability')
+  .eq('id', sharedAssetId)
+  .eq('org_id', orgId)
+  .single()
+if (sharedAssetError
+  || sharedAsset.availability !== 'available'
+  || sharedAsset.byte_size !== sourcePdf.byteLength + Buffer.byteLength(sharedSuffix)
+  || sharedAsset.sha256 !== createHash('sha256')
+    .update(Buffer.concat([sourcePdf, Buffer.from(sharedSuffix)]))
+    .digest('hex')) {
+  throw new Error('The shared Intake asset lost its canonical private Storage authority.')
+}
+const { data: sharedObject, error: sharedObjectError } = await supabase.storage
+  .from(sharedAsset.bucket_id)
+  .download(sharedAsset.object_key)
+if (sharedObjectError || !sharedObject) throw new Error('The shared Intake object is missing from private Storage.')
+const sharedObjectBytes = Buffer.from(await sharedObject.arrayBuffer())
+if (createHash('sha256').update(sharedObjectBytes).digest('hex') !== sharedAsset.sha256) {
+  throw new Error('The shared Intake Storage bytes do not match the canonical asset hash.')
+}
+
+process.stdout.write('Verified one finalized TUS upload, two same-file cancelled sessions, and the shared Intake source in local database and private Storage.\n')
