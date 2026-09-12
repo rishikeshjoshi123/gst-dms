@@ -16,7 +16,12 @@ export const OFFICIAL_REFERENCE_KINDS = [
   'court_case_number', 'other_official_reference',
 ] as const
 
-const nullableText = z.string().trim().min(1).max(1024).nullable()
+const containsControlCharacter = (value: string) => /[\p{Cc}]/u.test(value)
+const sourceText = (max: number, min = 1) => z.string().min(min).max(max)
+  .refine((value) => !containsControlCharacter(value), 'control characters are not allowed')
+  .refine((value) => value.trim().length >= min, 'source text is empty after trimming')
+  .transform((value) => value.trim())
+const nullableText = sourceText(1024).nullable()
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).superRefine((value, context) => {
   const date = new Date(`${value}T00:00:00Z`)
   if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value) {
@@ -34,7 +39,7 @@ const confidence = z.number().min(0).max(1)
 
 const evidenceSchema = z.object({
   field: z.enum(['document_type', 'gstin', 'client_identifier', 'client_name', 'document_date', 'direction', 'issued_by', 'deadline', 'amount', 'legal_reference']),
-  value: z.string().trim().min(1).max(1024), page_number: z.number().int().positive().nullable(),
+  value: sourceText(1024), page_number: z.number().int().positive().nullable(),
   quote: nullableText, confidence,
 }).strict()
 
@@ -63,10 +68,10 @@ const periodSegmentSchema = z.object({
 
 export const taxPeriodInputSchema = z.object({
   kind: z.enum(['month', 'quarter', 'exact_date_range', 'financial_year', 'multi_financial_year', 'non_contiguous', 'unclear']),
-  raw: z.string().trim().min(1).max(512), display: z.string().trim().min(1).max(512),
+  raw: sourceText(512), display: sourceText(512),
   precision: z.enum(['month', 'quarter', 'exact_date', 'financial_year', 'mixed', 'unclear']),
   segments: z.array(periodSegmentSchema).max(24), printed_financial_years: z.array(financialYear).max(30),
-  source_page: z.number().int().positive(), source_quote: z.string().trim().min(1).max(1000), confidence,
+  source_page: z.number().int().positive(), source_quote: sourceText(1000), confidence,
 }).strict().superRefine((period, context) => {
   const kinds = period.segments.map((segment) => segment.kind)
   const valid = period.kind === 'unclear' ? period.segments.length === 0 && period.precision === 'unclear'
@@ -113,12 +118,12 @@ const officialReferenceComponentSchema = z.object({
 export const officialReferenceInputSchema = z.object({
   role: z.enum(['self_identifier', 'outbound_mention']), kind: z.enum(OFFICIAL_REFERENCE_KINDS),
   completeness: z.enum(['complete', 'partial', 'unknown']),
-  namespace: z.string().trim().min(2).max(160).nullable(),
-  raw: z.string().trim().min(1).max(300), display: z.string().trim().min(1).max(300),
+  namespace: sourceText(160, 2).nullable(),
+  raw: sourceText(300), display: sourceText(300),
   components: z.array(officialReferenceComponentSchema).max(16), source_page: z.number().int().positive(),
-  source_quote: z.string().trim().min(1).max(1000), confidence,
+  source_quote: sourceText(1000), confidence,
 }).strict().superRefine((reference, context) => {
-  if (!/[A-Za-z0-9]/.test(reference.raw)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'official reference has no identifier characters' })
+  if (!/[\p{L}\p{N}]/u.test(reference.raw)) context.addIssue({ code: z.ZodIssueCode.custom, message: 'official reference has no identifier characters' })
 })
 
 function normalizeMatterIdentifierNamespaceV1(namespace: string | null) {

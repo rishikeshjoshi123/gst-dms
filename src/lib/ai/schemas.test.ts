@@ -98,6 +98,12 @@ test('official references derive D09-T01 canonical namespace, value, and compone
     raw: 'ＳＣＮ ‐ 001 / 2026', display: 'SCN-001/2026' }] }).official_references[0]
   assert.equal(punctuation.normalized_value, 'SCN-001/2026')
   assert.deepEqual(punctuation.components.segments, ['SCN', '001', '2026'])
+
+  const mixedDigits = aiDocumentPayloadSchema.parse({ ...validDocumentPayload, official_references: [{ ...adversarial,
+    raw: 'ＳＣＮ ‐ ٠٠١ / ２０２６', display: 'SCN-٠٠١/2026' }] }).official_references[0]
+  assert.equal(mixedDigits.normalized_value, 'SCN-٠٠١/2026')
+  assert.deepEqual(mixedDigits.components, { kind: 'notice_reference', segments: ['SCN', '٠٠١', '2026'],
+    prefix: 'SCN', numericCore: '2026', year: '2026' })
 })
 
 test('unknown, partial, and uncatalogued official references are retained but never match eligible', () => {
@@ -132,6 +138,27 @@ test('rejects malformed period/reference structures and transcript fields', () =
   assert.equal(aiDocumentPayloadSchema.safeParse({ ...validDocumentPayload,
     tax_periods: [period('financial_year', 'financial_year', [segment('financial_year', { financial_year: '2023-99' })], 'FY 2023-99', ['2023-99'])] }).success, false)
   assert.equal(aiDocumentPayloadSchema.safeParse({ ...validDocumentPayload, page_text: [] }).success, false)
+})
+
+test('rejects control characters before typed source fields can be normalized or persisted', () => {
+  const reference = validDocumentPayload.official_references[0]
+  const typedReferenceFields = [
+    { ...reference, raw: 'SCN\n001' }, { ...reference, raw: '\nSCN001' }, { ...reference, display: 'SCN\n001' },
+    { ...reference, namespace: 'cbic\ngst' }, { ...reference, source_quote: 'SCN\n001' },
+  ]
+  for (const candidate of typedReferenceFields) {
+    assert.equal(aiDocumentPayloadSchema.safeParse({ ...validDocumentPayload, official_references: [candidate] }).success, false)
+  }
+  const typedPeriodFields = [
+    period('month', 'month', [segment('month', { month: '2020-01' })], 'JAN\n2020', []),
+    { ...period('month', 'month', [segment('month', { month: '2020-01' })], 'JAN 2020', []), display: 'JAN\n2020' },
+    { ...period('month', 'month', [segment('month', { month: '2020-01' })], 'JAN 2020', []), source_quote: 'JAN\n2020' },
+  ]
+  for (const candidate of typedPeriodFields) {
+    assert.equal(aiDocumentPayloadSchema.safeParse({ ...validDocumentPayload, tax_periods: [candidate] }).success, false)
+  }
+  assert.equal(aiDocumentPayloadSchema.safeParse({ ...validDocumentPayload,
+    evidence: [{ field: 'document_type', value: 'SCN\n001', page_number: 1, quote: 'SCN', confidence: 0.9 }] }).success, false)
 })
 
 test('validates the current Case Brief storage contract', () => {

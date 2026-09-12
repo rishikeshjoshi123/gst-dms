@@ -102,6 +102,9 @@ BEGIN
   SELECT coalesce(array_agg(value ORDER BY ordinal),ARRAY[]::text[]) INTO supplied_derived FROM jsonb_array_elements_text(p_value->'derived_financial_years') WITH ORDINALITY AS item(value,ordinal);
   SELECT coalesce(array_agg(value ORDER BY ordinal),ARRAY[]::text[]) INTO printed FROM jsonb_array_elements_text(p_value->'printed_financial_years') WITH ORDINALITY AS item(value,ordinal);
   IF EXISTS (SELECT 1 FROM unnest(derived) value WHERE NOT public.typed_financial_year_is_valid(value))
+    OR EXISTS (SELECT 1 FROM unnest(supplied_financial_years) value WHERE NOT public.typed_financial_year_is_valid(value))
+    OR EXISTS (SELECT 1 FROM unnest(supplied_derived) value WHERE NOT public.typed_financial_year_is_valid(value))
+    OR EXISTS (SELECT 1 FROM unnest(printed) value WHERE NOT public.typed_financial_year_is_valid(value))
     OR supplied_financial_years IS DISTINCT FROM derived OR supplied_derived IS DISTINCT FROM derived THEN RETURN false; END IF;
   SELECT coalesce(array_agg(value ORDER BY value),ARRAY[]::text[]) INTO canonical_printed FROM unnest(printed) value;
   SELECT coalesce(array_agg(value ORDER BY value),ARRAY[]::text[]) INTO canonical_derived FROM unnest(derived) value;
