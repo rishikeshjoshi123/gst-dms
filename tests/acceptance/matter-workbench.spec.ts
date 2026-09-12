@@ -1,8 +1,10 @@
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { expect, test, type Locator, type Page, type Request, type Route } from '@playwright/test'
 
-import { launchChromiumPageZoom } from './chromium-page-zoom'
+import { closeChromiumPageZoom, launchChromiumPageZoom } from './chromium-page-zoom'
 
 const password = 'CaseChain-local-only-2026!'
 const matterId = 'd0010000-0000-0000-0000-000000000001'
@@ -78,6 +80,20 @@ async function expectDesktopGraph(page: Page) {
   await expect(page.getByRole('heading', { name: 'Procedural timeline' })).toBeVisible({ timeout: 15_000 })
   return page.getByLabel('Procedural timeline graph')
 }
+
+test('Chromium page zoom helper cleans failed setup and failed context close', async () => {
+  const zoomRoots = async () => (await readdir(tmpdir()))
+    .filter(name => name.startsWith('casechain-graph-page-zoom-'))
+    .sort()
+  const rootsBeforeInvalidSetup = await zoomRoots()
+  await expect(launchChromiumPageZoom('not a valid URL', { width: 1470, height: 751 })).rejects.toThrow()
+  expect(await zoomRoots()).toEqual(rootsBeforeInvalidSetup)
+
+  const root = await mkdtemp(join(tmpdir(), 'casechain-graph-page-zoom-close-test-'))
+  const closeError = new Error('synthetic context close failure')
+  await expect(closeChromiumPageZoom({ close: async () => { throw closeError } }, root)).rejects.toBe(closeError)
+  await expect(stat(root)).rejects.toMatchObject({ code: 'ENOENT' })
+})
 
 function workbenchPath(documentId: string, versionId: string, page: number) {
   return `/documents/${documentId}?matterId=${matterId}&version=${versionId}&page=${page}`

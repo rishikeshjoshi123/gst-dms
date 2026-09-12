@@ -153,10 +153,57 @@ BEGIN
      OR result.revision <> 1 OR result.replayed THEN
     RAISE EXCEPTION 'governed browser graph relationship activation failed';
   END IF;
+  PERFORM set_config('casechain.acceptance_graph_relationship_id',result.relationship_id::text,true);
 END $graph_relationship$;
 RESET ROLE;
 SELECT set_config('request.jwt.claim.role','',true);
 SELECT set_config('request.jwt.claim.sub','',true);
+DO $graph_relationship_persisted$
+DECLARE
+  expected_relationship_id uuid := current_setting('casechain.acceptance_graph_relationship_id',true)::uuid;
+  persisted_count bigint;
+BEGIN
+  SELECT count(*) INTO persisted_count
+  FROM public.document_relationships AS relationship
+  JOIN public.document_relationship_command_receipts AS receipt
+    ON receipt.relationship_id = relationship.id
+  JOIN public.document_relationship_decisions AS decision
+    ON decision.relationship_id = relationship.id
+  WHERE relationship.id = expected_relationship_id
+    AND relationship.org_id = 'b0010000-0000-0000-0000-000000000001'
+    AND relationship.matter_id = 'd0010000-0000-0000-0000-000000000001'
+    AND relationship.source_document_id = 'e0010000-0000-0000-0000-000000000001'
+    AND relationship.target_document_id = 'e0010000-0000-0000-0000-000000000003'
+    AND relationship.relationship_type = 'issued_pursuant_to'
+    AND relationship.catalogue_version = 1
+    AND relationship.verification = 'human'
+    AND relationship.provenance = 'manual'
+    AND relationship.lifecycle_state = 'active'
+    AND relationship.revision = 1
+    AND relationship.activated_by = 'a0010000-0000-0000-0000-000000000001'
+    AND receipt.org_id = relationship.org_id
+    AND receipt.actor_user_id = relationship.activated_by
+    AND receipt.idempotency_key = 'f8010000-0000-4000-8000-000000000001'
+    AND receipt.command = 'activate'
+    AND receipt.request_fingerprint ~ '^[0-9a-f]{64}$'
+    AND receipt.result_revision = relationship.revision
+    AND receipt.result_code = 'ok'
+    AND decision.org_id = relationship.org_id
+    AND decision.matter_id = relationship.matter_id
+    AND decision.source_document_id = relationship.source_document_id
+    AND decision.target_document_id = relationship.target_document_id
+    AND decision.relationship_type = relationship.relationship_type
+    AND decision.action = 'activate'
+    AND decision.from_lifecycle IS NULL
+    AND decision.to_lifecycle = relationship.lifecycle_state
+    AND decision.reason = 'Synthetic browser graph acceptance'
+    AND decision.actor_user_id = relationship.activated_by
+    AND decision.resulting_revision = relationship.revision
+    AND decision.idempotency_key = receipt.idempotency_key;
+  IF persisted_count <> 1 THEN
+    RAISE EXCEPTION 'governed browser graph persistence invariants failed';
+  END IF;
+END $graph_relationship_persisted$;
 
 INSERT INTO public.documents (id,org_id,matter_id,display_title,document_class,origin_kind,content_availability,status,created_by) VALUES
   ('e0010000-0000-0000-0000-000000000005','b0010000-0000-0000-0000-000000000001','d0020000-0000-4000-8000-000000000001','Final-window retention fixture','proceeding','manual_record','metadata_only','placed','a0010000-0000-0000-0000-000000000001'),
