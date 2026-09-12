@@ -65,10 +65,15 @@ test('rows expose typed terminal states and compact mobile interpretation withou
 
 test('Graph is an isolated desktop-only read presentation with chronology fallback', () => {
   assert.match(active, /route\.timelineView === 'chronology'/)
-  assert.match(active, /readMatterTimelineGraph\(matterId, route\.timelinePage\)/)
+  assert.match(active, /async function loadTimelineGraph\(\) \{[\s\S]*'use server'[\s\S]*return readMatterTimelineGraph\(matterId, route\.timelinePage\)/)
+  assert.doesNotMatch(active, /await readMatterTimelineGraph/)
+  assert.match(active, /loadGraph=\{loadTimelineGraph\}/)
   assert.match(adaptiveSource, /window\.matchMedia\('\(min-width: 1024px\)'\)/)
   assert.match(adaptiveSource, /dynamic\(\(\) => import\('\.\/MatterTimelineGraphCanvas'\)/)
-  assert.match(adaptiveSource, /if \(!desktopCapable\) return props\.chronology/)
+  assert.ok(adaptiveSource.indexOf('if (!shouldRequestMatterTimelineGraph(media.matches, requested)) return') < adaptiveSource.indexOf('await loadGraphRef.current()'))
+  assert.match(adaptiveSource, /if \(!desktopCapable \|\| loading \|\| !graph\)/)
+  assert.match(adaptiveSource, /props\.chronology/)
+  assert.match(adaptiveSource, /graph\.reason === 'capacity'/)
   assert.match(graphSource, /Fit timeline/)
   assert.match(graphSource, /Zoom in/)
   assert.match(graphSource, /Zoom out/)

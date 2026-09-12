@@ -13,8 +13,10 @@ import {
   MATTER_PRIMARY_MOBILE_SECTIONS,
   MATTER_SECONDARY_MOBILE_SECTIONS,
   MATTER_SECTION_IDS,
+  matterTimelineGraphRequestKey,
   parseMatterWorkspaceRoute,
   searchParamEntries,
+  shouldRequestMatterTimelineGraph,
   type MatterSectionId,
 } from './workspace-route'
 import { acceptedSectionSelection } from './workspace-selection'
@@ -22,6 +24,20 @@ import { acceptedSectionSelection } from './workspace-selection'
 const documentId = '00000000-0000-4000-8000-000000000001'
 const defaultFilesPage = { offset: 0, limit: 50 }
 const defaultTimelinePage = { offset: 0, limit: 50, filters: [] }
+
+test('graph projection requests are permitted only for a new desktop-capable view', () => {
+  assert.equal(shouldRequestMatterTimelineGraph(false, false), false)
+  assert.equal(shouldRequestMatterTimelineGraph(false, true), false)
+  assert.equal(shouldRequestMatterTimelineGraph(true, true), false)
+  assert.equal(shouldRequestMatterTimelineGraph(true, false), true)
+})
+
+test('graph request identity is deterministic and collision-free for delimiter-bearing filters', () => {
+  const left = matterTimelineGraphRequestKey('matter', 'revision', ['q:a|b', 'type:c'])
+  const right = matterTimelineGraphRequestKey('matter', 'revision', ['q:a', 'type:b|c'])
+  assert.notEqual(left, right)
+  assert.equal(left, matterTimelineGraphRequestKey('matter', 'revision', ['q:a|b', 'type:c']))
+})
 
 test('uses the fixed canonical order and defaults invalid or omitted sections to Timeline', () => {
   assert.deepEqual(MATTER_SECTION_IDS, [

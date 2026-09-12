@@ -27,6 +27,12 @@ function attention(value: MatterTimelineGraphNodeLayout['document']['attentionSt
   return 'No attention required'
 }
 
+function unavailableSource(value: MatterTimelineGraphNodeLayout['document']['contentAvailability']) {
+  if (value === 'metadata_only') return 'PDF not attached'
+  if (value === 'source_unreadable') return 'Source unreadable'
+  return null
+}
+
 export function matterTimelineNodeAccessibleName(layout: MatterTimelineGraphNodeLayout) {
   const item = layout.document
   return [
@@ -36,7 +42,7 @@ export function matterTimelineNodeAccessibleName(layout: MatterTimelineGraphNode
     readableDate(item.effectiveDate),
     item.direction ? `${item.direction} document` : 'Direction unavailable',
     attention(item.attentionState),
-    item.contentAvailability === 'metadata_only' ? 'PDF not attached' : null,
+    unavailableSource(item.contentAvailability),
     layout.unlinked ? 'Unlinked proceeding' : null,
   ].filter(Boolean).join(', ')
 }
@@ -44,7 +50,7 @@ export function matterTimelineNodeAccessibleName(layout: MatterTimelineGraphNode
 export function MatterTimelineGraphNode({ data }: NodeProps<MatterTimelineFlowNode>) {
   const item = data.layout.document
   const selected = data.selected
-  const statusClass = item.attentionState === 'failed'
+  const statusClass = item.attentionState === 'failed' || item.contentAvailability === 'source_unreadable'
     ? 'border-[var(--danger)]'
     : item.attentionState === 'review'
       ? 'border-[var(--warning)]'
@@ -78,7 +84,7 @@ export function MatterTimelineGraphNode({ data }: NodeProps<MatterTimelineFlowNo
           {data.layout.unlinked ? <span className="shrink-0">Unlinked</span> : null}
         </span>
         <span className="mt-1 block truncate text-[11px] text-[var(--text-secondary)]">
-          {item.contentAvailability === 'metadata_only' ? 'PDF not attached · ' : ''}Effect unavailable
+          {unavailableSource(item.contentAvailability) ? `${unavailableSource(item.contentAvailability)} · ` : ''}Effect unavailable
         </span>
       </MatterTimelineRowLink>
       <Handle type="source" position={Position.Right} isConnectable={false} className="!h-px !w-px !border-0 !bg-transparent !opacity-0" />

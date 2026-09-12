@@ -27,6 +27,14 @@ test('graph nodes have complete accessible names and honest missing-source state
   assert.match(node, /ariaLabel=\{matterTimelineNodeAccessibleName\(data\.layout\)\}/)
   assert.match(node, /isConnectable=\{false\}/)
   assert.doesNotMatch(node, /onConnect|Re-evaluate|delete|gradient|#[0-9a-f]/i)
+
+  const unreadable = {
+    ...layout,
+    document: { ...layout.document, contentAvailability: 'source_unreadable', attentionState: 'none' as const },
+  }
+  assert.match(matterTimelineNodeAccessibleName(unreadable), /Source unreadable/)
+  assert.match(node, /item\.contentAvailability === 'source_unreadable'/)
+  assert.match(node, /unavailableSource\(item\.contentAvailability\)/)
 })
 
 test('graph controls and list alternative use semantic tokens and 44px targets', () => {
@@ -43,10 +51,15 @@ test('graph controls and list alternative use semantic tokens and 44px targets',
 })
 
 test('graph reader composes only secured projections and fails closed at 250', () => {
+  const strictStart = reader.indexOf('async function readMatterTimelineGraphRelationships')
+  const strictBody = reader.slice(strictStart, reader.indexOf('/**', strictStart))
+  assert.match(strictBody, /shapeMatterTimelineGraphRelationshipProjection\(\(data \?\? \[\]\)\[0\]\)/)
+  assert.match(strictBody, /shaped\.outcome !== 'ok'/)
+  assert.match(strictBody, /outcome: 'unavailable', relationships: \[\]/)
   const start = reader.indexOf('export async function readMatterTimelineGraph')
   const body = reader.slice(start, reader.indexOf('/** Files reads', start))
   assert.match(body, /readMatterTimelineChronology/)
-  assert.match(body, /readMatterTimelineRelationships\(matterId, null\)/)
+  assert.match(body, /readMatterTimelineGraphRelationships\(matterId\)/)
   assert.match(body, /first\.total > 250/)
   assert.match(body, /page\.sourceRevision !== first\.sourceRevision/)
   assert.doesNotMatch(body, /\.from\(|document_links|document_relationship_candidates|raw_metadata/)

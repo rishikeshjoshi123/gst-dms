@@ -15,7 +15,7 @@ import {
 import { createMatterTimelineSnapshotPage, shapeMatterTimelineSnapshotMetadata } from '@/lib/matters/workspace-timeline-page'
 import { acceptedSectionSelection } from '@/lib/matters/workspace-selection'
 import type { MatterWorkspaceRouteState } from '@/lib/matters/workspace-route'
-import { buildMatterTimelineViewHref } from '@/lib/matters/workspace-route'
+import { buildMatterTimelineViewHref, matterTimelineGraphRequestKey } from '@/lib/matters/workspace-route'
 import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
 import { getExactMatter } from '@/lib/trash/exact-resource'
 import { CaseWikiTab } from './CaseWikiTab'
@@ -77,47 +77,26 @@ async function TimelineSection({
     return <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">{chronology}</div>
   }
 
-  const graph = await readMatterTimelineGraph(matterId, route.timelinePage)
-  if (graph.outcome !== 'ok' || !graph.layout) {
-    const fallbackMessage = graph.reason === 'capacity'
-      ? 'This matter has more than 250 matching proceedings. Narrow the filters to use Graph.'
-      : 'The graph could not be prepared. The authoritative chronology remains available.'
-    return (
-      <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">
-        <MatterTimelineChronology
-          matterId={matterId}
-          page={page}
-          selectionUnavailable={route.selectionRequested && !page.selected}
-          queryEntries={queryEntries}
-          filters={route.timelinePage.filters}
-          inspector={route.inspector}
-          notePreview={notePreview}
-          relationshipProjection={relationshipProjection}
-          graphAvailable={false}
-          fallbackMessage={fallbackMessage}
-        />
-      </div>
-    )
+  async function loadTimelineGraph() {
+    'use server'
+    return readMatterTimelineGraph(matterId, route.timelinePage)
   }
 
   const inspectorPanel = page.selected ? (
     <MatterTimelineInspector matterId={matterId} selected={page.selected} queryEntries={queryEntries} inspector={route.inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} />
   ) : null
-  const countLabel = graph.total === graph.unfilteredTotal
-    ? `${graph.total} proceeding${graph.total === 1 ? '' : 's'}`
-    : `Showing ${graph.total} of ${graph.unfilteredTotal} proceedings`
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">
       <MatterTimelineAdaptiveGraph
         matterId={matterId}
-        layout={graph.layout}
+        loadGraph={loadTimelineGraph}
+        graphRequestKey={matterTimelineGraphRequestKey(matterId, page.sourceRevision, route.timelinePage.filters)}
         selectedDocumentId={page.selected?.id ?? null}
         queryEntries={queryEntries}
         chronologyHref={buildMatterTimelineViewHref(matterId, queryEntries, 'chronology')}
         inspector={inspectorPanel}
         chronology={chronology}
-        filteredCountLabel={countLabel}
         filters={route.timelinePage.filters}
       />
     </div>

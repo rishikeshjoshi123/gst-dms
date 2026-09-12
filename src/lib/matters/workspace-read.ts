@@ -21,6 +21,7 @@ import {
 } from './workspace-timeline-page'
 import {
   layoutMatterTimelineGraph,
+  shapeMatterTimelineGraphRelationshipProjection,
   type MatterTimelineGraphLayout,
 } from './matter-timeline-graph-layout'
 
@@ -289,6 +290,28 @@ export async function readMatterTimelineRelationships(
   }
 }
 
+async function readMatterTimelineGraphRelationships(
+  matterId: string,
+): Promise<MatterTimelineRelationshipProjection> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('read_matter_timeline_relationships', {
+    p_matter_id: matterId,
+    p_selected_document_id: undefined,
+  })
+  if (error) throw new Error('Unable to load timeline graph relationships.')
+  const shaped = shapeMatterTimelineGraphRelationshipProjection((data ?? [])[0])
+  if (shaped.outcome !== 'ok') {
+    return {
+      outcome: 'unavailable', relationships: [], sourceRevision: null,
+      fetchedAt: new Date().toISOString(),
+    }
+  }
+  return {
+    outcome: 'ok', relationships: shaped.relationships, sourceRevision: shaped.sourceRevision,
+    fetchedAt: shaped.fetchedAt,
+  }
+}
+
 /**
  * The graph composes only the two secured projections. It never queries
  * relationship tables, legacy links, candidates, or document metadata itself.
@@ -319,7 +342,7 @@ export async function readMatterTimelineGraph(
         matterId,
         { ...normalized, offset, limit: 100 },
       ))),
-      readMatterTimelineRelationships(matterId, null),
+      readMatterTimelineGraphRelationships(matterId),
     ])
     if (relationships.outcome !== 'ok') return unavailable('read')
     const pages = [first, ...remaining]

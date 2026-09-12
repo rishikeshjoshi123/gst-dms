@@ -67,6 +67,18 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const INSPECTOR_VIEWS = new Set<MatterInspectorView>(['overview', 'relationships', 'notes'])
 const TIMELINE_VIEWS = new Set<MatterTimelineView>(['graph', 'chronology'])
 
+export function shouldRequestMatterTimelineGraph(desktopCapable: boolean, alreadyRequested: boolean) {
+  return desktopCapable && !alreadyRequested
+}
+
+export function matterTimelineGraphRequestKey(
+  matterId: string,
+  sourceRevision: string | null,
+  filters: readonly string[],
+) {
+  return JSON.stringify([matterId, sourceRevision, filters])
+}
+
 function scalar(value: string | string[] | undefined) {
   return typeof value === 'string' ? value : undefined
 }

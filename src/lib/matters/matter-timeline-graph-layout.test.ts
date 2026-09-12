@@ -5,6 +5,8 @@ import {
   layoutMatterTimelineGraph,
   MATTER_TIMELINE_NODE_HEIGHT,
   MATTER_TIMELINE_NODE_WIDTH,
+  shapeMatterTimelineGraphRelationshipProjection,
+  shapeMatterTimelineGraphRelationships,
 } from './matter-timeline-graph-layout'
 import type { MatterTimelineChronologyItem, MatterTimelineRelationship } from './workspace-timeline-page'
 
@@ -75,6 +77,56 @@ test('branch, merge, disconnected, undated and same-day peers are stable and non
   assert.ok((first.nodes.find((node) => node.id === 'disconnected')?.position.x ?? Infinity)
     < (first.nodes.find((node) => node.id === 'undated')?.position.x ?? -Infinity))
   assert.equal(first.nodes.find((node) => node.id === 'disconnected')?.unlinked, true)
+})
+
+test('same-rank siblings keep effective-date then ID visual order after Dagre', () => {
+  const documents = [
+    document('root', '2026-01-01'),
+    document('jan-04', '2026-01-04'),
+    document('jan-02-b', '2026-01-02'),
+    document('jan-03', '2026-01-03'),
+    document('jan-02-a', '2026-01-02'),
+  ]
+  const relationships = documents.slice(1).map((item, index) => relationship(
+    `rank-${index}`,
+    item.id,
+    'root',
+  ))
+  const layout = layoutMatterTimelineGraph(documents, relationships)
+  const siblings = layout.nodes
+    .filter((node) => node.id !== 'root')
+    .sort((left, right) => left.position.y - right.position.y)
+  assert.deepEqual(siblings.map((node) => node.id), ['jan-02-a', 'jan-02-b', 'jan-03', 'jan-04'])
+  assert.equal(new Set(siblings.map((node) => node.position.x)).size, 1)
+  assertNoOverlap(layout.nodes)
+})
+
+test('strict graph relationship shaping rejects a partially malformed secured projection', () => {
+  const valid = relationship('valid', 'reply', 'notice')
+  assert.deepEqual(shapeMatterTimelineGraphRelationships([valid]), { outcome: 'ok', relationships: [valid] })
+  assert.deepEqual(shapeMatterTimelineGraphRelationships([valid, { ...valid, id: null }]), { outcome: 'unavailable', relationships: [] })
+  assert.deepEqual(shapeMatterTimelineGraphRelationships([valid, valid]), { outcome: 'unavailable', relationships: [] })
+  assert.deepEqual(shapeMatterTimelineGraphRelationships({ relationships: [valid] }), { outcome: 'unavailable', relationships: [] })
+})
+
+test('strict graph projection rejects invalid successful-row revision and fetch metadata', () => {
+  const valid = relationship('valid', 'reply', 'notice')
+  const row = {
+    outcome: 'ok', relationships: [valid], source_revision: 'revision', fetched_at: '2026-09-12T00:00:00.000Z',
+  }
+  assert.deepEqual(shapeMatterTimelineGraphRelationshipProjection(row), {
+    outcome: 'ok', relationships: [valid], sourceRevision: 'revision', fetchedAt: '2026-09-12T00:00:00.000Z',
+  })
+  for (const malformed of [
+    { ...row, source_revision: undefined },
+    { ...row, source_revision: 7 },
+    { ...row, fetched_at: undefined },
+    { ...row, fetched_at: null },
+  ]) {
+    assert.deepEqual(shapeMatterTimelineGraphRelationshipProjection(malformed), {
+      outcome: 'unavailable', relationships: [], sourceRevision: null, fetchedAt: null,
+    })
+  }
 })
 
 test('multiple effective types are one progression edge with the catalogue-first phrase and full list', () => {
