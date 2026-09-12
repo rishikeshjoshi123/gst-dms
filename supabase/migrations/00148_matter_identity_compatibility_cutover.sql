@@ -93,7 +93,7 @@ BEGIN
     SELECT 1
     FROM public.matters AS matter
     WHERE matter.org_id = NEW.org_id
-      AND matter.matter_code LIKE v_prefix || '%'
+      AND left(matter.matter_code, length(v_prefix)) = v_prefix
       AND substring(matter.matter_code FROM length(v_prefix) + 1) !~ '^[0-9]+$'
   ) THEN
     RAISE EXCEPTION 'Matter code sequence is malformed for organisation prefix'
@@ -104,14 +104,15 @@ BEGIN
   INTO v_maximum_sequence
   FROM public.matters AS matter
   WHERE matter.org_id = NEW.org_id
-    AND matter.matter_code LIKE v_prefix || '%';
+    AND left(matter.matter_code, length(v_prefix)) = v_prefix;
 
   IF v_maximum_sequence IS NOT NULL AND v_maximum_sequence >= 999999999999999999::numeric THEN
     RAISE EXCEPTION 'Matter code sequence is exhausted for organisation prefix'
       USING ERRCODE = '23505';
   END IF;
   v_sequence := coalesce(v_maximum_sequence, 0) + 1;
-  v_candidate := v_prefix || lpad(v_sequence::text, 2, '0');
+  v_candidate := v_prefix
+    || lpad(v_sequence::text, greatest(length(v_sequence::text), 2), '0');
 
   NEW.matter_code := v_candidate;
   RETURN NEW;

@@ -552,6 +552,75 @@ BEGIN
   END IF;
 END $denial_atomicity$;
 
+-- Sequence formatting is a minimum width, not a maximum width. A held suffix
+-- 10 must not collide when the maximum retained suffix advances 99 to 100.
+SAVEPOINT three_digit_sequence_probe;
+INSERT INTO public.matters(org_id,client_id,title,financial_year,matter_code) VALUES
+  (
+    'b1480000-0000-0000-0000-000000000001',
+    'c1480000-0000-0000-0000-000000000001',
+    'Held two-digit sequence probe','2026-27','CMP-2627-10'
+  ),
+  (
+    'b1480000-0000-0000-0000-000000000001',
+    'c1480000-0000-0000-0000-000000000001',
+    'Held ninety-nine sequence probe','2026-27','CMP-2627-99'
+  );
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','a1480000-0000-0000-0000-000000000001',true);
+DO $three_digit_sequence_is_not_truncated$
+DECLARE result record;
+BEGIN
+  SELECT * INTO result FROM public.create_matter_command(
+    'c1480000-0000-0000-0000-000000000001','Three-digit sequence allocation','2026-27','',
+    'active'::public.matter_work_state,'adjudication'::public.matter_current_forum,
+    '14800000-0000-0000-0000-000000000033');
+  IF result.code<>'ok'
+     OR result.matter_id IS NULL
+     OR (SELECT matter_code FROM public.matters WHERE id=result.matter_id)<>'CMP-2627-100' THEN
+    RAISE EXCEPTION '99 to 100 allocation truncated or falsely collided: %',result.code;
+  END IF;
+END $three_digit_sequence_is_not_truncated$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT three_digit_sequence_probe;
+
+-- The legacy abbreviation deliberately permits underscore. It must be
+-- compared literally: BC_ cannot scan numeric or malformed BCX codes.
+SAVEPOINT underscore_prefix_isolation_probe;
+INSERT INTO public.clients(id,org_id,name) VALUES(
+  'c1480000-0000-0000-0000-000000000003',
+  'b1480000-0000-0000-0000-000000000001',
+  'BC_'
+);
+INSERT INTO public.matters(org_id,client_id,title,financial_year,matter_code) VALUES
+  (
+    'b1480000-0000-0000-0000-000000000001',
+    'c1480000-0000-0000-0000-000000000001',
+    'Alphanumeric-prefix numeric decoy','2026-27','BCX-2627-77'
+  ),
+  (
+    'b1480000-0000-0000-0000-000000000001',
+    'c1480000-0000-0000-0000-000000000001',
+    'Alphanumeric-prefix malformed decoy','2026-27','BCX-2627-BAD'
+  );
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','a1480000-0000-0000-0000-000000000001',true);
+DO $underscore_prefix_is_literal$
+DECLARE result record;
+BEGIN
+  SELECT * INTO result FROM public.create_matter_command(
+    'c1480000-0000-0000-0000-000000000003','Underscore prefix allocation','2026-27','',
+    'active'::public.matter_work_state,'adjudication'::public.matter_current_forum,
+    '14800000-0000-0000-0000-000000000034');
+  IF result.code<>'ok'
+     OR result.matter_id IS NULL
+     OR (SELECT matter_code FROM public.matters WHERE id=result.matter_id)<>'BC_-2627-01' THEN
+    RAISE EXCEPTION 'underscore abbreviation scanned an alphanumeric decoy prefix: %',result.code;
+  END IF;
+END $underscore_prefix_is_literal$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT underscore_prefix_isolation_probe;
+
 SAVEPOINT malformed_sequence_probe;
 INSERT INTO public.matters(org_id,client_id,title,financial_year,matter_code)
 VALUES(
