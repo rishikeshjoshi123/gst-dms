@@ -47,6 +47,7 @@ test('graph controls and list alternative use semantic tokens and 44px targets',
   assert.match(canvas, /color="var\(--border-subtle\)"/)
   assert.match(canvas, /gap=\{24\}/)
   assert.match(canvas, /deleteKeyCode=\{null\}/)
+  assert.match(canvas, /MatterTimelineFocusCommit selectedDocumentId=\{selectedDocumentId\} matterId=\{matterId\} snapshot=\{topology\}/)
   assert.doesNotMatch(canvas, /#[0-9a-f]{3,8}|linear-gradient|MiniMap|animated:/i)
 })
 

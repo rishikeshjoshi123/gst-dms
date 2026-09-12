@@ -133,6 +133,31 @@ WHERE id IN (
   'e0010000-0000-0000-0000-000000000004'
 );
 
+-- Seed the browser graph through the authenticated governed command. The
+-- source received revision 2 when its current version was attached above;
+-- the metadata-only target remains revision 1.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.role','authenticated',true);
+SELECT set_config('request.jwt.claim.sub','a0010000-0000-0000-0000-000000000001',true);
+DO $graph_relationship$
+DECLARE result record;
+BEGIN
+  SELECT * INTO result FROM public.activate_document_relationship(
+    'd0010000-0000-0000-0000-000000000001',
+    'e0010000-0000-0000-0000-000000000001',
+    'e0010000-0000-0000-0000-000000000003',
+    'issued_pursuant_to',2,1,'Synthetic browser graph acceptance',
+    'f8010000-0000-4000-8000-000000000001'
+  );
+  IF result.code <> 'ok' OR result.relationship_id IS NULL
+     OR result.revision <> 1 OR result.replayed THEN
+    RAISE EXCEPTION 'governed browser graph relationship activation failed';
+  END IF;
+END $graph_relationship$;
+RESET ROLE;
+SELECT set_config('request.jwt.claim.role','',true);
+SELECT set_config('request.jwt.claim.sub','',true);
+
 INSERT INTO public.documents (id,org_id,matter_id,display_title,document_class,origin_kind,content_availability,status,created_by) VALUES
   ('e0010000-0000-0000-0000-000000000005','b0010000-0000-0000-0000-000000000001','d0020000-0000-4000-8000-000000000001','Final-window retention fixture','proceeding','manual_record','metadata_only','placed','a0010000-0000-0000-0000-000000000001'),
   ('e0010000-0000-0000-0000-000000000006','b0010000-0000-0000-0000-000000000001','d0020000-0000-4000-8000-000000000001','Blocked retention fixture','proceeding','manual_record','metadata_only','placed','a0010000-0000-0000-0000-000000000001');

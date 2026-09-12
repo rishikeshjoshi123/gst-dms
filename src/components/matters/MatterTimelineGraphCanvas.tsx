@@ -21,6 +21,7 @@ import {
   buildMatterDocumentSelectionHref,
   buildMatterRelationshipSelectionHref,
 } from '@/lib/matters/workspace-route'
+import { MatterTimelineFocusCommit } from './MatterTimelineFocusBridge'
 import { MatterTimelineGraphNode, type MatterTimelineFlowNode } from './MatterTimelineGraphNode'
 import { MatterTimelineFilters } from './MatterTimelineFilters'
 
@@ -151,6 +152,7 @@ export default function MatterTimelineGraphCanvas({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2 lg:pt-3">
+      <MatterTimelineFocusCommit selectedDocumentId={selectedDocumentId} matterId={matterId} snapshot={topology} />
       <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2">
         <div>
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Procedural timeline</h2>

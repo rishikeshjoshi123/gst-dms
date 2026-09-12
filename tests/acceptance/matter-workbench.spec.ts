@@ -1,6 +1,8 @@
 import { readFile, rm, writeFile } from 'node:fs/promises'
 
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test, type Locator, type Page, type Request, type Route } from '@playwright/test'
+
+import { launchChromiumPageZoom } from './chromium-page-zoom'
 
 const password = 'CaseChain-local-only-2026!'
 const matterId = 'd0010000-0000-0000-0000-000000000001'
@@ -10,6 +12,8 @@ const sourceDocumentId = 'e0010000-0000-0000-0000-000000000001'
 const sourceVersionId = 'f1010000-0000-0000-0000-000000000001'
 const missingDocumentId = 'e0010000-0000-0000-0000-000000000004'
 const missingVersionId = 'f1010000-0000-0000-0000-000000000002'
+const graphSourceDocumentId = 'e0010000-0000-0000-0000-000000000001'
+const graphTargetDocumentId = 'e0010000-0000-0000-0000-000000000003'
 const sourcePdfPath = 'tests/acceptance/fixtures/synthetic-multi-page.pdf'
 const completionFileName = 'acceptance-browser-complete.pdf'
 const cancellationFileName = 'acceptance-browser-cancel.pdf'
@@ -56,6 +60,23 @@ async function expectMinimumTarget(locator: Locator) {
   })
   expect(Math.max(box?.width ?? 0, pseudo.width || 0)).toBeGreaterThanOrEqual(43.9)
   expect(Math.max(box?.height ?? 0, pseudo.height || 0)).toBeGreaterThanOrEqual(43.9)
+}
+
+function observeServerActions(page: Page) {
+  const requests: Request[] = []
+  const listener = (request: Request) => {
+    if (request.method() === 'POST' && request.headers()['next-action']) requests.push(request)
+  }
+  page.on('request', listener)
+  return {
+    count: () => requests.length,
+    stop: () => page.off('request', listener),
+  }
+}
+
+async function expectDesktopGraph(page: Page) {
+  await expect(page.getByRole('heading', { name: 'Procedural timeline' })).toBeVisible({ timeout: 15_000 })
+  return page.getByLabel('Procedural timeline graph')
 }
 
 function workbenchPath(documentId: string, versionId: string, page: number) {
@@ -124,6 +145,177 @@ test('Matter chronology filters restore across browser Back and Forward', async 
   await page.getByRole('link', { name: 'Back to Matter' }).click()
   await expect(page).toHaveURL(new RegExp(`/matters/${matterId}.*document=${sourceDocumentId}`))
   await expect(page.getByRole('complementary', { name: 'Selected proceeding' })).toBeVisible()
+})
+
+test('Matter graph renders the governed relationship with accessible keyboard and pane behavior', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await login(page)
+
+  const graphStartedAt = performance.now()
+  await page.goto(`/matters/${matterId}?section=timeline&view=graph`)
+  const graph = await expectDesktopGraph(page)
+  const graphReadyMs = Math.round(performance.now() - graphStartedAt)
+  console.log(`[local graph timing] cold route-to-graph ${graphReadyMs}ms`)
+  expect(graphReadyMs).toBeLessThan(15_000)
+
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+  await expect(page.getByText('Unlinked lane · 1 proceeding', { exact: true })).toBeVisible()
+  await expect(page.locator('.react-flow__node')).toHaveCount(3)
+  const nodeGeometry = await page.locator('.react-flow__node').evaluateAll(nodes => nodes.map(node => {
+    const box = node.getBoundingClientRect()
+    return { width: box.width, height: box.height }
+  }))
+  for (const box of nodeGeometry) {
+    expect(box.width).toBeCloseTo(184, 1)
+    expect(box.height).toBeCloseTo(120, 1)
+  }
+  await expect(page.locator(`[id="matter-timeline-row-${missingDocumentId}"]`).locator('..')).toHaveAttribute('data-unlinked', 'true')
+  await expectNoPageHorizontalOverflow(page)
+  await expect(page.locator('#matter-section-body')).toHaveCSS('overflow-y', 'hidden')
+  await expect(graph).toHaveCSS('overflow-x', 'hidden')
+  await expect.poll(() => page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true)
+  const animationNames = await graph.locator('.react-flow__node, .react-flow__edge').evaluateAll(elements => (
+    elements.map(element => getComputedStyle(element).animationName)
+  ))
+  expect(animationNames.every(name => name === 'none')).toBe(true)
+
+  const orderNode = page.getByRole('link', { name: /Order in Original/ })
+  const interactionStartedAt = performance.now()
+  await orderNode.focus()
+  await orderNode.press('Enter')
+  const inspector = page.getByRole('complementary', { name: 'Selected proceeding' })
+  await expect(inspector).toBeVisible()
+  const interactionMs = Math.round(performance.now() - interactionStartedAt)
+  console.log(`[local graph timing] keyboard-node-to-inspector ${interactionMs}ms`)
+  expect(interactionMs).toBeLessThan(4_000)
+  await expect(page).toHaveURL(new RegExp(`document=${graphSourceDocumentId}`))
+  const inspectorScroller = inspector.locator('.custom-scrollbar')
+  await expect(inspectorScroller).toHaveCSS('overflow-y', 'auto')
+  const inspectorHeadingTop = (await inspector.getByText('Selected proceeding', { exact: true }).boundingBox())?.y
+  const inspectorScroll = await inspectorScroller.evaluate(element => {
+    element.scrollTop = element.scrollHeight
+    return { clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, scrollTop: element.scrollTop }
+  })
+  expect(inspectorScroll.scrollHeight).toBeGreaterThan(inspectorScroll.clientHeight)
+  expect(inspectorScroll.scrollTop).toBeGreaterThan(0)
+  expect(Math.abs(((await inspector.getByText('Selected proceeding', { exact: true }).boundingBox())?.y ?? 0) - (inspectorHeadingTop ?? 0))).toBeLessThan(1)
+  await inspector.getByRole('link', { name: 'Close' }).click()
+  await expect(inspector).toHaveCount(0)
+  await expect(orderNode).toBeFocused()
+
+  const relationshipSummary = page.locator('summary').filter({ hasText: 'Relationship list (1)' })
+  await relationshipSummary.focus()
+  await relationshipSummary.press('Enter')
+  const relationshipList = page.getByRole('list', { name: 'Timeline relationships' })
+  const relationshipLink = relationshipList.getByRole('link', { name: /Order in Original is issued pursuant to Reply to Show Cause Notice/ })
+  await expect(relationshipLink).toBeVisible()
+  await relationshipLink.press('Enter')
+  await expect(inspector).toBeVisible()
+  await expect(inspector).toContainText('Order in Original is issued pursuant to Reply to Show Cause Notice.')
+  await expect(inspector).toContainText('Reply to Show Cause Notice results in Order in Original.')
+
+  const theme = page.getByRole('button', { name: 'Toggle color theme' })
+  await theme.click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+})
+
+test('Matter graph filter and view state survive Back and Forward without reconnecting a hidden endpoint', async ({ page }) => {
+  test.setTimeout(60_000)
+  await login(page)
+  await page.goto(`/matters/${matterId}?section=timeline&view=graph`)
+  const graph = await expectDesktopGraph(page)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Chronology' }).click()
+  await expect(page.getByRole('heading', { name: 'Chronology' })).toBeVisible()
+  await expect(page).toHaveURL(/view=chronology/)
+  await page.getByRole('link', { name: 'Graph' }).click()
+  await expectDesktopGraph(page)
+  await expect(page).toHaveURL(/view=graph/)
+
+  await page.getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByLabel('Title or reference').fill('Reply to Show Cause Notice')
+  await page.getByRole('button', { name: 'Apply filters' }).click()
+  await expectDesktopGraph(page)
+  await expect(page.getByText('Showing 1 of 3 proceedings', { exact: true })).toBeVisible()
+  await expect(page.locator('.react-flow__node')).toHaveCount(1)
+  await expect(page.locator(`#matter-timeline-row-${graphTargetDocumentId}`)).toBeVisible()
+  await expect(graph.getByText('results in', { exact: true })).toHaveCount(0)
+  await expect(page.locator('summary').filter({ hasText: 'Relationship list (0)' })).toBeVisible()
+
+  await page.goBack()
+  await expectDesktopGraph(page)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+  await expect(page.locator('.react-flow__node')).toHaveCount(3)
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'Chronology' })).toBeVisible()
+  await expect(page).toHaveURL(/view=chronology/)
+  await page.goForward()
+  await expectDesktopGraph(page)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+  await page.goForward()
+  await expectDesktopGraph(page)
+  await expect(page.locator('.react-flow__node')).toHaveCount(1)
+  await expect(graph.getByText('results in', { exact: true })).toHaveCount(0)
+})
+
+test('constrained Timeline avoids graph requests, Viewer can read it, and Chromium 200% page zoom reflows to chronology', async ({ page, baseURL }) => {
+  test.setTimeout(90_000)
+  await page.setViewportSize({ width: 320, height: 480 })
+  await login(page)
+  const actions = observeServerActions(page)
+  await page.goto(`/matters/${matterId}?section=timeline&view=graph`)
+  await expect(page.getByRole('heading', { name: 'Chronology' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Procedural timeline' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Graph' })).toHaveCount(0)
+  await page.waitForTimeout(750)
+  expect(actions.count()).toBe(0)
+  await expectNoPageHorizontalOverflow(page)
+
+  await page.setViewportSize({ width: 900, height: 751 })
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Chronology' })).toBeVisible()
+  await page.waitForTimeout(750)
+  expect(actions.count()).toBe(0)
+  await expectNoPageHorizontalOverflow(page)
+  actions.stop()
+
+  await page.context().clearCookies()
+  await page.setViewportSize({ width: 1470, height: 751 })
+  await login(page, 'viewer@acceptance.test')
+  await page.goto(`/matters/${matterId}?section=timeline&view=graph`)
+  const graph = await expectDesktopGraph(page)
+  await expect(graph.getByText('results in', { exact: true })).toBeVisible()
+
+  const zoomBrowser = await launchChromiumPageZoom(baseURL ?? 'http://127.0.0.1:3100', { width: 1470, height: 751 })
+  try {
+    await login(zoomBrowser.page, 'viewer@acceptance.test')
+    await zoomBrowser.page.goto(`/matters/${matterId}?section=timeline&view=graph`)
+    await expectDesktopGraph(zoomBrowser.page)
+    const beforeZoom = await zoomBrowser.page.evaluate(() => ({
+      devicePixelRatio,
+      innerWidth,
+      visualScale: window.visualViewport?.scale ?? null,
+    }))
+    await zoomBrowser.setZoom(2)
+    await expect.poll(() => zoomBrowser.page.evaluate(() => window.innerWidth), { timeout: 5_000 }).toBeLessThan(1024)
+    const afterZoom = await zoomBrowser.page.evaluate(() => ({
+      devicePixelRatio,
+      innerWidth,
+      visualScale: window.visualViewport?.scale ?? null,
+    }))
+    console.log(`[local graph timing] Chromium 200% page zoom innerWidth ${beforeZoom.innerWidth}px -> ${afterZoom.innerWidth}px`)
+    expect(afterZoom.devicePixelRatio).toBeCloseTo(beforeZoom.devicePixelRatio * 2, 5)
+    expect(afterZoom.visualScale).toBe(beforeZoom.visualScale)
+    await expect(zoomBrowser.page.getByRole('heading', { name: 'Chronology' })).toBeVisible()
+    await expect(zoomBrowser.page.getByRole('heading', { name: 'Procedural timeline' })).toHaveCount(0)
+    await expectNoPageHorizontalOverflow(zoomBrowser.page)
+  } finally {
+    await zoomBrowser.close()
+  }
 })
 
 test('Team owner sees suspended members and authorised emails', async ({ page }) => {
