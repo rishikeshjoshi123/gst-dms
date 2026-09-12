@@ -12,7 +12,7 @@ export function restoreBlockerMessage(preflight: TrashRestorePreflight) {
     case 'client_identifier_conflict':
       return 'An active client now uses the same GSTIN or PAN. An Owner or Admin must resolve that conflict before restoring this group.'
     case 'matter_identifier_conflict':
-      return 'An active matter now uses the same matter code or client financial-year slot. Resolve that conflict before restoring this group.'
+      return 'An active matter now uses the same matter code or verified external identifier. Resolve that conflict before restoring this group.'
     case 'document_content_conflict':
       return 'The same document content is already attached to another active record. Resolve that duplicate before restoring this group.'
     case 'uniqueness_conflict':

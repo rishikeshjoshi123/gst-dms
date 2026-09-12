@@ -216,7 +216,7 @@ export async function createMatter(formData: FormData) {
       invalid_request: 'Check the matter title, financial year, and description.',
       not_allowed: 'You do not have permission to create matters.',
       context_unavailable: 'The selected client is no longer active.',
-      identifier_conflict: 'An active matter already uses this client and financial year, or its code conflicted. Choose another year or try again.',
+      identifier_conflict: 'A matter code could not be allocated safely. Please try again or ask an administrator to review existing codes.',
       idempotency_conflict: 'This submission key was already used for another request.',
     }
     return { error: messages[result?.code ?? ''] ?? 'Failed to create matter.' }

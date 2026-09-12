@@ -14,6 +14,12 @@ test('restore blockers use safe, actionable, non-record-disclosing language', ()
   assert.doesNotMatch(restoreBlockerMessage({
     status: 'restore_blocked', canRestore: false, blockerCode: 'uniqueness_conflict', blockingOperationId: null,
   }), /[0-9a-f]{8}-[0-9a-f]{4}/i)
+  assert.match(restoreBlockerMessage({
+    status: 'restore_blocked', canRestore: false, blockerCode: 'matter_identifier_conflict', blockingOperationId: null,
+  }), /matter code or verified external identifier/)
+  assert.doesNotMatch(restoreBlockerMessage({
+    status: 'restore_blocked', canRestore: false, blockerCode: 'matter_identifier_conflict', blockingOperationId: null,
+  }), /financial-year|client.*year/i)
 })
 
 test('production callers use the typed Server Action and expose no permanent-delete control', () => {

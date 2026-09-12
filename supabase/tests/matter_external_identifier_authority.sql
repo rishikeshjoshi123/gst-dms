@@ -74,9 +74,10 @@ BEGIN
   IF (SELECT count(*) FROM public.matter_identifier_kind_catalogue WHERE catalogue_version=1)<>6
      OR (SELECT count(*) FROM public.matter_identifier_kind_catalogue WHERE identity_eligible AND NOT suggestion_only)<>5
      OR NOT EXISTS(SELECT 1 FROM public.matter_identifier_kind_catalogue WHERE identifier_kind='other_official_reference' AND suggestion_only AND NOT identity_eligible)
-     OR to_regclass('public.idx_matters_unique_client_fy') IS NULL
+     OR to_regclass('public.idx_matters_unique_client_fy') IS NOT NULL
+     OR to_regclass('public.matters_active_client_financial_year_lookup_idx') IS NULL
      OR to_regclass('public.matters_org_matter_code_unique') IS NULL THEN
-    RAISE EXCEPTION 'catalogue or retained Matter uniqueness contract failed';
+    RAISE EXCEPTION 'catalogue or Matter identity cutover contract failed';
   END IF;
   SELECT normalized_value,normalized_components INTO a,components FROM public.normalize_matter_identifier_value_v1('proceeding_case_id',' gst / 001 / 2026 ');
   SELECT normalized_value INTO b FROM public.normalize_matter_identifier_value_v1('proceeding_case_id','GST/001/2026');

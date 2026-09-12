@@ -60,7 +60,7 @@ export function normalizeFY(raw: string | null | undefined): string {
  */
 export function normalizeGSTIN(raw: string | null | undefined): string | null {
   if (!raw) return null
-  let s = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const s = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (s.length !== 15) return null
   // Fix OCR-common 'O'→'0' in state code (first 2 chars should be digits)
   const stateCode = s.substring(0, 2).replace(/O/g, '0')
@@ -144,7 +144,7 @@ export interface MatterAssignment {
   /** 0–1 confidence of the match */
   confidence: number
   /** How this assignment was determined */
-  method: 'reference_match' | 'pending_link_match' | 'client_fy_match' | 'auto_created'
+  method: 'reference_match' | 'pending_link_match'
   /**
    * null = couldn't verify (client_identifiers missing) — assign but mark review_status = 'unreviewed'
    * true = verified — assign confidently
@@ -162,6 +162,25 @@ export interface AssignmentSuggestion {
 export type AssignmentResult =
   | { type: 'auto_assign'; assignments: MatterAssignment[] }
   | { type: 'ready_to_assign'; reason: string; suggestions: AssignmentSuggestion[] }
+
+type ActiveMatterRelation = {
+  id: string
+  client_id: string
+  deleted_at?: string | null
+  clients?: { deleted_at?: string | null }
+}
+
+type ActiveDocumentRelation = {
+  matter_id: string
+  org_id?: string
+  deleted_at?: string | null
+  matters?: ActiveMatterRelation | null
+}
+
+type FuzzyReferenceMatch = {
+  matter_id: string
+  sim_score: number | null
+}
 
 // ── Client Resolution (shared helper) ────────────────────────────────────────
 
@@ -272,7 +291,7 @@ function crossVerifyClient(
  * Determines which matter(s) a document should be assigned to.
  *
  * Returns either:
- *  - auto_assign: list of MatterAssignment objects (only one FY is eligible)
+ *  - auto_assign: list of MatterAssignment objects backed by exact references
  *  - ready_to_assign: reason + suggestions for the manual UI
  */
 export async function resolveDocumentAssignment(
@@ -281,21 +300,11 @@ export async function resolveDocumentAssignment(
   orgId: string,
   metadata: EffectiveDocumentAssignmentMetadata
 ): Promise<AssignmentResult> {
-  const suggestions: AssignmentSuggestion[] = []
-
   const fys = [...new Set(
     metadata.financialYears
       .map(normalizeFY)
       .filter(fy => fy !== 'Unknown FY' && /^\d{4}-\d{2}$/.test(fy))
   )]
-
-  if (fys.length > 1) {
-    return {
-      type: 'ready_to_assign',
-      reason: `Document spans multiple financial years (${fys.join(', ')}). Please assign manually.`,
-      suggestions: [],
-    }
-  }
 
   // ── Phase A: Reference-Based Matter Discovery ──────────────────────────────
 
@@ -320,9 +329,9 @@ export async function resolveDocumentAssignment(
       .is('deleted_at', null)
 
     if (exactDocs && exactDocs.length > 0) {
-      const activeDocs = exactDocs.filter(d => isDocumentActive(d as any))
+      const activeDocs = exactDocs.filter(d => isDocumentActive(d as unknown as ActiveDocumentRelation))
       for (const doc of activeDocs) {
-        const matter = doc.matters as any
+        const matter = doc.matters as unknown as ActiveMatterRelation
         if (!matterCandidates.has(matter.id)) {
           matterCandidates.set(matter.id, {
             matterId: matter.id,
@@ -341,15 +350,16 @@ export async function resolveDocumentAssignment(
       { p_org_id: orgId, p_reference_number: ref }
     )
 
-    if (!fuzzyErr && fuzzyDocs && (fuzzyDocs as any[]).length > 0) {
-      for (const match of (fuzzyDocs as any[])) {
+    const fuzzyMatches = fuzzyDocs as unknown as FuzzyReferenceMatch[] | null
+    if (!fuzzyErr && fuzzyMatches && fuzzyMatches.length > 0) {
+      for (const match of fuzzyMatches) {
         if (!matterCandidates.has(match.matter_id)) {
           const { data: matterRow } = await supabase
             .from('matters')
             .select('id, client_id, deleted_at, clients!inner(deleted_at)')
             .eq('id', match.matter_id)
             .maybeSingle()
-          if (matterRow && isMatterActive(matterRow as any)) {
+          if (matterRow && isMatterActive(matterRow as unknown as ActiveMatterRelation)) {
             matterCandidates.set(matterRow.id, {
               matterId: matterRow.id,
               clientId: matterRow.client_id,
@@ -375,11 +385,11 @@ export async function resolveDocumentAssignment(
 
     if (pendingLinks && pendingLinks.length > 0) {
       const validLinks = pendingLinks.filter(link => {
-        const fromDoc = link.documents as any
-        return fromDoc && isDocumentActive(fromDoc as any)
+        const fromDoc = link.documents as unknown as ActiveDocumentRelation | null
+        return fromDoc && isDocumentActive(fromDoc)
       })
       for (const link of validLinks) {
-        const fromDoc = link.documents as any
+        const fromDoc = link.documents as unknown as ActiveDocumentRelation | null
         // Ensure pending link belongs to this org
         if (!fromDoc || fromDoc.org_id !== orgId) continue
 
@@ -490,44 +500,38 @@ export async function resolveDocumentAssignment(
       }
     }
 
-    const matchedAssignments: MatterAssignment[] = []
+    const { data: matters } = await supabase
+      .from('matters')
+      .select('id, client_id, title, financial_year')
+      .eq('org_id', orgId)
+      .eq('client_id', resolvedClient.id)
+      .eq('record_state', 'active')
+      .in('financial_year', fys)
+      .is('deleted_at', null)
+      .order('financial_year', { ascending: false })
+      .order('id', { ascending: true })
+      .limit(20)
 
-    for (const fy of fys) {
-      const { data: matter } = await supabase
-        .from('matters')
-        .select('id, client_id')
-        .eq('org_id', orgId)
-        .eq('client_id', resolvedClient.id)
-        .eq('financial_year', fy)
-        .is('deleted_at', null)
-        .maybeSingle()
+    const matterSuggestions: AssignmentSuggestion[] = (matters ?? []).map(matter => ({
+      matterId: matter.id,
+      clientId: matter.client_id,
+      reason: `Possible destination for ${matter.financial_year}: ${matter.title}`,
+    }))
 
-      if (matter) {
-        matchedAssignments.push({
-          matterId: matter.id,
-          clientId: resolvedClient.id,
-          confidence: resolvedClient.confidence,
-          method: 'client_fy_match',
-          crossVerified: true,
-        })
-      } else {
-        suggestions.push({
-          clientId: resolvedClient.id,
-          reason: `Client matched (${resolvedClient.name}) but no matter found for FY ${fy}. Please create a matter first.`,
-        })
+    if (matterSuggestions.length > 0) {
+      return {
+        type: 'ready_to_assign',
+        reason: matterSuggestions.length === 1
+          ? `Client and financial-year evidence found one possible Matter. Confirm the destination manually.`
+          : `Client and financial-year evidence found ${matterSuggestions.length} possible Matters. Choose the destination manually.`,
+        suggestions: matterSuggestions,
       }
-    }
-
-    if (matchedAssignments.length > 0) {
-      return { type: 'auto_assign', assignments: matchedAssignments }
     }
 
     return {
       type: 'ready_to_assign',
-      reason:
-        suggestions[0]?.reason ??
-        `No matter found for client ${resolvedClient.name} in the extracted financial year(s).`,
-      suggestions,
+      reason: `Client matched (${resolvedClient.name}), but there are no active Matter suggestions for the extracted financial year(s).`,
+      suggestions: [{ clientId: resolvedClient.id, reason: `Matched client: ${resolvedClient.name}` }],
     }
   }
 

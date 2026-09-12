@@ -22,6 +22,8 @@ test('matter create and update use authenticated command boundaries', () => {
   assert.match(mutationSource, /p_work_state: workState/)
   assert.match(mutationSource, /p_current_forum: currentForum/)
   assert.doesNotMatch(mutationSource, /p_status:/)
+  assert.doesNotMatch(mutationSource, /already uses this client and financial year/)
+  assert.match(mutationSource, /matter code could not be allocated safely/)
 })
 
 test('live matter forms preserve one idempotency key across a retry', () => {

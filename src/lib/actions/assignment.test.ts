@@ -26,25 +26,49 @@ function assignmentMetadata(overrides: Partial<EffectiveDocumentAssignmentMetada
   }
 }
 
-/** Minimal query double for the GSTIN → client → matter path. */
-function gstinAssignmentDb() {
+/** Minimal query double for the GSTIN → client → manual Matter suggestions path. */
+function gstinAssignmentDb(
+  matters = [{
+    id: MATTER_ID,
+    client_id: CLIENT_ID,
+    title: 'Example proceeding',
+    financial_year: '2024-25',
+  }],
+  onMatterLimit?: (limit: number) => void,
+  onMatterFilter?: (column: string, value: unknown) => void,
+) {
   const client = {
     id: CLIENT_ID,
     name: 'Example Private Limited',
     gstin: '27ABCDE1234F1Z5',
     pan: null,
   }
-  const matter = { id: MATTER_ID, client_id: CLIENT_ID }
-
   return {
     from(table: string) {
       const query = {
         select() { return query },
-        eq() { return query },
+        eq(column: string, value: unknown) {
+          if (table === 'matters') onMatterFilter?.(column, value)
+          return query
+        },
+        in() { return query },
         is() { return query },
         ilike() { return query },
+        order() { return query },
+        limit(value: number) {
+          if (table === 'matters') onMatterLimit?.(value)
+          return query
+        },
         async maybeSingle() {
-          return { data: table === 'clients' ? client : matter, error: null }
+          if (table === 'matters') throw new Error('Client/FY lookup must not use maybeSingle')
+          return { data: table === 'clients' ? client : null, error: null }
+        },
+        then<TResult1 = unknown, TResult2 = never>(
+          onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
+          onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+        ) {
+          return Promise.resolve({ data: table === 'matters' ? matters : [], error: null })
+            .then(onfulfilled, onrejected)
         },
       }
       return query
@@ -168,7 +192,7 @@ test('treats a missing projection row as terminally unavailable rather than fall
   assert.equal(metadata, null)
 })
 
-test('auto-assigns a GSTIN-only document when the client has no PAN', async () => {
+test('offers a GSTIN and financial-year match for manual confirmation without auto-assignment', async () => {
   const result = await resolveDocumentAssignment(
     gstinAssignmentDb(),
     ORG_ID,
@@ -176,13 +200,12 @@ test('auto-assigns a GSTIN-only document when the client has no PAN', async () =
   )
 
   assert.deepEqual(result, {
-    type: 'auto_assign',
-    assignments: [{
+    type: 'ready_to_assign',
+    reason: 'Client and financial-year evidence found one possible Matter. Confirm the destination manually.',
+    suggestions: [{
       matterId: MATTER_ID,
       clientId: CLIENT_ID,
-      confidence: 1,
-      method: 'client_fy_match',
-      crossVerified: true,
+      reason: 'Possible destination for 2024-25: Example proceeding',
     }],
   })
 })
@@ -225,24 +248,38 @@ test('blocks an exact reference when its GSTIN conflicts with the target client'
   }])
 })
 
-test('requires manual assignment when multiple financial years are extracted', async () => {
-  const noDatabaseAccess = {
-    from() {
-      throw new Error('Multi-FY documents must not query or mutate assignment data')
-    },
-  } as unknown as Parameters<typeof resolveDocumentAssignment>[0]
-
+test('offers every bounded same-client candidate across multiple extracted financial years', async () => {
+  let matterLimit = 0
+  const matterFilters = new Map<string, unknown>()
   const result = await resolveDocumentAssignment(
-    noDatabaseAccess,
+    gstinAssignmentDb([
+      { id: MATTER_ID, client_id: CLIENT_ID, title: 'First proceeding', financial_year: '2024-25' },
+      { id: '00000000-0000-4000-8000-000000000006', client_id: CLIENT_ID, title: 'Parallel proceeding', financial_year: '2024-25' },
+      { id: '00000000-0000-4000-8000-000000000007', client_id: CLIENT_ID, title: 'Earlier proceeding', financial_year: '2023-24' },
+    ], value => { matterLimit = value }, (column, value) => { matterFilters.set(column, value) }),
     ORG_ID,
-    assignmentMetadata({ financialYears: ['FY 2023-24', '2024-2025'] }),
+    assignmentMetadata({ gstin: '27ABCDE1234F1Z5', financialYears: ['FY 2023-24', '2024-2025'] }),
   )
 
   assert.deepEqual(result, {
     type: 'ready_to_assign',
-    reason: 'Document spans multiple financial years (2023-24, 2024-25). Please assign manually.',
-    suggestions: [],
+    reason: 'Client and financial-year evidence found 3 possible Matters. Choose the destination manually.',
+    suggestions: [
+      { matterId: MATTER_ID, clientId: CLIENT_ID, reason: 'Possible destination for 2024-25: First proceeding' },
+      {
+        matterId: '00000000-0000-4000-8000-000000000006',
+        clientId: CLIENT_ID,
+        reason: 'Possible destination for 2024-25: Parallel proceeding',
+      },
+      {
+        matterId: '00000000-0000-4000-8000-000000000007',
+        clientId: CLIENT_ID,
+        reason: 'Possible destination for 2023-24: Earlier proceeding',
+      },
+    ],
   })
+  assert.equal(matterLimit, 20)
+  assert.equal(matterFilters.get('record_state'), 'active')
 })
 
 test('proposes, but never creates, a new client or matter from AI metadata', async () => {
