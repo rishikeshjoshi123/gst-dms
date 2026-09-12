@@ -81,6 +81,9 @@ run_sql supabase/tests/matter_external_identifier_authority.sql
 run_sql supabase/tests/matter_identity_compatibility_cutover.sql
 run_sql supabase/tests/typed_extraction_observation_candidates.sql
 run_sql supabase/tests/typed_material_field_observations.sql
+run_sql supabase/tests/document_reference_exact_resolution.sql
+run_sql supabase/tests/document_reference_exact_resolution_concurrency_setup.sql
+SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/document_reference_exact_resolution_concurrency.sh
 run_sql supabase/tests/matter_identity_compatibility_concurrency_setup.sql
 SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/matter_identity_compatibility_concurrency.sh
 run_sql supabase/tests/normal_onboarding_create_accept_concurrency_setup.sql

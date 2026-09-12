@@ -664,6 +664,95 @@ export type Database = {
           },
         ]
       }
+      current_document_reference_resolutions: {
+        Row: {
+          mention_id: string
+          org_id: string
+          outcome: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          resolved_at: string
+          result_id: string
+          run_id: string
+          source_document_id: string | null
+          target_document_id: string | null
+          target_identifier_id: string | null
+          target_purged_at: string | null
+        }
+        Insert: {
+          mention_id: string
+          org_id: string
+          outcome: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          resolved_at?: string
+          result_id: string
+          run_id: string
+          source_document_id?: string | null
+          target_document_id?: string | null
+          target_identifier_id?: string | null
+          target_purged_at?: string | null
+        }
+        Update: {
+          mention_id?: string
+          org_id?: string
+          outcome?: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          resolved_at?: string
+          result_id?: string
+          run_id?: string
+          source_document_id?: string | null
+          target_document_id?: string | null
+          target_identifier_id?: string | null
+          target_purged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "current_document_reference_resolutions_mention_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: true
+            referencedRelation: "document_reference_mentions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_result_fkey"
+            columns: ["org_id", "result_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_results"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_run_fkey"
+            columns: ["org_id", "run_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_source_fkey"
+            columns: ["org_id", "source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_target_fkey"
+            columns: ["org_id", "target_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_target_identifier_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       deadlines: {
         Row: {
           created_at: string
@@ -1069,6 +1158,140 @@ export type Database = {
           },
         ]
       }
+      document_identifier_command_receipts: {
+        Row: {
+          actor_user_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          identifier_id: string
+          org_id: string
+          previous_identifier_id: string | null
+          request_fingerprint: string
+          result_document_revision: number
+          result_identifier_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          identifier_id: string
+          org_id: string
+          previous_identifier_id?: string | null
+          request_fingerprint: string
+          result_document_revision: number
+          result_identifier_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          identifier_id?: string
+          org_id?: string
+          previous_identifier_id?: string | null
+          request_fingerprint?: string
+          result_document_revision?: number
+          result_identifier_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_identifier_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_identifier_receipts_identifier_fkey"
+            columns: ["org_id", "identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_identifier_receipts_previous_fkey"
+            columns: ["org_id", "previous_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_identifier_decisions: {
+        Row: {
+          action: Database["public"]["Enums"]["document_identifier_decision_action"]
+          actor_user_id: string
+          created_at: string
+          decision_sequence: number
+          document_id: string | null
+          id: string
+          idempotency_key: string
+          identifier_id: string
+          org_id: string
+          previous_identifier_id: string | null
+          reason: string | null
+          resulting_document_revision: number
+          resulting_identifier_revision: number
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["document_identifier_decision_action"]
+          actor_user_id: string
+          created_at?: string
+          decision_sequence?: never
+          document_id?: string | null
+          id?: string
+          idempotency_key: string
+          identifier_id: string
+          org_id: string
+          previous_identifier_id?: string | null
+          reason?: string | null
+          resulting_document_revision: number
+          resulting_identifier_revision: number
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["document_identifier_decision_action"]
+          actor_user_id?: string
+          created_at?: string
+          decision_sequence?: never
+          document_id?: string | null
+          id?: string
+          idempotency_key?: string
+          identifier_id?: string
+          org_id?: string
+          previous_identifier_id?: string | null
+          reason?: string | null
+          resulting_document_revision?: number
+          resulting_identifier_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_identifier_decisions_identifier_fkey"
+            columns: ["org_id", "identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_identifier_decisions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_identifier_decisions_previous_fkey"
+            columns: ["org_id", "previous_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_links: {
         Row: {
           confidence: number | null
@@ -1431,6 +1654,288 @@ export type Database = {
           },
         ]
       }
+      document_reference_mentions: {
+        Row: {
+          catalogue_version: string
+          created_at: string
+          display_value: string | null
+          document_field_candidate_id: string | null
+          document_version_analysis_binding_id: string | null
+          evidence_page_number: number | null
+          evidence_purged_at: string | null
+          evidence_quote: string | null
+          evidence_regions: Json | null
+          id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_components: Json
+          normalized_value: string
+          normalizer_version: string
+          org_id: string
+          raw_value: string | null
+          semantic_candidate_key: string
+          source_analysis_run_id: string | null
+          source_document_id: string | null
+          source_document_version_id: string | null
+          source_field_candidate_id: string | null
+          verified_source_anchor: Json | null
+        }
+        Insert: {
+          catalogue_version: string
+          created_at?: string
+          display_value?: string | null
+          document_field_candidate_id?: string | null
+          document_version_analysis_binding_id?: string | null
+          evidence_page_number?: number | null
+          evidence_purged_at?: string | null
+          evidence_quote?: string | null
+          evidence_regions?: Json | null
+          id?: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_components: Json
+          normalized_value: string
+          normalizer_version: string
+          org_id: string
+          raw_value?: string | null
+          semantic_candidate_key: string
+          source_analysis_run_id?: string | null
+          source_document_id?: string | null
+          source_document_version_id?: string | null
+          source_field_candidate_id?: string | null
+          verified_source_anchor?: Json | null
+        }
+        Update: {
+          catalogue_version?: string
+          created_at?: string
+          display_value?: string | null
+          document_field_candidate_id?: string | null
+          document_version_analysis_binding_id?: string | null
+          evidence_page_number?: number | null
+          evidence_purged_at?: string | null
+          evidence_quote?: string | null
+          evidence_regions?: Json | null
+          id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          normalized_components?: Json
+          normalized_value?: string
+          normalizer_version?: string
+          org_id?: string
+          raw_value?: string | null
+          semantic_candidate_key?: string
+          source_analysis_run_id?: string | null
+          source_document_id?: string | null
+          source_document_version_id?: string | null
+          source_field_candidate_id?: string | null
+          verified_source_anchor?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_reference_mentions_binding_fkey"
+            columns: ["org_id", "document_version_analysis_binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_candidate_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_document_fkey"
+            columns: ["org_id", "source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_source_candidate_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "source_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_source_run_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_version_fkey"
+            columns: [
+              "org_id",
+              "source_document_id",
+              "source_document_version_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+        ]
+      }
+      document_reference_resolution_results: {
+        Row: {
+          created_at: string
+          id: string
+          mention_id: string
+          org_id: string
+          outcome: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          reason_code: string
+          rule_version: string
+          run_id: string
+          target_document_id: string | null
+          target_identifier_id: string | null
+          target_purged_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mention_id: string
+          org_id: string
+          outcome: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          reason_code: string
+          rule_version: string
+          run_id: string
+          target_document_id?: string | null
+          target_identifier_id?: string | null
+          target_purged_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mention_id?: string
+          org_id?: string
+          outcome?: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          reason_code?: string
+          rule_version?: string
+          run_id?: string
+          target_document_id?: string | null
+          target_identifier_id?: string | null
+          target_purged_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_reference_resolution_results_mention_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_mentions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_resolution_results_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_reference_resolution_results_run_fkey"
+            columns: ["org_id", "run_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_resolution_results_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_reference_resolution_results_target_document_fkey"
+            columns: ["org_id", "target_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_resolution_results_target_identifier_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_reference_resolution_runs: {
+        Row: {
+          ambiguous_count: number
+          completed_at: string
+          conflicting_count: number
+          created_at: string
+          evaluated_count: number
+          id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          org_id: string
+          rule_version: string
+          state: string
+          trigger_key: string
+          trigger_kind: string
+          unique_count: number
+          unresolved_count: number
+        }
+        Insert: {
+          ambiguous_count?: number
+          completed_at?: string
+          conflicting_count?: number
+          created_at?: string
+          evaluated_count?: number
+          id?: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          org_id: string
+          rule_version?: string
+          state?: string
+          trigger_key: string
+          trigger_kind: string
+          unique_count?: number
+          unresolved_count?: number
+        }
+        Update: {
+          ambiguous_count?: number
+          completed_at?: string
+          conflicting_count?: number
+          created_at?: string
+          evaluated_count?: number
+          id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          normalized_value?: string
+          org_id?: string
+          rule_version?: string
+          state?: string
+          trigger_key?: string
+          trigger_kind?: string
+          unique_count?: number
+          unresolved_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_reference_resolution_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_relationship_catalogue: {
         Row: {
           acyclic: boolean
@@ -1740,6 +2245,178 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_self_identifiers: {
+        Row: {
+          activated_at: string
+          catalogue_version: string
+          display_value: string
+          document_field_candidate_id: string | null
+          document_id: string | null
+          document_version_analysis_binding_id: string | null
+          document_version_id: string | null
+          evidence_page_number: number | null
+          evidence_purged_at: string | null
+          evidence_quote: string | null
+          evidence_regions: Json | null
+          id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          lifecycle_state: Database["public"]["Enums"]["document_identifier_lifecycle"]
+          matter_identifier_id: string | null
+          normalized_components: Json
+          normalized_value: string
+          normalizer_version: string
+          org_id: string
+          predecessor_identifier_id: string | null
+          raw_value: string
+          revision: number
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          semantic_candidate_key: string
+          source_analysis_run_id: string | null
+          source_field_candidate_id: string | null
+          updated_at: string
+          verified_at: string
+          verified_by: string
+          verified_source_anchor: Json | null
+        }
+        Insert: {
+          activated_at?: string
+          catalogue_version: string
+          display_value: string
+          document_field_candidate_id?: string | null
+          document_id?: string | null
+          document_version_analysis_binding_id?: string | null
+          document_version_id?: string | null
+          evidence_page_number?: number | null
+          evidence_purged_at?: string | null
+          evidence_quote?: string | null
+          evidence_regions?: Json | null
+          id?: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          lifecycle_state?: Database["public"]["Enums"]["document_identifier_lifecycle"]
+          matter_identifier_id?: string | null
+          normalized_components: Json
+          normalized_value: string
+          normalizer_version: string
+          org_id: string
+          predecessor_identifier_id?: string | null
+          raw_value: string
+          revision?: number
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          semantic_candidate_key: string
+          source_analysis_run_id?: string | null
+          source_field_candidate_id?: string | null
+          updated_at?: string
+          verified_at?: string
+          verified_by: string
+          verified_source_anchor?: Json | null
+        }
+        Update: {
+          activated_at?: string
+          catalogue_version?: string
+          display_value?: string
+          document_field_candidate_id?: string | null
+          document_id?: string | null
+          document_version_analysis_binding_id?: string | null
+          document_version_id?: string | null
+          evidence_page_number?: number | null
+          evidence_purged_at?: string | null
+          evidence_quote?: string | null
+          evidence_regions?: Json | null
+          id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          lifecycle_state?: Database["public"]["Enums"]["document_identifier_lifecycle"]
+          matter_identifier_id?: string | null
+          normalized_components?: Json
+          normalized_value?: string
+          normalizer_version?: string
+          org_id?: string
+          predecessor_identifier_id?: string | null
+          raw_value?: string
+          revision?: number
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          semantic_candidate_key?: string
+          source_analysis_run_id?: string | null
+          source_field_candidate_id?: string | null
+          updated_at?: string
+          verified_at?: string
+          verified_by?: string
+          verified_source_anchor?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_self_identifiers_binding_fkey"
+            columns: ["org_id", "document_version_analysis_binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_candidate_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_document_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_matter_identifier_fkey"
+            columns: ["org_id", "matter_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "matter_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_predecessor_fkey"
+            columns: ["org_id", "predecessor_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_source_candidate_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "source_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_source_run_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_version_fkey"
+            columns: ["org_id", "document_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
           },
         ]
       }
@@ -7907,6 +8584,22 @@ export type Database = {
           revision: number | null
         }[]
       }
+      activate_document_self_identifier: {
+        Args: {
+          p_candidate_id: string
+          p_expected_document_revision: number
+          p_idempotency_key: string
+          p_matter_identifier_id: string
+        }
+        Returns: {
+          code: string
+          document_revision: number
+          identifier_id: string
+          identifier_revision: number
+          previous_identifier_id: string
+          replayed: boolean
+        }[]
+      }
       activate_matter_identifier: {
         Args: {
           p_display_value: string
@@ -8344,6 +9037,25 @@ export type Database = {
           receipt_id: string
         }[]
       }
+      correct_document_self_identifier: {
+        Args: {
+          p_candidate_id: string
+          p_expected_document_revision: number
+          p_expected_identifier_revision: number
+          p_idempotency_key: string
+          p_identifier_id: string
+          p_matter_identifier_id: string
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          document_revision: number
+          identifier_id: string
+          identifier_revision: number
+          previous_identifier_id: string
+          replayed: boolean
+        }[]
+      }
       correct_matter_identifier: {
         Args: {
           p_display_value: string
@@ -8499,6 +9211,13 @@ export type Database = {
           membership_id: string
           org_id: string
           role: Database["public"]["Enums"]["org_member_role"]
+        }[]
+      }
+      current_document_reference_reader_actor: {
+        Args: never
+        Returns: {
+          actor_user_id: string
+          org_id: string
         }[]
       }
       current_relationship_reference_exists_in_other_matter: {
@@ -8662,6 +9381,25 @@ export type Database = {
         }[]
       }
       finish_document_processing_ai_extraction_v3: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
+      finish_document_processing_ai_extraction_v4: {
         Args: {
           p_candidates?: Json
           p_input_tokens: number
@@ -9866,6 +10604,10 @@ export type Database = {
           similarity: number
         }[]
       }
+      materialize_document_reference_mentions: {
+        Args: { p_binding_id: string; p_trigger_key: string }
+        Returns: number
+      }
       materialize_document_version_analysis: {
         Args: {
           p_binding_reason: string
@@ -9980,6 +10722,26 @@ export type Database = {
       outbox_delivery_retry_delay_seconds: {
         Args: { p_attempt_number: number; p_event_id: string }
         Returns: number
+      }
+      perform_document_identifier_command: {
+        Args: {
+          p_candidate_id: string
+          p_command: string
+          p_expected_document_revision: number
+          p_expected_identifier_revision: number
+          p_idempotency_key: string
+          p_identifier_id: string
+          p_matter_identifier_id: string
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          document_revision: number
+          identifier_id: string
+          identifier_revision: number
+          previous_identifier_id: string
+          replayed: boolean
+        }[]
       }
       perform_matter_identifier_command: {
         Args: {
@@ -10143,6 +10905,20 @@ export type Database = {
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }[]
       }
+      read_current_document_reference_resolutions: {
+        Args: { p_document_ids: string[] }
+        Returns: {
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          mention_id: string
+          normalized_value: string
+          outcome: Database["public"]["Enums"]["document_reference_resolution_outcome"]
+          resolved_at: string
+          source_document_id: string
+          source_document_version_id: string
+          target_document_id: string
+        }[]
+      }
       read_current_document_search_index_projection: {
         Args: { p_document_ids: string[]; p_org_id: string }
         Returns: {
@@ -10177,6 +10953,22 @@ export type Database = {
           issued_by: string
           reference_number: string
           summary: string
+        }[]
+      }
+      read_current_document_self_identifiers: {
+        Args: { p_document_ids: string[] }
+        Returns: {
+          display_value: string
+          document_id: string
+          document_version_id: string
+          identifier_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          matter_identifier_id: string
+          normalized_value: string
+          revision: number
+          verified_at: string
+          verified_by: string
         }[]
       }
       read_current_document_structured_search_facts: {
@@ -10429,6 +11221,17 @@ export type Database = {
           code: string
         }[]
       }
+      reevaluate_document_reference_exact_key: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          p_namespace: string
+          p_org_id: string
+          p_trigger_key: string
+          p_trigger_kind: string
+          p_value: string
+        }
+        Returns: string
+      }
       register_trash_purge_blocker: {
         Args: {
           p_active: boolean
@@ -10603,6 +11406,23 @@ export type Database = {
           code: string
           job_id: string
           operation_id: string
+        }[]
+      }
+      revoke_document_self_identifier: {
+        Args: {
+          p_expected_document_revision: number
+          p_expected_identifier_revision: number
+          p_idempotency_key: string
+          p_identifier_id: string
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          document_revision: number
+          identifier_id: string
+          identifier_revision: number
+          previous_identifier_id: string
+          replayed: boolean
         }[]
       }
       revoke_matter_identifier: {
@@ -11129,6 +11949,8 @@ export type Database = {
         | "corrected"
         | "rejected"
         | "cleared"
+      document_identifier_decision_action: "activate" | "correct" | "revoke"
+      document_identifier_lifecycle: "active" | "revoked"
       document_origin_kind:
         | "upload"
         | "spreadsheet_import"
@@ -11159,6 +11981,11 @@ export type Database = {
         | "failed"
         | "cancelled"
       document_record_state: "active" | "trashed" | "purging" | "purged"
+      document_reference_resolution_outcome:
+        | "unique_exact"
+        | "ambiguous"
+        | "conflicting"
+        | "unresolved"
       document_relationship_decision_action:
         | "activate"
         | "accept"
@@ -11692,6 +12519,8 @@ export const Constants = {
         "rejected",
         "cleared",
       ],
+      document_identifier_decision_action: ["activate", "correct", "revoke"],
+      document_identifier_lifecycle: ["active", "revoked"],
       document_origin_kind: [
         "upload",
         "spreadsheet_import",
@@ -11726,6 +12555,12 @@ export const Constants = {
         "cancelled",
       ],
       document_record_state: ["active", "trashed", "purging", "purged"],
+      document_reference_resolution_outcome: [
+        "unique_exact",
+        "ambiguous",
+        "conflicting",
+        "unresolved",
+      ],
       document_relationship_decision_action: [
         "activate",
         "accept",
