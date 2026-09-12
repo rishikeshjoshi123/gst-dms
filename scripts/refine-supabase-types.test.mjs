@@ -4,11 +4,22 @@ import test from 'node:test'
 import { refineSupabaseTypes } from './refine-supabase-types.mjs'
 
 const specs = {
+  activate_matter_identifier: [
+    'identifier_id: string',
+    'identifier_revision: number',
+    'matter_revision: number',
+  ],
   activate_document_relationship: ['relationship_id: string', 'revision: number'],
   archive_document_relationship: ['relationship_id: string', 'revision: number'],
   create_client_command: ['client_id: string', 'revision: number'],
   create_matter_command: ['client_id: string', 'matter_id: string', 'revision: number'],
   create_note_with_optional_task: ['note_id: string', 'task_id: string'],
+  correct_matter_identifier: [
+    'identifier_id: string',
+    'identifier_revision: number',
+    'matter_revision: number',
+    'previous_identifier_id: string',
+  ],
   get_document_hub_intake: ['failure_code: string', 'intended_matter_id: string'],
   get_intake_item_triage_context: ['uploaded_by: string'],
   get_my_tasks: [
@@ -77,6 +88,11 @@ const specs = {
     'matter_id: string',
     'removed_at: string',
   ],
+  revoke_matter_identifier: [
+    'identifier_id: string',
+    'identifier_revision: number',
+    'matter_revision: number',
+  ],
   transition_task: [
     'revision: number',
     'status: Database["public"]["Enums"]["task_status"]',
@@ -128,6 +144,14 @@ function generatedFixture({ enumOrder = Object.keys(enumValues), trailing = '\n'
     ].join('\n')
   }).concat([
     [
+      '      read_matter_identifiers: {',
+      '        Args: { p_matter_id: string }',
+      '        Returns: {',
+      '          source_revision: string',
+      '        }[]',
+      '      }',
+    ].join('\n'),
+    [
       '      read_matter_timeline_relationships: {',
       '        Args: {',
       '          p_matter_id: string',
@@ -178,6 +202,7 @@ test('refines every known nullable RPC result and is idempotent', () => {
   assert.equal([...createMatterBlock.matchAll(/matter_id: string \| null/g)].length, 2)
   assert.match(refined, /p_selected_document_id\?: string \| null/)
   assert.match(refined, /read_matter_timeline_relationships:[\s\S]*source_revision: string \| null/)
+  assert.match(refined, /read_matter_identifiers:[\s\S]*source_revision: string \| null/)
   assert.match(refined, /p_query\?: string \| null/)
   assert.match(refined, /p_role\?: string \| null/)
   assert.match(refined, /p_state\?: string \| null/)

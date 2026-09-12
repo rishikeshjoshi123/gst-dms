@@ -3,6 +3,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const nullableRpcFields = {
+  activate_matter_identifier: {
+    identifier_id: 'string',
+    identifier_revision: 'number',
+    matter_revision: 'number',
+  },
   activate_document_relationship: {
     relationship_id: 'string',
     revision: 'number',
@@ -12,6 +17,9 @@ const nullableRpcFields = {
     revision: 'number',
   },
   read_matter_timeline_relationships: {
+    source_revision: 'string',
+  },
+  read_matter_identifiers: {
     source_revision: 'string',
   },
   create_client_command: {
@@ -26,6 +34,12 @@ const nullableRpcFields = {
   create_note_with_optional_task: {
     note_id: 'string',
     task_id: 'string',
+  },
+  correct_matter_identifier: {
+    identifier_id: 'string',
+    identifier_revision: 'number',
+    matter_revision: 'number',
+    previous_identifier_id: 'string',
   },
   get_document_hub_intake: {
     failure_code: 'string',
@@ -105,6 +119,11 @@ const nullableRpcFields = {
     document_id: 'string',
     matter_id: 'string',
     removed_at: 'string',
+  },
+  revoke_matter_identifier: {
+    identifier_id: 'string',
+    identifier_revision: 'number',
+    matter_revision: 'number',
   },
   transition_task: {
     revision: 'number',

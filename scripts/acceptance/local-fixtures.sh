@@ -77,6 +77,7 @@ run_sql supabase/tests/document_upload_commands.sql
 run_sql supabase/tests/trash_logical_expiry_and_shared_intake.sql
 run_sql supabase/tests/normal_create_or_join_onboarding.sql
 run_sql supabase/tests/effective_relationship_core.sql
+run_sql supabase/tests/matter_external_identifier_authority.sql
 run_sql supabase/tests/normal_onboarding_create_accept_concurrency_setup.sql
 SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/normal_onboarding_create_accept_concurrency.sh
 run_sql scripts/acceptance/seed.sql
