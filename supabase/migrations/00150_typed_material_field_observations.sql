@@ -48,7 +48,7 @@ BEGIN
     OR (jsonb_typeof(p_value->'catalogue_kind')='string' AND p_value->>'catalogue_kind' NOT IN ('iec','udyam_registration','professional_tax_registration','other_registration'))
     OR ((p_value->>'kind'='other_catalogued') IS DISTINCT FROM (jsonb_typeof(p_value->'catalogue_kind')='string'))
     OR jsonb_typeof(p_value->'normalized_value') NOT IN ('string','null') THEN RETURN false; END IF;
-  candidate:=upper(regexp_replace(normalize(p_value->>'raw',NFKC),'[[:space:]./,_-]','','g'));
+  candidate:=upper(regexp_replace(replace(normalize(p_value->>'raw',NFKC),chr(65279),''),'[[:space:]./,_-]','','g'));
   syntax_valid:=CASE p_value->>'kind'
     WHEN 'gstin' THEN public.typed_gstin_checksum_is_valid(candidate)
     WHEN 'pan' THEN candidate ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'
@@ -152,7 +152,7 @@ BEGIN
       OR jsonb_typeof(p_value->'normalized'->'act_kind')<>'string' OR jsonb_typeof(p_value->'normalized'->'act') NOT IN ('string','null')
       OR jsonb_typeof(p_value->'normalized'->'provision_kind')<>'string' OR jsonb_typeof(p_value->'normalized'->'value')<>'string'
       OR jsonb_typeof(p_value->'normalized'->'components')<>'array')) THEN RETURN false; END IF;
-  canonical:=upper(regexp_replace(btrim(normalize(p_value->>'provision_value',NFKC)),'[[:space:]]+',' ','g'));
+  canonical:=upper(regexp_replace(btrim(replace(normalize(p_value->>'provision_value',NFKC),chr(65279),' ')),'[[:space:]]+',' ','g'));
   canonical:=regexp_replace(canonical,'[[:space:]]*([/().:_-])[[:space:]]*','\1','g'); valid:=canonical ~ '[[:alnum:]]';
   SELECT coalesce(jsonb_agg(value),'[]'::jsonb) INTO components FROM regexp_split_to_table(canonical,'[/().:_-]+') value WHERE value<>'';
   expected:=CASE WHEN valid THEN jsonb_build_object('act_kind',p_value->'act_kind','act',p_value->'act','provision_kind',p_value->'provision_kind','value',canonical,'components',components) ELSE 'null'::jsonb END;
@@ -233,27 +233,33 @@ ALTER TABLE public.document_field_candidates ADD CONSTRAINT document_field_candi
 
 CREATE OR REPLACE FUNCTION public.source_field_candidate_value_match_count(p_value_type public.source_field_candidate_value_type,p_normalized_value jsonb,p_source_text text)
 RETURNS integer LANGUAGE plpgsql STABLE SET search_path=pg_catalog,public AS $$
+DECLARE source_text text:=replace(p_source_text,chr(65279),' ');
 BEGIN
   IF p_value_type='structured' AND public.typed_official_reference_candidate_is_valid(p_normalized_value) THEN
-    RETURN public.source_field_candidate_value_match_count('code',to_jsonb(p_normalized_value->>'normalized_value'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count('code',to_jsonb(p_normalized_value->>'normalized_value'),source_text);
   ELSIF p_value_type='structured' AND public.typed_tax_period_candidate_is_valid(p_normalized_value) THEN
-    RETURN public.source_field_candidate_value_match_count('text',to_jsonb(p_normalized_value->>'raw'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count('text',to_jsonb(p_normalized_value->>'raw'),source_text);
   ELSIF p_value_type='structured' AND public.typed_legal_date_candidate_is_valid(p_normalized_value) AND p_normalized_value->>'normalized_date' IS NOT NULL THEN
-    RETURN public.source_field_candidate_value_match_count('date',to_jsonb(p_normalized_value->>'normalized_date'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count('date',to_jsonb(p_normalized_value->>'normalized_date'),source_text);
   ELSIF p_value_type='structured' AND public.typed_client_identifier_candidate_is_valid(p_normalized_value) AND p_normalized_value->>'normalized_value' IS NOT NULL THEN
-    RETURN public.source_field_candidate_value_match_count('code',to_jsonb(p_normalized_value->>'normalized_value'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count('code',to_jsonb(p_normalized_value->>'normalized_value'),source_text);
   ELSIF p_value_type='structured' AND public.typed_money_candidate_is_valid(p_normalized_value) THEN
-    RETURN public.source_field_candidate_value_match_count_legacy('decimal',to_jsonb(p_normalized_value->>'amount'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count_legacy('decimal',to_jsonb(p_normalized_value->>'amount'),source_text);
   ELSIF p_value_type='structured' AND public.typed_actor_candidate_is_valid(p_normalized_value) THEN
-    IF public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),p_source_text)<>1
-      OR (p_normalized_value->>'authority' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'authority',NFKC)) IN upper(normalize(p_source_text,NFKC)))=0)
-      OR (p_normalized_value->>'office' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'office',NFKC)) IN upper(normalize(p_source_text,NFKC)))=0)
-      OR (p_normalized_value->>'jurisdiction' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'jurisdiction',NFKC)) IN upper(normalize(p_source_text,NFKC)))=0) THEN RETURN 0; END IF;
+    IF public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),source_text)<>1
+      OR (p_normalized_value->>'authority' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'authority',NFKC)) IN upper(normalize(source_text,NFKC)))=0)
+      OR (p_normalized_value->>'office' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'office',NFKC)) IN upper(normalize(source_text,NFKC)))=0)
+      OR (p_normalized_value->>'jurisdiction' IS NOT NULL AND position(upper(normalize(p_normalized_value->>'jurisdiction',NFKC)) IN upper(normalize(source_text,NFKC)))=0) THEN RETURN 0; END IF;
     RETURN 1;
+  ELSIF p_value_type='structured' AND public.typed_legal_provision_candidate_is_valid(p_normalized_value) THEN
+    IF p_normalized_value->>'normalization_state'='invalid' THEN
+      RETURN public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),source_text);
+    END IF;
+    RETURN public.source_field_candidate_value_match_count_legacy('code',to_jsonb(p_normalized_value->'normalized'->>'value'),source_text);
   ELSIF p_value_type='structured' AND public.typed_material_candidate_is_valid(p_normalized_value) THEN
-    RETURN public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),p_source_text);
+    RETURN public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),source_text);
   END IF;
-  RETURN public.source_field_candidate_value_match_count_legacy(p_value_type,p_normalized_value,p_source_text);
+  RETURN public.source_field_candidate_value_match_count_legacy(p_value_type,p_normalized_value,source_text);
 END $$;
 
 CREATE OR REPLACE FUNCTION public.source_field_candidate_value_resolves_in_text(
@@ -287,13 +293,42 @@ CREATE FUNCTION public.finish_document_processing_ai_extraction(
   p_candidates jsonb DEFAULT '[]'::jsonb,p_review_required boolean DEFAULT false,p_legacy_metadata jsonb DEFAULT NULL
 ) RETURNS TABLE(code text,binding_id uuid)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE finished record;
+DECLARE finished record; source_schema_version text; candidate jsonb;
+DECLARE issuer_group_count integer; recipient_group_count integer; issuer_group text; recipient_group text; derived_direction text;
 BEGIN
+  SELECT schema_version INTO source_schema_version FROM public.source_analysis_runs WHERE id=p_source_analysis_run_id;
+  IF source_schema_version='document-extraction-v4' THEN
+    IF p_candidates IS NULL OR jsonb_typeof(p_candidates)<>'array' OR jsonb_array_length(p_candidates)>1000 THEN
+      RAISE EXCEPTION 'v4 candidates must be a bounded JSON array';
+    END IF;
+    FOR candidate IN SELECT value FROM jsonb_array_elements(p_candidates) LOOP
+      IF jsonb_typeof(candidate)<>'object' OR NOT public.jsonb_object_has_exact_keys(candidate,ARRAY[
+        'confidence','evidence_regions','field_path','normalized_value','page_number','quotation','semantic_candidate_key',
+        'validation_error_codes','validation_state','value_type','verified_source_anchor'
+      ]) THEN RAISE EXCEPTION 'v4 candidate envelope has missing or unknown keys'; END IF;
+    END LOOP;
+  END IF;
   SELECT * INTO finished FROM public.finish_document_processing_ai_extraction_v3(
     p_processing_run_id,p_processing_lease_token,p_source_analysis_run_id,p_source_analysis_lease_token,
     p_outcome,p_input_tokens,p_output_tokens,p_latency_ms,p_candidates,p_review_required,p_legacy_metadata);
-  IF finished.code IN ('validated','review_required') AND p_legacy_metadata->>'direction' IS NULL THEN
-    UPDATE public.documents document_row SET direction=NULL
+  IF finished.code IN ('validated','review_required') AND source_schema_version='document-extraction-v4' THEN
+    WITH actor_groups AS (
+      SELECT normalized_value->>'actor_kind' actor_kind,
+        CASE WHEN normalized_value->>'procedural_role' IN ('authority','department','court','tribunal') THEN 'official'
+          WHEN normalized_value->>'procedural_role' IN ('taxpayer','appellant','respondent','petitioner','applicant') THEN 'private'
+          ELSE 'unknown' END side_group
+      FROM public.source_field_candidates
+      WHERE source_analysis_run_id=p_source_analysis_run_id AND value_type='structured' AND validation_state<>'invalid'
+        AND public.typed_actor_candidate_is_valid(normalized_value)
+    )
+    SELECT count(DISTINCT side_group) FILTER (WHERE actor_kind='issuer'),count(DISTINCT side_group) FILTER (WHERE actor_kind='recipient'),
+      min(side_group) FILTER (WHERE actor_kind='issuer'),min(side_group) FILTER (WHERE actor_kind='recipient')
+    INTO issuer_group_count,recipient_group_count,issuer_group,recipient_group FROM actor_groups;
+    derived_direction:=CASE
+      WHEN issuer_group_count=1 AND recipient_group_count=1 AND issuer_group='official' AND recipient_group='private' THEN 'incoming'
+      WHEN issuer_group_count=1 AND recipient_group_count=1 AND issuer_group='private' AND recipient_group='official' THEN 'outgoing'
+      ELSE NULL END;
+    UPDATE public.documents document_row SET direction=derived_direction::public.doc_direction
     FROM public.document_processing_runs processing_run
     WHERE processing_run.id=p_processing_run_id AND processing_run.document_id=document_row.id
       AND processing_run.org_id=document_row.org_id AND document_row.current_version_id=processing_run.document_version_id;

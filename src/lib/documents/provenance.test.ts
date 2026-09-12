@@ -88,6 +88,28 @@ test('money/provision/party candidates are provisional and source verified witho
   assert.equal(result.candidates.some((candidate) => candidate.field_path === 'document.referenced_document_number'), false)
 })
 
+test('legal provision normalization must resolve its own value rather than only the raw label', () => {
+  const forged = aiDocumentPayloadSchema.parse({ ...providerPayload, legal_provisions: [{
+    ...providerPayload.legal_provisions[0], provision_value: '74',
+  }] })
+  const result = provenanceMaterializationFromAnalysis(forged, 2, pages)
+  const provision = result.candidates.find((candidate) => candidate.field_path === 'document.legal_provision.section')
+  assert.equal(provision?.validation_state, 'invalid')
+  assert.deepEqual(provision?.validation_error_codes, ['value_not_in_quote'])
+  assert.equal(provision?.verified_source_anchor, null)
+})
+
+test('identifier verification treats U+FEFF consistently with runtime normalization', () => {
+  const raw = 'AB\uFEFFCDE1234F'
+  const parsed = aiDocumentPayloadSchema.parse({ ...providerPayload,
+    client_identifiers_observed: [observed(raw, 1, { kind: 'pan', catalogue_kind: null })] })
+  const result = provenanceMaterializationFromAnalysis(parsed, 2, [{ ...pages[0], text: `${pages[0].text}. ${raw}` }, pages[1]])
+  const identifier = result.candidates.find((candidate) => candidate.field_path === 'document.client_identifier.pan')
+  assert.equal((identifier?.normalized_value as { normalized_value: string }).normalized_value, 'ABCDE1234F')
+  assert.equal(identifier?.validation_state, 'provisional')
+  assert.notEqual(identifier?.verified_source_anchor, null)
+})
+
 test('unsupported normalized actor authority fields fail closed at their own candidate', () => {
   const forged = aiDocumentPayloadSchema.parse({ ...providerPayload, actors: [{
     ...providerPayload.actors[0], source_quote: 'Deputy Commissioner', authority: 'Invented Authority', office: null, jurisdiction: null,

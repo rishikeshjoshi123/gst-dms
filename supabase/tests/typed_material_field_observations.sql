@@ -13,10 +13,12 @@ DECLARE
   version uuid:='15070000-0000-0000-0000-000000000001'; version_copy uuid:='15070000-0000-0000-0000-000000000002'; version_b uuid:='15070000-0000-0000-0000-000000000003';
   run uuid:='15080000-0000-0000-0000-000000000001'; processing uuid:='15090000-0000-0000-0000-000000000001';
   processing_lease uuid:='15090000-0000-0000-0000-000000000002'; source_lease uuid:='15080000-0000-0000-0000-000000000002';
+  issuer_run uuid:='15080000-0000-0000-0000-000000000003'; issuer_source_lease uuid:='15080000-0000-0000-0000-000000000004';
+  issuer_processing uuid:='15090000-0000-0000-0000-000000000003'; issuer_processing_lease uuid:='15090000-0000-0000-0000-000000000004';
   page_text text:='27AAPFU0939F1ZV. 27AAPFU0939F1ZU. 30 January 2025. Deputy Commissioner, GST Department, Division I, Mumbai. Example Private Limited. ₹ 9,007,199,254,740,993,123.67. Section 73 of CGST Act.';
   catalogue constant text:='gst-legal-material-observation-catalogue-v3'; normalizer constant text:='typed-material-observation-normalizer-v3';
-  gstin jsonb; invalid_gstin jsonb; legal_date jsonb; issuer jsonb; party jsonb; money jsonb; provision jsonb;
-  candidates jsonb:='[]'; item jsonb; raw text; quote_text text; key text; path text; state text; errors jsonb; start_at integer; finish record;
+  gstin jsonb; invalid_gstin jsonb; legal_date jsonb; issuer jsonb; recipient jsonb; party jsonb; money jsonb; provision jsonb; forged_provision jsonb; pan_zwsp jsonb;
+  candidates jsonb:='[]'; issuer_candidates jsonb; item jsonb; raw text; quote_text text; key text; path text; state text; errors jsonb; start_at integer; finish record;
   source_ids uuid[]; binding_copy uuid; replay uuid; rejected boolean;
   identifiers_before bigint; links_before bigint; relationships_before bigint; effective_before bigint; outbox_before bigint;
 BEGIN
@@ -54,9 +56,11 @@ BEGIN
   invalid_gstin:=jsonb_build_object('kind','gstin','catalogue_kind',NULL,'raw','27AAPFU0939F1ZU','display','27AAPFU0939F1ZU','precision','exact','normalized_value',NULL,'normalization_state','invalid','validation_error','invalid_gstin','catalogue_version',catalogue,'normalizer_version',normalizer);
   legal_date:=jsonb_build_object('meaning','issue','proposed_normalized_date','2025-01-30','normalized_date','2025-01-30','raw','30 January 2025','display','30 January 2025','precision','exact','normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
   issuer:=jsonb_build_object('actor_kind','issuer','procedural_role','authority','authority','GST Department','office','Division I','jurisdiction','Mumbai','raw','Deputy Commissioner','display','Deputy Commissioner','precision','exact','normalized',jsonb_build_object('procedural_role','authority','authority','GST Department','office','Division I','jurisdiction','Mumbai'),'normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
+  recipient:=jsonb_build_object('actor_kind','recipient','procedural_role','taxpayer','authority',NULL,'office',NULL,'jurisdiction',NULL,'raw','Example Private Limited','display','Example Private Limited','precision','exact','normalized',jsonb_build_object('procedural_role','taxpayer','authority',NULL,'office',NULL,'jurisdiction',NULL),'normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
   party:=jsonb_build_object('procedural_role','taxpayer','raw','Example Private Limited','display','Example Private Limited','precision','exact','normalized',jsonb_build_object('name','Example Private Limited','procedural_role','taxpayer'),'normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
   money:=jsonb_build_object('representation','decimal','amount','9007199254740993123.67','currency','INR','component','tax','applicable_period_reference',NULL,'legal_posture','alleged','raw','₹ 9,007,199,254,740,993,123.67','display','₹ 9,007,199,254,740,993,123.67','precision','exact','normalized',jsonb_build_object('representation','decimal','value','9007199254740993123.67','currency','INR','component','tax','applicable_period_reference',NULL,'legal_posture','alleged'),'normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
   provision:=jsonb_build_object('act_kind','cgst_act','act','CGST Act','provision_kind','section','provision_value','73','raw','Section 73 of CGST Act','display','Section 73 of CGST Act','precision','exact','normalized',jsonb_build_object('act_kind','cgst_act','act','CGST Act','provision_kind','section','value','73','components',jsonb_build_array('73')),'normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
+  pan_zwsp:=jsonb_build_object('kind','pan','catalogue_kind',NULL,'raw','AB'||chr(65279)||'CDE1234F','display','AB'||chr(65279)||'CDE1234F','precision','exact','normalized_value','ABCDE1234F','normalization_state','valid','validation_error',NULL,'catalogue_version',catalogue,'normalizer_version',normalizer);
 
   FOREACH item IN ARRAY ARRAY[
     jsonb_set(issuer,'{actor_kind}','null'),jsonb_set(issuer,'{actor_kind}','{}'),
@@ -93,12 +97,17 @@ BEGIN
   IF public.source_field_candidate_value_match_count('structured',item,'Deputy Commissioner, GST Department, Division I, Mumbai')<>1 THEN
     RAISE EXCEPTION 'actor NFKC source-match parity failed';
   END IF;
+  IF NOT public.typed_client_identifier_candidate_is_valid(pan_zwsp)
+    OR public.source_field_candidate_value_match_count('structured',pan_zwsp,'AB'||chr(65279)||'CDE1234F')<>1 THEN
+    RAISE EXCEPTION 'identifier U+FEFF normalization parity failed';
+  END IF;
 
   FOR item,key,path,state,errors IN SELECT * FROM (VALUES
     (gstin,'client_identifier:11111111111111111111111111111111','document.client_identifier.gstin','provisional',NULL::jsonb),
     (invalid_gstin,'client_identifier:22222222222222222222222222222222','document.client_identifier.gstin','invalid','["invalid_gstin"]'::jsonb),
     (legal_date,'legal_date:33333333333333333333333333333333','document.legal_date.issue','provisional',NULL::jsonb),
     (issuer,'actor:44444444444444444444444444444444','document.actor.issuer','provisional',NULL::jsonb),
+    (recipient,'actor:88888888888888888888888888888888','document.actor.recipient','provisional',NULL::jsonb),
     (party,'party:55555555555555555555555555555555','document.party.taxpayer','provisional',NULL::jsonb),
     (money,'money:66666666666666666666666666666666','document.money.tax','provisional',NULL::jsonb),
     (provision,'legal_provision:77777777777777777777777777777777','document.legal_provision.section','provisional',NULL::jsonb)
@@ -109,6 +118,15 @@ BEGIN
     candidates:=candidates||jsonb_build_array(jsonb_build_object('semantic_candidate_key',key,'field_path',path,'value_type','structured','normalized_value',item,'page_number',1,'quotation',quote_text,'evidence_regions',NULL,'confidence',0.96,'validation_state',state,'validation_error_codes',errors,'verified_source_anchor',jsonb_build_object('char_start',start_at,'char_end',start_at+char_length(quote_text),'token_start',NULL,'token_end',NULL,'table_cell',NULL)));
   END LOOP;
 
+  rejected:=false; BEGIN
+    PERFORM public.finish_document_processing_ai_extraction(processing,processing_lease,run,source_lease,'validated',1,1,1,jsonb_set(candidates,'{0,unknown_key}','true'),true,'{}');
+  EXCEPTION WHEN others THEN rejected:=true; END;
+  IF NOT rejected THEN RAISE EXCEPTION 'v4 candidate envelope accepted an unknown key'; END IF;
+  rejected:=false; BEGIN
+    PERFORM public.finish_document_processing_ai_extraction(processing,processing_lease,run,source_lease,'validated',1,1,1,candidates#-'{0,quotation}',true,'{}');
+  EXCEPTION WHEN others THEN rejected:=true; END;
+  IF NOT rejected THEN RAISE EXCEPTION 'v4 candidate envelope accepted a missing key'; END IF;
+
   rejected:=false;
   BEGIN
     PERFORM public.materialize_verified_source_field_candidate(run,'client_identifier:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','document.client_identifier.gstin','structured',gstin,1,gstin->>'raw',NULL,.9,'eligible',NULL,
@@ -116,18 +134,34 @@ BEGIN
   EXCEPTION WHEN others THEN rejected:=true;
   END;
   IF NOT rejected THEN RAISE EXCEPTION 'eligible material candidate bypassed provisional consequence fence'; END IF;
+  forged_provision:=jsonb_set(jsonb_set(jsonb_set(provision,'{provision_value}','"74"'),'{normalized,value}','"74"'),'{normalized,components}','["74"]');
+  rejected:=false; BEGIN PERFORM public.materialize_verified_source_field_candidate(run,'legal_provision:99999999999999999999999999999999','document.legal_provision.section','structured',forged_provision,1,provision->>'raw',NULL,.9,'provisional',NULL,jsonb_build_object('char_start',strpos(page_text,provision->>'raw')-1,'char_end',strpos(page_text,provision->>'raw')-1+char_length(provision->>'raw'),'token_start',NULL,'token_end',NULL,'table_cell',NULL)); EXCEPTION WHEN others THEN rejected:=true; END; IF NOT rejected THEN RAISE EXCEPTION 'forged legal provision normalization accepted against different source value'; END IF;
 
   SELECT count(*) INTO identifiers_before FROM public.matter_identifiers; SELECT count(*) INTO links_before FROM public.document_links;
   SELECT count(*) INTO relationships_before FROM public.document_relationships; SELECT count(*) INTO effective_before FROM public.document_effective_metadata; SELECT count(*) INTO outbox_before FROM public.outbox_events;
   SELECT * INTO finish FROM public.finish_document_processing_ai_extraction(processing,processing_lease,run,source_lease,'validated',1,1,1,candidates,true,
-    jsonb_build_object('doc_type','SCN','reference_number',NULL,'doc_date','2025-01-30','direction',NULL,'issued_by','Deputy Commissioner','financial_years','[]'::jsonb,'summary','Synthetic','prompt_version','v4.0'));
-  IF finish.code<>'review_required' OR finish.binding_id IS NULL OR (SELECT direction FROM public.documents WHERE id=document) IS NOT NULL THEN RAISE EXCEPTION 'v4 finisher or null direction compatibility failed'; END IF;
+    jsonb_build_object('doc_type','SCN','reference_number',NULL,'doc_date','2025-01-30','direction','outgoing','issued_by','Deputy Commissioner','financial_years','[]'::jsonb,'summary','Synthetic','prompt_version','v4.0'));
+  IF finish.code<>'review_required' OR finish.binding_id IS NULL OR (SELECT direction FROM public.documents WHERE id=document)<>'incoming' THEN RAISE EXCEPTION 'v4 actor-derived direction did not override caller metadata'; END IF;
   SELECT array_agg(id ORDER BY semantic_candidate_key) INTO source_ids FROM public.source_field_candidates WHERE source_analysis_run_id=run;
-  IF cardinality(source_ids)<>7 OR EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=run AND value_type<>'structured') THEN RAISE EXCEPTION 'structured candidate materialization failed'; END IF;
+  IF cardinality(source_ids)<>8 OR EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=run AND value_type<>'structured') THEN RAISE EXCEPTION 'structured candidate materialization failed'; END IF;
   replay:=public.materialize_verified_source_field_candidate(run,'client_identifier:11111111111111111111111111111111','document.client_identifier.gstin','structured',gstin,1,'27AAPFU0939F1ZV',NULL,0.96,'provisional',NULL,jsonb_build_object('char_start',strpos(page_text,'27AAPFU0939F1ZV')-1,'char_end',strpos(page_text,'27AAPFU0939F1ZV')-1+15,'token_start',NULL,'token_end',NULL,'table_cell',NULL));
   IF replay IS NULL OR NOT replay=ANY(source_ids) THEN RAISE EXCEPTION 'candidate replay failed'; END IF;
   binding_copy:=public.materialize_document_version_analysis(version_copy,run,'copy',NULL);
-  IF binding_copy IS NULL OR (SELECT count(*) FROM public.document_field_candidates WHERE source_field_candidate_id=ANY(source_ids))<>14 THEN RAISE EXCEPTION 'same-source copy did not preserve candidates'; END IF;
+  IF binding_copy IS NULL OR (SELECT count(*) FROM public.document_field_candidates WHERE source_field_candidate_id=ANY(source_ids))<>16 THEN RAISE EXCEPTION 'same-source copy did not preserve candidates'; END IF;
+  INSERT INTO public.document_processing_runs(id,org_id,document_id,document_version_id,scope,idempotency_key,state,stage,started_at,lease_token,lease_expires_at,heartbeat_at)
+    VALUES(issuer_processing,org,document_copy,version_copy,'full','fixture.material.issuer-only','running','extracting',now(),issuer_processing_lease,now()+interval '10 minutes',now());
+  INSERT INTO public.source_analysis_runs(id,org_id,asset_id,request_key,idempotency_key,analysis_kind,analysis_state,state,provider,model_identifier,model_config_version,prompt_version,schema_version,catalogue_version,normalizer_version,started_at,attempt_count,lease_token,lease_expires_at,heartbeat_at)
+    VALUES(issuer_run,org,asset,'ai_extraction.'||issuer_processing,'ai_extraction.'||issuer_processing,'ai_extraction','running','running','vertex-ai','gemini-2.5-flash','fixture-model','v4.0','document-extraction-v4',catalogue,normalizer,now(),1,issuer_source_lease,now()+interval '10 minutes',now());
+  INSERT INTO public.source_analysis_attempts(org_id,source_analysis_run_id,attempt_number,state,retry_reason,provider,model_identifier,model_config_version,prompt_version,schema_version,catalogue_version,normalizer_version,started_at)
+    VALUES(org,issuer_run,1,'running','initial','vertex-ai','gemini-2.5-flash','fixture-model','v4.0','document-extraction-v4',catalogue,normalizer,now());
+  INSERT INTO public.document_page_text_artifacts(org_id,document_id,document_version_id,processing_run_id,source_analysis_run_id,state,page_count,content_fingerprint)
+    VALUES(org,document_copy,version_copy,issuer_processing,issuer_run,'ready',1,repeat('3',64));
+  INSERT INTO public.document_page_text_pages(org_id,artifact_id,page_number,page_text,ocr_words,table_cells,page_content_hash,acquisition_method,quality_policy_version,quality_reasons,detected_languages)
+    SELECT org,id,1,page_text,'[]','[]',repeat('4',64),'native_pdf','native-pdf-quality-v1','{}','{}' FROM public.document_page_text_artifacts WHERE source_analysis_run_id=issuer_run;
+  SELECT jsonb_agg(value) INTO issuer_candidates FROM jsonb_array_elements(candidates) WHERE value->>'field_path'='document.actor.issuer';
+  SELECT * INTO finish FROM public.finish_document_processing_ai_extraction(issuer_processing,issuer_processing_lease,issuer_run,issuer_source_lease,'validated',1,1,1,issuer_candidates,true,
+    jsonb_build_object('doc_type','SCN','reference_number',NULL,'doc_date','2025-01-30','direction','incoming','issued_by','Deputy Commissioner','financial_years','[]'::jsonb,'summary','Issuer only','prompt_version','v4.0'));
+  IF finish.code<>'review_required' OR (SELECT direction FROM public.documents WHERE id=document_copy) IS NOT NULL THEN RAISE EXCEPTION 'issuer-only v4 actors did not override forged caller direction with null'; END IF;
   rejected:=false; BEGIN PERFORM public.materialize_document_version_analysis(version_b,run,'copy',NULL); EXCEPTION WHEN others THEN rejected:=true; END; IF NOT rejected THEN RAISE EXCEPTION 'cross-tenant copy accepted'; END IF;
   rejected:=false; BEGIN PERFORM public.materialize_verified_source_field_candidate(run,'money:forged','document.money.tax','structured',jsonb_set(money,'{normalized,value}','"1"'),1,money->>'raw',NULL,.9,'invalid',ARRAY['fixture'],NULL); EXCEPTION WHEN others THEN rejected:=true; END; IF NOT rejected THEN RAISE EXCEPTION 'forged money normalized value accepted'; END IF;
   rejected:=false; BEGIN PERFORM public.materialize_verified_source_field_candidate(run,'gstin:forged','document.client_identifier.gstin','structured',invalid_gstin||'{"normalized_value":"27AAPFU0939F1ZU","normalization_state":"valid","validation_error":null}',1,invalid_gstin->>'raw',NULL,.9,'invalid',ARRAY['fixture'],NULL); EXCEPTION WHEN others THEN rejected:=true; END; IF NOT rejected THEN RAISE EXCEPTION 'forged invalid GSTIN normalization accepted'; END IF;

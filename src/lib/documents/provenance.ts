@@ -316,7 +316,7 @@ export function provenanceMaterializationFromAnalysis(
   for (const provision of analysis.legal_provisions) {
     addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, provision,
       legalProvisionSemanticKey(provision), `document.legal_provision.${provision.provision_kind}`, pageCount, pages,
-      provision.raw, 'text', undefined, true)
+      provision.normalized?.value ?? provision.raw, provision.normalized ? 'code' : 'text', undefined, true)
   }
 
   return {
