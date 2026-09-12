@@ -233,7 +233,7 @@ ALTER TABLE public.document_field_candidates ADD CONSTRAINT document_field_candi
 
 CREATE OR REPLACE FUNCTION public.source_field_candidate_value_match_count(p_value_type public.source_field_candidate_value_type,p_normalized_value jsonb,p_source_text text)
 RETURNS integer LANGUAGE plpgsql STABLE SET search_path=pg_catalog,public AS $$
-DECLARE source_text text:=replace(p_source_text,chr(65279),' ');
+DECLARE source_text text:=replace(p_source_text,chr(65279),' '); canonical_source text; canonical_act text; act_kind text;
 BEGIN
   IF p_value_type='structured' AND public.typed_official_reference_candidate_is_valid(p_normalized_value) THEN
     RETURN public.source_field_candidate_value_match_count('code',to_jsonb(p_normalized_value->>'normalized_value'),source_text);
@@ -255,6 +255,17 @@ BEGIN
     IF p_normalized_value->>'normalization_state'='invalid' THEN
       RETURN public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),source_text);
     END IF;
+    canonical_source:=upper(regexp_replace(btrim(normalize(source_text,NFKC)),'[[:space:]]+',' ','g'));
+    IF p_normalized_value->>'act' IS NOT NULL THEN
+      canonical_act:=upper(regexp_replace(btrim(normalize(p_normalized_value->>'act',NFKC)),'[[:space:]]+',' ','g'));
+      IF position(canonical_act IN canonical_source)=0 THEN RETURN 0; END IF;
+    END IF;
+    act_kind:=p_normalized_value->>'act_kind';
+    IF (act_kind='cgst_act' AND position('CGST ACT' IN canonical_source)=0 AND position('CENTRAL GOODS AND SERVICES TAX ACT' IN canonical_source)=0)
+      OR (act_kind='igst_act' AND position('IGST ACT' IN canonical_source)=0 AND position('INTEGRATED GOODS AND SERVICES TAX ACT' IN canonical_source)=0)
+      OR (act_kind='gst_rules' AND position('GST RULES' IN canonical_source)=0 AND position('CENTRAL GOODS AND SERVICES TAX RULES' IN canonical_source)=0)
+      OR (act_kind='constitution' AND position('CONSTITUTION' IN canonical_source)=0)
+      OR (act_kind='other_catalogued' AND p_normalized_value->>'act' IS NULL) THEN RETURN 0; END IF;
     RETURN public.source_field_candidate_value_match_count_legacy('code',to_jsonb(p_normalized_value->'normalized'->>'value'),source_text);
   ELSIF p_value_type='structured' AND public.typed_material_candidate_is_valid(p_normalized_value) THEN
     RETURN public.source_field_candidate_value_match_count_legacy('text',to_jsonb(p_normalized_value->>'raw'),source_text);

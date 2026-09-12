@@ -99,6 +99,34 @@ test('legal provision normalization must resolve its own value rather than only 
   assert.equal(provision?.verified_source_anchor, null)
 })
 
+test('legal provision act label and catalogued identity must both resolve in the source quote', () => {
+  const forgedLabel = aiDocumentPayloadSchema.parse({ ...providerPayload, legal_provisions: [{
+    ...providerPayload.legal_provisions[0], act_kind: 'igst_act', act: 'IGST Act',
+  }] })
+  const labelResult = provenanceMaterializationFromAnalysis(forgedLabel, 2, pages)
+  const labelCandidate = labelResult.candidates.find((candidate) => candidate.field_path === 'document.legal_provision.section')
+  assert.equal(labelCandidate?.validation_state, 'invalid')
+  assert.deepEqual(labelCandidate?.validation_error_codes, ['act_not_in_quote'])
+  assert.equal(labelCandidate?.verified_source_anchor, null)
+
+  const forgedKind = aiDocumentPayloadSchema.parse({ ...providerPayload, legal_provisions: [{
+    ...providerPayload.legal_provisions[0], act_kind: 'igst_act',
+  }] })
+  const kindResult = provenanceMaterializationFromAnalysis(forgedKind, 2, pages)
+  const kindCandidate = kindResult.candidates.find((candidate) => candidate.field_path === 'document.legal_provision.section')
+  assert.equal(kindCandidate?.validation_state, 'invalid')
+  assert.deepEqual(kindCandidate?.validation_error_codes, ['act_kind_not_in_quote'])
+  assert.equal(kindCandidate?.verified_source_anchor, null)
+
+  const nfkcLabel = aiDocumentPayloadSchema.parse({ ...providerPayload, legal_provisions: [{
+    ...providerPayload.legal_provisions[0], act: 'ＣＧＳＴ Act',
+  }] })
+  const nfkcCandidate = provenanceMaterializationFromAnalysis(nfkcLabel, 2, pages).candidates
+    .find((candidate) => candidate.field_path === 'document.legal_provision.section')
+  assert.equal(nfkcCandidate?.validation_state, 'provisional')
+  assert.notEqual(nfkcCandidate?.verified_source_anchor, null)
+})
+
 test('identifier verification treats U+FEFF consistently with runtime normalization', () => {
   const raw = 'AB\uFEFFCDE1234F'
   const parsed = aiDocumentPayloadSchema.parse({ ...providerPayload,

@@ -152,6 +152,7 @@ function addStructuredCandidate(
   identifier?: 'gstin',
   alwaysProvisional = false,
   domainError?: string,
+  sourceGroundingError?: string,
 ) {
   if (observation.source_page > pageCount || /[\u0000-\u001F\u007F]/.test(observation.source_quote)) {
     terminalReviewCodes.add('candidate_evidence_unsafe')
@@ -165,12 +166,13 @@ function addStructuredCandidate(
     identifier,
   )
   const { source_page, source_quote, confidence, ...normalized } = observation
-  const validation_state: ProvenanceCandidate['validation_state'] = !verification.ok || domainError ? 'invalid'
+  const sourceVerified = verification.ok && sourceGroundingError === undefined
+  const validation_state: ProvenanceCandidate['validation_state'] = !sourceVerified || domainError ? 'invalid'
     : observation.normalization_state === 'invalid' ? 'invalid'
     : alwaysProvisional || observation.normalization_state === 'provisional' ? 'provisional'
     : candidateState(confidence)
   const validation_error_codes = validation_state === 'invalid'
-    ? [!verification.ok ? verification.code : domainError ?? observation.validation_error ?? 'domain_invalid']
+    ? [!verification.ok ? verification.code : sourceGroundingError ?? domainError ?? observation.validation_error ?? 'domain_invalid']
     : null
   output.push({
     semantic_candidate_key: semanticKey,
@@ -179,14 +181,14 @@ function addStructuredCandidate(
     normalized_value: normalized as Json,
     page_number: source_page,
     quotation: source_quote,
-    verified_source_anchor: verification.ok ? {
+    verified_source_anchor: verification.ok && sourceGroundingError === undefined ? {
       char_start: verification.evidence.char_start,
       char_end: verification.evidence.char_end,
       token_start: verification.evidence.token_start,
       token_end: verification.evidence.token_end,
       table_cell: verification.evidence.table_cell,
     } : null,
-    evidence_regions: verification.ok && verification.evidence.regions.length ? verification.evidence.regions : null,
+    evidence_regions: verification.ok && sourceGroundingError === undefined && verification.evidence.regions.length ? verification.evidence.regions : null,
     confidence,
     validation_state,
     validation_error_codes,
@@ -194,6 +196,27 @@ function addStructuredCandidate(
   if (validation_state !== 'eligible') {
     reviewCodes.add(validation_state === 'invalid' ? validation_error_codes![0] : 'provisional_evidence')
   }
+}
+
+const LEGAL_ACT_SOURCE_ALIASES: Partial<Record<AIDocumentPayload['legal_provisions'][number]['act_kind'], string[]>> = {
+  cgst_act: ['CGST ACT', 'CENTRAL GOODS AND SERVICES TAX ACT'],
+  igst_act: ['IGST ACT', 'INTEGRATED GOODS AND SERVICES TAX ACT'],
+  gst_rules: ['GST RULES', 'CGST RULES', 'CENTRAL GOODS AND SERVICES TAX RULES'],
+  constitution: ['CONSTITUTION', 'CONSTITUTION OF INDIA'],
+}
+
+function canonicalSourceLabel(value: string) {
+  return value.normalize('NFKC').replace(/\uFEFF/gu, ' ').toUpperCase().replace(/\s+/gu, ' ').trim()
+}
+
+function legalProvisionSourceGroundingError(provision: AIDocumentPayload['legal_provisions'][number]) {
+  if (provision.normalization_state === 'invalid') return undefined
+  const quote = canonicalSourceLabel(provision.source_quote)
+  if (provision.act && !quote.includes(canonicalSourceLabel(provision.act))) return 'act_not_in_quote'
+  const aliases = LEGAL_ACT_SOURCE_ALIASES[provision.act_kind]
+  if (aliases && !aliases.some((alias) => quote.includes(alias))) return 'act_kind_not_in_quote'
+  if (provision.act_kind === 'other_catalogued' && provision.act === null) return 'act_not_in_quote'
+  return undefined
 }
 
 /**
@@ -316,7 +339,8 @@ export function provenanceMaterializationFromAnalysis(
   for (const provision of analysis.legal_provisions) {
     addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, provision,
       legalProvisionSemanticKey(provision), `document.legal_provision.${provision.provision_kind}`, pageCount, pages,
-      provision.normalized?.value ?? provision.raw, provision.normalized ? 'code' : 'text', undefined, true)
+      provision.normalized?.value ?? provision.raw, provision.normalized ? 'code' : 'text', undefined, true, undefined,
+      legalProvisionSourceGroundingError(provision))
   }
 
   return {

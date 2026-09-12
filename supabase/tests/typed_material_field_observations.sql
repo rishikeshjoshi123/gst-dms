@@ -101,6 +101,14 @@ BEGIN
     OR public.source_field_candidate_value_match_count('structured',pan_zwsp,'AB'||chr(65279)||'CDE1234F')<>1 THEN
     RAISE EXCEPTION 'identifier U+FEFF normalization parity failed';
   END IF;
+  forged_provision:=jsonb_set(jsonb_set(jsonb_set(jsonb_set(provision,'{act_kind}','"igst_act"'),'{act}','"IGST Act"'),'{normalized,act_kind}','"igst_act"'),'{normalized,act}','"IGST Act"');
+  IF public.source_field_candidate_value_match_count('structured',forged_provision,provision->>'raw')<>0 THEN
+    RAISE EXCEPTION 'forged legal act identity resolved against a different source Act';
+  END IF;
+  item:=jsonb_set(jsonb_set(provision,'{act}',to_jsonb('ＣＧＳＴ Act'::text)),'{normalized,act}',to_jsonb('ＣＧＳＴ Act'::text));
+  IF public.source_field_candidate_value_match_count('structured',item,provision->>'raw')<>1 THEN
+    RAISE EXCEPTION 'legal Act NFKC source-match parity failed';
+  END IF;
 
   FOR item,key,path,state,errors IN SELECT * FROM (VALUES
     (gstin,'client_identifier:11111111111111111111111111111111','document.client_identifier.gstin','provisional',NULL::jsonb),
@@ -148,6 +156,13 @@ BEGIN
   IF replay IS NULL OR NOT replay=ANY(source_ids) THEN RAISE EXCEPTION 'candidate replay failed'; END IF;
   binding_copy:=public.materialize_document_version_analysis(version_copy,run,'copy',NULL);
   IF binding_copy IS NULL OR (SELECT count(*) FROM public.document_field_candidates WHERE source_field_candidate_id=ANY(source_ids))<>16 THEN RAISE EXCEPTION 'same-source copy did not preserve candidates'; END IF;
+  forged_provision:=jsonb_set(jsonb_set(jsonb_set(jsonb_set(provision,'{act_kind}','"igst_act"'),'{act}','"IGST Act"'),'{normalized,act_kind}','"igst_act"'),'{normalized,act}','"IGST Act"');
+  rejected:=false; BEGIN PERFORM public.materialize_verified_source_field_candidate(run,'legal_provision:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','document.legal_provision.section','structured',forged_provision,1,provision->>'raw',NULL,.9,'provisional',NULL,jsonb_build_object('char_start',strpos(page_text,provision->>'raw')-1,'char_end',strpos(page_text,provision->>'raw')-1+char_length(provision->>'raw'),'token_start',NULL,'token_end',NULL,'table_cell',NULL)); EXCEPTION WHEN others THEN rejected:=true; END;
+  IF NOT rejected THEN RAISE EXCEPTION 'source-mismatched normalized Act was accepted as provisional'; END IF;
+  PERFORM public.materialize_verified_source_field_candidate(run,'legal_provision:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','document.legal_provision.section','structured',forged_provision,1,provision->>'raw',NULL,.9,'invalid',ARRAY['act_not_in_quote'],NULL);
+  IF NOT EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=run AND semantic_candidate_key='legal_provision:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' AND validation_state='invalid' AND verified_source_anchor IS NULL) THEN
+    RAISE EXCEPTION 'source-mismatched normalized Act was not retained as bounded invalid evidence';
+  END IF;
   INSERT INTO public.document_processing_runs(id,org_id,document_id,document_version_id,scope,idempotency_key,state,stage,started_at,lease_token,lease_expires_at,heartbeat_at)
     VALUES(issuer_processing,org,document_copy,version_copy,'full','fixture.material.issuer-only','running','extracting',now(),issuer_processing_lease,now()+interval '10 minutes',now());
   INSERT INTO public.source_analysis_runs(id,org_id,asset_id,request_key,idempotency_key,analysis_kind,analysis_state,state,provider,model_identifier,model_config_version,prompt_version,schema_version,catalogue_version,normalizer_version,started_at,attempt_count,lease_token,lease_expires_at,heartbeat_at)
