@@ -68,9 +68,9 @@ function useFocusBridge() {
   return bridge
 }
 
-export function MatterTimelineRowLink({ documentId, href, children, className }: { documentId: string; href: string; children: ReactNode; className: string }) {
+export function MatterTimelineRowLink({ documentId, href, children, className, ariaLabel, selected }: { documentId: string; href: string; children: ReactNode; className: string; ariaLabel?: string; selected?: boolean }) {
   const bridge = useFocusBridge()
-  return <Link id={`matter-timeline-row-${documentId}`} ref={(node) => bridge.registerRow(documentId, node)} href={href} scroll={false} className={className}>{children}</Link>
+  return <Link id={`matter-timeline-row-${documentId}`} ref={(node) => bridge.registerRow(documentId, node)} href={href} scroll={false} prefetch={false} aria-label={ariaLabel} aria-current={selected ? 'true' : undefined} className={className}>{children}</Link>
 }
 
 export function MatterTimelineCloseLink({ documentId, href, children, className }: { documentId: string; href: string; children: ReactNode; className: string }) {

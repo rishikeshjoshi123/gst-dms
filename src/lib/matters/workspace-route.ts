@@ -42,6 +42,7 @@ export const MATTER_SECTION_LABELS: Record<MatterSectionId, string> = {
 export type MatterWorkspaceSearchParams = Record<string, string | string[] | undefined>
 
 export type MatterInspectorView = 'overview' | 'relationships' | 'notes'
+export type MatterTimelineView = 'graph' | 'chronology'
 
 export const MATTER_INSPECTOR_LABELS: Record<MatterInspectorView, string> = {
   overview: 'Overview',
@@ -51,6 +52,7 @@ export const MATTER_INSPECTOR_LABELS: Record<MatterInspectorView, string> = {
 
 export type MatterWorkspaceRouteState = {
   section: MatterSectionId
+  timelineView: MatterTimelineView
   selectionRequested: boolean
   selectedDocumentId: string | null
   inspector: MatterInspectorView
@@ -63,6 +65,7 @@ export type MatterWorkspaceRouteState = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const INSPECTOR_VIEWS = new Set<MatterInspectorView>(['overview', 'relationships', 'notes'])
+const TIMELINE_VIEWS = new Set<MatterTimelineView>(['graph', 'chronology'])
 
 function scalar(value: string | string[] | undefined) {
   return typeof value === 'string' ? value : undefined
@@ -77,12 +80,16 @@ export function parseMatterWorkspaceRoute(
 ): MatterWorkspaceRouteState {
   const requestedSection = scalar(query.section)
   const section = isMatterSectionId(requestedSection) ? requestedSection : 'timeline'
+  const requestedTimelineView = section === 'timeline' ? scalar(query.view) : undefined
   const selectionRequested = query.document !== undefined && (section === 'timeline' || section === 'files')
   const document = selectionRequested ? scalar(query.document) : undefined
   const inspectorValue = selectionRequested ? scalar(query.inspector) : undefined
 
   return {
     section,
+    timelineView: requestedTimelineView && TIMELINE_VIEWS.has(requestedTimelineView as MatterTimelineView)
+      ? requestedTimelineView as MatterTimelineView
+      : 'graph',
     selectionRequested,
     selectedDocumentId: document && UUID_PATTERN.test(document) ? document : null,
     inspector: inspectorValue && INSPECTOR_VIEWS.has(inspectorValue as MatterInspectorView)
@@ -98,6 +105,34 @@ export function parseMatterWorkspaceRoute(
       filters: Array.isArray(query.filter) ? query.filter : typeof query.filter === 'string' ? [query.filter] : [],
     }),
   }
+}
+
+export function buildMatterTimelineViewHref(
+  matterId: string,
+  currentEntries: Iterable<readonly [string, string]>,
+  view: MatterTimelineView,
+) {
+  const search = new URLSearchParams()
+  for (const [key, value] of currentEntries) {
+    if (key !== 'view') search.append(key, value)
+  }
+  search.set('section', 'timeline')
+  search.set('view', view)
+  return `/matters/${encodeURIComponent(matterId)}?${search.toString()}`
+}
+
+export function buildMatterRelationshipSelectionHref(
+  matterId: string,
+  currentEntries: Iterable<readonly [string, string]>,
+  canonicalSourceDocumentId: string,
+) {
+  const selected = new URL(buildMatterDocumentSelectionHref(
+    matterId,
+    currentEntries,
+    canonicalSourceDocumentId,
+  ), 'https://casechain.invalid')
+  selected.searchParams.set('inspector', 'relationships')
+  return `${selected.pathname}${selected.search}`
 }
 
 export function buildMatterTimelinePageHref(

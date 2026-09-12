@@ -19,8 +19,24 @@ import {
   type MatterTimelinePageRequest,
   type MatterTimelineRelationshipProjection,
 } from './workspace-timeline-page'
+import {
+  layoutMatterTimelineGraph,
+  type MatterTimelineGraphLayout,
+} from './matter-timeline-graph-layout'
 
 export type { MatterTimelineChronologyItem, MatterTimelineChronologyPage, MatterTimelineRelationship, MatterTimelineRelationshipProjection } from './workspace-timeline-page'
+export type { MatterTimelineGraphLayout } from './matter-timeline-graph-layout'
+
+export type MatterTimelineGraphProjection = {
+  outcome: 'ok' | 'unavailable'
+  reason: 'read' | 'capacity' | 'inconsistent' | 'layout' | null
+  layout: MatterTimelineGraphLayout | null
+  total: number
+  unfilteredTotal: number
+  sourceRevision: string | null
+  relationshipSourceRevision: string | null
+  fetchedAt: string
+}
 
 export type MatterWorkspaceDocument = Database['public']['Tables']['documents']['Row']
 export type MatterWorkspaceLink = Database['public']['Tables']['document_links']['Row']
@@ -250,12 +266,12 @@ export async function readMatterTimelineChronology(
 /** Selected-document relationship inspection uses only the governed effective projection. */
 export async function readMatterTimelineRelationships(
   matterId: string,
-  selectedDocumentId: string,
+  selectedDocumentId: string | null = null,
 ): Promise<MatterTimelineRelationshipProjection> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('read_matter_timeline_relationships', {
     p_matter_id: matterId,
-    p_selected_document_id: selectedDocumentId,
+    p_selected_document_id: selectedDocumentId ?? undefined,
   })
   if (error) throw new Error('Unable to load selected-document relationships.')
   const row = (data ?? [])[0]
@@ -270,6 +286,72 @@ export async function readMatterTimelineRelationships(
     relationships: shapeMatterTimelineRelationships(row.relationships),
     sourceRevision: row.source_revision,
     fetchedAt: row.fetched_at,
+  }
+}
+
+/**
+ * The graph composes only the two secured projections. It never queries
+ * relationship tables, legacy links, candidates, or document metadata itself.
+ */
+export async function readMatterTimelineGraph(
+  matterId: string,
+  request: MatterTimelinePageRequest = {},
+): Promise<MatterTimelineGraphProjection> {
+  const normalized = normalizeMatterTimelinePage(request)
+  const unavailable = (
+    reason: Exclude<MatterTimelineGraphProjection['reason'], null>,
+    total = 0,
+    unfilteredTotal = 0,
+  ): MatterTimelineGraphProjection => ({
+    outcome: 'unavailable', reason, layout: null, total, unfilteredTotal,
+    sourceRevision: null, relationshipSourceRevision: null,
+    fetchedAt: new Date().toISOString(),
+  })
+
+  try {
+    const first = await readMatterTimelineChronology(matterId, { ...normalized, offset: 0, limit: 100 })
+    if (first.outcome !== 'ok') return unavailable('read')
+    if (first.total > 250) return unavailable('capacity', first.total, first.unfilteredTotal)
+
+    const offsets = [100, 200].filter((offset) => offset < first.total)
+    const [remaining, relationships] = await Promise.all([
+      Promise.all(offsets.map((offset) => readMatterTimelineChronology(
+        matterId,
+        { ...normalized, offset, limit: 100 },
+      ))),
+      readMatterTimelineRelationships(matterId, null),
+    ])
+    if (relationships.outcome !== 'ok') return unavailable('read')
+    const pages = [first, ...remaining]
+    if (pages.some((page, index) => (
+      page.outcome !== 'ok'
+      || page.offset !== index * 100
+      || page.total !== first.total
+      || page.unfilteredTotal !== first.unfilteredTotal
+      || page.sourceRevision !== first.sourceRevision
+    ))) return unavailable('inconsistent', first.total, first.unfilteredTotal)
+
+    const documents = pages.flatMap((page) => page.items)
+    if (documents.length !== first.total || new Set(documents.map((document) => document.id)).size !== documents.length) {
+      return unavailable('inconsistent', first.total, first.unfilteredTotal)
+    }
+    if (documents.some((document) => document.classificationState !== 'canonical')) {
+      return unavailable('inconsistent', first.total, first.unfilteredTotal)
+    }
+    try {
+      return {
+        outcome: 'ok', reason: null,
+        layout: layoutMatterTimelineGraph(documents, relationships.relationships),
+        total: first.total, unfilteredTotal: first.unfilteredTotal,
+        sourceRevision: first.sourceRevision,
+        relationshipSourceRevision: relationships.sourceRevision,
+        fetchedAt: first.fetchedAt,
+      }
+    } catch {
+      return unavailable('layout', first.total, first.unfilteredTotal)
+    }
+  } catch {
+    return unavailable('read')
   }
 }
 

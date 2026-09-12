@@ -6,7 +6,7 @@ const activeSectionSource = readFileSync(new URL('./MatterActiveSection.tsx', im
 const boundarySource = readFileSync(new URL('./MatterSectionBoundary.tsx', import.meta.url), 'utf8')
 const pageSource = readFileSync(new URL('../../app/(app)/matters/[id]/page.tsx', import.meta.url), 'utf8')
 const readerSource = readFileSync(new URL('../../lib/matters/workspace-read.ts', import.meta.url), 'utf8')
-const chronologySource = readFileSync(new URL('./MatterTimelineChronology.tsx', import.meta.url), 'utf8')
+const timelineInspectorSource = readFileSync(new URL('./MatterTimelineInspector.tsx', import.meta.url), 'utf8')
 const timelinePageSource = readFileSync(new URL('../../lib/matters/workspace-timeline-page.ts', import.meta.url), 'utf8')
 const exactResourceSource = readFileSync(new URL('../../lib/trash/exact-resource.ts', import.meta.url), 'utf8')
 
@@ -57,8 +57,8 @@ test('Timeline selected-document notes use the narrow reader without the Notes m
   assert.match(previewBody, /\.select\('id, content, created_at, author_id'\)/)
   assert.match(previewBody, /\.limit\(5\)/)
   assert.doesNotMatch(previewBody, /get_note_quote_locators|author_id\.slice|User \(/)
-  assert.match(chronologySource, /Document notes/)
-  assert.match(chronologySource, /Open Matter Notes/)
+  assert.match(timelineInspectorSource, /Document notes/)
+  assert.match(timelineInspectorSource, /Open Matter Notes/)
 })
 
 test('Timeline selected-document relationships use only the narrow governed projection', () => {
@@ -77,8 +77,8 @@ test('Timeline selected-document relationships use only the narrow governed proj
 
 test('URL inspector state is consumed and workspace capabilities remain server-derived', () => {
   assert.match(activeSectionSource, /inspector=\{route\.inspector\}/)
-  assert.match(chronologySource, /buildMatterInspectorHref/)
-  assert.match(chronologySource, /aria-current=\{inspector === view \? 'page'/)
+  assert.match(timelineInspectorSource, /buildMatterInspectorHref/)
+  assert.match(timelineInspectorSource, /aria-current=\{inspector === view \? 'page'/)
   assert.match(readerSource, /capabilities\.includes\('document\.intake\.create'\)/)
 })
 
