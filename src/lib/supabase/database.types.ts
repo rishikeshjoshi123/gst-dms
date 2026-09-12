@@ -8661,6 +8661,25 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_processing_ai_extraction_v3: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
       finish_document_processing_work: {
         Args: {
           p_lease_token: string
@@ -10787,6 +10806,14 @@ export type Database = {
           blocking_operation_id: string
         }[]
       }
+      typed_actor_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_client_identifier_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
       typed_extraction_string_array_is_valid: {
         Args: { p_max: number; p_pattern: string; p_value: Json }
         Returns: boolean
@@ -10795,7 +10822,39 @@ export type Database = {
         Args: { p_value: string }
         Returns: boolean
       }
+      typed_gstin_checksum_is_valid: {
+        Args: { p_value: string }
+        Returns: boolean
+      }
+      typed_legal_date_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_legal_provision_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_material_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_material_observation_common_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_money_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
       typed_official_reference_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_optional_source_text_is_valid: {
+        Args: { p_max: number; p_value: Json }
+        Returns: boolean
+      }
+      typed_party_candidate_is_valid: {
         Args: { p_value: Json }
         Returns: boolean
       }

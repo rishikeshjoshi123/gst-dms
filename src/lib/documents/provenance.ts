@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto'
-import { officialReferenceSemanticKey, type AIDocumentPayload } from '@/lib/ai/schemas'
+import {
+  actorSemanticKey,
+  clientIdentifierSemanticKey,
+  legalDateSemanticKey,
+  legalProvisionSemanticKey,
+  moneyObservationSemanticKey,
+  officialReferenceSemanticKey,
+  partySemanticKey,
+  type AIDocumentPayload,
+} from '@/lib/ai/schemas'
 import type { Json } from '@/lib/supabase/database.types'
 import { verifyCanonicalSource, type CanonicalPage } from './source-verifier'
 
@@ -112,17 +121,79 @@ function addEvidenceCandidate(
   if (validation_state !== 'eligible') reviewCodes.add(validation_state === 'invalid' ? (verification && !verification.ok ? verification.code : 'low_confidence') : 'provisional_evidence')
 }
 
-function decimalFromNumber(value: number) {
-  const normalized = String(value)
-  return /^-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,6})?$/.test(normalized) ? normalized : null
-}
-
 function evidenceFor(
   evidence: AIDocumentPayload['evidence'],
   field: EvidenceField,
   value: string,
 ) {
   return evidence.find((item) => item.field === field && item.value === value)
+}
+
+type StructuredObservation = {
+  raw: string
+  source_page: number
+  source_quote: string
+  confidence: number
+  normalization_state?: 'valid' | 'provisional' | 'invalid'
+  validation_error?: string | null
+}
+
+function addStructuredCandidate(
+  output: ProvenanceCandidate[],
+  reviewCodes: Set<string>,
+  terminalReviewCodes: Set<string>,
+  observation: StructuredObservation,
+  semanticKey: string,
+  fieldPath: string,
+  pageCount: number,
+  pages: CanonicalPage[] | undefined,
+  sourceValue = observation.raw,
+  sourceType: 'text' | 'code' | 'date' | 'decimal' = 'text',
+  identifier?: 'gstin',
+  alwaysProvisional = false,
+  domainError?: string,
+) {
+  if (observation.source_page > pageCount || /[\u0000-\u001F\u007F]/.test(observation.source_quote)) {
+    terminalReviewCodes.add('candidate_evidence_unsafe')
+    return
+  }
+  const verification = verifyCanonicalSource(
+    pages?.find((page) => page.page_number === observation.source_page),
+    observation.source_quote,
+    sourceValue,
+    sourceType,
+    identifier,
+  )
+  const { source_page, source_quote, confidence, ...normalized } = observation
+  const validation_state: ProvenanceCandidate['validation_state'] = !verification.ok || domainError ? 'invalid'
+    : observation.normalization_state === 'invalid' ? 'invalid'
+    : alwaysProvisional || observation.normalization_state === 'provisional' ? 'provisional'
+    : candidateState(confidence)
+  const validation_error_codes = validation_state === 'invalid'
+    ? [!verification.ok ? verification.code : domainError ?? observation.validation_error ?? 'domain_invalid']
+    : null
+  output.push({
+    semantic_candidate_key: semanticKey,
+    field_path: fieldPath,
+    value_type: 'structured',
+    normalized_value: normalized as Json,
+    page_number: source_page,
+    quotation: source_quote,
+    verified_source_anchor: verification.ok ? {
+      char_start: verification.evidence.char_start,
+      char_end: verification.evidence.char_end,
+      token_start: verification.evidence.token_start,
+      token_end: verification.evidence.token_end,
+      table_cell: verification.evidence.table_cell,
+    } : null,
+    evidence_regions: verification.ok && verification.evidence.regions.length ? verification.evidence.regions : null,
+    confidence,
+    validation_state,
+    validation_error_codes,
+  })
+  if (validation_state !== 'eligible') {
+    reviewCodes.add(validation_state === 'invalid' ? validation_error_codes![0] : 'provisional_evidence')
+  }
 }
 
 /**
@@ -201,11 +272,7 @@ export function provenanceMaterializationFromAnalysis(
     type: ProvenanceCandidate['value_type']
   }> = [
     { evidenceField: 'document_type', value: analysis.doc_type, key: 'document.type', path: 'document.type', type: 'code' },
-    { evidenceField: 'gstin', value: analysis.gstin, key: 'document.gstin', path: 'document.gstin', type: 'code' },
     { evidenceField: 'client_name', value: analysis.client_name, key: 'document.client_name', path: 'document.client_name', type: 'text' },
-    { evidenceField: 'document_date', value: analysis.doc_date, key: 'document.date', path: 'document.date', type: 'date' },
-    { evidenceField: 'direction', value: analysis.direction, key: 'document.direction', path: 'document.direction', type: 'code' },
-    { evidenceField: 'issued_by', value: analysis.issued_by, key: 'document.issued_by', path: 'document.issued_by', type: 'text' },
   ]
 
   for (const field of scalarFields) {
@@ -214,70 +281,42 @@ export function provenanceMaterializationFromAnalysis(
     if (evidence) addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, field.value, field.key, field.path, field.type, pageCount, pages)
   }
 
-  for (const identifier of analysis.client_identifiers ?? []) {
-    const evidence = evidenceFor(analysis.evidence, 'client_identifier', identifier)
-    if (!evidence) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    addEvidenceCandidate(
-      candidates,
-      reviewCodes,
-      terminalReviewCodes,
-      evidence,
-      identifier,
-      `client_identifier:${identifier}`,
-      'document.client_identifier',
-      'code',
-      pageCount,
-      pages,
-    )
+  for (const identifier of analysis.client_identifiers_observed) {
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, identifier,
+      clientIdentifierSemanticKey(identifier), `document.client_identifier.${identifier.kind}`, pageCount, pages,
+      identifier.normalized_value ?? identifier.raw, 'code', identifier.kind === 'gstin' && identifier.normalized_value ? 'gstin' : undefined, true)
   }
 
-  for (const [index, deadline] of analysis.deadlines.entries()) {
-    if (deadline.source_page === null || deadline.source_quote === null) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    if (deadline.source_page > pageCount || deadline.source_quote.length > 1000 || /[\u0000-\u001F\u007F]/.test(deadline.source_quote)) {
-      terminalReviewCodes.add('candidate_evidence_unsafe')
-      continue
-    }
-    addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, {
-      field: 'deadline', value: deadline.due_date, page_number: deadline.source_page,
-      quote: deadline.source_quote, confidence: deadline.confidence,
-    }, deadline.due_date, `deadline:${index}`, 'deadline.due_date', 'date', pageCount, pages)
+  for (const date of analysis.legal_dates) {
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, date,
+      legalDateSemanticKey(date), `document.legal_date.${date.meaning}`, pageCount, pages,
+      date.normalized_date ?? date.raw, date.normalized_date ? 'date' : 'text', undefined, true)
   }
 
-  for (const [name, value] of Object.entries(analysis.extracted_amounts)) {
-    if (value === null || value === undefined) continue
-    const normalized = decimalFromNumber(value)
-    const evidence = normalized ? evidenceFor(analysis.evidence, 'amount', normalized) : undefined
-    if (!normalized || !evidence) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, normalized, `amount:${name}`, `financial.${name}`, 'decimal', pageCount, pages)
+  for (const actor of analysis.actors) {
+    const supported = [actor.authority, actor.office, actor.jurisdiction].filter((value): value is string => value !== null)
+      .every((value) => actor.source_quote.normalize('NFKC').toUpperCase().includes(value.normalize('NFKC').toUpperCase()))
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, actor,
+      actorSemanticKey(actor), `document.actor.${actor.actor_kind}`, pageCount, pages, actor.raw, 'text', undefined, true,
+      supported ? undefined : 'unsupported_actor_normalization')
   }
 
-  for (const [index, reference] of analysis.legal_references.entries()) {
-    const evidence = evidenceFor(analysis.evidence, 'legal_reference', reference.provision_number)
-    if (!evidence) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    addEvidenceCandidate(
-      candidates,
-      reviewCodes,
-      terminalReviewCodes,
-      evidence,
-      reference.provision_number,
-      `legal_reference:${index}`,
-      'legal_reference.provision_number',
-      'code',
-      pageCount,
-      pages,
-    )
+  for (const party of analysis.parties) {
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, party,
+      partySemanticKey(party), `document.party.${party.procedural_role}`, pageCount, pages,
+      party.raw, 'text', undefined, true)
+  }
+
+  for (const money of analysis.money_observations) {
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, money,
+      moneyObservationSemanticKey(money), `document.money.${money.component}`, pageCount, pages,
+      money.amount, 'decimal', undefined, true)
+  }
+
+  for (const provision of analysis.legal_provisions) {
+    addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, provision,
+      legalProvisionSemanticKey(provision), `document.legal_provision.${provision.provision_kind}`, pageCount, pages,
+      provision.raw, 'text', undefined, true)
   }
 
   return {

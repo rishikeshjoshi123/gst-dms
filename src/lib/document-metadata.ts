@@ -13,7 +13,7 @@ export function documentColumnsFromAnalysis(
     doc_type: analysis.doc_type || 'OTHER',
     reference_number: analysis.reference_number || null,
     doc_date: analysis.doc_date || null,
-    direction: analysis.direction || 'incoming',
+    direction: analysis.direction ?? null,
     issued_by: analysis.issued_by || null,
     document_class: analysis.document_class || 'proceeding',
     document_category: analysis.document_category || null,

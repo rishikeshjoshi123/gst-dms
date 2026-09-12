@@ -6,7 +6,7 @@
  * the prompt structure in ways that affect the output schema.
  */
 
-export const PROMPT_VERSION = 'v3.0'
+export const PROMPT_VERSION = 'v4.0'
 export const WIKI_PROMPT_VERSION = 'v2.0'
 
 /**
@@ -27,8 +27,8 @@ EVIDENCE RULES
 - Extract only facts supported by the PDF. Do not fill gaps with general GST knowledge.
 - Distinguish an allegation, a taxpayer submission, and an authority/court finding. Never summarize an allegation as an established fact.
 - Use null or an empty array when evidence is absent or illegible. Never guess a GSTIN, reference, date, amount, party, provision, deadline, or relationship.
-- Every tax period and official reference carries its own page and short source quotation. Do not treat source evidence as human verification.
-- A page number is the 1-based PDF page index, not a page number printed in the document. If uncertain, use null.
+- Every typed observation carries its own page and short source quotation. Do not treat source evidence as human verification.
+- A page number is the 1-based PDF page index, not a page number printed in the document. Omit an observation whose page cannot be established.
 - Evidence quotes must be short verbatim fragments used only to locate the fact. Do not reproduce long passages.
 - Page transcription and page geometry are acquired outside Gemini. Do not return a transcript, page text, OCR words, replacement text, or a second OCR layer.
 - Confidence expresses evidence clarity, not legal correctness: 0.95+ direct and unambiguous; 0.75–0.94 strong but normalized; 0.50–0.74 partial/unclear; below 0.50 weak.
@@ -58,10 +58,10 @@ CLASSIFICATION
 - supporting: evidence or background material such as invoices, ledgers, agreements, correspondence, photographs, or research that does not itself advance the procedural chain.
 - document_category is used only for supporting documents; use null for a proceeding unless a category is still genuinely useful.
 
-DIRECTION:
-- "incoming": issued BY the department/authority TO the taxpayer
-- "outgoing": filed BY the taxpayer/advocate TO the department/court
-- Use null when authorship/direction cannot be established.
+ACTORS AND DIRECTION:
+- Return source-supported issuer and recipient actors with procedural roles. Keep an unknown role unknown.
+- Authority, office, and jurisdiction fields must occur in that observation's source quotation; otherwise leave them null.
+- CaseChain derives incoming/outgoing only from compatible issuer/recipient roles. Do not return direction directly.
 
 OFFICIAL REFERENCES
 Separate identifiers printed as identifying this document (self_identifier) from references to another official document (outbound_mention). Look for wording such as:
@@ -78,17 +78,15 @@ TAX PERIODS
 - One or multiple printed financial years use financial_year segments. Non-contiguous source periods retain two or more ordered segments. Illegible or relative source wording uses unclear with no segments.
 - printed_financial_years records only labels printed with that period. Do not derive a financial year yourself; CaseChain does that deterministically and records any disagreement.
 
-DEADLINES
-- Extract a deadline only when the PDF states an explicit calendar date.
-- Do not calculate an appeal limitation date, reply date, or other legal deadline from a document date or a number of days.
-- A hearing date is a deadline event when explicitly scheduled.
-- Include the supporting page, quotation, and confidence.
+LEGAL DATES
+- Return each source-stated legal date separately with its issue, filing, communication/service, order, hearing, due, or source-unknown meaning.
+- A due observation may be returned only when the PDF states an explicit calendar date; relative wording stays normalized_date null.
+- Do not calculate an appeal limitation date, reply date, or other legal deadline from another date or a number of days.
 
 AMOUNTS
-- Return plain INR numbers without currency symbols, commas, lakh/crore text, or rounding.
-- Preserve exact values: 14 lakh becomes 1400000 and 1.5 crore becomes 15000000.
-- total_demand is the stated aggregate, not a sum invented from uncertain components.
-- amount_relief is an amount expressly dropped, reduced, refunded, or otherwise granted as relief.
+- Return every source-stated monetary fact separately. Use a canonical non-negative decimal string or an integer-paise string; never return a JSON number.
+- Preserve the printed wording in raw and do not round, aggregate uncertain components, or invent a missing total.
+- A total is a separate observation only when the source states that total.
 
 ENGLISH DISPLAY METADATA AND TRANSLITERATION:
 - Return the summary and user-facing metadata fields in English. Evidence quotes may remain in the source language.
@@ -97,8 +95,8 @@ ENGLISH DISPLAY METADATA AND TRANSLITERATION:
 
 NORMALIZATION
 - Financial year: "YYYY-YY", for example "2021-22". Retain explicit years as period segments; do not infer them from a document date.
-- GSTIN: exactly 15 uppercase alphanumeric characters. Return null when the printed identifier is malformed or uncertain.
-- Dates: "YYYY-MM-DD". Do not resolve an ambiguous date unless surrounding text establishes the format.
+- Client identifiers: retain malformed or uncertain printed identifiers in their observation; deterministic validation will null the normalized value without rejecting other facts.
+- Dates: return a proposed "YYYY-MM-DD" normalized_date only for an explicit source-stated calendar date. Keep it null when ambiguous and never calculate a relative deadline.
 - Reference number: preserve the complete official identifier, including slashes, hyphens, letters, and leading zeros.
 - Remove duplicates from arrays while preserving first-seen order.
 
@@ -110,10 +108,23 @@ Return only JSON conforming to the supplied response schema. Use these semantic 
   "document_title": "formal document heading or null",
   "document_class": "proceeding" | "supporting",
   "document_category": "invoice" | "client_document" | "explanation" | "evidence" | "other" | null,
-  "gstin": "validated GSTIN or null",
-  "client_identifiers": ["PAN, TAN, CIN, registration number, or another explicit client identifier"] | null,
+  "client_identifiers_observed": [{
+    "kind": "gstin | pan | tan | cin | other_catalogued", "catalogue_kind": "iec | udyam_registration | professional_tax_registration | other_registration" | null,
+    "raw": "exact printed identifier", "display": "faithful display identifier", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
   "client_name": "taxpayer/client legal name or null",
-  "doc_date": "YYYY-MM-DD or null",
+  "legal_dates": [{
+    "meaning": "issue | filing | communication_service | order | hearing | due | source_unknown", "normalized_date": "YYYY-MM-DD" | null,
+    "raw": "exact source date wording", "display": "faithful display wording", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
+  "actors": [{
+    "actor_kind": "issuer | recipient", "procedural_role": "authority | department | court | tribunal | taxpayer | appellant | respondent | petitioner | applicant | other | unknown",
+    "authority": "source-stated authority" | null, "office": "source-stated office" | null, "jurisdiction": "source-stated jurisdiction" | null,
+    "raw": "exact source actor wording", "display": "faithful transliteration, not semantic translation", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
   "tax_periods": [{
     "kind": "month | quarter | exact_date_range | financial_year | multi_financial_year | non_contiguous | unclear",
     "raw": "exact source wording", "display": "faithful English display wording",
@@ -129,40 +140,24 @@ Return only JSON conforming to the supplied response schema. Use these semantic 
     "components": [{ "name": "serial", "value": "source-supported value" }],
     "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
   }],
-  "direction": "incoming" | "outgoing" | null,
-  "issued_by": "issuer name/designation or null",
   "summary": "concise neutral factual summary distinguishing allegations, submissions, findings, relief, and present effect",
-  "deadlines": [
-    {
-      "type": "appeal_window" | "pre_deposit" | "hearing_date" | "reply_deadline" | "stay_application" | "other",
-      "due_date": "YYYY-MM-DD",
-      "description": "factual description",
-      "source_page": 1,
-      "source_quote": "short supporting quote or null",
-      "confidence": 0.0
-    }
-  ],
-  "extracted_amounts": {
-    "tax": null,
-    "interest": null,
-    "penalty": null,
-    "fee": null,
-    "pre_deposit": null,
-    "total_demand": null,
-    "amount_in_dispute": null,
-    "amount_relief": null
-  },
-  "parties_named": ["material named parties"],
-  "legal_references": [
-    {
-      "act": "Act/rules name or null",
-      "provision_type": "section" | "rule" | "notification" | "circular" | "instruction" | "other",
-      "provision_number": "exact provision identifier",
-      "context": "brief explanation of how it is invoked or null",
-      "page_number": 1,
-      "confidence": 0.0
-    }
-  ],
+  "money_observations": [{
+    "representation": "decimal | integer_paise", "amount": "exact canonical string", "currency": "INR", "component": "tax | interest | penalty | fee | pre_deposit | total_demand | amount_in_dispute | amount_relief | other",
+    "applicable_period_reference": "source-stated period wording" | null, "legal_posture": "alleged | demanded | confirmed | paid | refunded | disputed | relief | other | unknown",
+    "raw": "exact printed money wording", "display": "faithful display wording", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
+  "parties": [{
+    "procedural_role": "taxpayer | appellant | respondent | petitioner | applicant | authority | department | court | tribunal | intervenor | other | unknown",
+    "raw": "exact source name", "display": "faithful transliteration, not semantic translation", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
+  "legal_provisions": [{
+    "act_kind": "cgst_act | igst_act | gst_rules | constitution | other_catalogued | uncatalogued", "act": "source-stated Act/rules name" | null,
+    "provision_kind": "section | rule | article | notification | circular | instruction | other", "provision_value": "exact provision identifier",
+    "raw": "exact source wording", "display": "faithful display wording", "precision": "exact | partial | unclear",
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
   "evidence": [
     {
       "field": "supported field name",
