@@ -102,26 +102,58 @@ test('same-rank siblings keep effective-date then ID visual order after Dagre', 
 })
 
 test('strict graph relationship shaping rejects a partially malformed secured projection', () => {
-  const valid = relationship('valid', 'reply', 'notice')
+  const valid = relationship(
+    '10000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000002',
+    '30000000-0000-4000-8000-000000000003',
+  )
   assert.deepEqual(shapeMatterTimelineGraphRelationships([valid]), { outcome: 'ok', relationships: [valid] })
-  assert.deepEqual(shapeMatterTimelineGraphRelationships([valid, { ...valid, id: null }]), { outcome: 'unavailable', relationships: [] })
+  const malformed = [
+    { ...valid, id: null },
+    { ...valid, id: '' },
+    { ...valid, id: 'not-a-uuid' },
+    { ...valid, canonicalSourceDocumentId: '', displayToDocumentId: '' },
+    { ...valid, canonicalTargetDocumentId: 'not-a-uuid', displayFromDocumentId: 'not-a-uuid' },
+    { ...valid, displayFromDocumentId: valid.canonicalSourceDocumentId },
+    { ...valid, canonicalPhrase: '   ' },
+    { ...valid, progressionPhrase: '\t' },
+    { ...valid, canonicalSourceTitle: '' },
+    { ...valid, canonicalTargetTitle: '  Untitled proceeding' },
+    { ...valid, revision: 0 },
+    { ...valid, relationshipType: 'unknown' },
+    { ...valid, verification: 'unknown' },
+  ]
+  for (const candidate of malformed) {
+    assert.deepEqual(shapeMatterTimelineGraphRelationships([valid, candidate]), { outcome: 'unavailable', relationships: [] })
+  }
   assert.deepEqual(shapeMatterTimelineGraphRelationships([valid, valid]), { outcome: 'unavailable', relationships: [] })
   assert.deepEqual(shapeMatterTimelineGraphRelationships({ relationships: [valid] }), { outcome: 'unavailable', relationships: [] })
 })
 
 test('strict graph projection rejects invalid successful-row revision and fetch metadata', () => {
-  const valid = relationship('valid', 'reply', 'notice')
+  const valid = relationship(
+    '10000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000002',
+    '30000000-0000-4000-8000-000000000003',
+  )
   const row = {
-    outcome: 'ok', relationships: [valid], source_revision: 'revision', fetched_at: '2026-09-12T00:00:00.000Z',
+    outcome: 'ok', relationships: [valid], source_revision: 'a'.repeat(32), fetched_at: '2026-09-12T00:00:00.000Z',
   }
   assert.deepEqual(shapeMatterTimelineGraphRelationshipProjection(row), {
-    outcome: 'ok', relationships: [valid], sourceRevision: 'revision', fetchedAt: '2026-09-12T00:00:00.000Z',
+    outcome: 'ok', relationships: [valid], sourceRevision: 'a'.repeat(32), fetchedAt: '2026-09-12T00:00:00.000Z',
   })
   for (const malformed of [
+    { ...row, source_revision: null },
     { ...row, source_revision: undefined },
     { ...row, source_revision: 7 },
+    { ...row, source_revision: '' },
+    { ...row, source_revision: 'revision' },
+    { ...row, source_revision: 'A'.repeat(32) },
     { ...row, fetched_at: undefined },
     { ...row, fetched_at: null },
+    { ...row, fetched_at: '' },
+    { ...row, fetched_at: 'not-a-date' },
+    { ...row, fetched_at: '2026-02-30T00:00:00Z' },
   ]) {
     assert.deepEqual(shapeMatterTimelineGraphRelationshipProjection(malformed), {
       outcome: 'unavailable', relationships: [], sourceRevision: null, fetchedAt: null,

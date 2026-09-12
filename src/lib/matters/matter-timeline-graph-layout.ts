@@ -11,6 +11,9 @@ export const MATTER_TIMELINE_NODE_HEIGHT = 120
 const GRAPH_MARGIN = 48
 const UNLINKED_LANE_GAP = 120
 const UNLINKED_NODE_GAP = 72
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const SOURCE_REVISION = /^[0-9a-f]{32}$/
+const ISO_TIMESTAMP = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,6})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
 
 export type MatterTimelineGraphNodeLayout = {
   id: string
@@ -58,9 +61,33 @@ export function shapeMatterTimelineGraphRelationships(value: unknown) {
   if (!Array.isArray(value)) return { outcome: 'unavailable' as const, relationships: [] }
   const relationships = shapeMatterTimelineRelationships(value)
   return relationships.length === value.length
+    && relationships.every((relationship) => (
+      UUID.test(relationship.id)
+      && UUID.test(relationship.canonicalSourceDocumentId)
+      && UUID.test(relationship.canonicalTargetDocumentId)
+      && relationship.canonicalSourceDocumentId !== relationship.canonicalTargetDocumentId
+      && relationship.displayFromDocumentId === relationship.canonicalTargetDocumentId
+      && relationship.displayToDocumentId === relationship.canonicalSourceDocumentId
+      && relationship.canonicalPhrase.length > 0
+      && relationship.canonicalPhrase === relationship.canonicalPhrase.trim()
+      && relationship.progressionPhrase.length > 0
+      && relationship.progressionPhrase === relationship.progressionPhrase.trim()
+      && relationship.canonicalSourceTitle.length > 0
+      && relationship.canonicalSourceTitle === relationship.canonicalSourceTitle.trim()
+      && relationship.canonicalTargetTitle.length > 0
+      && relationship.canonicalTargetTitle === relationship.canonicalTargetTitle.trim()
+    ))
     && new Set(relationships.map((relationship) => relationship.id)).size === relationships.length
     ? { outcome: 'ok' as const, relationships }
     : { outcome: 'unavailable' as const, relationships: [] }
+}
+
+function validGraphTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const match = ISO_TIMESTAMP.exec(value)
+  if (!match || Number.isNaN(Date.parse(value))) return false
+  const date = new Date(`${match[1]}T00:00:00Z`)
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === match[1]
 }
 
 export function shapeMatterTimelineGraphRelationshipProjection(value: unknown) {
@@ -72,16 +99,18 @@ export function shapeMatterTimelineGraphRelationshipProjection(value: unknown) {
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return unavailable
   const row = value as Record<string, unknown>
+  const sourceRevision = row.source_revision
+  const fetchedAt = row.fetched_at
   if (row.outcome !== 'ok'
-    || (typeof row.source_revision !== 'string' && row.source_revision !== null)
-    || typeof row.fetched_at !== 'string') return unavailable
+    || typeof sourceRevision !== 'string' || !SOURCE_REVISION.test(sourceRevision)
+    || !validGraphTimestamp(fetchedAt)) return unavailable
   const shaped = shapeMatterTimelineGraphRelationships(row.relationships)
   if (shaped.outcome !== 'ok') return unavailable
   return {
     outcome: 'ok' as const,
     relationships: shaped.relationships,
-    sourceRevision: row.source_revision,
-    fetchedAt: row.fetched_at,
+    sourceRevision,
+    fetchedAt,
   }
 }
 
