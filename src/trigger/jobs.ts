@@ -16,8 +16,8 @@ import {
   recordCompletedDocumentExtractionProviderUsage,
 } from '@/lib/platform/provider-usage'
 import { PROMPT_VERSION } from '@/lib/ai/prompts'
+import { EXTRACTION_CATALOGUE_VERSION, EXTRACTION_NORMALIZER_VERSION, EXTRACTION_SCHEMA_VERSION } from '@/lib/ai/schemas'
 import { provenanceMaterializationFromAnalysis } from '@/lib/documents/provenance'
-import { placeProcessingDocumentRelationships } from '@/lib/documents/matter-relationship-effective-metadata'
 import {
   VERTEX_DOCUMENT_MODEL,
 } from '@/lib/ai/vertex'
@@ -25,9 +25,6 @@ import { acquireDocumentPageText } from '@/lib/documents/page-acquisition'
 import { isCaseBriefGenerationEnabled } from '@/lib/pilot-release-policy'
 
 const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
-const EXTRACTION_SCHEMA_VERSION = 'document-extraction-v2'
-const EXTRACTION_CATALOGUE_VERSION = 'gst-document-types-v1'
-const EXTRACTION_NORMALIZER_VERSION = 'candidate-normalizer-v1'
 
 type BeginProvenanceArgs = Database['public']['Functions']['begin_document_processing_ai_extraction']['Args']
 type BeginProvenanceRow = Database['public']['Functions']['begin_document_processing_ai_extraction']['Returns'][number]
@@ -35,27 +32,6 @@ type FinishProvenanceArgs = Database['public']['Functions']['finish_document_pro
 type FinishProvenanceRow = Database['public']['Functions']['finish_document_processing_ai_extraction']['Returns'][number]
 
 type PageTextArtifactRow = { code: string }
-
-async function placeValidatedDocumentRelationships(
-  supabase: SupabaseClient<Database>,
-  payload: Required<Pick<ProcessDocumentPayload, 'docId' | 'matterId' | 'orgId' | 'uploadedBy' | 'documentVersionId'>>,
-) {
-  const placement = await placeProcessingDocumentRelationships(supabase, {
-    p_document_id: payload.docId,
-    p_document_version_id: payload.documentVersionId,
-    p_matter_id: payload.matterId,
-    p_org_id: payload.orgId,
-    p_uploaded_by: payload.uploadedBy,
-  })
-  // The database intentionally returns no effects when a current target
-  // snapshot is busy. Throwing keeps this within Trigger's bounded retry
-  // policy; a retry re-enters the already_validated branch without another
-  // model invocation, rather than terminalising the processing run in Review.
-  if (placement?.code === 'target_snapshot_busy') {
-    throw new Error('Document relationship placement target snapshot busy')
-  }
-  return placement
-}
 
 async function beginProvenanceExtraction(
   supabase: SupabaseClient<Database>,
@@ -237,10 +213,9 @@ export const processDocument = task({
 
     if (started?.code === 'already_validated' && typeof started.source_analysis_run_id === 'string') {
       await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
-      const placement = await placeValidatedDocumentRelationships(supabase, {
-        docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
-      })
-      return { status: placement?.code === 'placed' || placement?.code === 'no_effective_references' ? 'placed' : 'needs_review', docId }
+      // D09-T03 observations are deliberately inert. Exact resolution and
+      // relationship effects belong to the separately gated matching tranche.
+      return { status: 'placed', docId }
     } else if (started?.code === 'claimed'
       && typeof started.source_analysis_run_id === 'string'
       && typeof started.source_analysis_lease_token === 'string') {
@@ -315,10 +290,7 @@ export const processDocument = task({
       // alter the already-accepted legal-domain outcome.
       await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
       if (completed.code === 'review_required') return { status: 'needs_review', docId }
-      const placement = await placeValidatedDocumentRelationships(supabase, {
-        docId, matterId, orgId, uploadedBy, documentVersionId: payload.documentVersionId,
-      })
-      return { status: placement?.code === 'placed' || placement?.code === 'no_effective_references' ? 'placed' : 'needs_review', docId }
+      return { status: 'placed', docId }
     } else if (started?.code === 'already_terminal' && typeof started.source_analysis_run_id === 'string') {
       // A replay of a review-required terminal run must reconcile its durable
       // accounting entry without invoking Vertex or changing the Review state.

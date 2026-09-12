@@ -2,19 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-test('processDocument places validated and already-validated work through the typed effective relationship command', () => {
+test('D09-T03 extraction never invokes legacy relationship placement', () => {
   const allSource = readFileSync(new URL('./jobs.ts', import.meta.url), 'utf8')
   const source = allSource.slice(allSource.indexOf('export const processDocument'), allSource.indexOf('// Versioned embedding backfill'))
-  const placementHelper = allSource.slice(
-    allSource.indexOf('async function placeValidatedDocumentRelationships'),
-    allSource.indexOf('async function beginProvenanceExtraction'),
-  )
-
-  assert.match(allSource, /placeProcessingDocumentRelationships\(supabase, \{[\s\S]*p_document_version_id/)
-  assert.match(placementHelper, /placement\?\.code === 'target_snapshot_busy'[\s\S]*throw new Error\('Document relationship placement target snapshot busy'\)/)
-  assert.doesNotMatch(placementHelper, /needs_review/)
-  assert.match(source, /started\?\.code === 'already_validated'[\s\S]*placeValidatedDocumentRelationships/)
-  assert.match(source, /completed\.code === 'review_required'\) return[\s\S]*placeValidatedDocumentRelationships/)
+  assert.doesNotMatch(source, /placeValidatedDocumentRelationships|placeProcessingDocumentRelationships|place_document_processing_relationships/)
+  assert.match(source, /D09-T03 observations are deliberately inert/)
+  assert.match(source, /started\?\.code === 'already_validated'[\s\S]*status: 'placed'/)
+  assert.match(source, /completed\.code === 'review_required'\) return[\s\S]*status: 'placed'/)
   assert.match(source, /retry: \{[\s\S]*maxAttempts: 3/)
   assert.doesNotMatch(source, /placeDocument\(/)
   assert.doesNotMatch(source, /raw_metadata|AIDocumentResult|chaining_attributes/)

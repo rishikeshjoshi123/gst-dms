@@ -1,11 +1,13 @@
-import type { AIDocumentPayload } from '@/lib/ai/schemas'
+import { createHash } from 'node:crypto'
+import { officialReferenceSemanticKey, type AIDocumentPayload } from '@/lib/ai/schemas'
+import type { Json } from '@/lib/supabase/database.types'
 import { verifyCanonicalSource, type CanonicalPage } from './source-verifier'
 
 export type ProvenanceCandidate = {
   semantic_candidate_key: string
   field_path: string
-  value_type: 'text' | 'code' | 'date' | 'integer' | 'decimal' | 'boolean'
-  normalized_value: string | boolean
+  value_type: 'text' | 'code' | 'date' | 'integer' | 'decimal' | 'boolean' | 'structured'
+  normalized_value: Json
   page_number: number
   quotation: string
   verified_source_anchor: {
@@ -138,6 +140,59 @@ export function provenanceMaterializationFromAnalysis(
   const reviewCodes = new Set<string>()
   const terminalReviewCodes = new Set<string>()
 
+  for (const period of analysis.tax_periods) {
+    if (period.source_page > pageCount || /[\u0000-\u001F\u007F]/.test(period.source_quote)) {
+      terminalReviewCodes.add('candidate_evidence_unsafe')
+      continue
+    }
+    const verification = verifyCanonicalSource(
+      pages?.find((page) => page.page_number === period.source_page),
+      period.source_quote, period.raw, 'text',
+    )
+    const { source_page, source_quote, confidence, ...normalized } = period
+    const digest = createHash('sha256').update(JSON.stringify([
+      normalized.kind, normalized.segments, normalized.printed_financial_years,
+    ])).digest('hex').slice(0, 32)
+    const validation_state: ProvenanceCandidate['validation_state'] = !verification.ok ? 'invalid'
+      : period.conflict ? 'conflicting'
+      : period.kind === 'unclear' ? 'provisional'
+      : candidateState(confidence)
+    const validation_error_codes = validation_state === 'invalid'
+      ? [verification.ok ? 'low_confidence' : verification.code] : null
+    candidates.push({ semantic_candidate_key: `tax_period:${digest}`, field_path: 'document.tax_period',
+      value_type: 'structured', normalized_value: normalized, page_number: source_page, quotation: source_quote,
+      verified_source_anchor: verification.ok ? { char_start: verification.evidence.char_start, char_end: verification.evidence.char_end,
+        token_start: verification.evidence.token_start, token_end: verification.evidence.token_end, table_cell: verification.evidence.table_cell } : null,
+      evidence_regions: verification.ok && verification.evidence.regions.length ? verification.evidence.regions : null,
+      confidence, validation_state, validation_error_codes })
+    if (!verification.ok) reviewCodes.add(verification.code)
+    else if (period.conflict) reviewCodes.add('printed_derived_financial_year_conflict')
+    else if (validation_state !== 'eligible') reviewCodes.add(validation_state === 'invalid' ? 'low_confidence' : 'provisional_evidence')
+  }
+
+  for (const reference of analysis.official_references) {
+    if (reference.source_page > pageCount || /[\u0000-\u001F\u007F]/.test(reference.source_quote)) {
+      terminalReviewCodes.add('candidate_evidence_unsafe')
+      continue
+    }
+    const verification = verifyCanonicalSource(
+      pages?.find((page) => page.page_number === reference.source_page),
+      reference.source_quote, reference.normalized_value ?? reference.raw, 'code',
+    )
+    const { source_page, source_quote, confidence, ...normalized } = reference
+    // Source validation is not human verification. Official references remain
+    // provisional and cannot feed identifier authority or relationship effects.
+    const validation_state: ProvenanceCandidate['validation_state'] = verification.ok ? 'provisional' : 'invalid'
+    candidates.push({ semantic_candidate_key: officialReferenceSemanticKey(reference),
+      field_path: `document.official_reference.${reference.role}`, value_type: 'structured',
+      normalized_value: normalized, page_number: source_page, quotation: source_quote,
+      verified_source_anchor: verification.ok ? { char_start: verification.evidence.char_start, char_end: verification.evidence.char_end,
+        token_start: verification.evidence.token_start, token_end: verification.evidence.token_end, table_cell: verification.evidence.table_cell } : null,
+      evidence_regions: verification.ok && verification.evidence.regions.length ? verification.evidence.regions : null,
+      confidence, validation_state, validation_error_codes: verification.ok ? null : [verification.code] })
+    reviewCodes.add(verification.ok ? 'unverified_official_reference' : verification.code)
+  }
+
   const scalarFields: Array<{
     evidenceField: EvidenceField
     value: string | null
@@ -146,7 +201,6 @@ export function provenanceMaterializationFromAnalysis(
     type: ProvenanceCandidate['value_type']
   }> = [
     { evidenceField: 'document_type', value: analysis.doc_type, key: 'document.type', path: 'document.type', type: 'code' },
-    { evidenceField: 'reference_number', value: analysis.reference_number, key: 'document.reference_number', path: 'document.reference_number', type: 'text' },
     { evidenceField: 'gstin', value: analysis.gstin, key: 'document.gstin', path: 'document.gstin', type: 'code' },
     { evidenceField: 'client_name', value: analysis.client_name, key: 'document.client_name', path: 'document.client_name', type: 'text' },
     { evidenceField: 'document_date', value: analysis.doc_date, key: 'document.date', path: 'document.date', type: 'date' },
@@ -158,26 +212,6 @@ export function provenanceMaterializationFromAnalysis(
     const evidence = field.value === null ? undefined : evidenceFor(analysis.evidence, field.evidenceField, field.value)
     if (field.value !== null && !evidence) reviewCodes.add('missing_evidence')
     if (evidence) addEvidenceCandidate(candidates, reviewCodes, terminalReviewCodes, evidence, field.value, field.key, field.path, field.type, pageCount, pages)
-  }
-
-  for (const [index, financialYear] of analysis.financial_years.entries()) {
-    const evidence = evidenceFor(analysis.evidence, 'financial_year', financialYear)
-    if (!evidence) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    addEvidenceCandidate(
-      candidates,
-      reviewCodes,
-      terminalReviewCodes,
-      evidence,
-      financialYear,
-      `financial_year:${index}`,
-      'document.financial_year',
-      'code',
-      pageCount,
-      pages,
-    )
   }
 
   for (const identifier of analysis.client_identifiers ?? []) {
@@ -195,26 +229,6 @@ export function provenanceMaterializationFromAnalysis(
       `client_identifier:${identifier}`,
       'document.client_identifier',
       'code',
-      pageCount,
-      pages,
-    )
-  }
-
-  for (const reference of analysis.chaining_attributes.references_documents) {
-    const evidence = evidenceFor(analysis.evidence, 'document_link', reference)
-    if (!evidence) {
-      reviewCodes.add('missing_evidence')
-      continue
-    }
-    addEvidenceCandidate(
-      candidates,
-      reviewCodes,
-      terminalReviewCodes,
-      evidence,
-      reference,
-      `referenced_document:${reference}`,
-      'document.referenced_document_number',
-      'text',
       pageCount,
       pages,
     )

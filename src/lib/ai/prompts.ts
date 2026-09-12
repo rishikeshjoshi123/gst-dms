@@ -6,7 +6,7 @@
  * the prompt structure in ways that affect the output schema.
  */
 
-export const PROMPT_VERSION = 'v2.1'
+export const PROMPT_VERSION = 'v3.0'
 export const WIKI_PROMPT_VERSION = 'v2.0'
 
 /**
@@ -27,7 +27,7 @@ EVIDENCE RULES
 - Extract only facts supported by the PDF. Do not fill gaps with general GST knowledge.
 - Distinguish an allegation, a taxpayer submission, and an authority/court finding. Never summarize an allegation as an established fact.
 - Use null or an empty array when evidence is absent or illegible. Never guess a GSTIN, reference, date, amount, party, provision, deadline, or relationship.
-- For every client identifier or referenced document used for matching, include a matching client_identifier or document_link evidence item with the exact normalized value.
+- Every tax period and official reference carries its own page and short source quotation. Do not treat source evidence as human verification.
 - A page number is the 1-based PDF page index, not a page number printed in the document. If uncertain, use null.
 - Evidence quotes must be short verbatim fragments used only to locate the fact. Do not reproduce long passages.
 - Page transcription and page geometry are acquired outside Gemini. Do not return a transcript, page text, OCR words, replacement text, or a second OCR layer.
@@ -63,14 +63,20 @@ DIRECTION:
 - "outgoing": filed BY the taxpayer/advocate TO the department/court
 - Use null when authorship/direction cannot be established.
 
-RELATIONSHIPS
-Look for explicit backward references such as:
+OFFICIAL REFERENCES
+Separate identifiers printed as identifying this document (self_identifier) from references to another official document (outbound_mention). Look for wording such as:
 - "In the matter of OIO No. ..."
 - "Against Order No. ..."
 - "ARN: ..."
 - "In response to SCN dated ..."
 - "Reference: ..."
-Return the full referenced identifiers where possible. A document may reference multiple parents. Do not turn a generic statutory citation into a document relationship.
+Return the full printed identifiers where possible. Classify each as proceeding_case_id, notice_reference, order_reference, appeal_reference, court_case_number, or other_official_reference. Mark completeness as complete, partial, or unknown; use null for an unknown issuer/system namespace. Components are source hints only and are deterministically recomputed by CaseChain. A document may mention several references. Do not turn a statutory citation into an official document reference, verify an identifier, match it, or claim a procedural relationship.
+
+TAX PERIODS
+- Return an ordered list; each entry retains raw wording, English display wording, source precision, page and quotation.
+- A month uses YYYY-MM only; never invent first/last days. A quarter uses Q1–Q4 plus its printed financial year. An exact date range uses source-stated YYYY-MM-DD bounds.
+- One or multiple printed financial years use financial_year segments. Non-contiguous source periods retain two or more ordered segments. Illegible or relative source wording uses unclear with no segments.
+- printed_financial_years records only labels printed with that period. Do not derive a financial year yourself; CaseChain does that deterministically and records any disagreement.
 
 DEADLINES
 - Extract a deadline only when the PDF states an explicit calendar date.
@@ -90,7 +96,7 @@ ENGLISH DISPLAY METADATA AND TRANSLITERATION:
 - Never rewrite, translate, transliterate, normalize beyond the stated format, or otherwise alter GSTINs, official references, provision numbers, dates, or amounts. Preserve exact identifiers and numbers from the source.
 
 NORMALIZATION
-- Financial year: "YYYY-YY", for example "2021-22". Expand explicit ranges into individual years.
+- Financial year: "YYYY-YY", for example "2021-22". Retain explicit years as period segments; do not infer them from a document date.
 - GSTIN: exactly 15 uppercase alphanumeric characters. Return null when the printed identifier is malformed or uncertain.
 - Dates: "YYYY-MM-DD". Do not resolve an ambiguous date unless surrounding text establishes the format.
 - Reference number: preserve the complete official identifier, including slashes, hyphens, letters, and leading zeros.
@@ -104,23 +110,28 @@ Return only JSON conforming to the supplied response schema. Use these semantic 
   "document_title": "formal document heading or null",
   "document_class": "proceeding" | "supporting",
   "document_category": "invoice" | "client_document" | "explanation" | "evidence" | "other" | null,
-  "reference_number": "identifier of this document or null",
   "gstin": "validated GSTIN or null",
   "client_identifiers": ["PAN, TAN, CIN, registration number, or another explicit client identifier"] | null,
   "client_name": "taxpayer/client legal name or null",
   "doc_date": "YYYY-MM-DD or null",
-  "financial_years": ["YYYY-YY"],
-  "tax_period": "source-supported human-readable period or null",
+  "tax_periods": [{
+    "kind": "month | quarter | exact_date_range | financial_year | multi_financial_year | non_contiguous | unclear",
+    "raw": "exact source wording", "display": "faithful English display wording",
+    "precision": "month | quarter | exact_date | financial_year | mixed | unclear",
+    "segments": [{ "kind": "month | quarter | date_range | financial_year", "month": null, "quarter": null, "financial_year": null, "start_date": null, "end_date": null }],
+    "printed_financial_years": ["YYYY-YY"], "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
+  "official_references": [{
+    "role": "self_identifier | outbound_mention",
+    "kind": "proceeding_case_id | notice_reference | order_reference | appeal_reference | court_case_number | other_official_reference",
+    "completeness": "complete | partial | unknown", "namespace": "issuer/system namespace" | null,
+    "raw": "exact printed value", "display": "faithful display value",
+    "components": [{ "name": "serial", "value": "source-supported value" }],
+    "source_page": 1, "source_quote": "short exact quotation", "confidence": 0.0
+  }],
   "direction": "incoming" | "outgoing" | null,
   "issued_by": "issuer name/designation or null",
   "summary": "concise neutral factual summary distinguishing allegations, submissions, findings, relief, and present effect",
-  "chaining_attributes": {
-    "references_documents": ["explicit parent/reference identifiers"],
-    "gstin": "validated GSTIN in relationship context or null",
-    "financial_years": ["YYYY-YY"],
-    "matter_ref": "explicit proceeding description or null",
-    "link_type": "responds_to" | "arises_from" | "challenges" | "summarizes" | null
-  },
   "deadlines": [
     {
       "type": "appeal_window" | "pre_deposit" | "hearing_date" | "reply_deadline" | "stay_application" | "other",

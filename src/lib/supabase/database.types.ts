@@ -871,8 +871,10 @@ export type Database = {
       }
       document_field_candidates: {
         Row: {
+          catalogue_version: string | null
           confidence: number
           created_at: string
+          display_value: string | null
           document_id: string
           document_version_analysis_binding_id: string
           document_version_id: string
@@ -882,18 +884,23 @@ export type Database = {
           id: string
           materialization_sequence: number
           normalized_value: Json
+          normalizer_version: string | null
           org_id: string
           page_number: number
           quotation: string
+          raw_value: string | null
           semantic_candidate_key: string
           source_field_candidate_id: string
           validation_error_codes: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision: string | null
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }
         Insert: {
+          catalogue_version?: string | null
           confidence: number
           created_at?: string
+          display_value?: string | null
           document_id: string
           document_version_analysis_binding_id: string
           document_version_id: string
@@ -903,18 +910,23 @@ export type Database = {
           id?: string
           materialization_sequence?: never
           normalized_value: Json
+          normalizer_version?: string | null
           org_id: string
           page_number: number
           quotation: string
+          raw_value?: string | null
           semantic_candidate_key: string
           source_field_candidate_id: string
           validation_error_codes?: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision?: string | null
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }
         Update: {
+          catalogue_version?: string | null
           confidence?: number
           created_at?: string
+          display_value?: string | null
           document_id?: string
           document_version_analysis_binding_id?: string
           document_version_id?: string
@@ -924,13 +936,16 @@ export type Database = {
           id?: string
           materialization_sequence?: never
           normalized_value?: Json
+          normalizer_version?: string | null
           org_id?: string
           page_number?: number
           quotation?: string
+          raw_value?: string | null
           semantic_candidate_key?: string
           source_field_candidate_id?: string
           validation_error_codes?: string[] | null
           validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision?: string | null
           value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
         }
         Relationships: [
@@ -5621,58 +5636,73 @@ export type Database = {
       source_field_candidates: {
         Row: {
           asset_id: string
+          catalogue_version: string | null
           confidence: number
           created_at: string
+          display_value: string | null
           evidence_page_count: number
           evidence_regions: Json | null
           field_path: string
           id: string
           normalized_value: Json
+          normalizer_version: string | null
           org_id: string
           page_number: number
           quotation: string
+          raw_value: string | null
           semantic_candidate_key: string
           source_analysis_run_id: string
           validation_error_codes: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision: string | null
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
           verified_source_anchor: Json | null
         }
         Insert: {
           asset_id: string
+          catalogue_version?: string | null
           confidence: number
           created_at?: string
+          display_value?: string | null
           evidence_page_count: number
           evidence_regions?: Json | null
           field_path: string
           id?: string
           normalized_value: Json
+          normalizer_version?: string | null
           org_id: string
           page_number: number
           quotation: string
+          raw_value?: string | null
           semantic_candidate_key: string
           source_analysis_run_id: string
           validation_error_codes?: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision?: string | null
           value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
           verified_source_anchor?: Json | null
         }
         Update: {
           asset_id?: string
+          catalogue_version?: string | null
           confidence?: number
           created_at?: string
+          display_value?: string | null
           evidence_page_count?: number
           evidence_regions?: Json | null
           field_path?: string
           id?: string
           normalized_value?: Json
+          normalizer_version?: string | null
           org_id?: string
           page_number?: number
           quotation?: string
+          raw_value?: string | null
           semantic_candidate_key?: string
           source_analysis_run_id?: string
           validation_error_codes?: string[] | null
           validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision?: string | null
           value_type?: Database["public"]["Enums"]["source_field_candidate_value_type"]
           verified_source_anchor?: Json | null
         }
@@ -10632,6 +10662,14 @@ export type Database = {
         }
         Returns: number
       }
+      source_field_candidate_value_match_count_legacy: {
+        Args: {
+          p_normalized_value: Json
+          p_source_text: string
+          p_value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }
+        Returns: number
+      }
       source_field_candidate_value_resolves_in_text: {
         Args: {
           p_normalized_value: Json
@@ -10748,6 +10786,22 @@ export type Database = {
           blocker_code: string
           blocking_operation_id: string
         }[]
+      }
+      typed_extraction_string_array_is_valid: {
+        Args: { p_max: number; p_pattern: string; p_value: Json }
+        Returns: boolean
+      }
+      typed_financial_year_is_valid: {
+        Args: { p_value: string }
+        Returns: boolean
+      }
+      typed_official_reference_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
+      }
+      typed_tax_period_candidate_is_valid: {
+        Args: { p_value: Json }
+        Returns: boolean
       }
       update_client_command: {
         Args: {
@@ -11298,6 +11352,7 @@ export type Database = {
         | "integer"
         | "decimal"
         | "boolean"
+        | "structured"
       staged_document_backfill_outcome:
         | "verification_required"
         | "transfer_pending"
@@ -11898,6 +11953,7 @@ export const Constants = {
         "integer",
         "decimal",
         "boolean",
+        "structured",
       ],
       staged_document_backfill_outcome: [
         "verification_required",
