@@ -61,6 +61,7 @@ export function MatterTimelineGraphNode({ data }: NodeProps<MatterTimelineFlowNo
       className={`relative overflow-hidden rounded-[var(--radius-md)] border bg-[var(--surface)] shadow-[var(--shadow-xs)] ${statusClass}`}
       style={{ width: data.layout.width, height: data.layout.height }}
       data-unlinked={data.layout.unlinked || undefined}
+      data-authoring-document-id={item.id}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} className="!h-px !w-px !border-0 !bg-transparent !opacity-0" />
       <MatterTimelineRowLink

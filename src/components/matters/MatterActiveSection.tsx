@@ -8,6 +8,7 @@ import {
   readMatterTimelineChronology,
   readMatterTimelineGraph,
   readMatterTimelineRelationships,
+  readMatterRelationshipAuthoringContext,
   readSelectedDocumentNotePreview,
   readActiveSupportingFileSelection,
   readActiveSupportingFiles,
@@ -36,6 +37,7 @@ async function TimelineSection({
   queryEntries,
 }: ActiveSectionProps) {
   const isTrash = exactMatter.state === 'trash'
+  const authoringContext = isTrash ? null : await readMatterRelationshipAuthoringContext(matterId)
   const trashMetadataByDocumentId = isTrash
     ? shapeMatterTimelineSnapshotMetadata(
         exactMatter.data.documents
@@ -69,6 +71,7 @@ async function TimelineSection({
       inspector={route.inspector}
       notePreview={notePreview}
       relationshipProjection={relationshipProjection}
+      authoringContext={authoringContext}
       graphAvailable={!isTrash && page.total > 0}
     />
   )
@@ -83,7 +86,7 @@ async function TimelineSection({
   }
 
   const inspectorPanel = page.selected ? (
-    <MatterTimelineInspector matterId={matterId} selected={page.selected} queryEntries={queryEntries} inspector={route.inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} />
+    <MatterTimelineInspector matterId={matterId} selected={page.selected} queryEntries={queryEntries} inspector={route.inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} authoringContext={authoringContext} />
   ) : null
 
   return (
@@ -91,13 +94,15 @@ async function TimelineSection({
       <MatterTimelineAdaptiveGraph
         matterId={matterId}
         loadGraph={loadTimelineGraph}
-        graphRequestKey={matterTimelineGraphRequestKey(matterId, page.sourceRevision, route.timelinePage.filters)}
+        graphContextKey={matterTimelineGraphRequestKey(matterId, null, route.timelinePage.filters)}
+        graphRequestKey={matterTimelineGraphRequestKey(matterId, page.sourceRevision, route.timelinePage.filters, authoringContext?.relationship_source_revision)}
         selectedDocumentId={page.selected?.id ?? null}
         queryEntries={queryEntries}
         chronologyHref={buildMatterTimelineViewHref(matterId, queryEntries, 'chronology')}
         inspector={inspectorPanel}
         chronology={chronology}
         filters={route.timelinePage.filters}
+        authoringContext={authoringContext}
       />
     </div>
   )

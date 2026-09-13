@@ -9075,6 +9075,21 @@ export type Database = {
           revision: number | null
         }[]
       }
+      archive_matter_timeline_relationship: {
+        Args: {
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_reason: string
+          p_relationship_id: string
+        }
+        Returns: {
+          code: string
+          relationship_id: string | null
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
       assert_staged_document_adapter_retirement_ready: {
         Args: never
         Returns: undefined
@@ -11556,6 +11571,15 @@ export type Database = {
           identifiers: Json
           outcome: string
           source_revision: string | null
+        }[]
+      }
+      read_matter_relationship_authoring_context: {
+        Args: { p_matter_id: string }
+        Returns: {
+          documents: Json
+          outcome: string
+          relationship_source_revision: string
+          relationship_types: Json
         }[]
       }
       read_matter_timeline_chronology: {

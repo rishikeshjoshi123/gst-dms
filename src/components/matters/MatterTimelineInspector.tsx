@@ -3,7 +3,6 @@ import { ArrowUpRight } from 'lucide-react'
 
 import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
 import type { MatterTimelineChronologyItem, MatterTimelineRelationshipProjection } from '@/lib/matters/workspace-read'
-import { describeMatterTimelineRelationship } from '@/lib/matters/workspace-timeline-page'
 import {
   buildMatterDocumentSelectionHref,
   buildMatterInspectorHref,
@@ -12,6 +11,8 @@ import {
   type MatterInspectorView,
 } from '@/lib/matters/workspace-route'
 import { MatterTimelineCloseLink } from './MatterTimelineFocusBridge'
+import { MatterEffectiveRelationshipList } from './MatterRelationshipAuthoring'
+import type { RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
 
 const unavailable = 'Not available'
 function label(item: Pick<MatterTimelineChronologyItem, 'title' | 'referenceNumber'>) { return item.title || item.referenceNumber || 'Untitled proceeding' }
@@ -37,7 +38,8 @@ export type MatterTimelineNotePreview = {
   authorLabel: string | null
 }
 
-export function MatterTimelineInspector({ matterId, selected, queryEntries, inspector, notePreview, relationshipProjection }: {
+export function MatterTimelineInspector({ matterId, selected, queryEntries, inspector, notePreview, relationshipProjection, authoringContext }: {
+  authoringContext?: RelationshipAuthoringContext | null
   matterId: string
   selected: MatterTimelineChronologyItem
   queryEntries: Array<[string, string]>
@@ -47,7 +49,7 @@ export function MatterTimelineInspector({ matterId, selected, queryEntries, insp
 }) {
   const returnTo = buildMatterReturnPath(matterId, queryEntries)
   return (
-    <aside className="hidden min-h-0 w-[392px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] lg:flex" aria-label="Selected proceeding">
+    <aside id={`matter-inspector-${matterId}`} tabIndex={-1} className="hidden min-h-0 w-[392px] shrink-0 flex-col border-l border-[var(--border)] bg-[var(--surface)] lg:flex" aria-label="Selected proceeding">
       <div className="shrink-0 border-b border-[var(--border)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0"><p className="text-xs text-[var(--text-muted)]">Selected proceeding</p><h3 className="mt-1 truncate font-semibold text-[var(--text-primary)]">{label(selected)}</h3></div>
@@ -63,12 +65,7 @@ export function MatterTimelineInspector({ matterId, selected, queryEntries, insp
         {inspector === 'relationships' && (
           <div className="text-sm">
             <h4 className="font-medium text-[var(--text-primary)]">Effective relationships</h4>
-            {relationshipProjection.outcome === 'unavailable' ? <p role="status" className="mt-2 text-[var(--text-secondary)]">Relationships are temporarily unavailable.</p> : relationshipProjection.relationships.length === 0 ? <p className="mt-2 text-[var(--text-secondary)]">No active Timeline relationships involve this proceeding.</p> : (
-              <ol className="mt-3 space-y-3">{relationshipProjection.relationships.map((relationship) => {
-                const description = describeMatterTimelineRelationship(relationship, selected.id)
-                return <li key={relationship.id} className="border border-[var(--border)] bg-[var(--surface)] p-3"><p className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{description.direction === 'outgoing' ? 'Outgoing' : 'Incoming'} · {relationship.verification === 'human' ? 'Human verified' : relationship.verification === 'policy_confirmed' ? 'Policy confirmed' : 'Provisional'}</p><p className="mt-2 text-[var(--text-primary)]">{description.canonicalSentence}</p><dl className="mt-2 border-t border-[var(--border)] pt-2"><dt className="text-xs text-[var(--text-muted)]">Timeline progression</dt><dd className="mt-1 text-[var(--text-secondary)]">{description.progressionSentence}</dd></dl></li>
-              })}</ol>
-            )}
+            <MatterEffectiveRelationshipList key={`${matterId}:${selected.id}`} matterId={matterId} selectedDocumentId={selected.id} projection={relationshipProjection} context={authoringContext} />
           </div>
         )}
         {inspector === 'notes' && <div className="text-sm"><h4 className="font-medium text-[var(--text-primary)]">Document notes</h4>{notePreview && notePreview.length > 0 ? <ol className="mt-3 space-y-3">{notePreview.map((note) => <li key={note.id} className="border-b border-[var(--border)] pb-3 last:border-0"><p className="whitespace-pre-wrap break-words text-[var(--text-primary)]">{note.content}</p><p className="mt-1 text-xs text-[var(--text-muted)]">{note.authorLabel || 'Author unavailable'} · {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(note.created_at))}</p></li>)}</ol> : <p className="mt-2 text-[var(--text-secondary)]">No notes are attached to this proceeding.</p>}<Link scroll={false} prefetch={false} href={buildMatterSectionHref(matterId, queryEntries, 'notes')} className="mt-4 inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 font-medium text-[var(--text-primary)]">Open Matter Notes</Link></div>}

@@ -3,6 +3,7 @@ import 'server-only'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/supabase/database.types'
+import { relationshipAuthoringContextSchema } from './relationship-authoring'
 import {
   clampMatterFilesOffset,
   compareSupportingFilesNewestFirst,
@@ -171,6 +172,14 @@ async function readActiveMatterDocuments(
 export type MatterWorkspaceCapabilities = {
   canContribute: boolean
   canCloseReopen: boolean
+}
+
+export async function readMatterRelationshipAuthoringContext(matterId: string) {
+  const client = await createClient()
+  const { data, error } = await client.rpc('read_matter_relationship_authoring_context', { p_matter_id: matterId })
+  if (error) return null
+  const parsed = relationshipAuthoringContextSchema.safeParse(data?.[0])
+  return parsed.success ? parsed.data : null
 }
 
 /** Server-derived UI capabilities; clients never infer permissions from role names. */

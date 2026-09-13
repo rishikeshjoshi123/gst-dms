@@ -16,6 +16,10 @@ const nullableRpcFields = {
     relationship_id: 'string',
     revision: 'number',
   },
+  archive_matter_timeline_relationship: {
+    relationship_id: 'string',
+    revision: 'number',
+  },
   read_matter_timeline_relationships: {
     source_revision: 'string',
   },

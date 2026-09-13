@@ -24,6 +24,8 @@ import {
 import { MatterTimelineFocusCommit } from './MatterTimelineFocusBridge'
 import { MatterTimelineGraphNode, type MatterTimelineFlowNode } from './MatterTimelineGraphNode'
 import { MatterTimelineFilters } from './MatterTimelineFilters'
+import { MatterRelationshipAuthoring } from './MatterRelationshipAuthoring'
+import { canAddTimelineRelationship, type RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
 
 const nodeTypes = { matterTimelineDocument: MatterTimelineGraphNode }
 
@@ -35,6 +37,7 @@ type TimelineFlowEdgeData = Record<string, unknown> & {
 type MatterTimelineFlowEdge = Edge<TimelineFlowEdgeData>
 
 export type MatterTimelineGraphCanvasProps = {
+  authoringContext?: RelationshipAuthoringContext | null
   matterId: string
   layout: MatterTimelineGraphLayout
   selectedDocumentId: string | null
@@ -97,6 +100,7 @@ export default function MatterTimelineGraphCanvas({
   inspector,
   filteredCountLabel,
   filters,
+  authoringContext,
 }: MatterTimelineGraphCanvasProps) {
   const router = useRouter()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -104,6 +108,10 @@ export default function MatterTimelineGraphCanvas({
   const topologyRef = useRef('')
   const [zoom, setZoom] = useState(1)
   const [hasDragged, setHasDragged] = useState(false)
+  const [authoring, setAuthoring] = useState<{ sourceId: string; targetId: string } | null>(null)
+  const [authoringMessage, setAuthoringMessage] = useState('')
+  const addButton = useRef<HTMLButtonElement>(null)
+  function finishAuthoring() { setAuthoring(null); setAuthoringMessage(''); requestAnimationFrame(() => addButton.current?.focus()) }
   const projectedNodes = useMemo(
     () => createNodes(layout, matterId, queryEntries, selectedDocumentId),
     [layout, matterId, queryEntries, selectedDocumentId],
@@ -159,6 +167,9 @@ export default function MatterTimelineGraphCanvas({
           <p className="text-xs text-[var(--text-muted)]">{filteredCountLabel}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {canAddTimelineRelationship(authoringContext) && <Button ref={addButton} disabled={Boolean(authoring)} onClick={() => setAuthoring({ sourceId: '', targetId: '' })}>Add relationship</Button>}
+          {authoringContext && authoring && <Button variant="outline" onClick={finishAuthoring}>Cancel adding relationship</Button>}
+          {authoringContext && authoring?.targetId && <MatterRelationshipAuthoring key={`${authoring.sourceId}:${authoring.targetId}`} matterId={matterId} context={authoringContext} initialSourceId={authoring.sourceId} initialTargetId={authoring.targetId} initiallyOpen onFinish={finishAuthoring} />}
           <MatterTimelineFilters matterId={matterId} entries={queryEntries} filters={filters} />
           <Button type="button" variant="secondary" className="min-h-11" onClick={() => instanceRef.current?.fitView({ padding: 0.18, duration: 0 })}>Fit timeline</Button>
           <Button type="button" variant="ghost" className="min-h-11" onClick={() => instanceRef.current?.zoomIn({ duration: 0 })}>Zoom in</Button>
@@ -190,7 +201,17 @@ export default function MatterTimelineGraphCanvas({
         </div>
       </div>
       <div className="min-h-0 flex-1 gap-3 lg:flex">
-        <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]" aria-label="Procedural timeline graph">
+        <div ref={viewportRef} onKeyDown={(event) => { if (authoring && event.key === 'Escape') { event.preventDefault(); finishAuthoring() } }} onClickCapture={(event) => {
+          if (!authoring || !authoringContext) return
+          const id = (event.target as HTMLElement).closest('[data-authoring-document-id]')?.getAttribute('data-authoring-document-id')
+          if (!id) return
+          event.preventDefault(); event.stopPropagation()
+          if (!authoringContext.documents.some((document) => document.id === id)) { setAuthoringMessage('This proceeding is no longer available.'); return }
+          if (authoring.sourceId === id) { setAuthoringMessage('Choose a different target document.'); return }
+          setAuthoringMessage('')
+          setAuthoring(authoring.sourceId ? { ...authoring, targetId: id } : { sourceId: id, targetId: '' })
+        }} className="relative min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]" aria-label="Procedural timeline graph">
+          {authoring && <p role="status" className="absolute left-2 right-2 top-2 z-10 border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--text-primary)]">{authoringMessage || (authoring.sourceId ? '2. Choose the target document acted on. Choose a different proceeding.' : '1. Choose the source document that performs the relationship action.')}</p>}
           <ReactFlow<MatterTimelineFlowNode, MatterTimelineFlowEdge>
             nodes={nodes}
             edges={edges}

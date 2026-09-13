@@ -5,6 +5,7 @@ import { startTransition, useEffect, useRef, useState, type ReactNode } from 're
 
 import type { MatterTimelineGraphProjection } from '@/lib/matters/workspace-read'
 import { shouldRequestMatterTimelineGraph } from '@/lib/matters/workspace-route'
+import type { RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
 
 const MatterTimelineGraphCanvas = dynamic(() => import('./MatterTimelineGraphCanvas'), {
   ssr: false,
@@ -12,9 +13,11 @@ const MatterTimelineGraphCanvas = dynamic(() => import('./MatterTimelineGraphCan
 })
 
 export function MatterTimelineAdaptiveGraph(props: {
+  authoringContext?: RelationshipAuthoringContext | null
   matterId: string
   loadGraph: () => Promise<MatterTimelineGraphProjection>
   graphRequestKey: string
+  graphContextKey: string
   selectedDocumentId: string | null
   queryEntries: Array<[string, string]>
   chronologyHref: string
@@ -23,7 +26,7 @@ export function MatterTimelineAdaptiveGraph(props: {
   filters: string[]
 }) {
   const [desktopCapable, setDesktopCapable] = useState(false)
-  const [loaded, setLoaded] = useState<{ requestKey: string; graph: MatterTimelineGraphProjection } | null>(null)
+  const [loaded, setLoaded] = useState<{ requestKey: string; contextKey: string; graph: MatterTimelineGraphProjection } | null>(null)
   const [loadingKey, setLoadingKey] = useState<string | null>(null)
   const loadGraphRef = useRef(props.loadGraph)
 
@@ -36,6 +39,7 @@ export function MatterTimelineAdaptiveGraph(props: {
     let disposed = false
     let requested = false
     const requestKey = props.graphRequestKey
+    const contextKey = props.graphContextKey
     const update = () => {
       setDesktopCapable(media.matches)
       if (!shouldRequestMatterTimelineGraph(media.matches, requested)) return
@@ -44,10 +48,11 @@ export function MatterTimelineAdaptiveGraph(props: {
       startTransition(async () => {
         try {
           const projection = await loadGraphRef.current()
-          if (!disposed) setLoaded({ requestKey, graph: projection })
+          if (!disposed) setLoaded({ requestKey, contextKey, graph: projection })
         } catch {
           if (!disposed) setLoaded({
             requestKey,
+            contextKey,
             graph: {
               outcome: 'unavailable', reason: 'read', layout: null,
               total: 0, unfilteredTotal: 0, sourceRevision: null,
@@ -65,11 +70,13 @@ export function MatterTimelineAdaptiveGraph(props: {
       disposed = true
       media.removeEventListener('change', update)
     }
-  }, [props.graphRequestKey])
+  }, [props.graphRequestKey, props.graphContextKey])
 
-  const graph = loaded?.requestKey === props.graphRequestKey ? loaded.graph : null
+  // Keep world coordinates and open drafts during a same-scope refresh. Other context
+  // changes must never display a projection belonging to different filters.
+  const graph = loaded?.requestKey === props.graphRequestKey || loaded?.contextKey === props.graphContextKey ? loaded.graph : null
   const loading = loadingKey === props.graphRequestKey
-  if (!desktopCapable || loading || !graph) {
+  if (!desktopCapable || !graph) {
     return <>{desktopCapable && loading ? <p role="status" className="sr-only">Preparing timeline graph…</p> : null}{props.chronology}</>
   }
   if (graph.outcome !== 'ok' || !graph.layout) {

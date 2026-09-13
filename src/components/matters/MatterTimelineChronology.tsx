@@ -7,6 +7,8 @@ import { buildMatterDocumentSelectionHref, buildMatterTimelineFiltersHref, build
 import { MatterTimelineFocusCommit, MatterTimelineRowLink } from './MatterTimelineFocusBridge'
 import { MatterTimelineFilters } from './MatterTimelineFilters'
 import { MatterTimelineInspector, type MatterTimelineNotePreview } from './MatterTimelineInspector'
+import { MatterRelationshipAuthoring } from './MatterRelationshipAuthoring'
+import type { RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
 
 const unavailable = 'Not available'
 function label(item: { title: string | null; referenceNumber: string | null }) { return item.title || item.referenceNumber || 'Untitled proceeding' }
@@ -25,7 +27,8 @@ function attention(value: MatterTimelineChronologyPage['items'][number]['attenti
   return 'No attention'
 }
 
-export function MatterTimelineChronology({ matterId, page, selectionUnavailable, queryEntries, filters, inspector, notePreview, relationshipProjection, graphAvailable = true, fallbackMessage }: {
+export function MatterTimelineChronology({ matterId, page, selectionUnavailable, queryEntries, filters, inspector, notePreview, relationshipProjection, graphAvailable = true, fallbackMessage, authoringContext }: {
+  authoringContext?: RelationshipAuthoringContext | null
   matterId: string
   page: MatterTimelineChronologyPage
   selectionUnavailable: boolean
@@ -51,7 +54,7 @@ export function MatterTimelineChronology({ matterId, page, selectionUnavailable,
       <MatterTimelineFocusCommit selectedDocumentId={selected?.id ?? null} matterId={matterId} snapshot={`${page.sourceRevision ?? 'none'}:${page.offset}`} />
       <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2">
         <div><h2 className="text-sm font-semibold text-[var(--text-primary)]">Chronology</h2><p className="text-xs text-[var(--text-muted)]">{rangeLabel}</p></div>
-        <div className="flex items-center gap-2"><MatterTimelineFilters matterId={matterId} entries={queryEntries} filters={filters} />{graphAvailable ? <Link data-timeline-graph-action scroll={false} prefetch={false} href={buildMatterTimelineViewHref(matterId, queryEntries, 'graph')} className="hidden min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] lg:inline-flex">Graph</Link> : null}</div>
+        <div className="flex flex-wrap items-center gap-2"><MatterTimelineFilters matterId={matterId} entries={queryEntries} filters={filters} />{graphAvailable ? <Link data-timeline-graph-action scroll={false} prefetch={false} href={buildMatterTimelineViewHref(matterId, queryEntries, 'graph')} className="hidden min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] lg:inline-flex">Graph</Link> : null}{authoringContext && <MatterRelationshipAuthoring matterId={matterId} context={authoringContext} />}</div>
       </div>
 
       {fallbackMessage ? <p role="status" className="border border-[var(--border)] bg-[var(--surface)] p-3 text-sm text-[var(--text-secondary)]">{fallbackMessage}</p> : null}
@@ -76,7 +79,7 @@ export function MatterTimelineChronology({ matterId, page, selectionUnavailable,
           </div>
           <ul className="custom-scrollbar min-h-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto border border-[var(--border)] bg-[var(--surface)] lg:hidden" aria-label="Proceeding chronology">{page.items.map((item) => <li key={item.id} className="p-3"><div className="flex items-start justify-between gap-3"><Link scroll={false} href={canonicalDocumentPath(item.id, { matterId, returnTo })} className="block min-h-11 min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">{identity(item)}</Link><span className="shrink-0 text-xs text-[var(--text-muted)]">{date(item.effectiveDate)}</span></div><p className="mt-1 truncate text-xs text-[var(--text-secondary)]"><span className="capitalize">{item.direction || unavailable}</span> · {content(item.contentAvailability)} · {attention(item.attentionState)}</p><p className="truncate text-xs text-[var(--text-muted)]">Effect: {unavailable} · Key fact: {unavailable}</p></li>)}</ul>
 
-          {selected ? <MatterTimelineInspector matterId={matterId} selected={selected} queryEntries={queryEntries} inspector={inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} /> : null}
+          {selected ? <MatterTimelineInspector matterId={matterId} selected={selected} queryEntries={queryEntries} inspector={inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} authoringContext={authoringContext} /> : null}
         </div>
       )}
 

@@ -39,6 +39,14 @@ test('graph request identity is deterministic and collision-free for delimiter-b
   assert.equal(left, matterTimelineGraphRequestKey('matter', 'revision', ['q:a|b', 'type:c']))
 })
 
+test('graph relationship revision changes request identity while document selection does not', () => {
+  const first = parseMatterWorkspaceRoute({ view: 'graph', document: documentId, inspector: 'overview' })
+  const second = parseMatterWorkspaceRoute({ view: 'graph', document: '00000000-0000-0000-0000-000000000002', inspector: 'relationships' })
+  const initial = matterTimelineGraphRequestKey('matter', 'documents', first.timelinePage.filters, 'relationships-v1')
+  assert.equal(initial, matterTimelineGraphRequestKey('matter', 'documents', second.timelinePage.filters, 'relationships-v1'))
+  assert.notEqual(initial, matterTimelineGraphRequestKey('matter', 'documents', second.timelinePage.filters, 'relationships-v2'))
+})
+
 test('uses the fixed canonical order and defaults invalid or omitted sections to Timeline', () => {
   assert.deepEqual(MATTER_SECTION_IDS, [
     'timeline', 'files', 'case-brief', 'notes', 'deadlines', 'financials', 'activity', 'details',

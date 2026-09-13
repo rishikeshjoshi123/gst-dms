@@ -11,6 +11,7 @@ const specs = {
   ],
   activate_document_relationship: ['relationship_id: string', 'revision: number'],
   archive_document_relationship: ['relationship_id: string', 'revision: number'],
+  archive_matter_timeline_relationship: ['relationship_id: string', 'revision: number'],
   create_client_command: ['client_id: string', 'revision: number'],
   create_matter_command: ['client_id: string', 'matter_id: string', 'revision: number'],
   create_note_with_optional_task: ['note_id: string', 'task_id: string'],

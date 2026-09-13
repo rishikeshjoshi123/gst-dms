@@ -1,5 +1,21 @@
 # Local acceptance
 
+Timeline relationship authoring uses its own exclusively owned disposable project:
+
+```sh
+/opt/homebrew/opt/node@24/bin/node scripts/acceptance/run-relationship-authoring.mjs --types --browser
+```
+
+This replays migrations in `dms-relationship-authoring-155` (API 57321, database
+57322, shadow 57320, app 3105), runs the effective-relationship core and authoring
+SQL fixtures, checks generated-type parity, and builds a production webpack
+snapshot for Chromium. It rejects an existing project with that name and removes
+only the stack it created. It never resets or repairs the existing `dms` database.
+The browser scenarios cover ordered chronology/desktop graph creation, exact
+catalogue sentences, required archive reasons, stale-draft recovery, response-loss
+replay, Owner/Associate authority, Viewer absence, retained history and Activity,
+320/900px and true 200% zoom, long titles, dark/reduced motion, and keyboard focus.
+
 Install the pinned Chromium runtime once with `npx playwright install chromium`,
 then run the complete disposable check with:
 

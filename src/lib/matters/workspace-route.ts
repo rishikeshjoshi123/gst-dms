@@ -75,8 +75,9 @@ export function matterTimelineGraphRequestKey(
   matterId: string,
   sourceRevision: string | null,
   filters: readonly string[],
+  relationshipRevision?: string,
 ) {
-  return JSON.stringify([matterId, sourceRevision, filters])
+  return JSON.stringify([matterId, sourceRevision, filters, relationshipRevision ?? null])
 }
 
 function scalar(value: string | string[] | undefined) {
