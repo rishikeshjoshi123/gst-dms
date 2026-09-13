@@ -40,6 +40,7 @@ export function CanonicalDocumentWorkbench({
   sourceFailure,
   expectedMatterId,
   readOnly,
+  canRepairBoundary,
 }: {
   doc: DocumentWorkbenchDocument
   allDocuments: unknown[]
@@ -52,6 +53,7 @@ export function CanonicalDocumentWorkbench({
   sourceFailure?: PdfSourceFailure
   expectedMatterId?: string
   readOnly: boolean
+  canRepairBoundary: boolean
 }) {
   const [quotationDraft, setQuotationDraft] = useState<QuotationDraft | null>(null)
   const [inspectorTab, setInspectorTab] = useState<MatterInspectorView>('overview')
@@ -129,6 +131,7 @@ export function CanonicalDocumentWorkbench({
             effectiveMetadata={effectiveMetadata}
             inspectorMetadataByDocumentId={inspectorMetadataByDocumentId}
             readOnly={readOnly}
+            canRepairBoundary={canRepairBoundary}
             quotationDraft={activeQuotationDraft}
             onQuotationDraftConsumed={() => setQuotationDraft(null)}
             activeTab={inspectorTab}

@@ -16,6 +16,7 @@ import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
 import { getDocumentInspectorMetadata } from '@/lib/documents/inspector-effective-metadata'
 import { shapeDocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
 import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
+import { readMatterWorkspaceCapabilities } from '@/lib/matters/workspace-read'
 
 type CanonicalDocumentPageProps = {
   params: Promise<{ docId: string }>
@@ -30,6 +31,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
   if (!exactDocument) notFound()
 
   const isTrashReadOnly = exactDocument.state === 'trash'
+  const canRepairBoundary = !isTrashReadOnly && (await readMatterWorkspaceCapabilities()).canContribute
   const doc = isTrashReadOnly ? exactDocument.data.record : exactDocument.record
   const matterId = doc.matter_id
   const matterReturnPath = safeMatterReturnPath(sourceLocator.returnTo, matterId) ?? `/matters/${matterId}`
@@ -109,6 +111,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
         sourceFailure={signedDocumentFailure}
         expectedMatterId={isTrashReadOnly ? exactDocument.expectedMatterId : undefined}
         readOnly={isTrashReadOnly}
+        canRepairBoundary={canRepairBoundary}
       />
     </div>
   )

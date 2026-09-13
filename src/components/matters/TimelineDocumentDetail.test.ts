@@ -4,10 +4,15 @@ import test from 'node:test'
 import { linkedDocumentDate, linkedDocumentIdentity, selectedDocumentIdentity } from '@/lib/documents/document-inspector-identity'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
-test('Move or copy launcher preserves historical and read-only gates', () => {
+test('Move or copy requires server capability and preserves historical and read-only gates', () => {
   const source = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
-  assert.match(source, /!readOnly && !displayedSource\?\.historical && <Button[^]*?Move or copy/)
-  assert.match(source, /!readOnly && !displayedSource\?\.historical && <ReassignDocumentDialog/)
+  assert.match(source, /canRepairBoundary = false/)
+  assert.match(source, /canRepairBoundary && !readOnly && !displayedSource\?\.historical && <Button ref=\{repairLauncher\}[^]*?Move or copy/)
+  assert.match(source, /canRepairBoundary && !readOnly && !displayedSource\?\.historical && <ReassignDocumentDialog/)
+  const page = readFileSync(new URL('../../app/(app)/documents/[docId]/page.tsx', import.meta.url), 'utf8')
+  const workbench = readFileSync(new URL('../documents/CanonicalDocumentWorkbench.tsx', import.meta.url), 'utf8')
+  assert.match(page, /!isTrashReadOnly && \(await readMatterWorkspaceCapabilities\(\)\).canContribute/)
+  for (const caller of [page, workbench]) assert.match(caller, /canRepairBoundary=\{canRepairBoundary\}/)
 })
 
 test('uses effective reference for selected inspector identity and never revives a cleared reference', () => {

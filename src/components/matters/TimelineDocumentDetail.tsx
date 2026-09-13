@@ -98,6 +98,7 @@ export function TimelineDocumentDetail({
   inspectorMetadataByDocumentId,
   onClose,
   readOnly = false,
+  canRepairBoundary = false,
   quotationDraft = null,
   onQuotationDraftConsumed,
   displayedSource,
@@ -112,6 +113,7 @@ export function TimelineDocumentDetail({
   inspectorMetadataByDocumentId?: Record<string, DocumentInspectorMetadata>
   onClose?: () => void
   readOnly?: boolean
+  canRepairBoundary?: boolean
   quotationDraft?: PdfQuotationSelection | null
   onQuotationDraftConsumed?: () => void
   displayedSource?: { versionId: string; page: number; historical: boolean }
@@ -129,6 +131,13 @@ export function TimelineDocumentDetail({
   const [isDocConfirmOpen, setIsDocConfirmOpen] = useState(false)
   const documentTrashIdempotencyKey = useRef<string | null>(null)
   const [isReassignOpen, setIsReassignOpen] = useState(false)
+  const repairLauncher = useRef<HTMLButtonElement>(null)
+  const closeRepairDialog = () => {
+    setIsReassignOpen(false)
+    // This caller survives the conditional dialog subtree. Restore after its
+    // removal even if the child's post-unmount callback is unavailable.
+    requestAnimationFrame(() => repairLauncher.current?.focus({ preventScroll: true }))
+  }
   const [isReprocessing, setIsReprocessing] = useState(false)
   const reprocessIdempotencyKey = useRef<string | null>(null)
   const noteCreateIdempotencyKey = useRef<string | null>(null)
@@ -330,7 +339,7 @@ export function TimelineDocumentDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
-          {!readOnly && !displayedSource?.historical && <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
+          {canRepairBoundary && !readOnly && !displayedSource?.historical && <Button ref={repairLauncher} type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
             <MoveRight size={14} aria-hidden="true" />
             Move or copy
           </Button>}
@@ -684,11 +693,10 @@ export function TimelineDocumentDetail({
         onRemove={handleDeleteNote}
       />}
 
-      {!readOnly && !displayedSource?.historical && <ReassignDocumentDialog
+      {canRepairBoundary && !readOnly && !displayedSource?.historical && <ReassignDocumentDialog
         isOpen={isReassignOpen}
-        onClose={() => {
-          setIsReassignOpen(false)
-        }}
+        returnFocusRef={repairLauncher}
+        onClose={closeRepairDialog}
         documentId={doc.id}
         currentMatterId={doc.matter_id}
       />}

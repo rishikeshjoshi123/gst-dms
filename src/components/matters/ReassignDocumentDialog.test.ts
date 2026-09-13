@@ -4,6 +4,36 @@ import test from 'node:test'
 
 const source = readFileSync(new URL('./ReassignDocumentDialog.tsx', import.meta.url), 'utf8')
 
+test('controlled unmount restores explicit launcher focus through Radix for Escape, Cancel and success', () => {
+  const caller = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
+  assert.match(caller, /<Button ref=\{repairLauncher\}/)
+  assert.match(caller, /returnFocusRef=\{repairLauncher\}/)
+  assert.match(caller, /const closeRepairDialog = \(\) => \{[^]*?setIsReassignOpen\(false\)[^]*?requestAnimationFrame\(\(\) => repairLauncher.current\?\.focus\(\{ preventScroll: true \}\)\)/)
+  assert.match(caller, /onClose=\{closeRepairDialog\}/)
+  assert.match(source, /onCloseAutoFocus=\{\(event\) => \{[^]*?event.preventDefault\(\)[^]*?returnFocusRef.current\?\.focus\(\{ preventScroll: true \}\)/)
+  assert.match(source, /if \(!open && !pending\) onClose\(\)/)
+  assert.match(source, /onEscapeKeyDown=\{\(event\) => \{ if \(pending\) event.preventDefault\(\)/)
+  assert.match(source, /toast.success\([^]*?onClose\(\)/)
+  assert.match(source, /else onClose\(\)/)
+  assert.match(source, /return props.isOpen \? <BoundaryRepairDialog/)
+})
+
+test('caller-owned close restores focus after the dialog subtree is removed', () => {
+  const caller = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
+  const closeBody = caller.match(/const closeRepairDialog = \(\) => \{([^]*?)\n  \}/)?.[1]
+  assert.ok(closeBody)
+  const events: string[] = []
+  const frames: Array<() => void> = []
+  const close = new Function('setIsReassignOpen', 'requestAnimationFrame', 'repairLauncher', closeBody)
+  close((open: boolean) => { assert.equal(open, false); events.push('dialog removed') },
+    (frame: () => void) => frames.push(frame),
+    { current: { focus: (options: { preventScroll: boolean }) => { assert.equal(options.preventScroll, true); events.push('launcher focused') } } })
+  assert.deepEqual(events, ['dialog removed'])
+  assert.equal(frames.length, 1)
+  frames[0]()
+  assert.deepEqual(events, ['dialog removed', 'launcher focused'])
+})
+
 test('repair presents authoritative consequences before a reason-required confirmation', () => {
   assert.match(source, /await previewDocumentBoundaryRepair\(documentId, target, mode\)/)
   assert.match(source, /fingerprint: impact.fingerprint, reason, idempotencyKey/)

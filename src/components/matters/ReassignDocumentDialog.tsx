@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition, type RefObject } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,9 +9,12 @@ import { getMatters } from '@/lib/actions/matter'
 import { previewDocumentBoundaryRepair, reassignDocumentMatter, type BoundaryRepairImpact } from '@/lib/actions/document'
 import { toast } from 'sonner'
 
-function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId }: {
+type BoundaryRepairDialogProps = {
   isOpen: boolean; onClose: () => void; documentId: string; currentMatterId: string
-}) {
+  returnFocusRef: RefObject<HTMLButtonElement | null>
+}
+
+function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId, returnFocusRef }: BoundaryRepairDialogProps) {
   const [matters, setMatters] = useState<Awaited<ReturnType<typeof getMatters>>>([])
   const [target, setTarget] = useState('')
   const [mode, setMode] = useState<'move' | 'copy'>('move')
@@ -83,6 +86,12 @@ function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId }: 
 
   return <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !pending) onClose() }}>
     <DialogContent showClose={false} className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-lg"
+      onCloseAutoFocus={(event) => {
+        // The controlled subtree unmounts on close and has no DialogTrigger.
+        // Restore through Radix's post-unmount focus hook on every close path.
+        event.preventDefault()
+        returnFocusRef.current?.focus({ preventScroll: true })
+      }}
       onEscapeKeyDown={(event) => { if (pending) event.preventDefault() }}
       onPointerDownOutside={(event) => { if (pending) event.preventDefault() }}>
       <DialogHeader className="shrink-0">
@@ -132,6 +141,6 @@ function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId }: 
   </Dialog>
 }
 
-export function ReassignDocumentDialog(props: { isOpen: boolean; onClose: () => void; documentId: string; currentMatterId: string }) {
+export function ReassignDocumentDialog(props: BoundaryRepairDialogProps) {
   return props.isOpen ? <BoundaryRepairDialog key={`${props.documentId}:${props.currentMatterId}`} {...props} /> : null
 }
