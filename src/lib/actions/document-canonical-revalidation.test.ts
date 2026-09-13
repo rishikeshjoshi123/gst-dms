@@ -45,15 +45,18 @@ test('matter financial-year synchronization invalidates every exact updated docu
   assert.match(updateMatter, /for \(const document of updatedDocuments \?\? \[\]\)[\s\S]*revalidatePath\(canonicalDocumentPath\(document\.id\)\)/)
 })
 
-test('legacy document move and copy fail before clients, storage, or direct document writes', () => {
+test('document move and copy require confirmation and use only the governed command', () => {
   const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
   const reassign = exportedFunction(source, 'reassignDocumentMatter')
 
-  assert.doesNotMatch(reassign, /createClient\(\)/)
+  assert.match(reassign, /if \(!request.success\) return/)
+  assert.match(reassign, /rpc\('execute_document_boundary_repair'/)
+  assert.match(reassign, /p_expected_fingerprint/)
+  assert.match(reassign, /p_idempotency_key/)
   assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.insert/)
   assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.update/)
   assert.doesNotMatch(reassign, /\.storage\s*\.from\('documents'\)\s*\.upload/)
-  assert.match(reassign, /governed workflow/)
+  assert.match(reassign, /revalidatePath\(canonicalDocumentPath\(documentId\)\)/)
 })
 
 test('legacy metadata editing fails before client creation or direct document update', () => {

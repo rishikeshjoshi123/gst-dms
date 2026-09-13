@@ -813,6 +813,65 @@ export type Database = {
           },
         ]
       }
+      document_boundary_repair_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          impact: Json
+          mode: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_document_id: string
+          result_version_id: string
+          source_document_id: string
+          source_matter_id: string
+          target_matter_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          impact: Json
+          mode: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_document_id: string
+          result_version_id: string
+          source_document_id: string
+          source_matter_id: string
+          target_matter_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          impact?: Json
+          mode?: string
+          org_id?: string
+          reason?: string
+          request_fingerprint?: string
+          result_document_id?: string
+          result_version_id?: string
+          source_document_id?: string
+          source_matter_id?: string
+          target_matter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_boundary_repair_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_command_receipts: {
         Row: {
           actor_user_id: string | null
@@ -1087,6 +1146,7 @@ export type Database = {
           field_path: string
           id: string
           idempotency_key: string
+          inherited_from_decision_id: string | null
           org_id: string
           reason: string | null
           replacement_value: Json | null
@@ -1104,6 +1164,7 @@ export type Database = {
           field_path: string
           id?: string
           idempotency_key: string
+          inherited_from_decision_id?: string | null
           org_id: string
           reason?: string | null
           replacement_value?: Json | null
@@ -1121,6 +1182,7 @@ export type Database = {
           field_path?: string
           id?: string
           idempotency_key?: string
+          inherited_from_decision_id?: string | null
           org_id?: string
           reason?: string | null
           replacement_value?: Json | null
@@ -1349,6 +1411,7 @@ export type Database = {
       document_page_text_artifacts: {
         Row: {
           content_fingerprint: string | null
+          copied_from_artifact_id: string | null
           created_at: string
           document_id: string
           document_version_id: string
@@ -1363,6 +1426,7 @@ export type Database = {
         }
         Insert: {
           content_fingerprint?: string | null
+          copied_from_artifact_id?: string | null
           created_at?: string
           document_id: string
           document_version_id: string
@@ -1377,6 +1441,7 @@ export type Database = {
         }
         Update: {
           content_fingerprint?: string | null
+          copied_from_artifact_id?: string | null
           created_at?: string
           document_id?: string
           document_version_id?: string
@@ -3389,10 +3454,10 @@ export type Database = {
           },
           {
             foreignKeyName: "matter_identifiers_evidence_document_fkey"
-            columns: ["org_id", "matter_id", "evidence_document_id"]
+            columns: ["org_id", "evidence_document_id"]
             isOneToOne: false
             referencedRelation: "documents"
-            referencedColumns: ["org_id", "matter_id", "id"]
+            referencedColumns: ["org_id", "id"]
           },
           {
             foreignKeyName: "matter_identifiers_evidence_version_fkey"
@@ -9234,6 +9299,15 @@ export type Database = {
           code: string
         }[]
       }
+      document_boundary_repair_impact: {
+        Args: {
+          p_document: string
+          p_mode: string
+          p_org: string
+          p_target: string
+        }
+        Returns: Json
+      }
       document_field_decision_actor_is_authorised: {
         Args: { p_actor_user_id: string; p_org_id: string }
         Returns: boolean
@@ -9327,6 +9401,17 @@ export type Database = {
           blocked_count: number
           queued_count: number
         }[]
+      }
+      execute_document_boundary_repair: {
+        Args: {
+          p_document_id: string
+          p_expected_fingerprint: string
+          p_idempotency_key: string
+          p_mode: string
+          p_reason: string
+          p_target_matter_id: string
+        }
+        Returns: Json
       }
       fail_document_outbox_event: {
         Args: {
@@ -10834,6 +10919,14 @@ export type Database = {
           code: string
           storage_deletion_count: number
         }[]
+      }
+      preview_document_boundary_repair: {
+        Args: {
+          p_document_id: string
+          p_mode: string
+          p_target_matter_id: string
+        }
+        Returns: Json
       }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }

@@ -332,7 +332,7 @@ export function TimelineDocumentDetail({
         <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
           {!readOnly && !displayedSource?.historical && <Button type="button" variant="outline" size="sm" onClick={() => setIsReassignOpen(true)}>
             <MoveRight size={14} aria-hidden="true" />
-            Reassign
+            Move or copy
           </Button>}
           {!readOnly && !displayedSource?.historical && <Button
             type="button"

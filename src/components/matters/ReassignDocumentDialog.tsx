@@ -1,216 +1,137 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getClients } from '@/lib/actions/client'
 import { getMatters } from '@/lib/actions/matter'
-import { reassignDocumentMatter } from '@/lib/actions/document'
-import { Search, Loader2, Check } from 'lucide-react'
+import { previewDocumentBoundaryRepair, reassignDocumentMatter, type BoundaryRepairImpact } from '@/lib/actions/document'
 import { toast } from 'sonner'
 
-export function ReassignDocumentDialog({
-  isOpen,
-  onClose,
-  documentId,
-  currentMatterId
-}: {
-  isOpen: boolean
-  onClose: () => void
-  documentId: string
-  currentMatterId: string
+function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId }: {
+  isOpen: boolean; onClose: () => void; documentId: string; currentMatterId: string
 }) {
-  const [clients, setClients] = useState<any[]>([])
-  const [matters, setMatters] = useState<any[]>([])
-  
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
-  const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null)
-  const [isCopyMode, setIsCopyMode] = useState(false)
-  
-  const [clientSearch, setClientSearch] = useState('')
-  const [matterSearch, setMatterSearch] = useState('')
-  
-  const [isPending, startTransition] = useTransition()
-  const [isLoading, setIsLoading] = useState(true)
+  const [matters, setMatters] = useState<Awaited<ReturnType<typeof getMatters>>>([])
+  const [target, setTarget] = useState('')
+  const [mode, setMode] = useState<'move' | 'copy'>('move')
+  const [search, setSearch] = useState('')
+  const [reason, setReason] = useState('')
+  const [impact, setImpact] = useState<BoundaryRepairImpact | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [pending, startTransition] = useTransition()
+  const [reload, setReload] = useState(0)
+  const confirmationKey = useRef<string | null>(null)
+  const impactHeading = useRef<HTMLSpanElement>(null)
+  const generation = useRef(0)
 
   useEffect(() => {
-    if (isOpen) {
-      loadData()
-    }
-  }, [isOpen])
+    const request = ++generation.current
+    if (!isOpen) return
+    getMatters().then((rows) => {
+      if (request === generation.current) setMatters(rows)
+    }).catch(() => {
+      if (request === generation.current) setError('Could not load Matters. Retry to choose a target.')
+    }).finally(() => {
+      if (request === generation.current) setLoading(false)
+    })
+    return () => { generation.current = request + 1 }
+  }, [isOpen, documentId, currentMatterId, reload])
 
-  const loadData = async () => {
-    setIsLoading(true)
-    const [fetchedClients, fetchedMatters] = await Promise.all([
-      getClients(),
-      getMatters()
-    ])
-    setClients(fetchedClients)
-    setMatters(fetchedMatters)
-    
-    // Set initial client based on current matter
-    const currentMatter = fetchedMatters.find(m => m.id === currentMatterId)
-    if (currentMatter) {
-      setSelectedClientId(currentMatter.client_id)
-    } else {
-      setSelectedClientId(null)
-    }
-    
-    setSelectedMatterId(null)
-    setClientSearch('')
-    setMatterSearch('')
-    setIsLoading(false)
-  }
+  useEffect(() => { if (impact) impactHeading.current?.focus() }, [impact])
 
-  const handleReassign = () => {
-    if (!selectedMatterId) return
-
+  const reviewImpact = () => {
+    const request = generation.current
+    setError('')
     startTransition(async () => {
-      const res = await reassignDocumentMatter(documentId, selectedMatterId, isCopyMode ? 'copy' : 'move')
-      if ('error' in res && typeof res.error === 'string') {
-        toast.error(res.error)
-      } else {
-        toast.success(`Document ${isCopyMode ? 'copied' : 'reassigned'} successfully`)
-        onClose()
-        // The server action handles revalidation so the UI will update
-      }
+      try {
+        const result = await previewDocumentBoundaryRepair(documentId, target, mode)
+        if (request !== generation.current) return
+        if ('impact' in result && result.impact) {
+          confirmationKey.current = crypto.randomUUID()
+          setImpact(result.impact)
+        } else setError(result.error ?? 'Could not load the impact. Please retry.')
+      } catch { if (request === generation.current) setError('Could not load the impact. Please retry.') }
     })
   }
 
-  const filteredClients = clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
-  
-  // If a client is selected, show only their matters. Otherwise show all matters.
-  const availableMatters = selectedClientId 
-    ? matters.filter(m => m.client_id === selectedClientId)
-    : matters
-    
-  const filteredMatters = availableMatters.filter(m => 
-    m.title.toLowerCase().includes(matterSearch.toLowerCase()) || 
-    (m.matter_code && m.matter_code.toLowerCase().includes(matterSearch.toLowerCase()))
-  )
+  const confirm = () => {
+    if (!impact || !confirmationKey.current) return
+    const request = generation.current
+    const idempotencyKey = confirmationKey.current
+    setError('')
+    startTransition(async () => {
+      try {
+        const result = await reassignDocumentMatter(documentId, target, mode, { fingerprint: impact.fingerprint, reason, idempotencyKey })
+        if (request !== generation.current) return
+        if ('error' in result) {
+          setError(result.error ?? 'The change could not be completed.')
+          if (result.code === 'stale_preview' || result.code === 'idempotency_conflict') {
+            setImpact(null); confirmationKey.current = null
+          }
+        } else {
+          toast.success(mode === 'move' ? 'Document moved' : 'Document copied')
+          onClose()
+        }
+      } catch { if (request === generation.current) setError('Confirmation could not be verified. Retry to check the same change.') }
+    })
+  }
 
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md bg-[var(--surface)] border-[var(--border)] p-6 shadow-xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl text-[var(--text-primary)]">Reassign Document</DialogTitle>
-          <DialogDescription className="text-[var(--text-secondary)]">
-            Move this document to a different client or matter.
-          </DialogDescription>
-        </DialogHeader>
+  const available = matters.filter((matter) => matter.id !== currentMatterId && matter.work_state !== 'closed'
+    && `${matter.title} ${matter.matter_code ?? ''}`.toLowerCase().includes(search.toLowerCase()))
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-[var(--primary)]" size={24} />
+  return <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !pending) onClose() }}>
+    <DialogContent showClose={false} className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-lg"
+      onEscapeKeyDown={(event) => { if (pending) event.preventDefault() }}
+      onPointerDownOutside={(event) => { if (pending) event.preventDefault() }}>
+      <DialogHeader className="shrink-0">
+        <DialogTitle><span ref={impactHeading} tabIndex={-1}>{impact ? `Confirm document ${mode}` : 'Move or copy document'}</span></DialogTitle>
+        <DialogDescription className="line-clamp-3 break-words">{impact
+          ? `${impact.documentTitle} · ${impact.sourceMatterTitle} → ${impact.targetMatterTitle}`
+          : 'Repair the placement of one document. Create the target Matter separately before continuing.'}</DialogDescription>
+      </DialogHeader>
+      <div className="min-h-0 overflow-y-auto overscroll-contain custom-scrollbar space-y-4" aria-busy={pending || loading}>
+        {loading ? <p role="status">Loading Matters…</p> : impact ? <>
+          <p className="text-sm text-[var(--text-secondary)]">{mode === 'move'
+            ? 'The document, versions, notes, exact citations, deadlines and tasks move together. Effective relationships are archived with your reason. Document identifiers and source facts remain attached to this document.'
+            : 'A distinct document will share the same PDF and base analysis. Original notes, citations, deadlines and tasks remain with the original. Human field decisions are preserved with their source provenance. Verified Matter and document identifiers are not duplicated.'}</p>
+          <dl className="divide-y divide-[var(--border-subtle)] text-sm">
+            <div className="flex justify-between gap-4 py-2"><dt>Shared PDF assets</dt><dd>{impact.sharedAssets}</dd></div>
+            {impact.categories.map((item) => <div key={item.key} className="flex justify-between gap-4 py-2"><dt>{item.label}</dt><dd className="tabular-nums">{item.count}</dd></div>)}
+          </dl>
+          {impact.blockers.length > 0 && <div role="alert" className="text-sm text-[var(--danger)]"><p>This repair is blocked:</p><ul className="list-disc pl-5">{impact.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>}
+          <div className="space-y-2"><Label htmlFor="repair-reason">Reason for this {mode}</Label>
+            <Input id="repair-reason" value={reason} maxLength={500} disabled={pending}
+              onChange={(event) => { setReason(event.target.value); confirmationKey.current = crypto.randomUUID() }} aria-describedby="repair-reason-help" />
+            <p id="repair-reason-help" className="text-xs text-[var(--text-muted)]">Required, up to 500 characters. Recorded with this change.</p>
           </div>
-        ) : (
-          <div className="flex flex-col gap-6 py-4 animate-in fade-in zoom-in-95 duration-200">
-            {/* Client Selection */}
-            <div className="flex flex-col gap-2">
-              <Label className="text-[13px] text-[var(--text-primary)] font-medium">1. Select Client (Optional)</Label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <Input 
-                  placeholder="Search clients..." 
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
-                  className="pl-9 h-9 text-[13px] bg-[var(--surface)] border-[var(--border)] focus-visible:ring-[var(--primary)]"
-                />
-              </div>
-              
-              <div className="flex flex-col border border-[var(--border)] rounded-md overflow-hidden max-h-[140px] overflow-y-auto custom-scrollbar mt-1 bg-[var(--surface-hover)]">
-                {filteredClients.length === 0 ? (
-                  <div className="p-3 text-[12px] text-[var(--text-muted)] text-center">No clients found</div>
-                ) : (
-                  filteredClients.map(client => (
-                    <button
-                      key={client.id}
-                      onClick={() => setSelectedClientId(client.id)}
-                      className={`flex items-center justify-between text-left px-3 py-2 text-[13px] transition-colors ${
-                        selectedClientId === client.id 
-                          ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium border-l-2 border-[var(--primary)]' 
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--surface)] border-l-2 border-transparent'
-                      }`}
-                    >
-                      <span className="truncate pr-2">{client.name}</span>
-                      {selectedClientId === client.id && <Check size={14} className="shrink-0" />}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Matter Selection */}
-            <div className="flex flex-col gap-2">
-              <Label className="text-[13px] text-[var(--text-primary)] font-medium">2. Select Matter</Label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <Input 
-                  placeholder="Search matters..." 
-                  value={matterSearch}
-                  onChange={(e) => setMatterSearch(e.target.value)}
-                  className="pl-9 h-9 text-[13px] bg-[var(--surface)] border-[var(--border)] focus-visible:ring-[var(--primary)]"
-                />
-              </div>
-              
-              <div className="flex flex-col border border-[var(--border)] rounded-md overflow-hidden max-h-[180px] overflow-y-auto custom-scrollbar mt-1 bg-[var(--surface-hover)]">
-                {filteredMatters.length === 0 ? (
-                  <div className="p-3 text-[12px] text-[var(--text-muted)] text-center">No matters found</div>
-                ) : (
-                  filteredMatters.map(matter => (
-                    <button
-                      key={matter.id}
-                      onClick={() => setSelectedMatterId(matter.id)}
-                      className={`flex flex-col text-left px-3 py-2 transition-colors ${
-                        selectedMatterId === matter.id 
-                          ? 'bg-[var(--primary)]/10 border-l-2 border-[var(--primary)]' 
-                          : 'hover:bg-[var(--surface)] border-l-2 border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[13px] truncate pr-2 ${selectedMatterId === matter.id ? 'text-[var(--primary)] font-medium' : 'text-[var(--text-primary)]'}`}>
-                          {matter.title}
-                        </span>
-                        {selectedMatterId === matter.id && <Check size={14} className="text-[var(--primary)] shrink-0" />}
-                      </div>
-                      <span className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                        {matter.matter_code} • {matter.financial_year || 'Unknown FY'}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Copy Mode Checkbox */}
-            <div className="flex items-center gap-2 mt-2 px-1">
-              <input
-                type="checkbox"
-                id="copy-mode"
-                checked={isCopyMode}
-                onChange={(e) => setIsCopyMode(e.target.checked)}
-                className="w-4 h-4 rounded border-[var(--border-strong)] text-[var(--primary)] focus:ring-[var(--primary)] bg-[var(--surface)]"
-              />
-              <Label htmlFor="copy-mode" className="text-[13px] text-[var(--text-secondary)] font-normal cursor-pointer select-none">
-                Copy document (keep original in current matter)
-              </Label>
-            </div>
+        </> : <>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Repair action">
+            <Button variant={mode === 'move' ? 'default' : 'outline'} aria-pressed={mode === 'move'} disabled={pending} onClick={() => setMode('move')}>Move document</Button>
+            <Button variant={mode === 'copy' ? 'default' : 'outline'} aria-pressed={mode === 'copy'} disabled={pending} onClick={() => setMode('copy')}>Copy document</Button>
           </div>
-        )}
+          <div className="space-y-2"><Label htmlFor="repair-matter-search">Find target Matter</Label><Input id="repair-matter-search" value={search} disabled={pending} onChange={(event) => { setSearch(event.target.value); setTarget('') }} placeholder="Search title or Matter code" /></div>
+          <div className="space-y-2" role="group" aria-label="Target Matter">
+            {available.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No other active Matters match. Create the target Matter first, or change your search.</p>
+              : available.map((matter) => <Button key={matter.id} variant={target === matter.id ? 'secondary' : 'outline'} aria-pressed={target === matter.id}
+                disabled={pending} onClick={() => setTarget(matter.id)} className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">
+                <span className="min-w-0 break-words">{matter.title}<span className="block text-xs text-[var(--text-muted)]">{matter.matter_code}</span></span>
+              </Button>)}
+          </div>
+        </>}
+        {error && <p role="alert" className="text-sm text-[var(--danger)]">{error}</p>}
+      </div>
+      <DialogFooter className="shrink-0">
+        <Button variant="outline" disabled={pending} onClick={() => { if (impact) { setImpact(null); setError(''); confirmationKey.current = null } else onClose() }}>{impact ? 'Back' : 'Cancel'}</Button>
+        {loading ? null : error && matters.length === 0 ? <Button onClick={() => { setLoading(true); setError(''); setReload(reload + 1) }}>Retry loading Matters</Button>
+          : impact ? <Button disabled={pending || !reason.trim() || impact.blockers.length > 0} onClick={confirm}>{pending ? 'Confirming…' : mode === 'move' ? 'Move document' : 'Copy document'}</Button>
+            : <Button disabled={pending || !target} onClick={reviewImpact}>{pending ? 'Loading impact…' : 'Review impact'}</Button>}
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+}
 
-        <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
-          <Button 
-            onClick={handleReassign} 
-            disabled={!selectedMatterId || isPending}
-            className="bg-[var(--primary)] hover:opacity-90 text-white min-w-[100px]"
-          >
-            {isPending ? <Loader2 size={16} className="animate-spin" /> : isCopyMode ? 'Copy' : 'Move'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+export function ReassignDocumentDialog(props: { isOpen: boolean; onClose: () => void; documentId: string; currentMatterId: string }) {
+  return props.isOpen ? <BoundaryRepairDialog key={`${props.documentId}:${props.currentMatterId}`} {...props} /> : null
 }

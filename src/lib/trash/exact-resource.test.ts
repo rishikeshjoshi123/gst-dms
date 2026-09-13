@@ -132,7 +132,8 @@ test('direct legacy commands reject trashed resource targets before mutating', a
   }
   assert.match(exportedFunction(noteActions, 'updateNote'), /from\('matters'\)[\s\S]*\.eq\('record_state', 'active'\)[\s\S]*\.is\('deleted_at', null\)/)
   assert.match(exportedFunction(noteActions, 'deleteNote'), /rpc\('remove_case_note'/)
-  assert.match(exportedFunction(documentActions, 'reassignDocumentMatter'), /governed workflow is ready/)
+  assert.match(exportedFunction(documentActions, 'reassignDocumentMatter'), /rpc\('execute_document_boundary_repair'/)
+  assert.match(exportedFunction(documentActions, 'previewDocumentBoundaryRepair'), /rpc\('preview_document_boundary_repair'/)
   assert.match(exportedFunction(documentActions, 'updateDocumentMetadata'), /governed inspector correction workflow/)
   assert.match(exportedFunction(documentActions, 'setDocumentClass'), /governed impact workflow/)
   for (const command of ['createManualLink', 'deleteDocumentLink']) {

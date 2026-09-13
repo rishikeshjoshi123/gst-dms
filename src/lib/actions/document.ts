@@ -15,6 +15,7 @@ import {
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
 import { pdfSourceLookupFailureCode } from '@/lib/pdf-source-access'
+import { z } from 'zod'
 
 // ── Get Documents for a Matter ────────────────────────────────────
 
@@ -421,10 +422,75 @@ function documentUploadError(code: string) {
 export async function reassignDocumentMatter(
   documentId: string,
   newMatterId: string,
-  mode: 'move' | 'copy' = 'move'
+  mode: 'move' | 'copy' = 'move',
+  confirmation?: { fingerprint: string; reason: string; idempotencyKey: string }
 ) {
-  void [documentId, newMatterId, mode]
-  return { error: 'Document move and copy are unavailable until the governed workflow is ready.' }
+  const request = z.object({
+    documentId: z.string().uuid(), newMatterId: z.string().uuid(), mode: z.enum(['move', 'copy']),
+    confirmation: z.object({ fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      reason: z.string().trim().min(1).max(500).regex(/^[^\x00-\x1f\x7f]*$/), idempotencyKey: z.string().uuid() }),
+  }).safeParse({ documentId, newMatterId, mode, confirmation })
+  if (!request.success) return { error: 'Review the impact and enter a reason before confirming.' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('execute_document_boundary_repair', {
+    p_document_id: documentId, p_target_matter_id: newMatterId, p_mode: mode,
+    p_expected_fingerprint: request.data.confirmation.fingerprint,
+    p_reason: request.data.confirmation.reason, p_idempotency_key: request.data.confirmation.idempotencyKey,
+  })
+  const result = z.object({ code: z.string(), documentId: z.string().uuid().optional(),
+    sourceMatterId: z.string().uuid().optional(), targetMatterId: z.string().uuid().optional() }).safeParse(data)
+  if (error || !result.success) return { error: 'Could not confirm the change. Retry with the same confirmation.' }
+  if (result.data.code !== 'ok') return { error: boundaryRepairError(result.data.code), code: result.data.code }
+  if (!result.data.documentId || !result.data.sourceMatterId || !result.data.targetMatterId) return { error: 'The change could not be verified. Refresh the document.' }
+  scheduleDocumentOutboxWake()
+  revalidatePath(canonicalDocumentPath(documentId))
+  revalidatePath(canonicalDocumentPath(result.data.documentId))
+  revalidatePath(`/matters/${result.data.sourceMatterId}`)
+  revalidatePath(`/matters/${result.data.targetMatterId}`)
+  revalidatePath('/documents')
+  revalidatePath('/tasks')
+  revalidatePath('/notes')
+  revalidatePath('/matters')
+  revalidatePath('/clients')
+  revalidatePath('/dashboard')
+  revalidatePath('/search')
+  return { success: true, documentId: result.data.documentId }
+}
+
+const boundaryImpactSchema = z.object({
+  code: z.literal('ok'), documentId: z.string().uuid(), documentTitle: z.string(),
+  sourceMatterId: z.string().uuid(), sourceMatterTitle: z.string(),
+  targetMatterId: z.string().uuid(), targetMatterTitle: z.string(), mode: z.enum(['move', 'copy']),
+  documentRevision: z.number().int().positive(), sourceRevision: z.number().int().positive(), targetRevision: z.number().int().positive(),
+  versionId: z.string().uuid(), sharedAssets: z.literal(1), fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  categories: z.array(z.object({ key: z.string(), label: z.string(), count: z.number().int().nonnegative() })).max(30),
+  blockers: z.array(z.string()).max(30),
+})
+export type BoundaryRepairImpact = z.infer<typeof boundaryImpactSchema>
+
+function boundaryRepairError(code: string) {
+  if (code === 'stale_preview') return 'The document or its consequences changed. Review a fresh impact preview.'
+  if (code === 'busy') return 'Another change is in progress. Please retry.'
+  if (code === 'blocked') return 'Resolve the blockers shown in the impact preview first.'
+  if (code === 'source_unavailable') return 'A current, validated PDF is required for this repair.'
+  if (code === 'impact_too_large') return 'This document has too many dependencies for a one-document repair.'
+  if (code === 'idempotency_conflict') return 'This confirmation has changed. Review the impact again.'
+  if (code === 'not_allowed') return 'Only an active Owner, Admin or Associate can move or copy a document.'
+  if (code === 'context_unavailable') return 'Choose a different active Matter. Closed or trashed records cannot be repaired here.'
+  return 'The change was not completed. Review the impact and try again.'
+}
+
+export async function previewDocumentBoundaryRepair(documentId: string, newMatterId: string, mode: 'move' | 'copy') {
+  if (!z.string().uuid().safeParse(documentId).success || !z.string().uuid().safeParse(newMatterId).success || !['move', 'copy'].includes(mode)) return { error: 'Choose a document and target Matter.' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('preview_document_boundary_repair', {
+    p_document_id: documentId, p_target_matter_id: newMatterId, p_mode: mode,
+  })
+  if (error) return { error: 'Could not load the impact. Please retry.' }
+  const impact = boundaryImpactSchema.safeParse(data)
+  if (impact.success) return { impact: impact.data }
+  const result = z.object({ code: z.string() }).safeParse(data)
+  return { error: boundaryRepairError(result.success ? result.data.code : 'unavailable') }
 }
 
 // ── Dismiss Needs-Review Flag ─────────────────────────────────────

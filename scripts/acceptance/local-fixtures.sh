@@ -82,6 +82,10 @@ run_sql supabase/tests/matter_identity_compatibility_cutover.sql
 run_sql supabase/tests/typed_extraction_observation_candidates.sql
 run_sql supabase/tests/typed_material_field_observations.sql
 run_sql supabase/tests/document_reference_exact_resolution.sql
+run_sql supabase/tests/document_boundary_repair.sql
+run_sql supabase/tests/document_boundary_repair_setup.sql
+SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/document_boundary_repair_concurrency.sh
+SUPABASE_DB_CONTAINER="$db_container" "$node_exec" --import tsx supabase/tests/document_boundary_repair_worker.ts
 run_sql supabase/tests/document_reference_exact_resolution_concurrency_setup.sql
 SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/document_reference_exact_resolution_concurrency.sh
 run_sql supabase/tests/matter_identity_compatibility_concurrency_setup.sql

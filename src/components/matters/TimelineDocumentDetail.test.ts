@@ -4,6 +4,12 @@ import test from 'node:test'
 import { linkedDocumentDate, linkedDocumentIdentity, selectedDocumentIdentity } from '@/lib/documents/document-inspector-identity'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
 
+test('Move or copy launcher preserves historical and read-only gates', () => {
+  const source = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
+  assert.match(source, /!readOnly && !displayedSource\?\.historical && <Button[^]*?Move or copy/)
+  assert.match(source, /!readOnly && !displayedSource\?\.historical && <ReassignDocumentDialog/)
+})
+
 test('uses effective reference for selected inspector identity and never revives a cleared reference', () => {
   const document = {
     display_title: 'Neutral storage title.pdf',
