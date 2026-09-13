@@ -60,8 +60,8 @@ class SessionUploadUrlStorage {
   }
 }
 
-export function documentUploadIdempotencyKey(file: File, intendedMatterId: string | null) {
-  return prepareDocumentUploadRecovery(sessionStorage, file, intendedMatterId, () => crypto.randomUUID()).idempotencyKey
+export function documentUploadIdempotencyKey(file: File, intendedMatterId: string | null, attachmentDocumentId?: string) {
+  return prepareDocumentUploadRecovery(sessionStorage, file, intendedMatterId, () => crypto.randomUUID(), Date.now(), attachmentDocumentId).idempotencyKey
 }
 
 export async function uploadDocumentFile(
@@ -70,8 +70,9 @@ export async function uploadDocumentFile(
   idempotencyKey: string,
   onProgress?: (percent: number) => void,
   onControl?: (control: DocumentUploadControl | null) => void,
+  attachmentDocumentId?: string,
 ) {
-  let recovery = prepareDocumentUploadRecovery(sessionStorage, file, intendedMatterId, () => idempotencyKey)
+  let recovery = prepareDocumentUploadRecovery(sessionStorage, file, intendedMatterId, () => idempotencyKey, Date.now(), attachmentDocumentId)
   idempotencyKey = recovery.idempotencyKey
 
   if (recovery.phase === 'finalizing' && recovery.uploadSessionId) {
@@ -85,10 +86,15 @@ export async function uploadDocumentFile(
     declaredBytes: file.size,
     intendedMatterId,
     idempotencyKey,
+    attachmentDocumentId,
   })
   if ('error' in reservation) {
     if (!reservation.retryable) clearDocumentUploadRecovery(sessionStorage, recovery)
     return reservation
+  }
+  if ('completed' in reservation) {
+    clearDocumentUploadRecovery(sessionStorage, recovery)
+    return { success: true as const, intakeId: reservation.intakeId }
   }
 
   recovery = { ...recovery, uploadSessionId: reservation.uploadSessionId, expiresAt: reservation.expiresAt, phase: 'transferring' }

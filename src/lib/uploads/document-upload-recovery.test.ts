@@ -20,6 +20,14 @@ class MemoryStore {
 const file = { name: 'appeal.pdf', size: 6291456, lastModified: 1700000000000 }
 const firstId = '00000000-0000-4000-8000-000000000001'
 
+test('attachment recovery binds the exact document and cannot become ordinary Intake or retarget', () => {
+  const store = new MemoryStore()
+  const first = prepareDocumentUploadRecovery(store, file, null, () => firstId, 1000, 'document-one')
+  assert.equal(readDocumentUploadRecovery(store, file, null, 2000, 'document-one')?.idempotencyKey, first.idempotencyKey)
+  assert.equal(readDocumentUploadRecovery(store, file, null, 2000, 'document-two'), null)
+  assert.equal(readDocumentUploadRecovery(store, file, null, 2000), null)
+})
+
 test('same-tab reload and exact file reselection recover the durable upload identity', () => {
   const store = new MemoryStore()
   const selected = prepareDocumentUploadRecovery(store, file, 'matter-a', () => firstId, 1000)

@@ -9,6 +9,7 @@ import { pdfSourceFailureFromAccessCode } from '@/components/ui/pdf-viewer-model
 import {
   getCanonicalDocumentVersionSignedUrl,
   getDocumentsByMatter,
+  getDocumentAttachmentState,
 } from '@/lib/actions/document'
 import { parseCanonicalDocumentUrlState, safeMatterReturnPath } from '@/lib/canonical-document-route'
 import { getNotes } from '@/lib/actions/notes'
@@ -33,6 +34,9 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
   const isTrashReadOnly = exactDocument.state === 'trash'
   const canRepairBoundary = !isTrashReadOnly && (await readMatterWorkspaceCapabilities()).canContribute
   const doc = isTrashReadOnly ? exactDocument.data.record : exactDocument.record
+  const canAttachPdf = !isTrashReadOnly && !doc.current_version_id && sourceLocator.sourceState !== 'invalid' && !sourceLocator.versionId
+    ? (await getDocumentAttachmentState(docId))?.eligible === true
+    : false
   const matterId = doc.matter_id
   const matterReturnPath = safeMatterReturnPath(sourceLocator.returnTo, matterId) ?? `/matters/${matterId}`
 
@@ -111,6 +115,7 @@ export default async function CanonicalDocumentPage({ params, searchParams }: Ca
         sourceFailure={signedDocumentFailure}
         expectedMatterId={isTrashReadOnly ? exactDocument.expectedMatterId : undefined}
         readOnly={isTrashReadOnly}
+        canAttachPdf={canAttachPdf}
         canRepairBoundary={canRepairBoundary}
       />
     </div>

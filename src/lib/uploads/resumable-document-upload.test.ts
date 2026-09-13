@@ -5,6 +5,16 @@ import test from 'node:test'
 const actionPath = new URL('../actions/document.ts', import.meta.url)
 const clientPath = new URL('./resumable-document-upload.ts', import.meta.url)
 
+test('attachment reservation is server-targeted and completed replay never starts another transfer', async () => {
+  const source = await readFile(actionPath, 'utf8')
+  assert.match(source, /attachmentDocumentId \? await supabase\.rpc\('reserve_document_attachment'/)
+  assert.match(source, /p_document_id: attachmentDocumentId/)
+  assert.match(source, /reservation\.code === 'already_completed'/)
+  const client = await readFile(clientPath, 'utf8')
+  assert.ok(client.indexOf("'completed' in reservation") < client.indexOf('new tus.Upload'))
+  assert.match(client, /Date\.now\(\), attachmentDocumentId/)
+})
+
 test('browser transport is signed, resumable, and uses the required chunk size', async () => {
   const source = await readFile(clientPath, 'utf8')
 

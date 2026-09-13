@@ -4,6 +4,13 @@ import test from 'node:test'
 
 import { documentInspectorIds } from '@/lib/documents/document-inspector-ids'
 
+test('first PDF affordance derives secured eligibility and is absent for Trash or explicit source selection', () => {
+  const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
+  assert.match(source, /!isTrashReadOnly && !doc\.current_version_id && sourceLocator\.sourceState !== 'invalid' && !sourceLocator\.versionId/)
+  assert.match(source, /getDocumentAttachmentState\(docId\)\)\?\.eligible === true/)
+  assert.match(source, /canAttachPdf=\{canAttachPdf\}/)
+})
+
 test('standalone inspector supplies selected and linked document projection IDs without duplicates', () => {
   assert.deepEqual(
     documentInspectorIds('selected', [{ id: 'selected' }, { id: 'linked-corrected' }, { id: 'linked-cleared' }]),

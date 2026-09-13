@@ -5,6 +5,7 @@ export type DocumentUploadFingerprint = {
   size: number
   lastModified: number
   intendedMatterId: string | null
+  attachmentDocumentId?: string
 }
 
 export type DocumentUploadRecovery = {
@@ -22,12 +23,13 @@ type FileIdentity = Pick<File, 'name' | 'size' | 'lastModified'>
 const RECOVERY_PREFIX = 'casechain-document-upload::v1::'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export function documentUploadFingerprint(file: FileIdentity, intendedMatterId: string | null): DocumentUploadFingerprint {
+export function documentUploadFingerprint(file: FileIdentity, intendedMatterId: string | null, attachmentDocumentId?: string): DocumentUploadFingerprint {
   return {
     name: file.name.slice(0, 255),
     size: file.size,
     lastModified: file.lastModified,
     intendedMatterId,
+    ...(attachmentDocumentId ? { attachmentDocumentId } : {}),
   }
 }
 
@@ -46,6 +48,7 @@ function sameFingerprint(left: DocumentUploadFingerprint, right: DocumentUploadF
     && left.size === right.size
     && left.lastModified === right.lastModified
     && left.intendedMatterId === right.intendedMatterId
+    && left.attachmentDocumentId === right.attachmentDocumentId
 }
 
 function validRecovery(value: unknown, fingerprint: DocumentUploadFingerprint, now: number): value is DocumentUploadRecovery {
@@ -68,8 +71,9 @@ export function readDocumentUploadRecovery(
   file: FileIdentity,
   intendedMatterId: string | null,
   now = Date.now(),
+  attachmentDocumentId?: string,
 ) {
-  const fingerprint = documentUploadFingerprint(file, intendedMatterId)
+  const fingerprint = documentUploadFingerprint(file, intendedMatterId, attachmentDocumentId)
   const key = fingerprintKey(fingerprint)
   const stored = store.getItem(key)
   if (!stored) return null
@@ -87,12 +91,13 @@ export function prepareDocumentUploadRecovery(
   intendedMatterId: string | null,
   createId: () => string,
   now = Date.now(),
+  attachmentDocumentId?: string,
 ) {
-  const recovered = readDocumentUploadRecovery(store, file, intendedMatterId, now)
+  const recovered = readDocumentUploadRecovery(store, file, intendedMatterId, now, attachmentDocumentId)
   if (recovered) return recovered
   const recovery: DocumentUploadRecovery = {
     version: 1,
-    fingerprint: documentUploadFingerprint(file, intendedMatterId),
+    fingerprint: documentUploadFingerprint(file, intendedMatterId, attachmentDocumentId),
     idempotencyKey: createId(),
     expiresAt: new Date(now + DOCUMENT_UPLOAD_RECOVERY_TTL_MS).toISOString(),
     phase: 'selected',

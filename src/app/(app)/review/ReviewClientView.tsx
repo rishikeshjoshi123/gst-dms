@@ -138,6 +138,11 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
       {item.closure_reason === 'source_replaced' && <p className="text-sm">The source or its candidate evidence was replaced. This item is closed; it cannot change the current document.</p>}
       {tab === 'evidence' ? <>
         <p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title} · Document version {item.version_number}{!item.is_current && ' (historical)'}</p>
+        {item.record_baseline && <section className="space-y-2 border-t border-[var(--border)] pt-3">
+          <h3 className="text-sm font-medium">Record value before PDF attachment</h3>
+          <p className="break-words text-sm">{item.record_baseline.value}</p>
+          <p className="text-caption text-[var(--text-muted)]">Preserved from the document record, not extracted from this PDF. This value is context for clarification, not selectable PDF evidence.</p>
+        </section>}
         {item.evidence.map(evidence => {
           const comparison = taxPeriodComparison(evidence.value)
           return <section key={evidence.candidate_id} className="space-y-2 border-t border-[var(--border)] pt-3">

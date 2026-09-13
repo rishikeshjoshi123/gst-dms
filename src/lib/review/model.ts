@@ -12,6 +12,7 @@ export const reviewQueueItem = z.object({
 export const reviewDetail = reviewQueueItem.extend({
   impact: z.string(), version_number: z.number().int(), is_current: z.boolean(),
   allowed_actions: z.array(reviewAction),
+  record_baseline: z.object({ value: z.string(), origin_kind: z.string(), captured_at: z.string() }).nullable().optional(),
   evidence: z.array(z.object({
     candidate_id: z.string().uuid(), ordinal: z.number().int(), selectable: z.boolean(),
     page_number: z.number().int().positive(), quotation: z.string(), value: z.unknown(),

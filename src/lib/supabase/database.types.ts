@@ -813,6 +813,149 @@ export type Database = {
           },
         ]
       }
+      document_attachment_baselines: {
+        Row: {
+          captured_at: string
+          document_id: string
+          document_version_id: string
+          metadata: Json
+          org_id: string
+          origin_kind: string
+          record_created_by: string | null
+        }
+        Insert: {
+          captured_at?: string
+          document_id: string
+          document_version_id: string
+          metadata: Json
+          org_id: string
+          origin_kind: string
+          record_created_by?: string | null
+        }
+        Update: {
+          captured_at?: string
+          document_id?: string
+          document_version_id?: string
+          metadata?: Json
+          org_id?: string
+          origin_kind?: string
+          record_created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_attachment_baselines_org_id_document_id_document__fkey"
+            columns: ["org_id", "document_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_baselines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_attachment_intents: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          document_id: string
+          document_revision: number
+          document_version_id: string | null
+          intake_item_id: string
+          matter_id: string
+          membership_id: string
+          org_id: string
+          result_code: string | null
+          result_revision: number | null
+          state: string
+          upload_session_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          document_id: string
+          document_revision: number
+          document_version_id?: string | null
+          intake_item_id: string
+          matter_id: string
+          membership_id: string
+          org_id: string
+          result_code?: string | null
+          result_revision?: number | null
+          state?: string
+          upload_session_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          document_id?: string
+          document_revision?: number
+          document_version_id?: string | null
+          intake_item_id?: string
+          matter_id?: string
+          membership_id?: string
+          org_id?: string
+          result_code?: string | null
+          result_revision?: number | null
+          state?: string
+          upload_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_attachment_intents_org_id_actor_user_id_membershi_fkey"
+            columns: ["org_id", "actor_user_id", "membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["org_id", "user_id", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_actor_user_id_upload_se_fkey"
+            columns: ["org_id", "actor_user_id", "upload_session_id"]
+            isOneToOne: false
+            referencedRelation: "upload_sessions"
+            referencedColumns: ["org_id", "created_by", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_document_id_document_ve_fkey"
+            columns: ["org_id", "document_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_document_id_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_matter_id_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_attachment_intents_org_id_upload_session_id_intak_fkey"
+            columns: ["org_id", "upload_session_id", "intake_item_id"]
+            isOneToOne: false
+            referencedRelation: "intake_items"
+            referencedColumns: ["org_id", "upload_session_id", "id"]
+          },
+        ]
+      }
       document_boundary_repair_receipts: {
         Row: {
           actor_user_id: string
@@ -8965,7 +9108,47 @@ export type Database = {
           lifecycle_revision: number
         }[]
       }
+      attach_intake_to_document_before_attachment: {
+        Args: {
+          p_document_id: string
+          p_expected_intake_uploader: string
+          p_expected_revision: number
+          p_idempotency: string
+          p_intake_id: string
+        }
+        Returns: {
+          code: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
+      attachment_review_baseline: {
+        Args: { p_field: string; p_version: string }
+        Returns: Json
+      }
+      attachment_scalar_comparison: {
+        Args: { p_field: string; p_value: string }
+        Returns: string
+      }
+      attachment_scalar_disagrees: {
+        Args: {
+          p_field: string
+          p_key: string
+          p_value: Json
+          p_version: string
+        }
+        Returns: boolean
+      }
       auto_assign_intended_matter_intake: {
+        Args: { p_intake_id: string; p_validation_event_id: string }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
+      auto_assign_intended_matter_intake_before_attachment: {
         Args: { p_intake_id: string; p_validation_event_id: string }
         Returns: {
           code: string
@@ -9210,6 +9393,24 @@ export type Database = {
         }[]
       }
       complete_document_upload: {
+        Args: {
+          p_actor: string
+          p_detected_mime: string
+          p_idempotency: string
+          p_observed_bytes: number
+          p_org: string
+          p_session: string
+          p_sha256: string
+        }
+        Returns: {
+          asset_id: string
+          code: string
+          duplicate_asset_id: string
+          intake_item_id: string
+          upload_session_id: string
+        }[]
+      }
+      complete_document_upload_before_attachment: {
         Args: {
           p_actor: string
           p_detected_mime: string
@@ -9477,6 +9678,14 @@ export type Database = {
           code: string
         }[]
       }
+      document_attachment_actor: {
+        Args: { p_lock?: boolean }
+        Returns: {
+          actor_user_id: string
+          membership_id: string
+          org_id: string
+        }[]
+      }
       document_boundary_repair_impact: {
         Args: {
           p_document: string
@@ -9625,6 +9834,25 @@ export type Database = {
         }[]
       }
       finish_document_processing_ai_extraction: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
+      finish_document_processing_ai_extraction_before_attachment: {
         Args: {
           p_candidates?: Json
           p_input_tokens: number
@@ -10886,6 +11114,15 @@ export type Database = {
           similarity: number
         }[]
       }
+      materialize_document_attachment: {
+        Args: { p_intake_id: string; p_validation_event_id: string }
+        Returns: {
+          code: string
+          document_id: string
+          document_version_id: string
+          lifecycle_revision: number
+        }[]
+      }
       materialize_document_reference_mentions: {
         Args: { p_binding_id: string; p_trigger_key: string }
         Returns: number
@@ -11304,6 +11541,14 @@ export type Database = {
           summary: string
         }[]
       }
+      read_document_attachment: {
+        Args: { p_document_id: string; p_intake_id?: string }
+        Returns: {
+          document_version_id: string
+          eligible: boolean
+          state: string
+        }[]
+      }
       read_matter_identifiers: {
         Args: { p_matter_id: string }
         Returns: {
@@ -11343,6 +11588,10 @@ export type Database = {
         }[]
       }
       read_review_detail: { Args: { p_review_item_id: string }; Returns: Json }
+      read_review_detail_before_attachment: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_queue: {
         Args: {
           p_page?: number
@@ -11645,7 +11894,44 @@ export type Database = {
           token_version: number
         }[]
       }
+      reserve_document_attachment: {
+        Args: {
+          p_declared_bytes: number
+          p_document_id: string
+          p_filename: string
+          p_idempotency: string
+        }
+        Returns: {
+          asset_id: string
+          bucket_id: string
+          code: string
+          expires_at: string
+          intake_item_id: string
+          object_key: string
+          retry_after: string
+          upload_session_id: string
+        }[]
+      }
       reserve_document_upload: {
+        Args: {
+          p_declared_bytes: number
+          p_filename: string
+          p_idempotency: string
+          p_intended_matter: string
+          p_mime: string
+        }
+        Returns: {
+          asset_id: string
+          bucket_id: string
+          code: string
+          expires_at: string
+          intake_item_id: string
+          object_key: string
+          retry_after: string
+          upload_session_id: string
+        }[]
+      }
+      reserve_document_upload_before_attachment: {
         Args: {
           p_declared_bytes: number
           p_filename: string

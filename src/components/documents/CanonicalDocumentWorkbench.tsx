@@ -4,6 +4,7 @@ import { FileText } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { TimelineDocumentDetail } from '@/components/matters/TimelineDocumentDetail'
+import { AttachDocumentPdf } from '@/components/documents/AttachDocumentPdf'
 import { PdfViewer, type PdfQuotationSelection } from '@/components/ui/pdf-viewer'
 import type { PdfSourceFailure } from '@/components/ui/pdf-viewer-model'
 import type { DocumentInspectorMetadata } from '@/lib/documents/inspector-metadata-shape'
@@ -41,6 +42,7 @@ export function CanonicalDocumentWorkbench({
   expectedMatterId,
   readOnly,
   canRepairBoundary,
+  canAttachPdf = false,
 }: {
   doc: DocumentWorkbenchDocument
   allDocuments: unknown[]
@@ -54,10 +56,16 @@ export function CanonicalDocumentWorkbench({
   expectedMatterId?: string
   readOnly: boolean
   canRepairBoundary: boolean
+  canAttachPdf?: boolean
 }) {
   const [quotationDraft, setQuotationDraft] = useState<QuotationDraft | null>(null)
   const [inspectorTab, setInspectorTab] = useState<MatterInspectorView>('overview')
   const workbench = useRef<HTMLDivElement>(null)
+  const previousVersion = useRef(source?.versionId)
+  useEffect(() => {
+    if (!previousVersion.current && source?.versionId) workbench.current?.focus({ preventScroll: true })
+    previousVersion.current = source?.versionId
+  }, [source?.versionId])
   useEffect(() => {
     if (window.location.hash !== '#document-workbench') return
     const frame = requestAnimationFrame(() => workbench.current?.focus({ preventScroll: true }))
@@ -107,16 +115,17 @@ export function CanonicalDocumentWorkbench({
               onCreateQuotation={!readOnly && source ? createQuotation : undefined}
             />
           ) : (
-            <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="custom-scrollbar flex h-full min-h-0 flex-col items-center gap-3 overflow-y-auto p-4 text-center sm:p-6">
               <div className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-hover)] text-[var(--text-muted)]">
                 <FileText size={20} aria-hidden="true" />
               </div>
               <div className="max-w-sm space-y-1">
                 <h2 className="text-section-heading text-[var(--text-primary)]">No file attached</h2>
                 <p className="text-body text-[var(--text-secondary)]">
-                  This document record has no file version yet. A file can be attached later without changing its details.
+                  This document record has no file version yet.
                 </p>
               </div>
+              {canAttachPdf && !readOnly && <AttachDocumentPdf key={doc.id} documentId={doc.id} />}
             </div>
           )}
         </div>

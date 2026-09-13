@@ -82,6 +82,7 @@ type DocumentUploadReservationInput = {
   declaredBytes: number
   intendedMatterId: string | null
   idempotencyKey: string
+  attachmentDocumentId?: string
 }
 
 type DocumentUploadFinalizationInput = {
@@ -90,6 +91,7 @@ type DocumentUploadFinalizationInput = {
 }
 
 type DocumentUploadCancelInput = DocumentUploadFinalizationInput
+const ATTACHMENT_DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Reserve canonical lifecycle rows before the browser transfers any bytes. */
 export async function reserveDocumentUpload(input: DocumentUploadReservationInput) {
@@ -101,9 +103,11 @@ export async function reserveDocumentUpload(input: DocumentUploadReservationInpu
   if (!user) return uploadFailureResult('Not authenticated.', 'terminal')
 
   const idempotencyKey = uploadIdempotencyKey(input.idempotencyKey)
+  const attachmentDocumentId = typeof input.attachmentDocumentId === 'string' && ATTACHMENT_DOCUMENT_ID.test(input.attachmentDocumentId) ? input.attachmentDocumentId : null
   const intendedMatterId = input.intendedMatterId === null ? null : uploadIdempotencyKey(input.intendedMatterId)
   if (
     !idempotencyKey
+    || (input.attachmentDocumentId !== undefined && !attachmentDocumentId)
     || typeof input.filename !== 'string'
     || !Number.isSafeInteger(input.declaredBytes)
     || input.declaredBytes <= 0
@@ -111,7 +115,12 @@ export async function reserveDocumentUpload(input: DocumentUploadReservationInpu
   ) {
     return uploadFailureResult('This upload could not be prepared. Please choose the file again.', 'terminal')
   }
-  const { data: reservations, error: reservationError } = await supabase.rpc('reserve_document_upload', {
+  const { data: reservations, error: reservationError } = attachmentDocumentId ? await supabase.rpc('reserve_document_attachment', {
+    p_document_id: attachmentDocumentId,
+    p_filename: input.filename,
+    p_declared_bytes: input.declaredBytes,
+    p_idempotency: idempotencyKey,
+  }) : await supabase.rpc('reserve_document_upload', {
     p_filename: input.filename,
     p_mime: 'application/pdf',
     p_declared_bytes: input.declaredBytes,
@@ -123,6 +132,9 @@ export async function reserveDocumentUpload(input: DocumentUploadReservationInpu
   if (reservationError || !reservation) {
     console.error('Document upload reservation failed:', reservationError)
     return uploadFailureResult('Could not reserve this upload. Please try again.')
+  }
+  if (attachmentDocumentId && reservation.code === 'already_completed' && reservation.intake_item_id) {
+    return { success: true as const, completed: true as const, intakeId: reservation.intake_item_id }
   }
   if (reservation.code !== 'ok' || !reservation.upload_session_id || !reservation.intake_item_id || !reservation.bucket_id || !reservation.object_key) {
     return uploadFailureResult(
@@ -151,6 +163,18 @@ export async function reserveDocumentUpload(input: DocumentUploadReservationInpu
     tusEndpoint: resumableStorageEndpoint(),
     expiresAt: reservation.expires_at,
   }
+}
+
+/** The secured reader derives contributor authority and active target lineage. */
+export async function getDocumentAttachmentState(documentId: string, intakeId?: string) {
+  if (!ATTACHMENT_DOCUMENT_ID.test(documentId) || (intakeId !== undefined && !ATTACHMENT_DOCUMENT_ID.test(intakeId))) return null
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('read_document_attachment', {
+    p_document_id: documentId,
+    ...(intakeId ? { p_intake_id: intakeId } : {}),
+  })
+  if (error) throw new Error('Could not check PDF attachment status.')
+  return data?.[0] ?? null
 }
 
 /** Observe and finalise the exact reserved object after its direct transfer. */
@@ -383,6 +407,12 @@ function resumableStorageEndpoint() {
 
 function documentUploadError(code: string) {
   switch (code) {
+    case 'source_already_attached': return 'Another PDF was attached first. This upload did not replace it.'
+    case 'target_unavailable': return 'This document is no longer available for attachment.'
+    case 'stale_target': return 'The document changed. Refresh it before attaching a PDF.'
+    case 'idempotency_conflict': return 'This upload belongs to a different file or document. Choose the PDF again.'
+    case 'cancelled': return 'This upload was cancelled.'
+    case 'expired': return 'This unfinished upload expired. Choose the PDF again.'
     case 'invalid_matter': return 'Matter not found or no longer active.'
     case 'file_too_large': return 'File exceeds the organisation upload limit.'
     case 'organisation_quota_exceeded': return 'Your organisation has reached its storage limit.'
