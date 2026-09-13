@@ -111,6 +111,9 @@ export default function MatterTimelineGraphCanvas({
   const [authoring, setAuthoring] = useState<{ sourceId: string; targetId: string } | null>(null)
   const [authoringMessage, setAuthoringMessage] = useState('')
   const addButton = useRef<HTMLButtonElement>(null)
+  const cancelAddButton = useRef<HTMLButtonElement>(null)
+  const authoringActive = Boolean(authoring)
+  useEffect(() => { if (authoringActive) cancelAddButton.current?.focus() }, [authoringActive])
   function finishAuthoring() { setAuthoring(null); setAuthoringMessage(''); requestAnimationFrame(() => addButton.current?.focus()) }
   const projectedNodes = useMemo(
     () => createNodes(layout, matterId, queryEntries, selectedDocumentId),
@@ -159,7 +162,7 @@ export default function MatterTimelineGraphCanvas({
   const unlinkedCount = layout.nodes.filter((node) => node.unlinked).length
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 pt-2 lg:pt-3">
+    <div className="flex h-full min-h-0 flex-col gap-2 pt-2 lg:pt-3" onKeyDown={(event) => { if (authoring && !event.defaultPrevented && event.key === 'Escape') { event.preventDefault(); finishAuthoring() } }}>
       <MatterTimelineFocusCommit selectedDocumentId={selectedDocumentId} matterId={matterId} snapshot={topology} />
       <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-3 py-2">
         <div>
@@ -168,7 +171,7 @@ export default function MatterTimelineGraphCanvas({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {canAddTimelineRelationship(authoringContext) && <Button ref={addButton} disabled={Boolean(authoring)} onClick={() => setAuthoring({ sourceId: '', targetId: '' })}>Add relationship</Button>}
-          {authoringContext && authoring && <Button variant="outline" onClick={finishAuthoring}>Cancel adding relationship</Button>}
+          {authoringContext && authoring && <Button ref={cancelAddButton} variant="outline" onClick={finishAuthoring}>Cancel adding relationship</Button>}
           {authoringContext && authoring?.targetId && <MatterRelationshipAuthoring key={`${authoring.sourceId}:${authoring.targetId}`} matterId={matterId} context={authoringContext} initialSourceId={authoring.sourceId} initialTargetId={authoring.targetId} initiallyOpen onFinish={finishAuthoring} />}
           <MatterTimelineFilters matterId={matterId} entries={queryEntries} filters={filters} />
           <Button type="button" variant="secondary" className="min-h-11" onClick={() => instanceRef.current?.fitView({ padding: 0.18, duration: 0 })}>Fit timeline</Button>

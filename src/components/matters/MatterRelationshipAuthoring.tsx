@@ -56,7 +56,7 @@ export function MatterRelationshipAuthoring({ matterId, context, relationship, i
     if (!valid || pending) return
     const payload = relationship
       ? { matterId, relationshipId: relationship.id, revision: relationship.revision, reason: reason.trim() }
-      : source && target && catalogue ? { matterId, sourceId: source.id, targetId: target.id, sourceRevision: source.lifecycleRevision, targetRevision: target.lifecycleRevision, relationshipType: catalogue.relationshipType, reason: reason.trim() } : null
+      : source && target && catalogue ? { matterId, sourceId: source.id, targetId: target.id, sourceRevision: source.lifecycleRevision, targetRevision: target.lifecycleRevision, relationshipType: catalogue.relationshipType, catalogueVersion: catalogue.catalogueVersion, reason: reason.trim() } : null
     if (!payload) return
     const signature = JSON.stringify(payload)
     if (request.current?.signature !== signature) request.current = { signature, key: crypto.randomUUID() }

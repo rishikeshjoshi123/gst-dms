@@ -9011,6 +9011,25 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      activate_matter_timeline_relationship: {
+        Args: {
+          p_expected_catalogue_version: number
+          p_expected_source_revision: number
+          p_expected_target_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_reason: string
+          p_relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          p_source_document_id: string
+          p_target_document_id: string
+        }
+        Returns: {
+          code: string
+          relationship_id: string | null
+          replayed: boolean
+          revision: number | null
+        }[]
+      }
       activity_metadata_is_safe: {
         Args: { p_contract: Json; p_metadata: Json }
         Returns: boolean

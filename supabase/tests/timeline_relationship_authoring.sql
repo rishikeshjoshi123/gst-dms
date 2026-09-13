@@ -78,7 +78,7 @@ DO $owner$ DECLARE r record; edge record; a record; initial_revision text; BEGIN
   IF r.outcome <> 'unavailable' OR r.documents <> '[]'::jsonb THEN RAISE EXCEPTION 'closed context leaked'; END IF;
   SELECT * INTO r FROM public.read_matter_relationship_authoring_context('d1460000-0000-0000-0000-000000000004');
   IF r.outcome <> 'unavailable' OR r.relationship_types <> '[]'::jsonb THEN RAISE EXCEPTION 'foreign context leaked'; END IF;
-  SELECT * INTO edge FROM public.activate_document_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,'Authoring fixture','f1550000-0000-0000-0000-000000000001');
+  SELECT * INTO edge FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,2,'Authoring fixture','f1550000-0000-0000-0000-000000000001');
   IF edge.code <> 'ok' THEN RAISE EXCEPTION 'fixture activation failed: %',edge.code; END IF;
   SELECT * INTO r FROM public.read_matter_relationship_authoring_context('d1460000-0000-0000-0000-000000000001');
   IF r.relationship_source_revision = initial_revision THEN RAISE EXCEPTION 'activation did not invalidate graph revision'; END IF;
@@ -91,6 +91,50 @@ DO $owner$ DECLARE r record; edge record; a record; initial_revision text; BEGIN
   SELECT * INTO r FROM public.read_matter_relationship_authoring_context('d1460000-0000-0000-0000-000000000001');
   IF r.relationship_source_revision <> initial_revision THEN RAISE EXCEPTION 'archive did not restore effective graph revision'; END IF;
 END $owner$;
+RESET ROLE;
+SAVEPOINT catalogue_authority;
+CREATE TEMP TABLE authoring_counts AS SELECT
+  (SELECT count(*) FROM public.document_relationships) AS relationships,
+  (SELECT count(*) FROM public.document_relationship_decisions) AS decisions,
+  (SELECT count(*) FROM public.activity_events) AS activity,
+  (SELECT count(*) FROM public.document_relationship_command_receipts) AS receipts;
+SET LOCAL ROLE authenticated;
+DO $stale$ DECLARE r record; BEGIN
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,1,'Old version','f1550000-0000-0000-0000-000000000022');
+  IF r.code <> 'catalogue_conflict' THEN RAISE EXCEPTION 'stale catalogue accepted'; END IF;
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',1,1,2,'Old endpoint','f1550000-0000-0000-0000-000000000023');
+  IF r.code <> 'conflict' THEN RAISE EXCEPTION 'stale endpoint accepted'; END IF;
+END $stale$;
+RESET ROLE;
+-- Simulate immutable deployment-only withdrawal and allowed-class restriction.
+INSERT INTO public.document_relationship_catalogue
+SELECT relationship_type,catalogue_version+1,canonical_phrase,progression_phrase,
+  false,false,allowed_source_classes,allowed_target_classes,reject_same_type_inverse,display_priority,now()
+FROM public.document_relationship_catalogue WHERE relationship_type='responds_to' AND catalogue_version=2;
+INSERT INTO public.document_relationship_catalogue
+SELECT relationship_type,2,canonical_phrase,progression_phrase,true,true,
+  ARRAY['supporting'],allowed_target_classes,reject_same_type_inverse,display_priority,now()
+FROM public.document_relationship_catalogue WHERE relationship_type='modifies' AND catalogue_version=1;
+SET LOCAL ROLE authenticated;
+DO $guard$ DECLARE r record; BEGIN
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,2,'Authoring fixture','f1550000-0000-0000-0000-000000000001');
+  IF r.code <> 'ok' OR NOT r.replayed THEN RAISE EXCEPTION 'withdrawn original response-loss replay failed'; END IF;
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,3,'Authoring fixture','f1550000-0000-0000-0000-000000000001');
+  IF r.code <> 'idempotency_conflict' THEN RAISE EXCEPTION 'replay changed catalogue version accepted'; END IF;
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','responds_to',2,1,3,'Forged withdrawn type','f1550000-0000-0000-0000-000000000020');
+  IF r.code <> 'invalid_relationship_type' THEN RAISE EXCEPTION 'non Timeline/non acyclic type accepted'; END IF;
+  SELECT * INTO r FROM public.activate_matter_timeline_relationship('d1460000-0000-0000-0000-000000000001','e1460000-0000-0000-0000-000000000002','e1460000-0000-0000-0000-000000000001','modifies',2,1,2,'Forged classes','f1550000-0000-0000-0000-000000000021');
+  IF r.code <> 'invalid_relationship_type' THEN RAISE EXCEPTION 'supporting-only catalogue accepted'; END IF;
+END $guard$;
+RESET ROLE;
+DO $no_effects$ BEGIN
+  IF EXISTS (SELECT 1 FROM authoring_counts b WHERE b.relationships<>(SELECT count(*) FROM public.document_relationships)
+    OR b.decisions<>(SELECT count(*) FROM public.document_relationship_decisions)
+    OR b.activity<>(SELECT count(*) FROM public.activity_events)
+    OR b.receipts<>(SELECT count(*) FROM public.document_relationship_command_receipts)) THEN RAISE EXCEPTION 'denied catalogue command had partial effects'; END IF;
+END $no_effects$;
+ROLLBACK TO catalogue_authority;
+SET LOCAL ROLE authenticated;
 DO $roles$ DECLARE actor text; r record; BEGIN
   FOREACH actor IN ARRAY ARRAY['a1460000-0000-0000-0000-000000000002','a1460000-0000-0000-0000-000000000003'] LOOP
     PERFORM set_config('request.jwt.claim.sub',actor,true);

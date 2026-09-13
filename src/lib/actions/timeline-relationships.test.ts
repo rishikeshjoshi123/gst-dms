@@ -5,9 +5,10 @@ import { activateRelationshipSchema, archiveRelationshipSchema, relationshipAuth
 
 const sourceId = 'e0010000-0000-0000-0000-000000000001'
 const targetId = 'e0010000-0000-0000-0000-000000000003'
-const input = { matterId: 'd0010000-0000-0000-0000-000000000001', sourceId, targetId, sourceRevision: 2, targetRevision: 1, relationshipType: 'responds_to', reason: '', idempotencyKey: 'f1550000-0000-4000-8000-000000000001' }
+const input = { matterId: 'd0010000-0000-0000-0000-000000000001', sourceId, targetId, sourceRevision: 2, targetRevision: 1, relationshipType: 'responds_to', catalogueVersion: 1, reason: '', idempotencyKey: 'f1550000-0000-4000-8000-000000000001' }
 test('command validation accepts canonical fixture UUIDs and numeric lifecycle revisions only', () => {
   assert.equal(activateRelationshipSchema.safeParse(input).success, true)
+  for (const catalogueVersion of [undefined, null, 0, -1, '1']) assert.equal(activateRelationshipSchema.safeParse({ ...input, catalogueVersion }).success, false)
   for (const changed of [{ targetId: sourceId }, { relationshipType: 'other' }, { relationshipType: 'refers_to' }, { sourceRevision: 'md5' }, { targetRevision: 0 }, { sourceRevision: Number.MAX_SAFE_INTEGER + 1 }, { matterId: '../foreign' }, { reason: 'x'.repeat(501) }, { reason: 'line\nbreak' }]) assert.equal(activateRelationshipSchema.safeParse({ ...input, ...changed }).success, false)
 })
 test('archive requires a bounded plain-text reason and exact subject revision', () => {
@@ -38,8 +39,9 @@ test('every core RPC outcome has safe actionable text and replay refreshes', () 
 test('actions authenticate and use typed subject-bound canonical commands with safe results', () => {
   const action = readFileSync(new URL('./timeline-relationships.ts', import.meta.url), 'utf8')
   assert.equal((action.match(/auth.getUser\(\)/g) ?? []).length, 2)
-  assert.match(action, /rpc\('activate_document_relationship'/)
+  assert.match(action, /rpc\('activate_matter_timeline_relationship'/)
   assert.match(action, /p_expected_source_revision: value.sourceRevision/)
+  assert.match(action, /p_expected_catalogue_version: value.catalogueVersion/)
   assert.match(action, /rpc\('archive_matter_timeline_relationship'/)
   assert.doesNotMatch(action, /\.from\(|service_role|document_links|error\.message/)
 })
