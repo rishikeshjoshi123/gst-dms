@@ -1,0 +1,175 @@
+import { expect, test, type Page } from '@playwright/test'
+import { launchChromiumPageZoom } from './chromium-page-zoom'
+import { spawn, spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const reason500 = 'Confirm the cited source and explain the discrepancy. '.repeat(10).slice(0, 500)
+const dbArgs = ['exec', '-i', 'supabase_db_dms-review-153', 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres']
+function assertDisposable() {
+  const workdir = process.env.REVIEW_ACCEPTANCE_WORKDIR
+  if (!workdir || !readFileSync(join(workdir, 'supabase/config.toml'), 'utf8').includes('project_id = "dms-review-153"')) throw new Error('Browser faults require the owned disposable Review database.')
+}
+function db(sql: string) {
+  assertDisposable()
+  const result = spawnSync('docker', dbArgs, { input: sql, encoding: 'utf8', timeout: 15000 })
+  if (result.status !== 0) throw new Error(result.stderr)
+  return result.stdout
+}
+
+async function login(page: Page, user = 1) {
+  await page.goto('/login')
+  await page.getByLabel('Email address').fill(`review-${user}@example.test`)
+  await page.getByLabel('Password').fill('ReviewFixture153!')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+}
+async function noOverflow(page: Page) {
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth)).toBe(true)
+}
+test('live Review shows exact source evidence, URL selection, confirmation and Viewer authority', async ({ page }) => {
+  const hydrationErrors: string[] = []
+  page.on('console', message => { if (/hydration|server rendered HTML|did not match/i.test(message.text())) hydrationErrors.push(message.text()) })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await login(page)
+  await page.goto('/review')
+  await page.getByLabel('Search Review').fill('Review source 1')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await page.getByRole('button', { name: /^Review type/ }).first().click()
+  await expect(page).toHaveURL(/item=/)
+  expect(new URL(page.url()).searchParams.get('search')).toBe('Review source 1')
+  await expect(page.getByRole('status', { name: '' }).filter({ hasText: /^1 item$/ })).toBeVisible()
+  const itemUrl = page.url()
+  const source = page.getByRole('link', { name: 'Open exact source · Page 2' })
+  await expect(source).toHaveAttribute('href', /\/documents\/153e.*version=15300000.*page=2/)
+  await source.click()
+  await expect(page).toHaveURL(/\/documents\/153e0000-0000-0000-0000-000000000001\?.*version=15300000-0000-0000-0000-000000000001.*page=2/)
+  await expect(page.getByText('PDF source · Version 1 · Page 2 of 4')).toBeVisible()
+  await expect(page.getByLabel('Current PDF page')).toHaveValue('2')
+  await expect(page.locator('[data-pdf-page="2"] canvas')).toBeVisible()
+  await page.goto(itemUrl)
+  await expect(page.getByRole('tab', { name: 'Evidence', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: 'Evidence', exact: true }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('tab', { name: 'Decision', exact: true })).toBeFocused()
+  await expect(page.getByRole('tabpanel', { name: 'Decision', exact: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Decision', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await noOverflow(page)
+  await page.getByRole('radio').first().check()
+  await page.getByRole('button', { name: 'Review decision', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Confirm selected value' })).toBeDisabled()
+  await page.getByLabel('Reason', { exact: true }).fill('Confirmed against the exact cited source page.')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await page.screenshot({ path: '/tmp/review-desktop.png', animations: 'disabled' })
+  await page.context().clearCookies()
+  await login(page, 4)
+  const viewerUrl = new URL(itemUrl)
+  viewerUrl.searchParams.set('tab', 'decision')
+  await page.goto(viewerUrl.toString())
+  await expect(page.getByText('Read-only access.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review decision', exact: true })).toHaveCount(0)
+  expect(hydrationErrors).toEqual([])
+})
+test('200% browser zoom preserves selection and a live supported-value decision closes Review', async () => {
+  const zoom = await launchChromiumPageZoom('http://127.0.0.1:3103', { width: 1440, height: 1000 })
+  try {
+    const page = zoom.page
+    await login(page)
+    await page.goto('/review?search=Review+source+1')
+    await zoom.setZoom(2)
+    await page.getByRole('button', { name: /^Review type/ }).click()
+    await page.getByRole('button', { name: 'View decision', exact: true }).click()
+    await page.getByRole('radio').first().check()
+    await page.getByRole('button', { name: 'Review decision', exact: true }).click()
+    await page.getByLabel('Reason', { exact: true }).fill(reason500)
+    await expect(page.getByLabel('Reason', { exact: true })).toHaveValue(reason500)
+    expect(await page.getByLabel('Reason', { exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await noOverflow(page)
+    await page.screenshot({ path: '/tmp/review-zoom-confirmation.png', animations: 'disabled' })
+    await page.getByRole('button', { name: 'Confirm selected value' }).click()
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await expect(page.getByText('This Review item is closed.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Recorded outcome', { exact: true })).toBeVisible()
+    await noOverflow(page)
+  } finally { await zoom.close() }
+})
+test('320px dark reduced-motion list/detail retains filters, evidence and clarification', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' })
+  await login(page, 3)
+  await page.evaluate(() => { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark') })
+  await page.goto('/review')
+  const origin = page.getByRole('button', { name: 'Review type', exact: true }).last()
+  await origin.scrollIntoViewIfNeeded()
+  await origin.focus()
+  const scroller = page.locator('[data-review-list-scroller]')
+  const scrollBefore = await scroller.evaluate(element => element.scrollTop)
+  expect(scrollBefore).toBeGreaterThan(0)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Review type', exact: true })).toBeFocused()
+  await page.getByRole('button', { name: 'Back to list' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(origin).toBeFocused()
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBe(scrollBefore)
+  await page.getByLabel('Search Review').fill('Review source 6')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await page.getByRole('button', { name: 'Review tax period', exact: true }).click()
+  await expect(page.getByText('Derived comparison: 2019-20')).toBeVisible()
+  expect(await page.locator('aside blockquote').evaluate(element => element.textContent!.length > 400 && element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect(await page.locator('aside header p').first().evaluate(element => element.textContent!.length > 200 && element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.screenshot({ path: '/tmp/review-mobile-long-evidence.png', animations: 'disabled' })
+  await noOverflow(page)
+  await page.getByRole('button', { name: 'View decision', exact: true }).click()
+  await expect(page.getByRole('radio')).toHaveCount(1)
+  await page.getByRole('radio').check()
+  await page.getByRole('button', { name: 'Review decision', exact: true }).click()
+  await page.getByLabel('Reason', { exact: true }).fill(reason500)
+  expect(await page.getByLabel('Reason', { exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth && element.clientHeight >= 80)).toBe(true)
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Request clarification', exact: true })).toBeInViewport()
+  await page.screenshot({ path: '/tmp/review-mobile-long-reason.png', animations: 'disabled' })
+  await noOverflow(page)
+  await page.getByRole('dialog').getByRole('button', { name: 'Request clarification', exact: true }).click()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(page.getByText('Clarification requested', { exact: true })).toBeVisible()
+  await page.screenshot({ path: '/tmp/review-mobile-dark.png', animations: 'disabled' })
+  await page.getByRole('button', { name: 'Back to list' }).click()
+  await expect(page.getByLabel('Search Review')).toHaveValue('Review source 6')
+  await noOverflow(page)
+})
+
+test('empty filtering, real route loading and error retry preserve an operable workspace', async ({ page }) => {
+  await login(page)
+  await page.goto('/review?search=No-synthetic-document-matches')
+  await expect(page.getByRole('heading', { name: 'No Review items found' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: /^0 items$/ })).toBeVisible()
+  await noOverflow(page)
+  assertDisposable()
+  const lock = spawn('docker', dbArgs)
+  let output = ''
+  lock.stdout.on('data', bytes => { output += bytes })
+  lock.stdin.write("BEGIN; SET LOCAL statement_timeout='20s'; LOCK TABLE public.review_items IN ACCESS EXCLUSIVE MODE; SELECT 'ready';\n")
+  try {
+    await expect.poll(() => output).toContain('ready')
+    await page.goto('/review?search=Review+source+6', { waitUntil: 'commit' })
+    await expect(page.getByRole('status').filter({ hasText: /Loading Review/ })).toBeVisible()
+    await page.screenshot({ path: '/tmp/review-loading.png', animations: 'disabled' })
+  } finally {
+    lock.stdin.end('ROLLBACK;\n')
+    await new Promise<void>(resolve => lock.on('exit', () => resolve()))
+  }
+  await expect(page.getByLabel('Search Review')).toHaveValue('Review source 6')
+  const signature = 'public.read_review_queue(text,text,text,text,integer,integer)'
+  try {
+    db(`REVOKE EXECUTE ON FUNCTION ${signature} FROM authenticated;`)
+    await page.goto('/review?search=Fault-probe')
+    await expect(page.getByRole('alert').filter({ hasText: 'Review could not be loaded.' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Retry Review' })).toBeVisible()
+    await page.screenshot({ path: '/tmp/review-error.png', animations: 'disabled' })
+  } finally { db(`GRANT EXECUTE ON FUNCTION ${signature} TO authenticated;`) }
+  await page.getByRole('button', { name: 'Retry Review' }).click()
+  await expect(page.getByLabel('Search Review')).toHaveValue('Fault-probe')
+  await expect(page.getByRole('heading', { name: 'No Review items found' })).toBeVisible()
+  await noOverflow(page)
+})

@@ -22,6 +22,7 @@
     "acceptance:smoke": "playwright test tests/acceptance/matter-workbench.spec.ts",
     "acceptance:onboarding": "node scripts/acceptance/run-onboarding-confirmation.mjs",
     "acceptance:local": "node scripts/acceptance/run-local.mjs",
+    "acceptance:review": "node scripts/acceptance/run-review.mjs",
     "typecheck": "tsc --noEmit --pretty false",
     "trigger:dev": "npx trigger.dev@latest dev",
     "db:migrations:check": "node scripts/check-supabase-migrations.mjs",

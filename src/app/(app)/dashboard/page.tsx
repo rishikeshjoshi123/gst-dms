@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getNeedsReviewDocuments } from '@/lib/actions/document'
+import { readReviewQueue } from '@/lib/review/reader'
 import { getDeadlineAttention, getRecentActivityLogs } from '@/lib/actions/notifications'
 import { DashboardContent } from './DashboardContent'
 import type { Metadata } from 'next'
@@ -30,10 +30,10 @@ export default async function DashboardPage() {
   const orgId = await getCurrentOrgId()
   if (!orgId) redirect('/onboarding')
 
-  const [stats, { data: org }, needsReviewDocs, activityLogs, deadlineAttention] = await Promise.all([
+  const [stats, { data: org }, reviewQueue, activityLogs, deadlineAttention] = await Promise.all([
     getDashboardStats(orgId),
     supabase.from('organisations').select('name').eq('id', orgId).single(),
-    getNeedsReviewDocuments(),
+    readReviewQueue(undefined, 5),
     getRecentActivityLogs(15),
     getDeadlineAttention(5),
   ])
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
     { label: 'Active Clients',  value: stats.clients,           href: '/clients' },
     { label: 'Open Matters',    value: stats.matters,           href: '/matters' },
     { label: 'Documents',       value: stats.documents,         href: '/clients' },
-    { label: 'Pending Review',  value: needsReviewDocs.length,  href: '/review'  },
+    { label: 'Pending Review',  value: reviewQueue.totalCount,  href: '/review'  },
   ]
 
   return (
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
       greeting={greeting}
       orgName={org?.name ?? ''}
       stats={stats}
-      needsReviewDocs={needsReviewDocs}
+      needsReviewDocs={reviewQueue.items}
       statCards={statCards}
       activityLogs={activityLogs}
       deadlineAttention={deadlineAttention}

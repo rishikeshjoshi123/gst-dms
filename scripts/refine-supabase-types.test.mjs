@@ -144,6 +144,14 @@ function generatedFixture({ enumOrder = Object.keys(enumValues), trailing = '\n'
     ].join('\n')
   }).concat([
     [
+      '      resolve_extraction_conflict: {',
+      '        Args: {',
+      '          p_candidate_id: string',
+      '        }',
+      '        Returns: never',
+      '      }',
+    ].join('\n'),
+    [
       '      read_matter_identifiers: {',
       '        Args: { p_matter_id: string }',
       '        Returns: {',
@@ -201,6 +209,7 @@ test('refines every known nullable RPC result and is idempotent', () => {
   )
   assert.equal([...createMatterBlock.matchAll(/matter_id: string \| null/g)].length, 2)
   assert.match(refined, /p_selected_document_id\?: string \| null/)
+  assert.match(refined, /p_candidate_id: string \| null/)
   assert.match(refined, /read_matter_timeline_relationships:[\s\S]*source_revision: string \| null/)
   assert.match(refined, /read_matter_identifiers:[\s\S]*source_revision: string \| null/)
   assert.match(refined, /p_query\?: string \| null/)

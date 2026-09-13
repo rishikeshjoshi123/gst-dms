@@ -1,90 +1,14 @@
-'use client'
-
-import { useTransition } from 'react'
-import { dismissReviewFlag } from '@/lib/actions/document'
-import { AlertTriangle, X, ArrowRight, FolderOpen, Building2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
+import { reviewFieldLabel, type ReviewQueueItem } from '@/lib/review/model'
 
-export function NeedsAttentionPanel({ documents }: { documents: any[] }) {
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
-
-  function handleDismiss(id: string) {
-    startTransition(async () => {
-      const result = await dismissReviewFlag(id)
-      if ('error' in result && result.error) {
-        toast.error(result.error)
-        return
-      }
-      router.refresh()
-    })
-  }
-
+export function NeedsAttentionPanel({ documents }: { documents: ReviewQueueItem[] }) {
   if (documents.length === 0) return null
-
-  return (
-    <div className="rounded-lg bg-[var(--surface)] border border-[var(--border)] overflow-hidden animate-fade-in mb-8 shadow-sm border-l-4 border-l-[var(--warning)]">
-      <div className="flex items-center gap-2 px-6 py-4 border-b border-[var(--border)] bg-[var(--warning-muted)]">
-        <AlertTriangle size={18} className="text-[var(--warning)]" />
-        <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">Needs Attention ({documents.length})</h2>
-      </div>
-
-      <div className="divide-y divide-[var(--border)]">
-        {documents.map(doc => {
-          const fileName = doc.storage_path.split('/').pop()
-          return (
-            <div key={doc.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-6 hover:bg-[var(--surface-hover)] transition-colors">
-              
-              <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-medium text-[14px] text-[var(--text-primary)] truncate">{fileName}</h3>
-                  <span className="text-[10px] font-bold tracking-wider uppercase text-[var(--warning)] bg-[var(--warning-muted)] px-2 py-0.5 rounded-[var(--radius-sm)]">
-                    Flagged for review
-                  </span>
-                </div>
-                
-                <p className="text-[14px] text-[var(--text-secondary)] mt-1">{doc.review_reason}</p>
-
-                <div className="flex items-center gap-4 mt-2">
-                  <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-                    <Building2 size={12} />
-                    <span className="truncate max-w-[150px]">{doc.matters?.clients?.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
-                    <FolderOpen size={12} />
-                    <span>{doc.matters?.title} ({doc.matters?.matter_code})</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 pt-1">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => handleDismiss(doc.id)}
-                  disabled={isPending}
-                  className="text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
-                >
-                  <X size={14} className="mr-1.5" />
-                  Dismiss
-                </Button>
-                <Button 
-                  size="sm"
-                  onClick={() => router.push(`/matters/${doc.matter_id}`)}
-                  className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-semibold"
-                >
-                  View Matter
-                  <ArrowRight size={14} className="ml-1.5" />
-                </Button>
-              </div>
-
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+  return <section className="mb-8 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+    <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3"><h2 className="text-section-heading">Needs attention</h2><Link href="/review" className="inline-flex min-h-11 items-center text-sm text-[var(--primary)] underline">View all Review items</Link></header>
+    <div className="divide-y divide-[var(--border)]">{documents.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="min-w-0 flex-1"><h3 className="break-words text-sm font-medium">{item.document_title || 'Document'}</h3><p className="text-sm text-[var(--text-secondary)]">Resolve {reviewFieldLabel(item.field_path)}</p><p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title}</p></div>
+      <Badge variant="warning" fixedWidth="lg">Needs review</Badge><Link href={`/review?item=${item.id}`} className="inline-flex min-h-11 items-center text-sm text-[var(--primary)] underline">Review conflict</Link>
+    </div>)}</div>
+  </section>
 }

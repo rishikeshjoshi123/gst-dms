@@ -142,6 +142,9 @@ const nullableRpcFields = {
 }
 
 const nullableRpcArguments = {
+  resolve_extraction_conflict: {
+    p_candidate_id: 'string',
+  },
   read_matter_timeline_chronology: {
     'p_selected_document_id?': 'string',
   },

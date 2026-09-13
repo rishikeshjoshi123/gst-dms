@@ -1,300 +1,170 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { BreadcrumbSetter } from '@/components/nav/BreadcrumbSetter'
-import { toast } from 'sonner'
-import { dismissReviewFlag } from '@/lib/actions/document'
-import {
-  AlertTriangle, Link2, CheckSquare,
-  FileText, FolderOpen, ExternalLink, Check, X,
-  ChevronRight, ChevronLeft
-} from 'lucide-react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { formatDistanceStrict } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { resolveExtractionConflict } from '@/lib/actions/review'
+import { reviewFieldLabel, reviewValueLabel, taxPeriodComparison, type ReviewDetail, type ReviewFilters, type ReviewQueueItem, type ReviewResolution } from '@/lib/review/model'
+import { cn } from '@/lib/utils'
 
-type Section = 'docs' | 'links' | 'tasks'
+type Queue = { items: ReviewQueueItem[]; totalCount: number; canResolve: boolean; authorised: boolean }
+const statusLabel = (status: string) => status === 'closed' ? 'Closed' : 'Needs review'
+const priorityLabel = (priority: string) => priority[0].toUpperCase() + priority.slice(1)
+const age = (date: string, asOf: number) => formatDistanceStrict(new Date(date), new Date(asOf), { addSuffix: true })
 
-const ITEMS_PER_PAGE = 10
-
-const SECTION_META = {
-  docs: {
-    icon: AlertTriangle,
-    label: 'Documents Needing Review',
-    emptyText: 'No documents need manual review',
-  },
-  links: {
-    icon: Link2,
-    label: 'Low-Confidence Links',
-    emptyText: 'No pending link suggestions',
-  },
-  tasks: {
-    icon: CheckSquare,
-    label: 'Open Action Items',
-    emptyText: 'No open action items',
-  },
-} as const
-
-export function ReviewClientView({
-  needsReviewDocs,
-  pendingLinks,
-  openTasks,
-}: {
-  needsReviewDocs: any[]
-  pendingLinks: any[]
-  openTasks: any[]
-}) {
-  const [activeSection, setActiveSection] = useState<Section>('docs')
-  const [dismissedDocs, setDismissedDocs] = useState<Set<string>>(new Set())
-  const [isPending, startTransition] = useTransition()
-  const [pageMap, setPageMap] = useState<Record<Section, number>>({
-    docs: 1,
-    links: 1,
-    tasks: 1,
-  })
-
-  // Filter low-confidence links to strictly require BOTH from_doc AND to_doc to exist
-  const validPendingLinks = (pendingLinks || []).filter(
-    (l: any) => l.from_doc && l.to_doc && l.from_doc.id && l.to_doc.id
-  )
-
-  const visibleDocs = needsReviewDocs.filter(d => !dismissedDocs.has(d.id))
-
-  const sections: { key: Section; count: number }[] = [
-    { key: 'docs', count: visibleDocs.length },
-    { key: 'links', count: validPendingLinks.length },
-    { key: 'tasks', count: openTasks.length },
-  ]
-
-  function handleDismissDoc(id: string) {
-    startTransition(async () => {
-      const res = await dismissReviewFlag(id)
-      if ('error' in res && res.error) { toast.error(res.error as string); return }
-      setDismissedDocs(prev => new Set([...prev, id]))
-      toast.success('Document dismissed from review queue')
-    })
-  }
-
-  // Get current section items & pagination
-  const getCurrentItems = () => {
-    switch (activeSection) {
-      case 'docs': return visibleDocs
-      case 'links': return validPendingLinks
-      case 'tasks': return openTasks
-    }
-  }
-
-  const items = getCurrentItems()
-  const currentPage = pageMap[activeSection] || 1
-  const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE))
-  const paginatedItems = items.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
-
-  const handlePageChange = (newPage: number) => {
-    setPageMap(prev => ({ ...prev, [activeSection]: newPage }))
-  }
-
-  return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden mt-2 animate-fade-in">
-      <BreadcrumbSetter breadcrumbs={[{ label: 'Pending Review' }]} />
-
-      {/* Tabs directly below breadcrumbs (exact match with MatterTabs layout) */}
-      <div className="flex items-center gap-6 border-b border-[var(--border)] mb-6 px-2 shrink-0 overflow-x-auto custom-scrollbar">
-        {sections.map(({ key, count }) => {
-          const meta = SECTION_META[key]
-          const Icon = meta.icon
-          const isActive = activeSection === key
-          return (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key)}
-              className={`flex min-h-11 min-w-11 items-center gap-2 pb-3 px-1 border-b-2 transition-colors shrink-0 text-sm ${
-                isActive
-                  ? 'border-[var(--primary)] text-[var(--text-primary)] font-semibold'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <Icon size={16} />
-              <span>{meta.label}</span>
-              <Badge
-                variant="muted"
-                className="ml-1 px-2 py-0.5 text-[11px] font-semibold rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-secondary)]"
-              >
-                {count}
-              </Badge>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Main Panel Box (enclosed card matching Matter workspace panel) */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xs">
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-3">
-          {paginatedItems.length === 0 ? (
-            <EmptyState text={SECTION_META[activeSection].emptyText} />
-          ) : (
-            paginatedItems.map((item: any) => {
-              if (activeSection === 'docs') {
-                const doc = item
-                return (
-                  <div key={doc.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <FileText size={16} className="text-[var(--warning)] shrink-0" />
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-xs text-[var(--text-primary)] truncate">
-                            {doc.doc_type || doc.storage_path?.split('/').pop() || 'Unknown document'}
-                          </span>
-                          {doc.reference_number && (
-                            <span className="text-[10px] font-mono bg-[var(--surface)] border border-[var(--border)] px-1.5 py-0.2 rounded text-[var(--text-muted)] shrink-0">
-                              {doc.reference_number}
-                            </span>
-                          )}
-                        </div>
-                        {doc.review_reason && (
-                          <span className="text-[11px] text-[var(--text-muted)] truncate">{doc.review_reason}</span>
-                        )}
-                        {doc.matters && (
-                          <span className="text-[11px] text-[var(--text-secondary)] flex items-center gap-1 mt-0.5">
-                            <FolderOpen size={11} className="text-[var(--text-muted)]" />
-                            {doc.matters.clients?.name} · {doc.matters.title}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleDismissDoc(doc.id)}
-                        disabled={isPending}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] border border-[var(--border)] transition-colors"
-                      >
-                        <X size={12} />
-                        Dismiss
-                      </button>
-                      {doc.matters?.id && (
-                        <a
-                          href={`/matters/${doc.matters.id}?from=review`}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity"
-                        >
-                          View <ChevronRight size={12} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )
-              }
-
-              if (activeSection === 'links') {
-                const link = item
-                const confidence = link.confidence ? Math.round(link.confidence * 100) : null
-                return (
-                  <div key={link.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <Link2 size={16} className="text-[var(--primary)] shrink-0" />
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md">
-                          {link.from_doc?.doc_type || 'DOC'} ({link.from_doc?.reference_number || 'Ref'})
-                        </span>
-                        <ChevronRight size={13} className="text-[var(--text-muted)] shrink-0" />
-                        <span className="font-mono text-xs text-[var(--text-primary)] font-semibold truncate bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-md">
-                          {link.to_doc?.doc_type || 'DOC'} ({link.to_doc?.reference_number || 'Ref'})
-                        </span>
-                        {confidence !== null && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius-sm)] ml-2 shrink-0 ${
-                            confidence < 50 ? 'bg-[var(--danger-muted)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_20%,transparent)]' :
-                            confidence < 70 ? 'bg-[var(--warning-muted)] text-[var(--warning)] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)]' :
-                            'bg-[var(--success-muted)] text-[var(--success)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)]'
-                          }`}>
-                            {confidence}% confidence
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {link.from_doc?.matter_id && (
-                      <a
-                        href={`/matters/${link.from_doc.matter_id}?from=review`}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
-                      >
-                        View Graph <ExternalLink size={11} />
-                      </a>
-                    )}
-                  </div>
-                )
-              }
-
-              if (activeSection === 'tasks') {
-                const task = item
-                return (
-                  <div key={task.id} className="group relative flex items-center justify-between gap-4 p-4 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border-strong)] transition-all">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <CheckSquare size={16} className="text-[var(--primary)] shrink-0" />
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-xs text-[var(--text-primary)] line-clamp-1 font-medium">{task.content}</span>
-                        {task.matters && (
-                          <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                            <FolderOpen size={11} />
-                            {task.matters.title} ({task.matters.matter_code || 'no code'})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {task.matters?.id && (
-                      <a
-                        href={`/matters/${task.matters.id}?from=review`}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-[var(--primary)] text-white hover:opacity-90 transition-opacity shrink-0"
-                      >
-                        View Matter <ChevronRight size={12} />
-                      </a>
-                    )}
-                  </div>
-                )
-              }
-
-              return null
-            })
-          )}
-        </div>
-
-        {/* Pagination Footer */}
-        {items.length > ITEMS_PER_PAGE && (
-          <div className="flex items-center justify-between pt-4 px-1 border-t border-[var(--border)] shrink-0 text-xs text-[var(--text-muted)] mt-2">
-            <span>
-              Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, items.length)} of {items.length} items
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                <ChevronLeft size={14} /> Prev
-              </button>
-              <span className="font-semibold text-[var(--text-primary)]">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="p-1 px-2.5 rounded-md border border-[var(--border)] bg-[var(--bg)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                Next <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+function Filter({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (value: string) => void }) {
+  return <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" aria-label={`Filter ${label}: ${options.find(option => option[0] === value)?.[1]}`}>{label}: {options.find(option => option[0] === value)?.[1]}</Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuRadioGroup value={value} onValueChange={onChange}>{options.map(([id, text]) => <DropdownMenuRadioItem key={id} value={id}>{text}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent></DropdownMenu>
 }
 
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-[var(--success-muted)] border border-[color-mix(in_srgb,var(--success)_20%,transparent)] flex items-center justify-center">
-        <Check size={18} className="text-[var(--success)]" />
-      </div>
-      <p className="text-xs font-medium text-[var(--text-secondary)]">{text}</p>
+export function ReviewClientView({ queue, detail, filters, asOf }: { queue: Queue; detail: ReviewDetail | null; filters: ReviewFilters; asOf: number }) {
+  const router = useRouter()
+  const params = useSearchParams()
+  const [pending, startTransition] = useTransition()
+  const queueScroller = useRef<HTMLDivElement>(null)
+  const savedScroll = useRef(0)
+  const workspace = useRef<HTMLElement>(null)
+  const originatingRow = useRef<HTMLButtonElement | null>(null)
+  const focusDestination = useRef<'detail' | 'list' | null>(null)
+  useEffect(() => {
+    if (pending) return
+    if (focusDestination.current === 'detail' && filters.item) {
+      if (window.matchMedia('(max-width: 1279px)').matches) (workspace.current?.querySelector<HTMLElement>('#review-detail-heading') ?? workspace.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll: true })
+      focusDestination.current = null
+    } else if (focusDestination.current === 'list' && !filters.item) {
+      if (queueScroller.current) queueScroller.current.scrollTop = savedScroll.current
+      originatingRow.current?.focus({ preventScroll: true })
+      focusDestination.current = null
+    }
+  }, [filters.item, pending])
+  function navigate(values: Record<string, string | undefined>) {
+    if (pending) return
+    if (values.item) { savedScroll.current = queueScroller.current?.scrollTop ?? 0; focusDestination.current = 'detail' }
+    else if ('item' in values) focusDestination.current = 'list'
+    const query = new URLSearchParams(params.toString())
+    for (const [key, value] of Object.entries(values)) { if (value) query.set(key, value); else query.delete(key) }
+    startTransition(() => router.push(`/review?${query}`, { scroll: false }))
+  }
+  const filterControls = <>
+    <Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"]]} onChange={type => navigate({ type, page: undefined })} />
+    <Filter label="Priority" value={filters.priority} options={[["all", "All"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]]} onChange={priority => navigate({ priority, page: undefined })} />
+    <Filter label="Status" value={filters.status} options={[["needs_review", "Needs review"], ["closed", "Closed"], ["all", "All"]]} onChange={status => navigate({ status, page: undefined })} />
+  </>
+  if (!queue.authorised) return <div className="p-6"><h1 className="text-page-title">Review</h1><p>Your current organisation access does not include Review.</p></div>
+  return <section ref={workspace} className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-busy={pending}>
+    <h1 className="mb-3 shrink-0 text-page-title">Review</h1>
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
+      <section className={cn('min-h-0 min-w-0 flex-1 flex-col', filters.item ? 'hidden xl:flex xl:basis-3/5' : 'flex')} aria-label="Review queue">
+        <div className="shrink-0 border-b border-[var(--border)] p-3">
+          <form key={filters.search} className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); navigate({ search: String(new FormData(event.currentTarget).get('search') ?? ''), page: undefined }) }}>
+            <div className="min-w-0 flex-1"><Label htmlFor="review-search">Search Review</Label><Input id="review-search" name="search" maxLength={200} defaultValue={filters.search} placeholder="Document, Matter or field" /></div>
+            <Button type="submit" variant="outline" disabled={pending}>Search</Button>
+            <span className="w-full text-caption text-[var(--text-muted)]" role="status">{pending ? 'Loading Review…' : `${queue.totalCount} ${queue.totalCount === 1 ? 'item' : 'items'}`}</span>
+          </form>
+          <div className="mt-2 flex flex-wrap gap-1 lg:hidden">{filterControls}</div>
+        </div>
+        <div ref={queueScroller} data-review-list-scroller className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <Table className="hidden lg:table">
+            <TableCaption>Extraction conflicts requiring a decision</TableCaption>
+            <TableHeader sticky><TableRow><TableHead>Decision</TableHead><TableHead><Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"]]} onChange={type => navigate({ type, page: undefined })} /></TableHead><TableHead><Filter label="Priority" value={filters.priority} options={[["all", "All"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]]} onChange={priority => navigate({ priority, page: undefined })} /></TableHead><TableHead><Filter label="Status" value={filters.status} options={[["needs_review", "Needs review"], ["closed", "Closed"], ["all", "All"]]} onChange={status => navigate({ status, page: undefined })} /></TableHead></TableRow></TableHeader>
+            <TableBody>{queue.items.map(item => <TableRow key={item.id} selected={item.id === filters.item} className="h-14" interactive>
+              <TableCell><Button variant="link" disabled={pending} className="max-w-full text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}><span className="min-w-0"><span className="block">Review {reviewFieldLabel(item.field_path)}</span><span className="block max-w-64 truncate text-caption text-[var(--text-muted)]" title={`${item.document_title} · ${item.matter_title}`}>{item.document_title || 'Document'} · {item.matter_title}</span></span></Button></TableCell>
+              <TableCell><span className="text-xs">Extraction conflict</span><p className="text-caption text-[var(--text-muted)]">{age(item.created_at, asOf)}</p></TableCell>
+              <TableCell><span title={item.priority_reason} aria-label={`${priorityLabel(item.priority)} priority: ${item.priority_reason}`}>{priorityLabel(item.priority)}</span></TableCell>
+              <TableCell><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge></TableCell>
+            </TableRow>)}</TableBody>
+          </Table>
+          <div className="divide-y divide-[var(--border)] lg:hidden">{queue.items.map(item => <div key={item.id} className="space-y-2 p-3">
+            <Button variant="link" disabled={pending} className="text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}>Review {reviewFieldLabel(item.field_path)}</Button>
+            <p className="break-words text-sm">{item.document_title || 'Document'}</p><p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title}</p>
+            <div className="flex flex-wrap items-center gap-2"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span className="text-caption">Extraction conflict · {priorityLabel(item.priority)} · {age(item.created_at, asOf)}</span></div>
+          </div>)}</div>
+          {queue.items.length === 0 && <div className="px-6 py-16 text-center"><h2 className="text-section-heading">{queue.totalCount ? 'No items on this page' : 'No Review items found'}</h2><p className="mt-2 text-sm text-[var(--text-muted)]">{filters.search || filters.status !== 'needs_review' || filters.priority !== 'all' ? 'Try changing your search or filters.' : 'Current extraction conflicts will appear here when a decision is needed.'}</p></div>}
+        </div>
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] p-3 text-caption"><span>Page {filters.page} of {Math.max(1, Math.ceil(queue.totalCount / 25))}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={filters.page <= 1 || pending} onClick={() => navigate({ page: String(filters.page - 1) })}>Previous</Button><Button size="sm" variant="outline" disabled={filters.page * 25 >= queue.totalCount || pending} onClick={() => navigate({ page: String(filters.page + 1) })}>Next</Button></div></footer>
+      </section>
+      {filters.item && <aside className="flex min-h-0 min-w-0 flex-1 flex-col xl:basis-2/5 xl:border-l xl:border-[var(--border)]" aria-label="Selected Review item">
+        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-[var(--border)] p-2"><div className="flex gap-1" role="tablist" aria-label="Review detail">{(['evidence', 'decision'] as const).map(tab => <Button key={tab} id={`review-tab-${tab}`} role="tab" aria-selected={filters.tab === tab} aria-controls="review-tabpanel" tabIndex={filters.tab === tab ? 0 : -1} variant={filters.tab === tab ? 'secondary' : 'ghost'} onKeyDown={event => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+          event.preventDefault()
+          const next = event.key === 'Home' ? 'evidence' : event.key === 'End' ? 'decision' : tab === 'evidence' ? 'decision' : 'evidence'
+          workspace.current?.querySelector<HTMLButtonElement>(`#review-tab-${next}`)?.focus()
+          navigate({ tab: next })
+        }} onClick={() => navigate({ tab })}>{tab === 'evidence' ? 'Evidence' : 'Decision'}</Button>)}</div><Button variant="ghost" size="sm" onClick={() => navigate({ item: undefined, tab: undefined })}>Back to list</Button></div>
+        {detail ? <ReviewItemDetail key={`${detail.id}:${detail.revision}`} detail={detail} asOf={asOf} tab={filters.tab} onDecisionTab={() => navigate({ tab: 'decision' })} /> : <div id="review-tabpanel" role="tabpanel" aria-labelledby={`review-tab-${filters.tab}`} tabIndex={0}><p className="p-6" role="status">This Review item is no longer available.</p></div>}
+      </aside>}
     </div>
-  )
+  </section>
+}
+
+function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: ReviewDetail; tab: ReviewFilters['tab']; onDecisionTab: () => void; asOf: number }) {
+  const [item, setItem] = useState(detail)
+  const [choice, setChoice] = useState('')
+  const [reason, setReason] = useState('')
+  const [confirmation, setConfirmation] = useState<ReviewResolution | null>(null)
+  const [message, setMessage] = useState('')
+  const [pending, startTransition] = useTransition()
+  const router = useRouter()
+  const selected = item.evidence.find(evidence => evidence.candidate_id === choice)
+  const canResolve = item.allowed_actions.length > 0
+  function confirm() {
+    if (!confirmation) return
+    startTransition(async () => {
+      try {
+        const result = await resolveExtractionConflict(confirmation)
+        setMessage(result.message)
+        if (result.item) setItem(result.item)
+        if (result.code !== 'failed') { setConfirmation(null); setChoice(''); setReason(''); router.refresh() }
+      } catch { setMessage('The decision could not be recorded. Retry this confirmation.') }
+    })
+  }
+  return <>
+    <header className="shrink-0 space-y-2 border-b border-[var(--border)] p-4">
+      <h2 id="review-detail-heading" tabIndex={-1} className="break-words text-section-heading">Review {reviewFieldLabel(item.field_path)}</h2>
+      <p className="line-clamp-2 break-words text-sm" title={item.document_title || 'Document'}>{item.document_title || 'Document'}</p>
+      <div className="flex flex-wrap items-center gap-2 text-caption"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span>Extraction conflict</span></div>
+      <p className="text-caption text-[var(--text-muted)]"><span title={item.priority_reason} aria-label={`${priorityLabel(item.priority)} priority: ${item.priority_reason}`}>{priorityLabel(item.priority)} priority</span> · {age(item.created_at, asOf)}</p>
+    </header>
+    <div key={tab} id="review-tabpanel" role="tabpanel" aria-labelledby={`review-tab-${tab}`} tabIndex={0} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
+      {message && <p role="status" className="text-sm">{message}</p>}
+      {item.closure_reason === 'source_replaced' && <p className="text-sm">The source or its candidate evidence was replaced. This item is closed; it cannot change the current document.</p>}
+      {tab === 'evidence' ? <>
+        <p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title} · Document version {item.version_number}{!item.is_current && ' (historical)'}</p>
+        {item.evidence.map(evidence => {
+          const comparison = taxPeriodComparison(evidence.value)
+          return <section key={evidence.candidate_id} className="space-y-2 border-t border-[var(--border)] pt-3">
+            <h3 className="text-sm font-medium">Evidence {evidence.ordinal} · Page {evidence.page_number}</h3>
+            <p className="break-words text-sm">{reviewValueLabel(evidence.value)}</p>
+            <blockquote className="break-words border-l-2 border-[var(--border-strong)] pl-3 text-sm text-[var(--text-secondary)]">“{evidence.quotation}”</blockquote>
+            {comparison && <div className="text-sm"><p>Printed financial years: {comparison.printed}</p><p>Derived comparison: {comparison.derived}</p></div>}
+            <Link className="inline-flex min-h-11 items-center text-sm text-[var(--primary)] underline underline-offset-4" href={canonicalDocumentPath(item.document_id, { version: item.document_version_id, page: String(evidence.page_number) })}>Open exact source · Page {evidence.page_number}</Link>
+            {!evidence.selectable && <p className="text-caption text-[var(--text-muted)]">{evidence.validation_state === 'invalid' ? 'This observation failed validation and cannot be selected.' : 'This evidence does not independently resolve the conflict.'}</p>}
+          </section>
+        })}
+      </> : <>
+        <p className="text-sm">{item.impact}</p>
+        {item.last_decision && <section className="space-y-2"><h3 className="text-sm font-medium">{item.last_decision.action === 'select_candidate' ? 'Recorded outcome' : 'Clarification requested'}</h3>{item.last_decision.selected_candidate_id && <p className="break-words text-sm">Selected: {reviewValueLabel(item.evidence.find(e => e.candidate_id === item.last_decision?.selected_candidate_id)?.value)}</p>}<p className="break-words text-sm">{item.last_decision.reason}</p></section>}
+        {canResolve ? <fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">Choose an outcome</legend>
+          {item.allowed_actions.includes('select_candidate') && item.evidence.filter(evidence => evidence.selectable).map(evidence => <label key={evidence.candidate_id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] p-3"><input type="radio" name="review-outcome" className="mt-1 size-4 shrink-0 accent-[var(--primary)]" checked={choice === evidence.candidate_id} onChange={() => setChoice(evidence.candidate_id)} /><span className="min-w-0 break-words text-sm">Use {reviewValueLabel(evidence.value)}<span className="mt-1 block text-caption text-[var(--text-muted)]">Accept evidence {evidence.ordinal}; reject competing item candidates and close Review.</span></span></label>)}
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] p-3"><input type="radio" name="review-outcome" className="mt-1 size-4 shrink-0 accent-[var(--primary)]" checked={choice === 'clarify'} onChange={() => setChoice('clarify')} /><span className="text-sm">Request clarification<span className="mt-1 block text-caption text-[var(--text-muted)]">Record what needs clarification. Keep this item in Needs review.</span></span></label>
+          {!item.allowed_actions.includes('select_candidate') && <p className="text-sm text-[var(--text-muted)]">No supported candidate can resolve this conflict. Describe the clarification needed.</p>}
+        </fieldset> : item.status !== 'closed' && <p className="text-sm text-[var(--text-muted)]">Read-only access. An authorised team member can record a decision.</p>}
+      </>}
+    </div>
+    <footer className="shrink-0 border-t border-[var(--border)] p-3">
+      {tab === 'evidence' ? <Button variant="outline" className="w-full" onClick={onDecisionTab}>View decision</Button> : canResolve ? <Button className="w-full" disabled={!choice || pending} onClick={() => setConfirmation({ itemId: item.id, revision: item.revision, action: choice === 'clarify' ? 'request_clarification' : 'select_candidate', candidateId: selected?.candidate_id ?? null, reason: '', idempotencyKey: crypto.randomUUID() })}>Review decision</Button> : <p className="text-caption text-[var(--text-muted)]">{item.status === 'closed' ? 'This Review item is closed.' : 'No decision actions available.'}</p>}
+    </footer>
+    <Dialog open={confirmation !== null} onOpenChange={open => { if (!open && !pending) { setConfirmation(null); setReason('') } }}><DialogContent><DialogHeader><DialogTitle>{confirmation?.action === 'select_candidate' ? 'Use this extracted value?' : 'Request clarification?'}</DialogTitle><DialogDescription>{confirmation?.action === 'select_candidate' ? `Use ${reviewValueLabel(selected?.value)}. Competing item candidates will be rejected and this Review item will close.` : 'Record what needs clarification. The current value stays unchanged and this item remains in Needs review.'}</DialogDescription></DialogHeader>
+      <div className="min-w-0 space-y-2"><Label htmlFor="review-reason">Reason</Label><textarea id="review-reason" className="input-base min-h-24 max-h-40 resize-y" rows={4} value={reason} maxLength={500} disabled={pending} onChange={event => { const next = event.target.value.replace(/[\r\n]/g, ' '); setReason(next); setConfirmation(value => value && { ...value, reason: next }) }} aria-describedby="review-reason-help" /><p id="review-reason-help" className="text-caption text-[var(--text-muted)]">Explain the decision in up to 500 characters. {reason.length}/500</p>{message && <p role="status" className="text-sm">{message}</p>}</div>
+      <DialogFooter><Button variant="ghost" disabled={pending} onClick={() => { setConfirmation(null); setReason('') }}>Return to decision</Button><Button loading={pending} disabled={!reason.trim()} onClick={confirm}>{confirmation?.action === 'select_candidate' ? 'Confirm selected value' : 'Request clarification'}</Button></DialogFooter>
+    </DialogContent></Dialog>
+  </>
 }

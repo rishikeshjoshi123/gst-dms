@@ -75,30 +75,6 @@ export async function getDocumentsByMatter(matterId: string) {
   }
 }
 
-// ── Get Needs-Review Documents (for Needs Attention panel) ────────
-
-export async function getNeedsReviewDocuments() {
-  const supabase = await createClient()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) return []
-
-  const { data } = await supabase
-    .from('documents')
-    .select(`
-      *,
-      matters(id, title, matter_code, financial_year,
-        clients(id, name))
-    `)
-    .eq('org_id', orgId)
-    .eq('status', 'needs_review')
-    .eq('record_state', 'active')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  return data ?? []
-}
-
 // ── Upload Directly to a Matter ───────────────────────────────────
 
 type DocumentUploadReservationInput = {

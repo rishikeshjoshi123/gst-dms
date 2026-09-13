@@ -5604,6 +5604,184 @@ export type Database = {
           },
         ]
       }
+      review_item_decisions: {
+        Row: {
+          action: Database["public"]["Enums"]["review_extraction_action"]
+          actor_user_id: string
+          created_at: string
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          result_revision: number
+          review_item_id: string
+          selected_candidate_id: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["review_extraction_action"]
+          actor_user_id: string
+          created_at?: string
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          result_revision: number
+          review_item_id: string
+          selected_candidate_id?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["review_extraction_action"]
+          actor_user_id?: string
+          created_at?: string
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          reason?: string
+          result_revision?: number
+          review_item_id?: string
+          selected_candidate_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_item_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "review_item_decisions_review_item_id_selected_candidate_id_fkey"
+            columns: ["review_item_id", "selected_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "review_item_evidence"
+            referencedColumns: ["review_item_id", "candidate_id"]
+          },
+        ]
+      }
+      review_item_evidence: {
+        Row: {
+          candidate_id: string
+          ordinal: number
+          org_id: string
+          review_item_id: string
+          selectable: boolean
+        }
+        Insert: {
+          candidate_id: string
+          ordinal: number
+          org_id: string
+          review_item_id: string
+          selectable: boolean
+        }
+        Update: {
+          candidate_id?: string
+          ordinal?: number
+          org_id?: string
+          review_item_id?: string
+          selectable?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_item_evidence_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      review_items: {
+        Row: {
+          binding_id: string
+          can_select: boolean
+          candidate_sequence: number
+          closed_at: string | null
+          closure_reason:
+            | Database["public"]["Enums"]["review_item_closure"]
+            | null
+          created_at: string
+          dedupe_key: string
+          document_id: string
+          document_version_id: string
+          field_decision_sequence: number
+          field_path: string
+          id: string
+          impact: string
+          org_id: string
+          priority: Database["public"]["Enums"]["review_item_priority"]
+          priority_reason: string
+          reason_code: string
+          revision: number
+          semantic_candidate_key: string
+          status: Database["public"]["Enums"]["review_item_status"]
+          type: Database["public"]["Enums"]["review_item_type"]
+          updated_at: string
+        }
+        Insert: {
+          binding_id: string
+          can_select: boolean
+          candidate_sequence: number
+          closed_at?: string | null
+          closure_reason?:
+            | Database["public"]["Enums"]["review_item_closure"]
+            | null
+          created_at?: string
+          dedupe_key: string
+          document_id: string
+          document_version_id: string
+          field_decision_sequence?: number
+          field_path: string
+          id?: string
+          impact?: string
+          org_id: string
+          priority?: Database["public"]["Enums"]["review_item_priority"]
+          priority_reason?: string
+          reason_code?: string
+          revision?: number
+          semantic_candidate_key: string
+          status?: Database["public"]["Enums"]["review_item_status"]
+          type?: Database["public"]["Enums"]["review_item_type"]
+          updated_at?: string
+        }
+        Update: {
+          binding_id?: string
+          can_select?: boolean
+          candidate_sequence?: number
+          closed_at?: string | null
+          closure_reason?:
+            | Database["public"]["Enums"]["review_item_closure"]
+            | null
+          created_at?: string
+          dedupe_key?: string
+          document_id?: string
+          document_version_id?: string
+          field_decision_sequence?: number
+          field_path?: string
+          id?: string
+          impact?: string
+          org_id?: string
+          priority?: Database["public"]["Enums"]["review_item_priority"]
+          priority_reason?: string
+          reason_code?: string
+          revision?: number
+          semantic_candidate_key?: string
+          status?: Database["public"]["Enums"]["review_item_status"]
+          type?: Database["public"]["Enums"]["review_item_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       runtime_config_versions: {
         Row: {
           catalogue_version_id: string
@@ -9465,6 +9643,25 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_processing_ai_extraction_before_review: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
       finish_document_processing_ai_extraction_v3: {
         Args: {
           p_candidates?: Json
@@ -10928,6 +11125,10 @@ export type Database = {
         }
         Returns: Json
       }
+      produce_extraction_conflict_review: {
+        Args: { p_binding_id: string }
+        Returns: undefined
+      }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -11141,7 +11342,27 @@ export type Database = {
           source_revision: string | null
         }[]
       }
+      read_review_detail: { Args: { p_review_item_id: string }; Returns: Json }
+      read_review_queue: {
+        Args: {
+          p_page?: number
+          p_page_size?: number
+          p_priority?: string
+          p_search?: string
+          p_status?: string
+          p_type?: string
+        }
+        Returns: {
+          can_resolve: boolean
+          items: Json
+          total_count: number
+        }[]
+      }
       recompute_document_effective_metadata: {
+        Args: { p_document_version_id: string }
+        Returns: undefined
+      }
+      recompute_document_effective_metadata_before_review: {
         Args: { p_document_version_id: string }
         Returns: undefined
       }
@@ -11158,6 +11379,10 @@ export type Database = {
           processing_requeued: number
           validation_requeued: number
         }[]
+      }
+      reconcile_extraction_conflict_review: {
+        Args: { p_binding_id: string; p_create: boolean }
+        Returns: undefined
       }
       record_completed_document_extraction_provider_usage: {
         Args: { p_source_analysis_run_id: string }
@@ -11450,6 +11675,21 @@ export type Database = {
           lease_token: string
         }[]
       }
+      resolve_extraction_conflict: {
+        Args: {
+          p_action: Database["public"]["Enums"]["review_extraction_action"]
+          p_candidate_id: string | null
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
       resolve_verified_provider_pricing_version: {
         Args: {
           p_model_key: string
@@ -11500,6 +11740,59 @@ export type Database = {
           job_id: string
           operation_id: string
         }[]
+      }
+      review_actor: {
+        Args: { p_lock?: boolean }
+        Returns: {
+          actor_user_id: string
+          can_resolve: boolean
+          org_id: string
+        }[]
+      }
+      review_candidate_value: { Args: { p_value: Json }; Returns: Json }
+      review_comparison_candidates: {
+        Args: {
+          p_binding_id: string
+          p_field_path: string
+          p_include_unresolved_history: boolean
+          p_semantic_key: string
+        }
+        Returns: {
+          catalogue_version: string | null
+          confidence: number
+          created_at: string
+          display_value: string | null
+          document_id: string
+          document_version_analysis_binding_id: string
+          document_version_id: string
+          evidence_page_count: number
+          evidence_regions: Json | null
+          field_path: string
+          id: string
+          materialization_sequence: number
+          normalized_value: Json
+          normalizer_version: string | null
+          org_id: string
+          page_number: number
+          quotation: string
+          raw_value: string | null
+          semantic_candidate_key: string
+          source_field_candidate_id: string
+          validation_error_codes: string[] | null
+          validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
+          value_precision: string | null
+          value_type: Database["public"]["Enums"]["source_field_candidate_value_type"]
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "document_field_candidates"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      review_document_available: {
+        Args: { p_document: string; p_org: string }
+        Returns: boolean
       }
       revoke_document_self_identifier: {
         Args: {
@@ -12290,6 +12583,11 @@ export type Database = {
         | "purging"
         | "restored"
         | "purged"
+      review_extraction_action: "select_candidate" | "request_clarification"
+      review_item_closure: "decision_recorded" | "source_replaced"
+      review_item_priority: "normal" | "high" | "urgent"
+      review_item_status: "needs_review" | "closed"
+      review_item_type: "extraction_conflict"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -12894,6 +13192,11 @@ export const Constants = {
         "restored",
         "purged",
       ],
+      review_extraction_action: ["select_candidate", "request_clarification"],
+      review_item_closure: ["decision_recorded", "source_replaced"],
+      review_item_priority: ["normal", "high", "urgent"],
+      review_item_status: ["needs_review", "closed"],
+      review_item_type: ["extraction_conflict"],
       source_analysis_attempt_state: [
         "queued",
         "running",

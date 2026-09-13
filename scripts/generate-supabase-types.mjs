@@ -15,6 +15,12 @@ if (!useLocalDatabase && !projectRef) {
 const argumentsList = ['gen', 'types', 'typescript']
 if (useLocalDatabase) {
   argumentsList.push('--local')
+  const workdirIndex = process.argv.indexOf('--workdir')
+  if (workdirIndex !== -1) {
+    const workdir = process.argv[workdirIndex + 1]
+    if (!workdir || workdir.startsWith('--')) throw new Error('--workdir requires a local project directory')
+    argumentsList.push('--workdir', path.resolve(workdir))
+  }
 } else {
   argumentsList.push('--project-id', projectRef)
 }

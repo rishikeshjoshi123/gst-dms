@@ -19,7 +19,7 @@ interface DashboardContentProps {
   greeting: string
   orgName: string
   stats: { clients: number; matters: number; documents: number }
-  needsReviewDocs: any[]
+  needsReviewDocs: import('@/lib/review/model').ReviewQueueItem[]
   statCards: Array<{ label: string; value: number; href: string }>
   activityLogs: any[]
   deadlineAttention: DeadlineAttentionPayload
