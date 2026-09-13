@@ -8,13 +8,15 @@ import { Label } from '@/components/ui/label'
 import { getMatters } from '@/lib/actions/matter'
 import { previewDocumentBoundaryRepair, reassignDocumentMatter, type BoundaryRepairImpact } from '@/lib/actions/document'
 import { toast } from 'sonner'
+import { unstable_rethrow } from 'next/navigation'
 
 type BoundaryRepairDialogProps = {
   isOpen: boolean; onClose: () => void; documentId: string; currentMatterId: string
   returnFocusRef: RefObject<HTMLButtonElement | null>
+  sourcePage?: number
 }
 
-function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId, returnFocusRef }: BoundaryRepairDialogProps) {
+function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId, returnFocusRef, sourcePage = 1 }: BoundaryRepairDialogProps) {
   const [matters, setMatters] = useState<Awaited<ReturnType<typeof getMatters>>>([])
   const [target, setTarget] = useState('')
   const [mode, setMode] = useState<'move' | 'copy'>('move')
@@ -66,7 +68,7 @@ function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId, re
     setError('')
     startTransition(async () => {
       try {
-        const result = await reassignDocumentMatter(documentId, target, mode, { fingerprint: impact.fingerprint, reason, idempotencyKey })
+        const result = await reassignDocumentMatter(documentId, target, mode, { fingerprint: impact.fingerprint, reason, idempotencyKey, sourceVersionId: impact.versionId, sourcePage })
         if (request !== generation.current) return
         if ('error' in result) {
           setError(result.error ?? 'The change could not be completed.')
@@ -74,10 +76,15 @@ function BoundaryRepairDialog({ isOpen, onClose, documentId, currentMatterId, re
             setImpact(null); confirmationKey.current = null
           }
         } else {
-          toast.success(mode === 'move' ? 'Document moved' : 'Document copied')
+          // Move redirects authoritatively from the Server Action. Only Copy
+          // stays on this source route and restores its surviving launcher.
+          toast.success('Document copied')
           onClose()
         }
-      } catch { if (request === generation.current) setError('Confirmation could not be verified. Retry to check the same change.') }
+      } catch (error) {
+        unstable_rethrow(error)
+        if (request === generation.current) setError('Confirmation could not be verified. Retry to check the same change.')
+      }
     })
   }
 

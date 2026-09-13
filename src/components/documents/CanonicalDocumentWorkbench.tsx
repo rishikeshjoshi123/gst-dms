@@ -1,7 +1,7 @@
 'use client'
 
 import { FileText } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { TimelineDocumentDetail } from '@/components/matters/TimelineDocumentDetail'
 import { PdfViewer, type PdfQuotationSelection } from '@/components/ui/pdf-viewer'
@@ -57,6 +57,12 @@ export function CanonicalDocumentWorkbench({
 }) {
   const [quotationDraft, setQuotationDraft] = useState<QuotationDraft | null>(null)
   const [inspectorTab, setInspectorTab] = useState<MatterInspectorView>('overview')
+  const workbench = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (window.location.hash !== '#document-workbench') return
+    const frame = requestAnimationFrame(() => workbench.current?.focus({ preventScroll: true }))
+    return () => cancelAnimationFrame(frame)
+  }, [doc.id, doc.matter_id])
   const sourceIdentity = source ? `${doc.id}:${source.versionId}` : null
   const activeQuotationDraft = quotationDraft?.sourceIdentity === sourceIdentity
     ? quotationDraft.selection
@@ -76,7 +82,7 @@ export function CanonicalDocumentWorkbench({
   }) : undefined
 
   return (
-    <div className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1 lg:flex-row lg:overflow-hidden lg:pr-0">
+    <div ref={workbench} id="document-workbench" role="region" aria-label="Document workbench" tabIndex={-1} className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain pr-1 lg:flex-row lg:overflow-hidden lg:pr-0">
       <section className="flex h-[55vh] min-h-72 w-full shrink-0 flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] lg:h-full lg:w-[65%]">
         {source && (
           <header className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
@@ -124,6 +130,7 @@ export function CanonicalDocumentWorkbench({
         )}
         <div className="min-h-0 flex-1">
           <TimelineDocumentDetail
+            key={`${doc.id}:${doc.matter_id}`}
             doc={doc}
             allDocuments={allDocuments}
             links={links}

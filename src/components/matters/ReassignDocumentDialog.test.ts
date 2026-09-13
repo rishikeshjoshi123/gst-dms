@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const source = readFileSync(new URL('./ReassignDocumentDialog.tsx', import.meta.url), 'utf8')
 
-test('controlled unmount restores explicit launcher focus through Radix for Escape, Cancel and success', () => {
+test('controlled unmount restores explicit launcher focus through Radix for Escape, Cancel and Copy success', () => {
   const caller = readFileSync(new URL('./TimelineDocumentDetail.tsx', import.meta.url), 'utf8')
   assert.match(caller, /<Button ref=\{repairLauncher\}/)
   assert.match(caller, /returnFocusRef=\{repairLauncher\}/)
@@ -16,6 +16,19 @@ test('controlled unmount restores explicit launcher focus through Radix for Esca
   assert.match(source, /toast.success\([^]*?onClose\(\)/)
   assert.match(source, /else onClose\(\)/)
   assert.match(source, /return props.isOpen \? <BoundaryRepairDialog/)
+})
+
+test('Move preserves its source locator and framework navigation instead of closing the obsolete source dialog', () => {
+  assert.match(source, /sourceVersionId: impact.versionId, sourcePage/)
+  assert.match(source, /catch \(error\) \{\s*unstable_rethrow\(error\)/)
+  assert.match(source, /toast.success\('Document copied'\)\s*onClose\(\)/)
+  assert.doesNotMatch(source, /toast.success\(mode === 'move'/)
+  const workbench = readFileSync(new URL('../documents/CanonicalDocumentWorkbench.tsx', import.meta.url), 'utf8')
+  assert.match(workbench, /id="document-workbench" role="region" aria-label="Document workbench" tabIndex=\{-1\}/)
+  assert.match(workbench, /window.location.hash !== '#document-workbench'/)
+  assert.match(workbench, /requestAnimationFrame\(\(\) => workbench.current\?\.focus/)
+  assert.match(workbench, /\[doc.id, doc.matter_id\]/)
+  assert.match(workbench, /<TimelineDocumentDetail\s+key=\{`\$\{doc.id\}:\$\{doc.matter_id\}`\}/)
 })
 
 test('caller-owned close restores focus after the dialog subtree is removed', () => {

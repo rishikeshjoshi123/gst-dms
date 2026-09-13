@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
 
 function exportedFunction(source: string, name: string) {
   const start = source.indexOf(`export async function ${name}(`)
@@ -57,6 +58,33 @@ test('document move and copy require confirmation and use only the governed comm
   assert.doesNotMatch(reassign, /\.from\('documents'\)\s*\.update/)
   assert.doesNotMatch(reassign, /\.storage\s*\.from\('documents'\)\s*\.upload/)
   assert.match(reassign, /revalidatePath\(canonicalDocumentPath\(documentId\)\)/)
+})
+
+test('Move redirects to authoritative destination context; Copy returns on the source route', () => {
+  const source = readFileSync(new URL('./document.ts', import.meta.url), 'utf8')
+  const action = exportedFunction(source, 'reassignDocumentMatter')
+  const success = action.slice(action.indexOf("  if (mode === 'move')"), action.indexOf('\n}', action.indexOf("  if (mode === 'move')")))
+  const run = new Function('mode', 'result', 'request', 'canonicalDocumentPath', 'buildMatterReturnPath', 'redirect', 'RedirectType', success)
+  const documentId = '152e0000-0000-0000-0000-000000000001'
+  const targetMatterId = '152d0000-0000-0000-0000-000000000002'
+  const sourceVersionId = '15200000-0000-0000-0000-000000000001'
+  const result = { data: { documentId, targetMatterId } }
+  const request = { data: { confirmation: { sourceVersionId, sourcePage: 3 } } }
+  const redirected = new Error('framework redirect')
+  const redirect = (path: string, type: string) => {
+    const destination = new URL(path, 'https://casechain.invalid')
+    assert.equal(destination.pathname, `/documents/${documentId}`)
+    assert.equal(destination.searchParams.get('matterId'), targetMatterId)
+    assert.equal(destination.searchParams.get('returnTo'), `/matters/${targetMatterId}`)
+    assert.equal(destination.searchParams.get('version'), sourceVersionId)
+    assert.equal(destination.searchParams.get('page'), '3')
+    assert.equal(destination.hash, '#document-workbench')
+    assert.equal(type, 'replace')
+    throw redirected
+  }
+  assert.throws(() => run('move', result, request, canonicalDocumentPath, buildMatterReturnPath, redirect, { replace: 'replace' }), (error) => error === redirected)
+  assert.deepEqual(run('copy', result, request, canonicalDocumentPath, buildMatterReturnPath, () => assert.fail('Copy must not navigate'), { replace: 'replace' }), { success: true, documentId })
+  assert.ok(action.indexOf("revalidatePath('/search')") < action.indexOf("if (mode === 'move')"))
 })
 
 test('legacy metadata editing fails before client creation or direct document update', () => {

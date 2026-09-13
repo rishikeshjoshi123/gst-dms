@@ -696,6 +696,7 @@ export function TimelineDocumentDetail({
       {canRepairBoundary && !readOnly && !displayedSource?.historical && <ReassignDocumentDialog
         isOpen={isReassignOpen}
         returnFocusRef={repairLauncher}
+        sourcePage={displayedSource?.page}
         onClose={closeRepairDialog}
         documentId={doc.id}
         currentMatterId={doc.matter_id}

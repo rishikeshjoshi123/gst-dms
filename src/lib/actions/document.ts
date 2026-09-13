@@ -3,6 +3,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCurrentOrgId } from './org'
 import { revalidatePath } from 'next/cache'
+import { redirect, RedirectType } from 'next/navigation'
 import type { Database } from '@/lib/supabase/database.types'
 import { appendActivity } from '@/lib/activity'
 import { scheduleDocumentOutboxWake } from '@/lib/outbox/wake'
@@ -12,7 +13,7 @@ import {
   uploadFailureResult,
   uploadIdempotencyKey,
 } from '@/lib/document-upload'
-import { canonicalDocumentPath } from '@/lib/canonical-document-route'
+import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
 import { pdfSourceLookupFailureCode } from '@/lib/pdf-source-access'
 import { z } from 'zod'
@@ -423,12 +424,13 @@ export async function reassignDocumentMatter(
   documentId: string,
   newMatterId: string,
   mode: 'move' | 'copy' = 'move',
-  confirmation?: { fingerprint: string; reason: string; idempotencyKey: string }
+  confirmation?: { fingerprint: string; reason: string; idempotencyKey: string; sourceVersionId?: string; sourcePage?: number }
 ) {
   const request = z.object({
     documentId: z.string().uuid(), newMatterId: z.string().uuid(), mode: z.enum(['move', 'copy']),
     confirmation: z.object({ fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-      reason: z.string().trim().min(1).max(500).regex(/^[^\x00-\x1f\x7f]*$/), idempotencyKey: z.string().uuid() }),
+      reason: z.string().trim().min(1).max(500).regex(/^[^\x00-\x1f\x7f]*$/), idempotencyKey: z.string().uuid(),
+      sourceVersionId: z.string().uuid().optional(), sourcePage: z.number().int().positive().safe().optional() }),
   }).safeParse({ documentId, newMatterId, mode, confirmation })
   if (!request.success) return { error: 'Review the impact and enter a reason before confirming.' }
   const supabase = await createClient()
@@ -454,6 +456,19 @@ export async function reassignDocumentMatter(
   revalidatePath('/clients')
   revalidatePath('/dashboard')
   revalidatePath('/search')
+  if (mode === 'move') {
+    // Redirect in the same action response: refreshing the old Matter-scoped
+    // URL first would render notFound before a client callback could navigate.
+    const destination = canonicalDocumentPath(result.data.documentId, {
+      matterId: result.data.targetMatterId,
+      returnTo: buildMatterReturnPath(result.data.targetMatterId, []),
+      ...(request.data.confirmation.sourceVersionId && {
+        version: request.data.confirmation.sourceVersionId,
+        page: String(request.data.confirmation.sourcePage ?? 1),
+      }),
+    })
+    redirect(`${destination}#document-workbench`, RedirectType.replace)
+  }
   return { success: true, documentId: result.data.documentId }
 }
 
