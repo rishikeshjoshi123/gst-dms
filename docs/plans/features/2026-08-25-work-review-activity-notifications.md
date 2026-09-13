@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: in-progress
 created: 2026-08-25
-updated: 2026-09-08
+updated: 2026-09-13
 owners:
   - product
   - engineering
@@ -111,9 +111,13 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 - Group related extraction candidates into one coherent document Review item where one decision flow can resolve them. Do not create a queue row for every harmless AI field.
 - State is `open`, `in_progress`, `resolved`, `dismissed`, `superseded`, or `suspended`. `Dismiss` exists only for Review types whose policy permits no-action resolution and always records a reason; it is not a generic hide button.
 - Every type has a typed decision schema and owning resolver. A generic Review endpoint cannot apply arbitrary JSON changes to domain tables.
-- Starting a decision creates a short-lived Review claim; merely opening or reading an item does not. Claim and resolution use a row revision/optimistic lock. The claim prevents two people from deciding the same item at once, is visible to other authorised users, and is released on explicit exit, account suspension/removal, or bounded inactivity expiry. The shared item remains in Review throughout. Before applying a decision, revalidate current source version, tenant access, Trash state, and conflict facts. Stale items become superseded or return refreshed evidence instead of applying an outdated choice.
-- Resolution atomically applies the domain command, appends the decision and Activity, closes/supersedes related items, and emits only the required notifications.
+- Opening, reading, or closing the detail pane does not mutate, assign, claim, or lock a Review item. Resolution uses the row revision as an optimistic concurrency check; if another decision wins first, the later command receives the current closed state rather than applying twice. Before applying a decision, revalidate current source version, tenant access, Trash state, and conflict facts. A replaced source closes the old item automatically with `source_replaced`; if the current source still needs a decision, its producer creates or refreshes the current Review item.
+- Resolution atomically applies the domain command, appends the decision and Activity, closes related items with the appropriate closure reason, and emits only the required notifications.
+- A Review item may expose one secondary `Review in context` action when its evidence is materially clearer in an owning workspace. Relationship Review labels this action `Review on timeline`: it deep-links the same item ID/revision into the Matter graph, preserves a return locator to the queue/filter/position, and offers the identical allowed decision schema. It does not create a second Review item or resolver.
+- Contextual Review is capability-specific rather than a universal graph treatment. Relationships use the Timeline; ambiguous placement uses the placement Workbench; duplicates use document comparison; deadline/financial/extraction decisions use their exact source and governed calculation/fact context. The owning plan defines each presentation.
 - Identical low-risk Review decisions may support evidence-preserving bulk resolution. Deadline, financial, restore, destructive, or mixed-impact decisions remain individual.
+
+The constrained Timeline presentation and single-resolver decision are retained in the [September 13 interaction record](../../decision-history/2026-09-13-matter-timeline-review-and-notes-task-interactions.md).
 
 ### My Work
 
@@ -169,7 +173,7 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - **Today:** one principal scroller below stable identity/actions. Each urgency group has a bounded preview and clear route to My Work or Review; live updates do not reorder an item under the pointer.
 - **My Work:** dense grouped list/table on desktop with server filters and prioritized drill-down list on mobile. Type and urgency remain understandable without colour.
-- **Review:** desktop list/detail workspace with stable queue filters and evidence/decision pane; mobile uses list-to-detail navigation with preserved list position. Every row states why, impact, age, whether someone is actively reviewing it, evidence availability, and one primary decision.
+- **Review:** desktop list/detail workspace with stable queue filters and a selected-item pane containing only **Evidence** and **Decision** tabs; mobile uses list-to-detail navigation with preserved list position and the same tabs. The queue defaults to **Needs review**, while **Closed** items remain available through the Status filter. Status and Priority are separate columns and filters; the detail header places priority and creation age together beneath status, while accessible help carries the deterministic priority reason. The desktop queue uses the approved compact 56px minimum row rhythm, with the loading state preserving the same geometry; mobile retains its touch-friendly drill-down cards. A closed item explains its recorded outcome or closure reason in the selected detail. Review does not add a separate item-history surface: durable decisions remain append-only records, and material business events belong in the broader organisation Activity feed. Every row states the decision, type, age, status, priority, and supporting context without implying an owner or lock. When supported, `Review in context` is a secondary action inside the selected item's content—not a new queue tab or global mode—and return navigation restores queue state.
 - **Activity:** dense chronological feed grouped by Today, Yesterday, and calendar date. Server filters cover actor, category/event, client, matter, entity, source, and date range; URL state is shareable. Matter Activity reuses the same renderer.
 - **Notifications:** stable chronological list. Newly received items show a `New notifications` affordance instead of shifting the scrolled list. Each row explains why the user received it and exposes its action.
 - **Tasks:** desktop uses a compact table/list with an on-demand detail pane; selecting a row or following a Notes task link opens the same pane without requiring a second page. Its stable header contains **Task details** and **Comments** tabs. Each tab owns one deliberate body scroller while the tab bar and permitted actions remain fixed. Mobile uses list-to-full-detail navigation with the same two tabs, preserved list position, and one principal content scroller.
@@ -261,7 +265,7 @@ and invariant-corruption fixtures. The resolved decision is recorded in
 - `task_comment_mentions`: comment, mentioned member/user, creator, and timestamp; unique per comment/member.
 - `task_comment_read_cursors`: member/task thread, highest observed sequence, and observed timestamp.
 - `task_comment_followers`: task/member follow source (`creator`, `assignee`, or explicit preference), mute state where policy permits, and timestamps.
-- `review_items`: organisation lineage, type/reason, subject/source locators and versions, impact, priority/state, dedupe key, revision, escalation and lifecycle timestamps. Temporary claim holder, activity and expiry are stored separately from durable item responsibility.
+- `review_items`: organisation lineage, type/reason, subject/source locators and versions, impact, priority/state, optional typed closure reason, dedupe key, revision, escalation and lifecycle timestamps. It has no assignment, claim, or view-lock fields.
 - `review_item_evidence`: review item, typed evidence locator, label, excerpt/structured facts, ordering, and access state.
 - `review_item_decisions`: review item/revision, validated decision type/payload, actor/reason, result locator, and timestamp; append-only.
 - `notification_intents`: source event, family, recipients/subscribers, reason, target, dedupe key, scheduling, and projection state.
@@ -298,12 +302,13 @@ type WorkItem = {
 type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled' | 'suspended'
 
 type ReviewStatus =
-  | 'open'
-  | 'in_progress'
-  | 'resolved'
+  | 'needs_review'
+  | 'closed'
+
+type ReviewClosureReason =
+  | 'decision_recorded'
   | 'dismissed'
-  | 'superseded'
-  | 'suspended'
+  | 'source_replaced'
 
 type DeliveryStatus = 'pending' | 'sent' | 'failed' | 'suppressed' | 'cancelled'
 ```
@@ -326,8 +331,9 @@ Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComme
 - Task details and Comments are keyboard-accessible URL-addressable tabs. Comments match the shared Notes feed/composer interaction, mentions and unread behavior, but Task Comments and Notes messages never copy or mirror one another.
 - The Task Comments composer exposes no create-task action. Direct Tasks begin with an empty stream; completed/cancelled Tasks accept comments without reopening; suspended Tasks are read-only. Posting, editing, deleting, mentioning, observing, retrying, and concurrent delivery are tenant-safe and idempotent, and none changes Task status implicitly.
 - Task transition history contains actual task-domain transitions and assignment/field changes, not synthetic states or duplicated comment rows. Comments remain available in their dedicated tab.
-- Tasks, ordinary staged placement, and routine processing never appear in Review. Every Review item identifies a current decision, evidence, impact, state, and valid typed resolver; it has no durable assignee and any temporary claim is visible and bounded.
-- Concurrent Review claim/resolution and stale-version tests prevent double resolution or outdated writes. Dismiss is unavailable when an explicit decision is required.
+- Tasks, ordinary staged placement, and routine processing never appear in Review. Every Review item identifies a current decision, evidence, impact, state, and valid typed resolver; it has no assignee, temporary claim, or open-to-lock behavior.
+- Concurrent Review resolution and stale-version tests prevent double resolution or outdated writes through optimistic revision checks. Dismiss is unavailable when an explicit decision is required.
+- Relationship Review can be resolved through either the queue decision pane or `Review on timeline`; both validate the same item revision and allowed actions, append one decision/Activity event, and close the item once. Timeline review is constrained to the selected candidate, leaves unrelated edit commands unavailable, supports `Return to Review` without mutation, and reports the current result when another user resolved it first.
 - Clean AI extraction creates no gratuitous Review rows; risk-based exceptions bundle related fields under the AI plan.
 - Routine upload, processing, Case Brief, and link events create no personal notification. Eligible events create one deduplicated notification per intended recipient with a valid authorised target and reason.
 - Read, archive, source resolution, and task/review/deadline completion remain distinct. Source resolution can archive related notifications without corrupting Activity.
@@ -340,7 +346,7 @@ Task comment commands are `postTaskComment`, `editTaskComment`, `removeTaskComme
 - Activity filters/URLs work at organisation and matter scope. Realtime preserves focus/list position and offers a new-items affordance.
 - Backfill reports source/migrated/excluded/unresolvable counts and conflicts. Cutover waits until every legacy row has an explicit disposition.
 - At 10,000 Activity events and 1,000 active work items, target p95 under 500 ms for Today/My Work counts and first page, excluding cold infrastructure start.
-- Desktop/mobile acceptance covers stable chrome, scroll ownership, list-detail navigation, back-position preservation, keyboard/screen reader, 44px targets, light/dark, reduced motion, 200% zoom, long labels, loading/empty/error/partial states, and no page-level horizontal overflow.
+- Desktop/mobile acceptance covers stable chrome, scroll ownership, list-detail navigation, back-position preservation, the approved 56px desktop Review-row rhythm with geometry-matched loading rows, keyboard/screen reader, 44px targets, light/dark, reduced motion, 200% zoom, long labels, loading/empty/error/partial states, and no page-level horizontal overflow.
 
 ## Assumptions
 

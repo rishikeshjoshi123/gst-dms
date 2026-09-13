@@ -2,7 +2,7 @@
 title: Matter Notes and Cited Case Brief
 status: approved
 created: 2026-08-25
-updated: 2026-09-08
+updated: 2026-09-13
 owners:
   - product
   - engineering
@@ -88,6 +88,8 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 ### Message authoring and lifecycle
 
 - The composer supports minimal structured rich text, `@` mentions, exact document quotations, file/document links, and task creation/linking. It always has a visible **Send** action.
+- Matter Notes and the document inspector's Notes subview reuse one responsive Task-draft component. `Create task` is a separate, visibly labelled action in the authoring area; it expands a compact card instead of placing a permanent Task form in the feed. The full Notes workspace may arrange fields horizontally where space permits, while the `392px` inspector stacks the same fields without removing capability.
+- The Task draft asks only for concise title, one active assignee, optional due date/time and priority; Matter/document/thread origin is derived. When used with an unsent Note, the explicit completion action is `Post note and create task`, creating both records and their link atomically or neither. An existing message also exposes `Create task` through its accessible message actions. Once linked, that message presents `Open task` rather than another prominent creation action unless a later multiple-task-per-message policy is approved.
 - `Enter` inserts a newline. `Cmd+Enter`/`Ctrl+Enter` sends. Keyboard shortcuts are displayed in composer help and do not replace visible controls.
 - Same-organisation active members who can access the Matter are the only mention candidates. The server revalidates membership, Matter access, and active state at send time.
 - A mention is a persisted relationship, not text parsing at notification time. Editing a message creates notification intent only for newly added valid mentions; removing a mention does not retract an already delivered notification.
@@ -98,6 +100,8 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
 - Clicking a linked Task card opens the dedicated Tasks workspace with that task selected in its detail pane. The Task's **Open in Notes** origin action performs the reverse deep link to this exact Notes thread and message/version, focuses the message after navigation, and shows an honest tombstone or non-disclosing unavailable state when the origin was removed or access was revoked.
 - The Notes conversation remains independent after task creation. Messages posted below the originating message are not copied into the Task's Comments tab, and Task Comments are not projected back into Notes.
 - Viewer is read-only. Associate and above may create threads/messages, edit/delete their own messages, and mention accessible teammates. Admin/Owner may archive threads and moderate. Trashed Matters and all descendants are fully read-only.
+
+The shared responsive Task draft and existing-message entry are retained in the [September 13 interaction record](../../decision-history/2026-09-13-matter-timeline-review-and-notes-task-interactions.md).
 
 ### Exact document quotations
 
@@ -278,6 +282,7 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 - Brief tests cover fixed section order, schema rejection, unknown block type, forged source/fact ID, first generation, section selection, source hashing/no-op, coalesced triggers, idempotent retry, citation validation, protected human segment, consequential fact change, conflicting evidence, issue/evidence matrix fallback, review acceptance/rejection, failure preservation, and version restore.
 - Search tests prove only authorized published/live content is indexed and all result deep links resolve to the correct thread/message or Brief block/source.
 - Task-link integration tests prove Notes opens the correct selected Task and Task details returns to the exact thread/message/version. Later Notes messages and Task Comments remain independent, and removed or inaccessible origins do not leak content.
+- Task-creation component tests cover an unsent Note plus Task atomic success/failure, creation from an existing versioned message, duplicate prevention for an already-linked message, one-assignee validation, responsive full-workspace/`392px` inspector layouts, keyboard operation, 44px targets, and Viewer/removed/suspended/Trash denial.
 - Migration tests compare legacy/live counts per organisation/matter, preserve human-edited CaseWiki content, never fabricate legacy citation coordinates, and support rollback before contract phase.
 - Component/accessibility tests cover keyboard composer, mention picker, focus-visible citations, screen-reader provenance/change states, 44px mobile targets, long names/content, empty/loading/error/read-only states, and reduced motion.
 
@@ -287,6 +292,7 @@ All tenant rows carry `org_id`; composite constraints or trusted functions enfor
 - On mobile, the thread list opens a full conversation, Back restores the list, the message feed is the principal scroller, and composer/navigation do not cover the last message.
 - Typing `@` shows only active accessible Matter teammates. Posting produces one persisted mention and one eligible notification intent; retry does not duplicate either.
 - Clicking a linked Task card opens the Tasks workspace with that task selected. Returning through **Open in Notes** restores the exact thread, scrolls to and focuses the originating message, and preserves an accessible fallback when it has been tombstoned.
+- In both the full Notes workspace and document inspector, **Create task** opens the same compact responsive draft. A user can either post a Note and Task together or create from an existing message; the resulting message shows the linked Task summary without turning Notes into a second Task editor.
 - Selecting text in a text PDF or a region in a scanned PDF creates a note quote. Clicking it reopens the exact immutable PDF page with highlight and preserved context.
 - The Case Brief explains current posture without duplicating the full Timeline. Every material generated claim has an operable citation.
 - Editing a sentence as a human visibly records provenance. A later conflicting proceeding document produces a proposal and leaves that sentence unchanged until a decision.

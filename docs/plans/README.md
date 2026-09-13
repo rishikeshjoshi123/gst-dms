@@ -44,12 +44,12 @@ For product discussion, use the [planning prompt](../planning-prompt.md) and [pl
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-08 |
-| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-08 |
-| [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-09-08 |
-| [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-09-08 |
-| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-08 |
-| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-09-08 |
+| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-11 |
+| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-13 |
+| [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-09-11 |
+| [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-09-13 |
+| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-13 |
+| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-09-11 |
 | [Passcode-Gated Interactive Demo Workspace](./features/2026-09-03-interactive-demo-workspace.md) | `proposed` | 2026-09-03 |
 
 ### Platform
