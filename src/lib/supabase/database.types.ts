@@ -1160,6 +1160,224 @@ export type Database = {
           },
         ]
       }
+      document_evidence_association_command_receipts: {
+        Row: {
+          actor_user_id: string
+          association_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          association_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          association_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_code?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_evidence_association_command_receipts_assoc_org_fkey"
+            columns: ["org_id", "association_id"]
+            isOneToOne: false
+            referencedRelation: "document_evidence_associations"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_association_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_evidence_association_decisions: {
+        Row: {
+          actor_user_id: string
+          association_id: string
+          created_at: string
+          decision_sequence: number
+          decision_type: string
+          id: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          proceeding_document_id: string
+          reason: string | null
+          supporting_document_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          association_id: string
+          created_at?: string
+          decision_sequence?: never
+          decision_type: string
+          id?: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          proceeding_document_id: string
+          reason?: string | null
+          supporting_document_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          association_id?: string
+          created_at?: string
+          decision_sequence?: never
+          decision_type?: string
+          id?: string
+          idempotency_key?: string
+          matter_id?: string
+          org_id?: string
+          proceeding_document_id?: string
+          reason?: string | null
+          supporting_document_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_evidence_association_decisions_assoc_org_fkey"
+            columns: ["org_id", "association_id"]
+            isOneToOne: false
+            referencedRelation: "document_evidence_associations"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_association_decisions_idempotency_key_fkey"
+            columns: ["idempotency_key"]
+            isOneToOne: false
+            referencedRelation: "document_evidence_association_command_receipts"
+            referencedColumns: ["idempotency_key"]
+          },
+          {
+            foreignKeyName: "document_evidence_association_decisions_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_association_decisions_proceeding_org_fkey"
+            columns: ["org_id", "proceeding_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_association_decisions_supporting_org_fkey"
+            columns: ["org_id", "supporting_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      document_evidence_associations: {
+        Row: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          concise_note: string | null
+          created_at: string
+          created_by: string
+          id: string
+          kind: Database["public"]["Enums"]["document_evidence_association_kind"]
+          matter_id: string
+          org_id: string
+          proceeding_document_id: string
+          record_state: string
+          revision: number
+          supporting_document_id: string
+          updated_at: string
+        }
+        Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          concise_note?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: Database["public"]["Enums"]["document_evidence_association_kind"]
+          matter_id: string
+          org_id: string
+          proceeding_document_id: string
+          record_state: string
+          revision?: number
+          supporting_document_id: string
+          updated_at?: string
+        }
+        Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          concise_note?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["document_evidence_association_kind"]
+          matter_id?: string
+          org_id?: string
+          proceeding_document_id?: string
+          record_state?: string
+          revision?: number
+          supporting_document_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_evidence_associations_matter_org_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_associations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_evidence_associations_proceeding_org_fkey"
+            columns: ["org_id", "proceeding_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_evidence_associations_supporting_org_fkey"
+            columns: ["org_id", "supporting_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_field_candidates: {
         Row: {
           catalogue_version: string | null
@@ -2628,6 +2846,122 @@ export type Database = {
           },
         ]
       }
+      document_supporting_category_command_receipts: {
+        Row: {
+          actor_user_id: string
+          command: string
+          created_at: string
+          document_id: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          command: string
+          created_at?: string
+          document_id: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          command?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_code?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_supporting_category_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_supporting_category_decisions: {
+        Row: {
+          actor_user_id: string
+          assigned_category_id: string | null
+          created_at: string
+          document_id: string
+          id: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          assigned_category_id?: string | null
+          created_at?: string
+          document_id: string
+          id?: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          assigned_category_id?: string | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          idempotency_key?: string
+          matter_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_supporting_category_decision_assigned_category_id_fkey"
+            columns: ["assigned_category_id"]
+            isOneToOne: false
+            referencedRelation: "supporting_file_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_decisions_idempotency_key_fkey"
+            columns: ["idempotency_key"]
+            isOneToOne: false
+            referencedRelation: "document_supporting_category_command_receipts"
+            referencedColumns: ["idempotency_key"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_decisions_org_document_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_decisions_org_matter_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       document_upload_command_receipts: {
         Row: {
           code: string
@@ -2864,6 +3198,8 @@ export type Database = {
           status: Database["public"]["Enums"]["doc_status"]
           storage_path: string | null
           summary: string | null
+          supporting_category_id: string | null
+          supporting_category_revision: number
           trashed_at: string | null
           trashed_by: string | null
           trashed_reason: string | null
@@ -2914,6 +3250,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null
           summary?: string | null
+          supporting_category_id?: string | null
+          supporting_category_revision?: number
           trashed_at?: string | null
           trashed_by?: string | null
           trashed_reason?: string | null
@@ -2964,6 +3302,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["doc_status"]
           storage_path?: string | null
           summary?: string | null
+          supporting_category_id?: string | null
+          supporting_category_revision?: number
           trashed_at?: string | null
           trashed_by?: string | null
           trashed_reason?: string | null
@@ -3009,6 +3349,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_supporting_category_id_fkey"
+            columns: ["supporting_category_id"]
+            isOneToOne: false
+            referencedRelation: "supporting_file_categories"
             referencedColumns: ["id"]
           },
         ]
@@ -7240,6 +7587,60 @@ export type Database = {
           },
         ]
       }
+      supporting_category_command_receipts: {
+        Row: {
+          actor_user_id: string
+          category_id: string
+          command: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          category_id: string
+          command: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          category_id?: string
+          command?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_code?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supporting_category_command_receipts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "supporting_file_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supporting_category_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supporting_doc_links: {
         Row: {
           created_at: string
@@ -7344,6 +7745,50 @@ export type Database = {
           },
           {
             foreignKeyName: "supporting_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supporting_file_categories: {
+        Row: {
+          category_key: string
+          category_version: number
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          lifecycle: string
+          org_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          category_key: string
+          category_version: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          lifecycle: string
+          org_id?: string | null
+          sort_order: number
+        }
+        Update: {
+          category_key?: string
+          category_version?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          lifecycle?: string
+          org_id?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supporting_file_categories_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
@@ -8952,6 +9397,24 @@ export type Database = {
           code: string
         }[]
       }
+      activate_document_evidence_association: {
+        Args: {
+          p_association_kind: Database["public"]["Enums"]["document_evidence_association_kind"]
+          p_concise_note: string
+          p_expected_proc_revision: number
+          p_expected_supp_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_proceeding_document_id: string
+          p_supporting_document_id: string
+        }
+        Returns: {
+          association_id: string
+          code: string
+          replayed: boolean
+          revision: number
+        }[]
+      }
       activate_document_relationship: {
         Args: {
           p_expected_source_revision: number
@@ -9078,6 +9541,20 @@ export type Database = {
           activity_event_id: string
           outbox_event_id: string
           replayed: boolean
+        }[]
+      }
+      archive_document_evidence_association: {
+        Args: {
+          p_association_id: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          replayed: boolean
+          revision: number
         }[]
       }
       archive_document_relationship: {
@@ -9262,6 +9739,20 @@ export type Database = {
           code: string
           completion_code: string
           intake_item_id: string
+        }[]
+      }
+      change_document_supporting_category: {
+        Args: {
+          p_document_id: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_matter_id: string
+          p_new_category_id: string
+        }
+        Returns: {
+          code: string
+          replayed: boolean
+          revision: number
         }[]
       }
       claim_document_asset_storage_deletion_work: {
@@ -10123,6 +10614,28 @@ export type Database = {
           sim_score: number
         }[]
       }
+      get_active_evidence_associations: {
+        Args: { p_document_id: string; p_matter_id: string; p_org_id: string }
+        Returns: {
+          concise_note: string
+          created_at: string
+          created_by: string
+          id: string
+          kind: Database["public"]["Enums"]["document_evidence_association_kind"]
+          proceeding_document_id: string
+          revision: number
+          supporting_document_id: string
+        }[]
+      }
+      get_active_supporting_categories: {
+        Args: { p_org_id: string }
+        Returns: {
+          category_key: string
+          id: string
+          label: string
+          sort_order: number
+        }[]
+      }
       get_current_organisation_operational_timezone: {
         Args: never
         Returns: {
@@ -10208,6 +10721,16 @@ export type Database = {
           code: string
           existing_content_hashes: Json
           pages: Json
+        }[]
+      }
+      get_document_supporting_category: {
+        Args: { p_document_id: string }
+        Returns: {
+          category_key: string
+          id: string
+          label: string
+          lifecycle: string
+          sort_order: number
         }[]
       }
       get_document_upload_completion_receipt: {
@@ -12260,6 +12783,22 @@ export type Database = {
         Args: { p_legacy_staged_document_id: string; p_org_id: string }
         Returns: boolean
       }
+      supersede_supporting_file_category: {
+        Args: {
+          p_category_key: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_new_label: string
+          p_new_sort_order: number
+          p_org_id: string
+        }
+        Returns: {
+          category_id: string
+          code: string
+          replayed: boolean
+          revision: number
+        }[]
+      }
       task_comment_context_is_available: {
         Args: { p_org_id: string; p_task_id: string }
         Returns: boolean
@@ -12659,6 +13198,11 @@ export type Database = {
         | "corrected"
         | "rejected"
         | "cleared"
+      document_evidence_association_kind:
+        | "supports"
+        | "submitted_with"
+        | "attachment_to"
+        | "background"
       document_field_decision_action:
         | "accepted"
         | "corrected"
@@ -13232,6 +13776,12 @@ export const Constants = {
         "corrected",
         "rejected",
         "cleared",
+      ],
+      document_evidence_association_kind: [
+        "supports",
+        "submitted_with",
+        "attachment_to",
+        "background",
       ],
       document_field_decision_action: [
         "accepted",
