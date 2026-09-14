@@ -19,6 +19,7 @@ import type { MatterWorkspaceRouteState } from '@/lib/matters/workspace-route'
 import { buildMatterTimelineViewHref, matterTimelineGraphRequestKey } from '@/lib/matters/workspace-route'
 import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
 import { getExactMatter } from '@/lib/trash/exact-resource'
+import { readMatterManualDeadlineAgenda } from '@/lib/deadlines/workspace-read'
 import { CaseWikiTab } from './CaseWikiTab'
 import { MatterDetailsTab } from './MatterDetailsTab'
 import { MatterFilesSection } from './MatterFilesSection'
@@ -27,6 +28,7 @@ import { MatterTimelineChronology } from './MatterTimelineChronology'
 import { MatterTimelineAdaptiveGraph } from './MatterTimelineAdaptiveGraph'
 import { MatterTimelineInspector } from './MatterTimelineInspector'
 import { MatterUnavailableSection } from './MatterUnavailableSection'
+import { MatterDeadlineAgenda } from './MatterDeadlineAgenda'
 
 type ExactMatter = NonNullable<Awaited<ReturnType<typeof getExactMatter>>>
 
@@ -196,6 +198,14 @@ function DetailsSection({ exactMatter, canContribute, canCloseReopen }: ActiveSe
   return <MatterDetailsTab matter={matter} readOnly={readOnly} canCloseReopen={canCloseReopen} />
 }
 
+async function DeadlinesSection({ matterId, exactMatter }: ActiveSectionProps) {
+  if (exactMatter.state === 'trash') {
+    return <MatterUnavailableSection title="Deadlines are read only in Trash">Restore the Matter before changing its legal deadlines.</MatterUnavailableSection>
+  }
+  const agenda = await readMatterManualDeadlineAgenda(matterId)
+  return <MatterDeadlineAgenda matterId={matterId} agenda={agenda} />
+}
+
 type ActiveSectionProps = {
   matterId: string
   exactMatter: ExactMatter
@@ -216,11 +226,7 @@ export async function MatterActiveSection(props: ActiveSectionProps) {
     case 'notes':
       return <NotesSection {...props} />
     case 'deadlines':
-      return (
-        <MatterUnavailableSection title="Deadlines are not available in this release">
-          Use the owning Deadlines workspace for deadline review and attention states.
-        </MatterUnavailableSection>
-      )
+      return <DeadlinesSection {...props} />
     case 'financials':
       return (
         <MatterUnavailableSection title="Financials are not available in this release">

@@ -19,9 +19,10 @@ test('the route fetches the exact shell first and keeps section work under Suspe
   assert.doesNotMatch(boundarySource, /router\.refresh\(\)/)
 })
 
-test('active unavailable sections do not import or call canonical domain readers', () => {
+test('Deadlines loads only its bounded canonical agenda while other unavailable sections stay explicit', () => {
   assert.doesNotMatch(activeSectionSource, /getDeadlineAttention|activity_logs|financial[_A-Za-z]*\(/)
-  assert.match(activeSectionSource, /Deadlines are not available in this release/)
+  assert.match(activeSectionSource, /readMatterManualDeadlineAgenda\(matterId\)/)
+  assert.match(activeSectionSource, /Deadlines are read only in Trash/)
   assert.match(activeSectionSource, /Financials are not available in this release/)
   assert.match(activeSectionSource, /Activity is not available in this release/)
 })

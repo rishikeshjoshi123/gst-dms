@@ -1,0 +1,25 @@
+import { expect, test, type Page } from '@playwright/test'
+import { spawnSync } from 'node:child_process'
+import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+const matter='d0010000-0000-0000-0000-000000000001'
+function db(sql:string){const workdir=process.env.DEADLINE_ACCEPTANCE_WORKDIR;if(!workdir||!readFileSync(join(workdir,'supabase/config.toml'),'utf8').includes('project_id = "dms-deadlines-159"'))throw new Error('Requires exclusively owned deadline acceptance project');const r=spawnSync('docker',['exec','-i','supabase_db_dms-deadlines-159','psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:sql,encoding:'utf8'});if(r.status!==0)throw new Error(r.stderr);return r.stdout.trim()}
+async function login(page:Page,role='owner'){await page.goto('/login');await page.getByLabel('Email address').fill(`${role}@acceptance.test`);await page.getByLabel('Password').fill('CaseChain-local-only-2026!');await page.getByRole('button',{name:'Sign in'}).click();await expect(page).toHaveURL(/\/dashboard$/)}
+async function noOverflow(page:Page){await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)}
+test.describe.configure({mode:'serial'})
+test('320px keyboard journey creates a missed deadline, amends it, satisfies it and preserves history',async({page})=>{
+ await page.setViewportSize({width:320,height:800});await login(page);await page.evaluate(()=>localStorage.setItem('theme','dark'));await page.goto(`/matters/${matter}?section=deadlines`)
+ await expect(page.locator('p:visible',{hasText:'Verified manual agenda'})).toBeVisible();await noOverflow(page)
+ const add=page.getByRole('button',{name:'Add deadline'}).first();await add.focus();await page.keyboard.press('Enter');await expect(page.getByRole('dialog',{name:'Add legal deadline'})).toBeVisible();await page.keyboard.press('Escape');await expect(add).toBeFocused();await add.click()
+ const yesterday=db("SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Kolkata')::date-1)::text"),later=db("SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Kolkata')::date+8)::text")
+ await page.getByLabel('Concise title').fill('File tribunal reply');await page.getByLabel('Obligation').fill('File the signed response with the tribunal registry');await page.getByLabel('Legal deadline type').selectOption('reply_due');await page.getByLabel('Due date').fill(yesterday);await page.getByLabel('Manual basis').fill('Tribunal direction checked by the matter team');await page.getByRole('button',{name:'Add deadline',exact:true}).last().click()
+ await expect(page.locator('span:visible').filter({hasText:/^Missed$/}).first()).toBeVisible();await noOverflow(page)
+ await page.getByRole('button',{name:/File tribunal reply/}).click();await page.getByRole('button',{name:'Amend deadline'}).click();await page.getByLabel('Concise title').fill('File amended tribunal reply');await page.getByLabel('Due date').fill(later);await page.getByLabel('Manual basis').fill('Registry extension checked by the matter team');await page.getByLabel('Reason for amendment').fill('Registry granted a written extension');await page.getByRole('button',{name:'Amend deadline',exact:true}).last().click()
+ await expect(page.locator('span:visible').filter({hasText:/^Upcoming$/}).first()).toBeVisible();await page.getByRole('button',{name:'Mark satisfied'}).click();await page.getByLabel('Outcome note (optional)').fill('Filed and acknowledged by the registry');await page.getByRole('button',{name:'Mark satisfied',exact:true}).last().click()
+ await expect(page.locator('span:visible').filter({hasText:/^Satisfied$/}).first()).toBeVisible();await expect(page.locator('p:visible').filter({hasText:/^Deadline created$/})).toBeVisible();await expect(page.locator('p:visible').filter({hasText:/^Deadline amended$/})).toBeVisible();await expect(page.locator('p:visible').filter({hasText:/^Marked satisfied$/})).toBeVisible();await noOverflow(page)
+ await page.setViewportSize({width:1470,height:900});await page.reload();await expect(page.getByRole('table',{name:'Verified manual legal deadlines'})).toBeVisible();await expect(page.getByRole('row',{name:/File amended tribunal reply/})).toContainText('Satisfied');await noOverflow(page)
+})
+test('desktop table, dark appearance and Viewer denial remain truthful',async({page})=>{
+ await page.setViewportSize({width:1470,height:900});await login(page,'viewer');await page.evaluate(()=>localStorage.setItem('theme','dark'));await page.goto(`/matters/${matter}?section=deadlines`)
+ await expect(page.getByRole('table',{name:'Verified manual legal deadlines'})).toBeVisible();await expect(page.getByText('Read only',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Add deadline'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Amend deadline'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Mark satisfied'})).toHaveCount(0);await expect(page.locator('html')).toHaveClass(/dark/);await noOverflow(page)
+})

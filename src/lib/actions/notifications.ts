@@ -291,13 +291,14 @@ export async function getDeadlineAttention(limit = 5): Promise<DeadlineAttention
       due_date,
       type,
       description,
-      matters (
+      matters!deadlines_matter_id_fkey (
         title,
         clients ( name )
       )
     `)
     .in('matter_id', matterIds)
     .eq('is_resolved', false)
+    .eq('verification_state', 'verified')
     .order('due_date', { ascending: true })
     .limit(boundedLimit)
 

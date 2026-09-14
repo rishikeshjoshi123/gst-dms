@@ -753,48 +753,228 @@ export type Database = {
           },
         ]
       }
+      deadline_command_receipts: {
+        Row: {
+          actor_user_id: string
+          command: string
+          created_at: string
+          deadline_id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          command: string
+          created_at?: string
+          deadline_id: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          command?: string
+          created_at?: string
+          deadline_id?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadline_command_receipts_org_id_deadline_id_fkey"
+            columns: ["org_id", "deadline_id"]
+            isOneToOne: false
+            referencedRelation: "deadlines"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_command_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deadline_outcomes: {
+        Row: {
+          actor_user_id: string
+          deadline_id: string
+          id: string
+          org_id: string
+          outcome: string
+          reason: string | null
+          recorded_at: string
+          revision: number
+        }
+        Insert: {
+          actor_user_id: string
+          deadline_id: string
+          id?: string
+          org_id: string
+          outcome: string
+          reason?: string | null
+          recorded_at?: string
+          revision: number
+        }
+        Update: {
+          actor_user_id?: string
+          deadline_id?: string
+          id?: string
+          org_id?: string
+          outcome?: string
+          reason?: string | null
+          recorded_at?: string
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadline_outcomes_deadline_id_fkey"
+            columns: ["deadline_id"]
+            isOneToOne: true
+            referencedRelation: "deadlines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deadline_outcomes_org_id_deadline_id_fkey"
+            columns: ["org_id", "deadline_id"]
+            isOneToOne: false
+            referencedRelation: "deadlines"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      deadline_versions: {
+        Row: {
+          actor_user_id: string
+          amendment_reason: string | null
+          created_at: string
+          deadline_id: string
+          due_date: string
+          legal_type: string
+          manual_basis: string
+          obligation: string
+          org_id: string
+          revision: number
+          title: string
+        }
+        Insert: {
+          actor_user_id: string
+          amendment_reason?: string | null
+          created_at?: string
+          deadline_id: string
+          due_date: string
+          legal_type: string
+          manual_basis: string
+          obligation: string
+          org_id: string
+          revision: number
+          title: string
+        }
+        Update: {
+          actor_user_id?: string
+          amendment_reason?: string | null
+          created_at?: string
+          deadline_id?: string
+          due_date?: string
+          legal_type?: string
+          manual_basis?: string
+          obligation?: string
+          org_id?: string
+          revision?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadline_versions_deadline_id_fkey"
+            columns: ["deadline_id"]
+            isOneToOne: false
+            referencedRelation: "deadlines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deadline_versions_org_id_deadline_id_fkey"
+            columns: ["org_id", "deadline_id"]
+            isOneToOne: false
+            referencedRelation: "deadlines"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       deadlines: {
         Row: {
           created_at: string
+          created_by: string | null
+          current_revision: number
           description: string | null
           document_id: string | null
           due_date: string
           id: string
           is_resolved: boolean
+          legal_type: string
+          lifecycle: string
           matter_id: string
+          org_id: string
+          origin: string
           reminder_sent_30d: boolean
           reminder_sent_7d: boolean
           resolved_at: string | null
           resolved_by: string | null
+          title: string
           type: Database["public"]["Enums"]["deadline_type"]
+          updated_at: string
+          verification_state: string
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
+          current_revision: number
           description?: string | null
           document_id?: string | null
           due_date: string
           id?: string
           is_resolved?: boolean
+          legal_type: string
+          lifecycle: string
           matter_id: string
+          org_id: string
+          origin: string
           reminder_sent_30d?: boolean
           reminder_sent_7d?: boolean
           resolved_at?: string | null
           resolved_by?: string | null
+          title: string
           type: Database["public"]["Enums"]["deadline_type"]
+          updated_at?: string
+          verification_state: string
         }
         Update: {
           created_at?: string
+          created_by?: string | null
+          current_revision?: number
           description?: string | null
           document_id?: string | null
           due_date?: string
           id?: string
           is_resolved?: boolean
+          legal_type?: string
+          lifecycle?: string
           matter_id?: string
+          org_id?: string
+          origin?: string
           reminder_sent_30d?: boolean
           reminder_sent_7d?: boolean
           resolved_at?: string | null
           resolved_by?: string | null
+          title?: string
           type?: Database["public"]["Enums"]["deadline_type"]
+          updated_at?: string
+          verification_state?: string
         }
         Relationships: [
           {
@@ -810,6 +990,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "matters"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deadlines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deadlines_org_matter_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -9542,6 +9736,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      amend_manual_legal_deadline: {
+        Args: {
+          p_deadline_id: string
+          p_due_date: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_legal_type: string
+          p_manual_basis: string
+          p_obligation: string
+          p_reason: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          deadline_id: string
+          replayed: boolean
+          revision: number
+        }[]
+      }
       append_activity_event: {
         Args: {
           p_actor_id: string
@@ -10094,6 +10307,23 @@ export type Database = {
           revision: number | null
         }[]
       }
+      create_manual_legal_deadline: {
+        Args: {
+          p_due_date: string
+          p_idempotency_key: string
+          p_legal_type: string
+          p_manual_basis: string
+          p_matter_id: string
+          p_obligation: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          deadline_id: string
+          replayed: boolean
+          revision: number
+        }[]
+      }
       create_matter_command:
         | {
             Args: {
@@ -10225,6 +10455,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      deadline_actor_for_matter: {
+        Args: { p_matter_id: string; p_mutation: boolean }
+        Returns: {
+          actor_user_id: string
+          can_mutate: boolean
+          client_id: string
+          org_id: string
+          timezone: string
+        }[]
+      }
+      deadline_fingerprint: { Args: { p_payload: Json }; Returns: string }
       discard_intake_item: {
         Args: { p_idempotency: string; p_intake_id: string }
         Returns: {
@@ -12170,6 +12411,15 @@ export type Database = {
           source_revision: string | null
         }[]
       }
+      read_matter_manual_legal_deadline_agenda: {
+        Args: { p_limit?: number; p_matter_id: string }
+        Returns: {
+          as_of_date: string
+          can_mutate: boolean
+          items: Json
+          timezone: string
+        }[]
+      }
       read_matter_relationship_authoring_context: {
         Args: { p_matter_id: string }
         Returns: {
@@ -12298,6 +12548,21 @@ export type Database = {
         Args: { p_observed_bytes: number; p_session: string }
         Returns: {
           code: string
+        }[]
+      }
+      record_manual_legal_deadline_outcome: {
+        Args: {
+          p_deadline_id: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_outcome: string
+          p_reason: string
+        }
+        Returns: {
+          code: string
+          deadline_id: string
+          replayed: boolean
+          revision: number
         }[]
       }
       record_organisation_invite_delivery: {
