@@ -19,6 +19,18 @@ test('invitation actions use bounded normalized input and caller-retained retry 
   assert.doesNotMatch(actions,/get_organisation_invites'\)/)
 })
 
+test('ambiguous create and resend replays expose only a refresh and Resend repair path',()=>{
+  const replayBranches=actions.match(/if \(result\.code === 'already_processed'\) \{[\s\S]*?\n  \}/g) ?? []
+  assert.equal(replayBranches.length,2)
+  for(const branch of replayBranches){
+    assert.match(branch,/revalidatePath\('\/team'\)/)
+    assert.match(branch,/already processed\. Refresh Team and use the visible Resend action if delivery is not confirmed\./)
+    assert.match(branch,/return \{ error:/)
+    assert.doesNotMatch(branch,/success:/)
+    assert.doesNotMatch(branch,/sendOrgInviteEmail|record_organisation_invite_delivery/)
+  }
+})
+
 test('database commands derive exact active tenant and serialize rate decisions',()=>{
   assert.match(migration,/current_active_tenant_membership\(\)/g)
   assert.match(migration,/pg_advisory_xact_lock/g)

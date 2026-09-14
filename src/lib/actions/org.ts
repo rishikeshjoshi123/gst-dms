@@ -109,7 +109,10 @@ export async function inviteMember(formData: FormData) {
   const { data, error } = await supabase.rpc('create_organisation_invite', { p_email: email, p_role: role as 'admin' | 'associate' | 'viewer', p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: parsedIdempotency.data })
   const result = data?.[0]
   if (error || !result || !['created', 'already_processed'].includes(result.code)) return { error: invitationError(result?.code) }
-  if (result.code === 'already_processed') return { success: true, replayed: true }
+  if (result.code === 'already_processed') {
+    revalidatePath('/team')
+    return { error: 'This invitation request was already processed. Refresh Team and use the visible Resend action if delivery is not confirmed.' }
+  }
   const delivery = await sendOrgInviteEmail({ to: email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
   const { data: deliveryRows, error: deliveryRecordError } = await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
   const deliveryRecordCode=deliveryRows?.[0]?.code
@@ -202,7 +205,10 @@ export async function resendInvite(inviteId: string, expectedRevision: number, i
   const { data } = await supabase.rpc('resend_organisation_invite', { p_invite_id: inviteId, p_expected_revision: expectedRevision, p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: idempotencyKey })
   const result = data?.[0]
   if (!result || !['created', 'already_processed'].includes(result.code)) return { error: invitationError(result?.code) }
-  if (result.code === 'already_processed') return { success: true, replayed: true }
+  if (result.code === 'already_processed') {
+    revalidatePath('/team')
+    return { error: 'This resend request was already processed. Refresh Team and use the visible Resend action if delivery is not confirmed.' }
+  }
   const delivery = await sendOrgInviteEmail({ to: previous.authorized_email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
   const { data: deliveryRows, error: deliveryRecordError } = await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
   const deliveryRecordCode=deliveryRows?.[0]?.code

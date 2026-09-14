@@ -33,3 +33,8 @@ test('Team workspace has an accessible list/detail selection and ownership contr
   assert.match(source, /custom-scrollbar/)
   assert.match(source, /break-all/)
 })
+
+test('invitation action errors never emit success toasts',()=>{
+  assert.match(source,/if \(result\.error\) \{ setError\(result\.error\); return \}\s+toast\.success\('Invitation sent\.'\)/)
+  assert.match(source,/if\(result\.error\) toast\.error\(result\.error\)\s+else toast\.success\('Invitation resent with a new seven-day expiry\.'\)/)
+})
