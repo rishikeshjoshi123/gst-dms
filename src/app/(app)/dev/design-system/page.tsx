@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TrashReadOnlyStrip } from '@/components/trash/TrashReadOnlyStrip'
 import { SwitchSpecimen } from './SwitchSpecimen'
+import { DecisionDialogSpecimen } from './DecisionDialogSpecimen'
 
 export const metadata = { title: 'Civic Ink Design System' }
 
@@ -124,6 +125,12 @@ export default function DesignSystemPage() {
           </button>
         </div>
         <p className="mt-3 text-xs text-[var(--text-muted)]">No operational entry delay. Reduced motion removes spatial movement, and realtime rows never animate position.</p>
+      </section>
+
+      <section className="border-t border-[var(--border)] py-6">
+        <h2 className="text-base font-semibold">Decision confirmation</h2>
+        <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">Confirmations use the shared semantic scrim and present the selected outcome, concrete consequences, supporting authority, and one clear confirmation action in that order.</p>
+        <div className="mt-4"><DecisionDialogSpecimen /></div>
       </section>
 
       <section className="border-t border-[var(--border)] py-6">

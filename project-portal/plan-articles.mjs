@@ -1,6 +1,26 @@
 // Human-edited public articles. The canonical technical contracts continue to
 // live in docs/plans; this layer explains their intent to a broader audience.
 export const planArticles = {
+  'docs/plans/operations/2026-09-12-concept-review-index.md': {
+    deck: 'The concept index gives product review one dependable starting point instead of a collection of development URLs that are easy to forget.',
+    intro: 'CaseChain uses fixture-only concept pages to settle important workflows before live implementation. This plan brings those pages together in a clear sequence and makes future additions discoverable by default.',
+    flowCaption: 'A coherent concept-review journey',
+    flow: ['Open one catalogue', 'Follow the product sequence', 'Review each focused concept'],
+    sections: [
+      { heading: 'One place to begin', paragraphs: [
+        'The unauthenticated developer route lists every product concept with a concise purpose and a specific review focus. It is deliberately separate from production navigation, live data and the design-system gallery. A reviewer can open it directly without knowing individual route names or signing into the application.',
+        'The catalogue groups concepts in a useful order: organisation and access first, then documents and matters, work and decisions, and finally retention and deletion. This sequence helps a reviewer understand how later workflows depend on earlier product structure.',
+      ]},
+      { heading: 'Useful context without duplicating the concepts', paragraphs: [
+        'Each entry explains what the page is proposing and which aspects deserve attention, such as information hierarchy, decision safeguards, source viewing or responsive behavior. The index does not copy the interface, claim that a feature is complete or become a second approval ledger.',
+        'The Civic Ink design-system gallery remains available as a supporting reference. It explains shared tokens and components, while each concept remains responsible for presenting a coherent user workflow.',
+      ]},
+      { heading: 'Keep future work discoverable', paragraphs: [
+        'Concept metadata lives in one typed, intentionally ordered registry. An automated parity test compares that registry with every development route whose directory ends in “-concept”. Adding a new concept without adding it to the catalogue therefore fails verification instead of silently creating another hidden page.',
+        'Descriptions and ordering change when the underlying product scope changes. The result is a stable front door for ongoing product review, not a manually maintained list that gradually becomes incomplete.',
+      ]},
+    ],
+  },
   'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md': {
     deck: 'The workflow makes regular product discussions useful without turning project documentation into a growing collection of competing instructions.',
     intro: 'CaseChain already has plans, implementation records and a decision queue. This approach connects those sources so an idea can become a clear product decision, with an honest account of the work it adds or changes.',

@@ -13,7 +13,7 @@ function DialogOverlay({ className, ...props }: React.ComponentPropsWithoutRef<t
   return (
     <DialogPrimitive.Overlay
       className={cn(
-        'fixed inset-0 z-50 bg-[var(--scrim,rgba(11,18,29,0.6))] backdrop-blur-sm',
+        'fixed inset-0 z-50 bg-[var(--scrim,rgba(11,18,29,0.6))]',
         'data-[state=open]:animate-scale-in data-[state=closed]:opacity-0',
           'transition-all duration-[var(--duration-base)]',
         className

@@ -1,6 +1,12 @@
 // Public-reader summaries. These are intentionally separate from docs/plans,
 // which remain the canonical, technical decision record.
 export const plainLanguagePlans = {
+  'docs/plans/operations/2026-09-12-concept-review-index.md': {
+    overview: 'A single developer index presents every CaseChain concept page in a deliberate review order with a short explanation of what to examine.',
+    why: 'Reviewers should not need to remember private development URLs or guess how separate concepts fit together.',
+    outcomes: ['One unauthenticated catalogue for all product concepts.', 'A logical journey from organisation setup through retention.', 'An automated check that prevents future concepts from being omitted.'],
+    steps: ['Open the concept index', 'Review each product phase', 'Add every future concept in the same change'],
+  },
   'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md': {
     overview: 'A discussion workflow connects new ideas to existing plans, working features and the changes still needed.',
     why: 'Product discussions should improve the application without creating conflicting plans or hidden rework.',

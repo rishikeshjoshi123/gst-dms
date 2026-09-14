@@ -8,6 +8,15 @@ import type { Database } from './lib/supabase/database.types'
  * Must run on every request that touches auth state.
  */
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Local fixture and design-system pages never read production data. Keep the
+  // entire developer-review namespace independent of Supabase session state so
+  // new concepts do not need to be added to an authentication allowlist.
+  if (pathname === '/dev' || pathname.startsWith('/dev/')) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -42,8 +51,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
   // Public routes that don't require auth
   const publicRoutes = [
     '/login',
@@ -51,14 +58,6 @@ export async function proxy(request: NextRequest) {
     '/auth/callback',
     '/api/invites/accept',
     '/contact',
-    // Static, non-production-data concept route used for in-app design review.
-    '/dev/matter-workspace-concept',
-    '/dev/trash-workspace-concept',
-    '/dev/trash-retention-settings-concept',
-    '/dev/trash-permanent-delete-concept',
-    '/dev/tasks-workspace-concept',
-    '/dev/document-hub-workbench-concept',
-    '/dev/organisation-departure-team-concept',
   ]
   const isPublicRoute = pathname === '/' || publicRoutes.some((route) => route === '/api/invites/accept' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
 

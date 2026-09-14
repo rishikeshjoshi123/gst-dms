@@ -17,6 +17,7 @@ export const planVisualReferences = {
   ],
   'docs/plans/features/2026-08-25-work-review-activity-notifications.md': [
     { afterHeading: 'Tasks', specimenId: 'task-comments-layout' },
+    { afterHeading: 'Workspace interaction contracts', specimenId: 'review-workspace-layout' },
   ],
   'docs/plans/features/2026-08-25-document-hub-ingestion-and-workbench.md': [
     { afterHeading: 'Document Hub experience', specimenId: 'document-hub-layout' },
@@ -49,6 +50,7 @@ export const portalReadingOrder = [
   'docs/plans/operations/2026-08-27-project-portal-and-github-pages.md',
   'docs/plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md',
   'docs/plans/operations/2026-09-08-agent-delivery-workflow.md',
+  'docs/plans/operations/2026-09-12-concept-review-index.md',
   'docs/plans/operations/2026-09-10-product-discussions-and-plan-evolution.md',
   'docs/plans/features/2026-09-03-interactive-demo-workspace.md',
 ];
