@@ -16,7 +16,7 @@ BEGIN
     RAISE EXCEPTION 'rollback human authority probe';
   EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'rollback human authority probe' THEN RAISE; END IF; END;
   SELECT * INTO result FROM public.read_review_queue('needs_review','all','all','',1,1);
-  IF result.total_count<>6 OR jsonb_array_length(result.items)<>1 OR NOT result.can_resolve THEN RAISE EXCEPTION 'Queue pagination/count/authority failed'; END IF;
+  IF result.total_count<>8 OR jsonb_array_length(result.items)<>1 OR NOT result.can_resolve THEN RAISE EXCEPTION 'Queue pagination/count/authority failed'; END IF;
   IF EXISTS(SELECT 1 FROM public.document_effective_metadata WHERE document_id IN('153e0000-0000-0000-0000-000000000001','153e0000-0000-0000-0000-000000000002') AND resolution='automatic') THEN RAISE EXCEPTION 'Unresolved conflict leaked an automatic effective value'; END IF;
   IF (SELECT total_count FROM public.read_review_queue('closed'))<>0 OR (SELECT total_count FROM public.read_review_queue('all','all','all','Review source 1'))<>1 THEN RAISE EXCEPTION 'Queue filtering failed'; END IF;
   IF EXISTS(SELECT 1 FROM public.read_review_queue('bogus')) OR EXISTS(SELECT 1 FROM public.read_review_queue('all','all','all','',0,25)) THEN RAISE EXCEPTION 'Invalid filters accepted'; END IF;

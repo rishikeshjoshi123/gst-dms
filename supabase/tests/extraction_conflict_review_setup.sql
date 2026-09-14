@@ -21,7 +21,7 @@ BEGIN
   UPDATE public.organisation_memberships membership SET state='suspended',suspended_at=now(),suspended_by=actor,suspension_reason='Fixture suspension' WHERE membership.user_id='153a0000-0000-0000-0000-000000000006';
   INSERT INTO public.clients(id,org_id,name) VALUES(client,org,'Review client');
   INSERT INTO public.matters(id,org_id,client_id,title,matter_code) VALUES(matter,org,client,'Review proceeding','REVIEW-153');
-  FOR i IN 1..8 LOOP
+  FOR i IN 1..9 LOOP
     doc:=('153e0000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid;
     asset:=('153f0000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid;
     version:=('15300000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid;
@@ -32,7 +32,7 @@ BEGIN
     INSERT INTO public.document_versions(id,org_id,document_id,asset_id,version_number,original_filename,page_count,validation_state,state,validated_at,promoted_at,created_by)
       VALUES(version,org,doc,asset,1,'review-'||i||'.pdf',CASE WHEN i=1 THEN 4 ELSE 2 END,'valid','current',now(),now(),actor);
     UPDATE public.documents SET current_version_id=version WHERE id=doc;
-    FOR j IN 1..CASE WHEN i<=2 OR i>=7 THEN 2 ELSE 1 END LOOP
+    FOR j IN 1..CASE WHEN i<=2 OR i IN (7,8) THEN 2 ELSE 1 END LOOP
       processing:=gen_random_uuid(); run:=gen_random_uuid(); lease:=gen_random_uuid(); source_lease:=gen_random_uuid();
       INSERT INTO public.document_processing_runs(id,org_id,document_id,document_version_id,scope,idempotency_key,state,stage,started_at,lease_token,lease_expires_at,heartbeat_at)
         VALUES(processing,org,doc,version,'full','fixture.review.'||processing,'running','extracting',now(),lease,now()+interval '10 minutes',now());
@@ -46,17 +46,17 @@ BEGIN
       INSERT INTO public.document_page_text_pages(org_id,artifact_id,page_number,page_text,ocr_words,table_cells,page_content_hash,acquisition_method,quality_policy_version,quality_reasons,detected_languages)
         SELECT org,id,n,'SCN and OIO source observations. Tax period JAN 2020'||CASE WHEN i=6 THEN repeat(' supporting-source-observation',15) ELSE '' END,'[]','[]',repeat('a',64),'native_pdf','native-pdf-quality-v1','{}','{}' FROM public.document_page_text_artifacts CROSS JOIN generate_series(1,CASE WHEN i=1 THEN 4 ELSE 2 END) n WHERE source_analysis_run_id=run ON CONFLICT DO NOTHING;
       state:=CASE WHEN i IN(3,6) THEN 'conflicting' WHEN i=4 THEN 'provisional' ELSE 'eligible' END;
-      review_required:=j=2 OR i IN(3,4,5,6); outcome:=CASE WHEN i=5 THEN 'invalid_model_output' ELSE 'validated' END;
+      review_required:=j=2 OR i IN(3,4,5,6,9); outcome:=CASE WHEN i=5 THEN 'invalid_model_output' WHEN i=9 THEN 'provider_failed' ELSE 'validated' END;
       candidate:=jsonb_build_array(jsonb_build_object('semantic_candidate_key','document.type','field_path','document.type','value_type','code','normalized_value',CASE WHEN j=1 THEN 'SCN' ELSE 'OIO' END,'page_number',j,'quotation',CASE WHEN j=1 THEN 'SCN' ELSE 'OIO' END,'evidence_regions',NULL,'confidence',0.99,'validation_state',state,'validation_error_codes',NULL,'verified_source_anchor',NULL));
       IF i=6 THEN candidate:=jsonb_build_array(jsonb_build_object('semantic_candidate_key','tax_period:fixture','field_path','document.tax_period','value_type','structured',
         'normalized_value','{"kind":"month","raw":"JAN 2020","display":"January 2020","precision":"month","segments":[{"kind":"month","month":"2020-01","quarter":null,"financial_year":null,"start_date":null,"end_date":null}],"financial_years":["2019-20"],"printed_financial_years":["2020-21"],"derived_financial_years":["2019-20"],"conflict":true,"catalogue_version":"gst-legal-material-observation-catalogue-v3","normalizer_version":"typed-material-observation-normalizer-v3"}'::jsonb,
         'page_number',1,'quotation','Tax period JAN 2020'||repeat(' supporting-source-observation',15),'evidence_regions',NULL,'confidence',0.99,'validation_state','conflicting','validation_error_codes',NULL,'verified_source_anchor',jsonb_build_object('char_start',33,'char_end',52+length(repeat(' supporting-source-observation',15)),'token_start',NULL,'token_end',NULL,'table_cell',NULL))); END IF;
-      SELECT * INTO finished FROM public.finish_document_processing_ai_extraction(processing,lease,run,source_lease,outcome,1,1,1,CASE WHEN i=5 THEN '[]'::jsonb ELSE candidate END,review_required,jsonb_build_object('doc_type','SCN','reference_number',NULL,'doc_date',NULL,'direction',NULL,'issued_by',NULL,'financial_years','[]'::jsonb,'summary','Fixture','prompt_version','v4.0'));
-      IF i<>5 AND finished.binding_id IS NULL THEN RAISE EXCEPTION 'Validated fixture did not materialize: %',finished.code; END IF;
-      IF j=1 AND (i<=2 OR i>=7) AND EXISTS(SELECT 1 FROM public.review_items WHERE document_id=doc) THEN RAISE EXCEPTION 'Clean output created Review'; END IF;
-      IF j=1 AND (i<=2 OR i>=7) AND NOT EXISTS(SELECT 1 FROM public.document_effective_metadata WHERE document_id=doc AND resolution='automatic') THEN RAISE EXCEPTION 'Clean automatic metadata was suppressed'; END IF;
+      SELECT * INTO finished FROM public.finish_document_processing_ai_extraction(processing,lease,run,source_lease,outcome,1,1,1,CASE WHEN i IN (5,9) THEN '[]'::jsonb ELSE candidate END,review_required,jsonb_build_object('doc_type','SCN','reference_number',NULL,'doc_date',NULL,'direction',NULL,'issued_by',NULL,'financial_years','[]'::jsonb,'summary','Fixture','prompt_version','v4.0'));
+      IF i NOT IN (5,9) AND finished.binding_id IS NULL THEN RAISE EXCEPTION 'Validated fixture did not materialize: %',finished.code; END IF;
+      IF j=1 AND (i<=2 OR i IN (7,8)) AND EXISTS(SELECT 1 FROM public.review_items WHERE document_id=doc) THEN RAISE EXCEPTION 'Clean output created Review'; END IF;
+      IF j=1 AND (i<=2 OR i IN (7,8)) AND NOT EXISTS(SELECT 1 FROM public.document_effective_metadata WHERE document_id=doc AND resolution='automatic') THEN RAISE EXCEPTION 'Clean automatic metadata was suppressed'; END IF;
       UPDATE public.document_processing_runs p SET state='completed',stage='ready',completed_at=now(),lease_token=NULL,lease_expires_at=NULL WHERE p.id=processing AND p.state='running';
     END LOOP;
   END LOOP;
-  IF (SELECT count(*) FROM public.review_items WHERE org_id=org)<>6 THEN RAISE EXCEPTION 'Expected four selectable conflicts and two clarification-only items'; END IF;
+  IF (SELECT count(*) FROM public.review_items WHERE org_id=org)<>8 THEN RAISE EXCEPTION 'Expected six extraction conflicts and two processing recovery items'; END IF;
 END $fixture$;

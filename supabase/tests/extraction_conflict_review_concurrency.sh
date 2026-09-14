@@ -38,3 +38,19 @@ wait "$first_pid"; wait "$second_pid"
 [[ "$(db_psql -c "SELECT status::text||':'||closure_reason::text FROM public.review_items WHERE id='$item';")" == 'closed:source_replaced' ]]
 [[ "$(db_psql -c "SELECT count(*) FROM public.document_field_decisions WHERE document_id='153e0000-0000-0000-0000-000000000003';")" == '0' ]]
 echo 'Concurrent source replacement left the old Review closed without field decisions.'
+
+# The recovery resolver has its own typed payload but shares the same serialized
+# Review/document boundary: exactly one actor may materialize manual facts.
+item=$(db_psql -c "SELECT id FROM public.review_items WHERE document_id='153e0000-0000-0000-0000-000000000009' AND type='processing_recovery';")
+metadata='{"doc_type":"OIO","reference_number":"OIO/CONCURRENT/9","document_date":"2026-09-15","direction":"incoming","issued_by":"GST Authority"}'
+recover() {
+  db_psql -c "BEGIN; SET LOCAL statement_timeout='10s'; SET LOCAL ROLE authenticated; SET LOCAL \"request.jwt.claim.sub\"='$1'; SELECT code FROM public.resolve_processing_recovery('$item',1,'continue_manual','$metadata','Concurrent manual verification','$2'); COMMIT;" > "$3"
+}
+recover '153a0000-0000-0000-0000-000000000001' '15790000-0000-0000-0000-000000000011' "$result_dir/first" & first_pid=$!
+recover '153a0000-0000-0000-0000-000000000003' '15790000-0000-0000-0000-000000000012' "$result_dir/second" & second_pid=$!
+wait "$first_pid"; wait "$second_pid"
+[[ "$(sort "$result_dir/first" "$result_dir/second" | tr '\n' ':')" == 'ok:stale:' ]]
+[[ "$(db_psql -c "SELECT count(*) FROM public.document_field_candidates WHERE manual_review_item_id='$item';")" == '5' ]]
+[[ "$(db_psql -c "SELECT count(*) FROM public.review_item_decisions WHERE review_item_id='$item';")" == '1' ]]
+[[ "$(db_psql -c "SELECT count(*) FROM public.activity_events WHERE correlation_id='$item';")" == '1' ]]
+echo 'Concurrent manual recovery produced one closed decision, five effective manual facts and one Activity event.'

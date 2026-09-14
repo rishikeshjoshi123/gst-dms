@@ -13,7 +13,7 @@ let createdProject = false
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, ...options })
   if (result.status !== 0 && args.includes('node_modules/@playwright/test/cli.js')) console.error(result.stdout)
-  if (result.error || result.status !== 0) throw new Error(`${command} failed: ${result.error?.message ?? result.stderr}`)
+  if (result.error || result.status !== 0) throw new Error(`${command} failed: ${result.error?.message ?? `${result.stderr}\n${result.stdout}`}`)
   return result.stdout
 }
 try {
@@ -55,14 +55,19 @@ port = 55327
     if (readFileSync(join(root, 'src/lib/supabase/database.types.ts'), 'utf8') !== generatedTypes) throw new Error('Isolated database type generation is not deterministic.')
     console.log('Regenerated and refined database types; repeated generation has exact parity.')
   }
-  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql']) {
+  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql']) {
     const output = run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests', file), 'utf8') })
     console.log(`${file}: ${output.trim()}`)
   }
   console.log(run('bash', ['supabase/tests/extraction_conflict_review_concurrency.sh'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   console.log(run(node, ['scripts/acceptance/review-finisher-concurrency.mjs'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
-  if (process.argv.includes('--browser')) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
-  if (process.argv.includes('--browser')) console.log(run(node, ['node_modules/@playwright/test/cli.js', 'test', '--config', 'playwright.review.config.ts'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
+  const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery')
+  if (browserRequested) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
+  if (browserRequested) {
+    const browserArgs = ['node_modules/@playwright/test/cli.js', 'test', '--config', 'playwright.review.config.ts']
+    if (process.argv.includes('--browser-recovery')) browserArgs.push('--grep', 'responsive processing recovery')
+    console.log(run(node, browserArgs, { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
+  }
   if (process.argv.includes('--build')) console.log(run(node, ['scripts/acceptance/start-review-server.mjs', '--build'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
 } finally {
   if (createdProject) {

@@ -1385,21 +1385,23 @@ export type Database = {
           created_at: string
           display_value: string | null
           document_id: string
-          document_version_analysis_binding_id: string
+          document_version_analysis_binding_id: string | null
           document_version_id: string
           evidence_page_count: number
           evidence_regions: Json | null
           field_path: string
           id: string
+          manual_review_item_id: string | null
           materialization_sequence: number
           normalized_value: Json
           normalizer_version: string | null
           org_id: string
+          origin_kind: string
           page_number: number
           quotation: string
           raw_value: string | null
           semantic_candidate_key: string
-          source_field_candidate_id: string
+          source_field_candidate_id: string | null
           validation_error_codes: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_precision: string | null
@@ -1411,21 +1413,23 @@ export type Database = {
           created_at?: string
           display_value?: string | null
           document_id: string
-          document_version_analysis_binding_id: string
+          document_version_analysis_binding_id?: string | null
           document_version_id: string
           evidence_page_count: number
           evidence_regions?: Json | null
           field_path: string
           id?: string
+          manual_review_item_id?: string | null
           materialization_sequence?: never
           normalized_value: Json
           normalizer_version?: string | null
           org_id: string
+          origin_kind?: string
           page_number: number
           quotation: string
           raw_value?: string | null
           semantic_candidate_key: string
-          source_field_candidate_id: string
+          source_field_candidate_id?: string | null
           validation_error_codes?: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_precision?: string | null
@@ -1437,21 +1441,23 @@ export type Database = {
           created_at?: string
           display_value?: string | null
           document_id?: string
-          document_version_analysis_binding_id?: string
+          document_version_analysis_binding_id?: string | null
           document_version_id?: string
           evidence_page_count?: number
           evidence_regions?: Json | null
           field_path?: string
           id?: string
+          manual_review_item_id?: string | null
           materialization_sequence?: never
           normalized_value?: Json
           normalizer_version?: string | null
           org_id?: string
+          origin_kind?: string
           page_number?: number
           quotation?: string
           raw_value?: string | null
           semantic_candidate_key?: string
-          source_field_candidate_id?: string
+          source_field_candidate_id?: string | null
           validation_error_codes?: string[] | null
           validation_state?: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_precision?: string | null
@@ -1471,6 +1477,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_manual_review_item_id_fkey"
+            columns: ["manual_review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "document_field_candidates_org_id_fkey"
@@ -6102,6 +6115,7 @@ export type Database = {
           expected_revision: number
           id: string
           idempotency_key: string
+          manual_metadata: Json | null
           org_id: string
           reason: string
           result_revision: number
@@ -6115,6 +6129,7 @@ export type Database = {
           expected_revision: number
           id?: string
           idempotency_key: string
+          manual_metadata?: Json | null
           org_id: string
           reason: string
           result_revision: number
@@ -6128,6 +6143,7 @@ export type Database = {
           expected_revision?: number
           id?: string
           idempotency_key?: string
+          manual_metadata?: Json | null
           org_id?: string
           reason?: string
           result_revision?: number
@@ -6185,9 +6201,9 @@ export type Database = {
       }
       review_items: {
         Row: {
-          binding_id: string
+          binding_id: string | null
           can_select: boolean
-          candidate_sequence: number
+          candidate_sequence: number | null
           closed_at: string | null
           closure_reason:
             | Database["public"]["Enums"]["review_item_closure"]
@@ -6195,25 +6211,29 @@ export type Database = {
           created_at: string
           dedupe_key: string
           document_id: string
+          document_lifecycle_revision: number | null
           document_version_id: string
-          field_decision_sequence: number
-          field_path: string
+          field_decision_sequence: number | null
+          field_path: string | null
           id: string
           impact: string
           org_id: string
           priority: Database["public"]["Enums"]["review_item_priority"]
           priority_reason: string
+          processing_run_id: string | null
           reason_code: string
           revision: number
-          semantic_candidate_key: string
+          semantic_candidate_key: string | null
+          source_analysis_run_id: string | null
+          source_page_number: number | null
           status: Database["public"]["Enums"]["review_item_status"]
           type: Database["public"]["Enums"]["review_item_type"]
           updated_at: string
         }
         Insert: {
-          binding_id: string
+          binding_id?: string | null
           can_select: boolean
-          candidate_sequence: number
+          candidate_sequence?: number | null
           closed_at?: string | null
           closure_reason?:
             | Database["public"]["Enums"]["review_item_closure"]
@@ -6221,25 +6241,29 @@ export type Database = {
           created_at?: string
           dedupe_key: string
           document_id: string
+          document_lifecycle_revision?: number | null
           document_version_id: string
-          field_decision_sequence?: number
-          field_path: string
+          field_decision_sequence?: number | null
+          field_path?: string | null
           id?: string
           impact?: string
           org_id: string
           priority?: Database["public"]["Enums"]["review_item_priority"]
           priority_reason?: string
+          processing_run_id?: string | null
           reason_code?: string
           revision?: number
-          semantic_candidate_key: string
+          semantic_candidate_key?: string | null
+          source_analysis_run_id?: string | null
+          source_page_number?: number | null
           status?: Database["public"]["Enums"]["review_item_status"]
           type?: Database["public"]["Enums"]["review_item_type"]
           updated_at?: string
         }
         Update: {
-          binding_id?: string
+          binding_id?: string | null
           can_select?: boolean
-          candidate_sequence?: number
+          candidate_sequence?: number | null
           closed_at?: string | null
           closure_reason?:
             | Database["public"]["Enums"]["review_item_closure"]
@@ -6247,17 +6271,21 @@ export type Database = {
           created_at?: string
           dedupe_key?: string
           document_id?: string
+          document_lifecycle_revision?: number | null
           document_version_id?: string
-          field_decision_sequence?: number
-          field_path?: string
+          field_decision_sequence?: number | null
+          field_path?: string | null
           id?: string
           impact?: string
           org_id?: string
           priority?: Database["public"]["Enums"]["review_item_priority"]
           priority_reason?: string
+          processing_run_id?: string | null
           reason_code?: string
           revision?: number
-          semantic_candidate_key?: string
+          semantic_candidate_key?: string | null
+          source_analysis_run_id?: string | null
+          source_page_number?: number | null
           status?: Database["public"]["Enums"]["review_item_status"]
           type?: Database["public"]["Enums"]["review_item_type"]
           updated_at?: string
@@ -10396,6 +10424,25 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_processing_ai_extraction_before_recovery: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
       finish_document_processing_ai_extraction_before_review: {
         Args: {
           p_candidates?: Json
@@ -11923,6 +11970,14 @@ export type Database = {
         Args: { p_binding_id: string }
         Returns: undefined
       }
+      produce_processing_recovery_review: {
+        Args: {
+          p_outcome: string
+          p_processing_run_id: string
+          p_source_analysis_run_id: string
+        }
+        Returns: string
+      }
       project_due_trash_retention_team_attention: {
         Args: { p_batch_size?: number }
         Returns: {
@@ -12542,6 +12597,21 @@ export type Database = {
           replayed: boolean
         }[]
       }
+      resolve_processing_recovery: {
+        Args: {
+          p_action: Database["public"]["Enums"]["review_extraction_action"]
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_metadata: Json
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
       resolve_verified_provider_pricing_version: {
         Args: {
           p_model_key: string
@@ -12615,21 +12685,23 @@ export type Database = {
           created_at: string
           display_value: string | null
           document_id: string
-          document_version_analysis_binding_id: string
+          document_version_analysis_binding_id: string | null
           document_version_id: string
           evidence_page_count: number
           evidence_regions: Json | null
           field_path: string
           id: string
+          manual_review_item_id: string | null
           materialization_sequence: number
           normalized_value: Json
           normalizer_version: string | null
           org_id: string
+          origin_kind: string
           page_number: number
           quotation: string
           raw_value: string | null
           semantic_candidate_key: string
-          source_field_candidate_id: string
+          source_field_candidate_id: string | null
           validation_error_codes: string[] | null
           validation_state: Database["public"]["Enums"]["source_field_candidate_validation_state"]
           value_precision: string | null
@@ -13456,11 +13528,14 @@ export type Database = {
         | "purging"
         | "restored"
         | "purged"
-      review_extraction_action: "select_candidate" | "request_clarification"
+      review_extraction_action:
+        | "select_candidate"
+        | "request_clarification"
+        | "continue_manual"
       review_item_closure: "decision_recorded" | "source_replaced"
       review_item_priority: "normal" | "high" | "urgent"
       review_item_status: "needs_review" | "closed"
-      review_item_type: "extraction_conflict"
+      review_item_type: "extraction_conflict" | "processing_recovery"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -14071,11 +14146,15 @@ export const Constants = {
         "restored",
         "purged",
       ],
-      review_extraction_action: ["select_candidate", "request_clarification"],
+      review_extraction_action: [
+        "select_candidate",
+        "request_clarification",
+        "continue_manual",
+      ],
       review_item_closure: ["decision_recorded", "source_replaced"],
       review_item_priority: ["normal", "high", "urgent"],
       review_item_status: ["needs_review", "closed"],
-      review_item_type: ["extraction_conflict"],
+      review_item_type: ["extraction_conflict", "processing_recovery"],
       source_analysis_attempt_state: [
         "queued",
         "running",

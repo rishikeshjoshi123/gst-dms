@@ -12,14 +12,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { canonicalDocumentPath } from '@/lib/canonical-document-route'
-import { resolveExtractionConflict } from '@/lib/actions/review'
-import { reviewFieldLabel, reviewValueLabel, taxPeriodComparison, type ReviewDetail, type ReviewFilters, type ReviewQueueItem, type ReviewResolution } from '@/lib/review/model'
+import { continueProcessingManually, resolveExtractionConflict } from '@/lib/actions/review'
+import { reviewFieldLabel, reviewValueLabel, taxPeriodComparison, type ExtractionReviewResolution, type ProcessingRecoveryResolution, type ReviewDetail, type ReviewFilters, type ReviewQueueItem } from '@/lib/review/model'
 import { cn } from '@/lib/utils'
 
 type Queue = { items: ReviewQueueItem[]; totalCount: number; canResolve: boolean; authorised: boolean }
 const statusLabel = (status: string) => status === 'closed' ? 'Closed' : 'Needs review'
 const priorityLabel = (priority: string) => priority[0].toUpperCase() + priority.slice(1)
 const age = (date: string, asOf: number) => formatDistanceStrict(new Date(date), new Date(asOf), { addSuffix: true })
+const typeLabel = (type: ReviewQueueItem['type']) => type === 'processing_recovery' ? 'Processing recovery' : 'Extraction conflict'
+const itemLabel = (item: ReviewQueueItem | ReviewDetail) => item.type === 'processing_recovery' ? 'Continue document manually' : `Review ${reviewFieldLabel(item.field_path)}`
 
 function Filter({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (value: string) => void }) {
   return <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" aria-label={`Filter ${label}: ${options.find(option => option[0] === value)?.[1]}`}>{label}: {options.find(option => option[0] === value)?.[1]}</Button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuRadioGroup value={value} onValueChange={onChange}>{options.map(([id, text]) => <DropdownMenuRadioItem key={id} value={id}>{text}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent></DropdownMenu>
@@ -54,7 +56,7 @@ export function ReviewClientView({ queue, detail, filters, asOf }: { queue: Queu
     startTransition(() => router.push(`/review?${query}`, { scroll: false }))
   }
   const filterControls = <>
-    <Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"]]} onChange={type => navigate({ type, page: undefined })} />
+    <Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"], ["processing_recovery", "Processing recovery"]]} onChange={type => navigate({ type, page: undefined })} />
     <Filter label="Priority" value={filters.priority} options={[["all", "All"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]]} onChange={priority => navigate({ priority, page: undefined })} />
     <Filter label="Status" value={filters.status} options={[["needs_review", "Needs review"], ["closed", "Closed"], ["all", "All"]]} onChange={status => navigate({ status, page: undefined })} />
   </>
@@ -73,21 +75,21 @@ export function ReviewClientView({ queue, detail, filters, asOf }: { queue: Queu
         </div>
         <div ref={queueScroller} data-review-list-scroller className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <Table className="hidden lg:table">
-            <TableCaption>Extraction conflicts requiring a decision</TableCaption>
-            <TableHeader sticky><TableRow><TableHead>Decision</TableHead><TableHead><Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"]]} onChange={type => navigate({ type, page: undefined })} /></TableHead><TableHead><Filter label="Priority" value={filters.priority} options={[["all", "All"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]]} onChange={priority => navigate({ priority, page: undefined })} /></TableHead><TableHead><Filter label="Status" value={filters.status} options={[["needs_review", "Needs review"], ["closed", "Closed"], ["all", "All"]]} onChange={status => navigate({ status, page: undefined })} /></TableHead></TableRow></TableHeader>
+            <TableCaption>Review items requiring a typed decision</TableCaption>
+            <TableHeader sticky><TableRow><TableHead>Decision</TableHead><TableHead><Filter label="Type" value={filters.type} options={[["all", "All"], ["extraction_conflict", "Extraction conflict"], ["processing_recovery", "Processing recovery"]]} onChange={type => navigate({ type, page: undefined })} /></TableHead><TableHead><Filter label="Priority" value={filters.priority} options={[["all", "All"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]]} onChange={priority => navigate({ priority, page: undefined })} /></TableHead><TableHead><Filter label="Status" value={filters.status} options={[["needs_review", "Needs review"], ["closed", "Closed"], ["all", "All"]]} onChange={status => navigate({ status, page: undefined })} /></TableHead></TableRow></TableHeader>
             <TableBody>{queue.items.map(item => <TableRow key={item.id} selected={item.id === filters.item} className="h-14" interactive>
-              <TableCell><Button variant="link" disabled={pending} className="max-w-full text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}><span className="min-w-0"><span className="block">Review {reviewFieldLabel(item.field_path)}</span><span className="block max-w-64 truncate text-caption text-[var(--text-muted)]" title={`${item.document_title} · ${item.matter_title}`}>{item.document_title || 'Document'} · {item.matter_title}</span></span></Button></TableCell>
-              <TableCell><span className="text-xs">Extraction conflict</span><p className="text-caption text-[var(--text-muted)]">{age(item.created_at, asOf)}</p></TableCell>
+              <TableCell><Button variant="link" disabled={pending} className="max-w-full text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}><span className="min-w-0"><span className="block">{itemLabel(item)}</span><span className="block max-w-64 truncate text-caption text-[var(--text-muted)]" title={`${item.document_title} · ${item.matter_title}`}>{item.document_title || 'Document'} · {item.matter_title}</span></span></Button></TableCell>
+              <TableCell><span className="text-xs">{typeLabel(item.type)}</span><p className="text-caption text-[var(--text-muted)]">{age(item.created_at, asOf)}</p></TableCell>
               <TableCell><span title={item.priority_reason} aria-label={`${priorityLabel(item.priority)} priority: ${item.priority_reason}`}>{priorityLabel(item.priority)}</span></TableCell>
               <TableCell><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge></TableCell>
             </TableRow>)}</TableBody>
           </Table>
           <div className="divide-y divide-[var(--border)] lg:hidden">{queue.items.map(item => <div key={item.id} className="space-y-2 p-3">
-            <Button variant="link" disabled={pending} className="text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}>Review {reviewFieldLabel(item.field_path)}</Button>
+            <Button variant="link" disabled={pending} className="text-left" onClick={event => { originatingRow.current = event.currentTarget; navigate({ item: item.id, tab: 'evidence' }) }}>{itemLabel(item)}</Button>
             <p className="break-words text-sm">{item.document_title || 'Document'}</p><p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title}</p>
-            <div className="flex flex-wrap items-center gap-2"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span className="text-caption">Extraction conflict · {priorityLabel(item.priority)} · {age(item.created_at, asOf)}</span></div>
+            <div className="flex flex-wrap items-center gap-2"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span className="text-caption">{typeLabel(item.type)} · {priorityLabel(item.priority)} · {age(item.created_at, asOf)}</span></div>
           </div>)}</div>
-          {queue.items.length === 0 && <div className="px-6 py-16 text-center"><h2 className="text-section-heading">{queue.totalCount ? 'No items on this page' : 'No Review items found'}</h2><p className="mt-2 text-sm text-[var(--text-muted)]">{filters.search || filters.status !== 'needs_review' || filters.priority !== 'all' ? 'Try changing your search or filters.' : 'Current extraction conflicts will appear here when a decision is needed.'}</p></div>}
+          {queue.items.length === 0 && <div className="px-6 py-16 text-center"><h2 className="text-section-heading">{queue.totalCount ? 'No items on this page' : 'No Review items found'}</h2><p className="mt-2 text-sm text-[var(--text-muted)]">{filters.search || filters.status !== 'needs_review' || filters.priority !== 'all' ? 'Try changing your search or filters.' : 'Current extraction conflicts and processing recovery work will appear here.'}</p></div>}
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] p-3 text-caption"><span>Page {filters.page} of {Math.max(1, Math.ceil(queue.totalCount / 25))}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={filters.page <= 1 || pending} onClick={() => navigate({ page: String(filters.page - 1) })}>Previous</Button><Button size="sm" variant="outline" disabled={filters.page * 25 >= queue.totalCount || pending} onClick={() => navigate({ page: String(filters.page + 1) })}>Next</Button></div></footer>
       </section>
@@ -109,7 +111,8 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
   const [item, setItem] = useState(detail)
   const [choice, setChoice] = useState('')
   const [reason, setReason] = useState('')
-  const [confirmation, setConfirmation] = useState<ReviewResolution | null>(null)
+  const [manual, setManual] = useState({ doc_type: 'OTHER', reference_number: '', document_date: '', direction: 'incoming', issued_by: '' })
+  const [confirmation, setConfirmation] = useState<ExtractionReviewResolution | ProcessingRecoveryResolution | null>(null)
   const [message, setMessage] = useState('')
   const [pending, startTransition] = useTransition()
   const router = useRouter()
@@ -119,7 +122,9 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
     if (!confirmation) return
     startTransition(async () => {
       try {
-        const result = await resolveExtractionConflict(confirmation)
+        const result = confirmation.action === 'continue_manual'
+          ? await continueProcessingManually(confirmation)
+          : await resolveExtractionConflict(confirmation)
         setMessage(result.message)
         if (result.item) setItem(result.item)
         if (result.code !== 'failed') { setConfirmation(null); setChoice(''); setReason(''); router.refresh() }
@@ -128,9 +133,9 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
   }
   return <>
     <header className="shrink-0 space-y-2 border-b border-[var(--border)] p-4">
-      <h2 id="review-detail-heading" tabIndex={-1} className="break-words text-section-heading">Review {reviewFieldLabel(item.field_path)}</h2>
+      <h2 id="review-detail-heading" tabIndex={-1} className="break-words text-section-heading">{itemLabel(item)}</h2>
       <p className="line-clamp-2 break-words text-sm" title={item.document_title || 'Document'}>{item.document_title || 'Document'}</p>
-      <div className="flex flex-wrap items-center gap-2 text-caption"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span>Extraction conflict</span></div>
+      <div className="flex flex-wrap items-center gap-2 text-caption"><Badge variant={item.status === 'closed' ? 'muted' : 'warning'} fixedWidth="lg">{statusLabel(item.status)}</Badge><span>{typeLabel(item.type)}</span></div>
       <p className="text-caption text-[var(--text-muted)]"><span title={item.priority_reason} aria-label={`${priorityLabel(item.priority)} priority: ${item.priority_reason}`}>{priorityLabel(item.priority)} priority</span> · {age(item.created_at, asOf)}</p>
     </header>
     <div key={tab} id="review-tabpanel" role="tabpanel" aria-labelledby={`review-tab-${tab}`} tabIndex={0} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
@@ -138,12 +143,18 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
       {item.closure_reason === 'source_replaced' && <p className="text-sm">The source or its candidate evidence was replaced. This item is closed; it cannot change the current document.</p>}
       {tab === 'evidence' ? <>
         <p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title} · Document version {item.version_number}{!item.is_current && ' (historical)'}</p>
+        {item.type === 'processing_recovery' && <section className="space-y-3 border-t border-[var(--border)] pt-3">
+          <h3 className="text-sm font-medium">Automated extraction stopped</h3>
+          <p className="break-words text-sm">{item.impact}</p>
+          <p className="text-caption text-[var(--text-muted)]">Reason: {item.reason_code === 'provider_failed' ? 'Provider unavailable' : item.reason_code === 'invalid_model_output' ? 'Model output invalid' : 'Domain validation required'}. No provider response is shown or retained in this Review view.</p>
+          <Link className="inline-flex min-h-11 items-center text-sm text-[var(--primary)] underline underline-offset-4" href={canonicalDocumentPath(item.document_id, { version: item.document_version_id, page: String(item.source_page_number) })}>Open exact source · Page {item.source_page_number}</Link>
+        </section>}
         {item.record_baseline && <section className="space-y-2 border-t border-[var(--border)] pt-3">
           <h3 className="text-sm font-medium">Record value before PDF attachment</h3>
           <p className="break-words text-sm">{item.record_baseline.value}</p>
           <p className="text-caption text-[var(--text-muted)]">Preserved from the document record, not extracted from this PDF. This value is context for clarification, not selectable PDF evidence.</p>
         </section>}
-        {item.evidence.map(evidence => {
+        {item.type === 'extraction_conflict' && item.evidence.map(evidence => {
           const comparison = taxPeriodComparison(evidence.value)
           return <section key={evidence.candidate_id} className="space-y-2 border-t border-[var(--border)] pt-3">
             <h3 className="text-sm font-medium">Evidence {evidence.ordinal} · Page {evidence.page_number}</h3>
@@ -156,8 +167,15 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
         })}
       </> : <>
         <p className="text-sm">{item.impact}</p>
-        {item.last_decision && <section className="space-y-2"><h3 className="text-sm font-medium">{item.last_decision.action === 'select_candidate' ? 'Recorded outcome' : 'Clarification requested'}</h3>{item.last_decision.selected_candidate_id && <p className="break-words text-sm">Selected: {reviewValueLabel(item.evidence.find(e => e.candidate_id === item.last_decision?.selected_candidate_id)?.value)}</p>}<p className="break-words text-sm">{item.last_decision.reason}</p></section>}
-        {canResolve ? <fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">Choose an outcome</legend>
+        {item.last_decision && <section className="space-y-2"><h3 className="text-sm font-medium">{item.last_decision.action === 'select_candidate' ? 'Recorded outcome' : item.last_decision.action === 'continue_manual' ? 'Manual continuation recorded' : 'Clarification requested'}</h3>{item.last_decision.selected_candidate_id && <p className="break-words text-sm">Selected: {reviewValueLabel(item.evidence.find(e => e.candidate_id === item.last_decision?.selected_candidate_id)?.value)}</p>}<p className="break-words text-sm">{item.last_decision.reason}</p></section>}
+        {canResolve && item.type === 'processing_recovery' ? <fieldset className="space-y-3"><legend className="text-sm font-medium">Enter verified document details</legend>
+          <p className="text-caption text-[var(--text-muted)]">Use the exact PDF above. These values become auditable manual metadata for the current version.</p>
+          <div><Label htmlFor="manual-doc-type">Document type</Label><select id="manual-doc-type" className="input-base min-h-11" value={manual.doc_type} onChange={event => setManual(value => ({ ...value, doc_type: event.target.value }))}>{['DRC-01','DRC-01A','DRC-01C','DRC-03','DRC-07','SCN','OIO','OIA','APL-01','APL-02','APL-05','STAY','REPLY','HC_PETITION','HC_ORDER','SC_PETITION','SC_ORDER','OTHER'].map(value => <option key={value}>{value}</option>)}</select></div>
+          <div><Label htmlFor="manual-reference">Reference number</Label><Input id="manual-reference" value={manual.reference_number} maxLength={300} onChange={event => setManual(value => ({ ...value, reference_number: event.target.value }))} /></div>
+          <div><Label htmlFor="manual-date">Document date</Label><Input id="manual-date" type="date" value={manual.document_date} onChange={event => setManual(value => ({ ...value, document_date: event.target.value }))} /></div>
+          <div><Label htmlFor="manual-direction">Direction</Label><select id="manual-direction" className="input-base min-h-11" value={manual.direction} onChange={event => setManual(value => ({ ...value, direction: event.target.value }))}><option value="incoming">Incoming</option><option value="outgoing">Outgoing</option></select></div>
+          <div><Label htmlFor="manual-issued-by">Issued by</Label><Input id="manual-issued-by" value={manual.issued_by} maxLength={300} onChange={event => setManual(value => ({ ...value, issued_by: event.target.value }))} /></div>
+        </fieldset> : canResolve ? <fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">Choose an outcome</legend>
           {item.allowed_actions.includes('select_candidate') && item.evidence.filter(evidence => evidence.selectable).map(evidence => <label key={evidence.candidate_id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] p-3"><input type="radio" name="review-outcome" className="mt-1 size-4 shrink-0 accent-[var(--primary)]" checked={choice === evidence.candidate_id} onChange={() => setChoice(evidence.candidate_id)} /><span className="min-w-0 break-words text-sm">Use {reviewValueLabel(evidence.value)}<span className="mt-1 block text-caption text-[var(--text-muted)]">Accept evidence {evidence.ordinal}; reject competing item candidates and close Review.</span></span></label>)}
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] p-3"><input type="radio" name="review-outcome" className="mt-1 size-4 shrink-0 accent-[var(--primary)]" checked={choice === 'clarify'} onChange={() => setChoice('clarify')} /><span className="text-sm">Request clarification<span className="mt-1 block text-caption text-[var(--text-muted)]">Record what needs clarification. Keep this item in Needs review.</span></span></label>
           {!item.allowed_actions.includes('select_candidate') && <p className="text-sm text-[var(--text-muted)]">No supported candidate can resolve this conflict. Describe the clarification needed.</p>}
@@ -165,11 +183,11 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
       </>}
     </div>
     <footer className="shrink-0 border-t border-[var(--border)] p-3">
-      {tab === 'evidence' ? <Button variant="outline" className="w-full" onClick={onDecisionTab}>View decision</Button> : canResolve ? <Button className="w-full" disabled={!choice || pending} onClick={() => setConfirmation({ itemId: item.id, revision: item.revision, action: choice === 'clarify' ? 'request_clarification' : 'select_candidate', candidateId: selected?.candidate_id ?? null, reason: '', idempotencyKey: crypto.randomUUID() })}>Review decision</Button> : <p className="text-caption text-[var(--text-muted)]">{item.status === 'closed' ? 'This Review item is closed.' : 'No decision actions available.'}</p>}
+      {tab === 'evidence' ? <Button variant="outline" className="w-full" onClick={onDecisionTab}>View decision</Button> : canResolve && item.type === 'processing_recovery' ? <Button className="w-full" disabled={!manual.reference_number.trim() || !manual.document_date || !manual.issued_by.trim() || pending} onClick={() => setConfirmation({ itemId: item.id, revision: item.revision, action: 'continue_manual', metadata: manual as ProcessingRecoveryResolution['metadata'], reason: '', idempotencyKey: crypto.randomUUID() })}>Review manual continuation</Button> : canResolve ? <Button className="w-full" disabled={!choice || pending} onClick={() => setConfirmation({ itemId: item.id, revision: item.revision, action: choice === 'clarify' ? 'request_clarification' : 'select_candidate', candidateId: selected?.candidate_id ?? null, reason: '', idempotencyKey: crypto.randomUUID() })}>Review decision</Button> : <p className="text-caption text-[var(--text-muted)]">{item.status === 'closed' ? 'This Review item is closed.' : 'No decision actions available.'}</p>}
     </footer>
-    <Dialog open={confirmation !== null} onOpenChange={open => { if (!open && !pending) { setConfirmation(null); setReason('') } }}><DialogContent><DialogHeader><DialogTitle>{confirmation?.action === 'select_candidate' ? 'Use this extracted value?' : 'Request clarification?'}</DialogTitle><DialogDescription>{confirmation?.action === 'select_candidate' ? `Use ${reviewValueLabel(selected?.value)}. Competing item candidates will be rejected and this Review item will close.` : 'Record what needs clarification. The current value stays unchanged and this item remains in Needs review.'}</DialogDescription></DialogHeader>
+    <Dialog open={confirmation !== null} onOpenChange={open => { if (!open && !pending) { setConfirmation(null); setReason('') } }}><DialogContent><DialogHeader><DialogTitle>{confirmation?.action === 'select_candidate' ? 'Use this extracted value?' : confirmation?.action === 'continue_manual' ? 'Continue with manual metadata?' : 'Request clarification?'}</DialogTitle><DialogDescription>{confirmation?.action === 'select_candidate' ? `Use ${reviewValueLabel(selected?.value)}. Competing item candidates will be rejected and this Review item will close.` : confirmation?.action === 'continue_manual' ? 'Record the verified document details, close this recovery item, and continue in the existing Workbench. Automated extraction will not be retried.' : 'Record what needs clarification. The current value stays unchanged and this item remains in Needs review.'}</DialogDescription></DialogHeader>
       <div className="min-w-0 space-y-2"><Label htmlFor="review-reason">Reason</Label><textarea id="review-reason" className="input-base min-h-24 max-h-40 resize-y" rows={4} value={reason} maxLength={500} disabled={pending} onChange={event => { const next = event.target.value.replace(/[\r\n]/g, ' '); setReason(next); setConfirmation(value => value && { ...value, reason: next }) }} aria-describedby="review-reason-help" /><p id="review-reason-help" className="text-caption text-[var(--text-muted)]">Explain the decision in up to 500 characters. {reason.length}/500</p>{message && <p role="status" className="text-sm">{message}</p>}</div>
-      <DialogFooter><Button variant="ghost" disabled={pending} onClick={() => { setConfirmation(null); setReason('') }}>Return to decision</Button><Button loading={pending} disabled={!reason.trim()} onClick={confirm}>{confirmation?.action === 'select_candidate' ? 'Confirm selected value' : 'Request clarification'}</Button></DialogFooter>
+      <DialogFooter><Button variant="ghost" disabled={pending} onClick={() => { setConfirmation(null); setReason('') }}>Return to decision</Button><Button loading={pending} disabled={!reason.trim()} onClick={confirm}>{confirmation?.action === 'select_candidate' ? 'Confirm selected value' : confirmation?.action === 'continue_manual' ? 'Continue manually' : 'Request clarification'}</Button></DialogFooter>
     </DialogContent></Dialog>
   </>
 }
