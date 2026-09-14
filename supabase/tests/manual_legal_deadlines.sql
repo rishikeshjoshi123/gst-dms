@@ -34,6 +34,15 @@ UPDATE public.matters SET record_state='trashed',deleted_at=now() WHERE id='d159
 UPDATE public.clients SET record_state='trashed',deleted_at=now() WHERE id='c1590000-0000-0000-0000-000000000002';
 UPDATE public.organisation_operational_settings SET timezone='Pacific/Kiritimati' WHERE org_id='b1590000-0000-0000-0000-000000000001';
 
+DO $deadline_privileges$ BEGIN
+ IF has_table_privilege('authenticated','public.deadlines','SELECT') OR has_table_privilege('anon','public.deadlines','SELECT')
+   OR has_table_privilege('authenticated','public.deadline_versions','SELECT') OR has_table_privilege('anon','public.deadline_versions','SELECT')
+   OR has_table_privilege('authenticated','public.deadline_outcomes','SELECT') OR has_table_privilege('anon','public.deadline_outcomes','SELECT')
+   OR has_table_privilege('authenticated','public.deadline_command_receipts','SELECT') OR has_table_privilege('anon','public.deadline_command_receipts','SELECT') THEN
+   RAISE EXCEPTION 'direct deadline authority remains granted';
+ END IF;
+END $deadline_privileges$;
+
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.role','authenticated',true);
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000001',true);
@@ -80,10 +89,12 @@ DO $owner_flow$ DECLARE r record; agenda record; item jsonb; deadline uuid; toda
  IF item->>'temporal'<>'due_soon' THEN RAISE EXCEPTION 'due-soon boundary failed %',item; END IF;
 END $owner_flow$;
 
-DO $lineage_denials$ DECLARE r record; matter uuid; BEGIN
+DO $lineage_denials$ DECLARE r record; agenda record; matter uuid; BEGIN
  FOREACH matter IN ARRAY ARRAY['d1590000-0000-0000-0000-000000000002'::uuid,'d1590000-0000-0000-0000-000000000003'::uuid,'d1590000-0000-0000-0000-000000000004'::uuid,'d1590000-0000-0000-0000-000000000005'::uuid] LOOP
   SELECT * INTO r FROM public.create_manual_legal_deadline(matter,'Denied date','Denied obligation','other_legal',current_date,'Manual basis',gen_random_uuid());
   IF r.code<>'not_allowed' THEN RAISE EXCEPTION 'lineage denial failed % %',matter,r.code; END IF;
+  SELECT * INTO agenda FROM public.read_matter_manual_legal_deadline_agenda(matter,50);
+  IF agenda.items IS NOT NULL THEN RAISE EXCEPTION 'lineage read did not fail closed %',matter; END IF;
  END LOOP;
 END $lineage_denials$;
 
@@ -92,11 +103,11 @@ DO $admin$ DECLARE r record; BEGIN SELECT * INTO r FROM public.create_manual_leg
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000003',true);
 DO $associate$ DECLARE r record; BEGIN SELECT * INTO r FROM public.create_manual_legal_deadline('d1590000-0000-0000-0000-000000000001','Associate date','Associate obligation','compliance_due',current_date+8,'Written client instruction','f1590000-0000-0000-0000-000000000010'); IF r.code<>'ok' THEN RAISE EXCEPTION 'associate denied'; END IF; END $associate$;
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000004',true);
-DO $viewer$ DECLARE r record; agenda record; BEGIN SELECT * INTO agenda FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF agenda.can_mutate OR jsonb_array_length(agenda.items)<>5 THEN RAISE EXCEPTION 'viewer read failed'; END IF; SELECT * INTO r FROM public.create_manual_legal_deadline('d1590000-0000-0000-0000-000000000001','Viewer date','Viewer obligation','other_legal',current_date,'Viewer basis','f1590000-0000-0000-0000-000000000011'); IF r.code<>'not_allowed' THEN RAISE EXCEPTION 'viewer mutated'; END IF; END $viewer$;
+DO $viewer$ DECLARE r record; agenda record; attention record; BEGIN SELECT * INTO agenda FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF agenda.can_mutate OR jsonb_array_length(agenda.items)<>5 THEN RAISE EXCEPTION 'viewer read failed'; END IF; SELECT * INTO attention FROM public.read_current_deadline_attention(5); IF attention.timezone<>'Pacific/Kiritimati' OR jsonb_array_length(attention.items)<>3 THEN RAISE EXCEPTION 'viewer attention read failed %',attention.items; END IF; SELECT * INTO r FROM public.create_manual_legal_deadline('d1590000-0000-0000-0000-000000000001','Viewer date','Viewer obligation','other_legal',current_date,'Viewer basis','f1590000-0000-0000-0000-000000000011'); IF r.code<>'not_allowed' THEN RAISE EXCEPTION 'viewer mutated'; END IF; END $viewer$;
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000005',true);
-DO $suspended$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'suspended read'; END IF; END $suspended$;
+DO $suspended$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'suspended read'; END IF; SELECT * INTO r FROM public.read_current_deadline_attention(5); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'suspended attention read'; END IF; END $suspended$;
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000007',true);
-DO $absent$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'absent read'; END IF; END $absent$;
+DO $absent$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'absent read'; END IF; SELECT * INTO r FROM public.read_current_deadline_attention(5); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'absent attention read'; END IF; END $absent$;
 
 RESET ROLE;
 SET LOCAL ROLE authenticated;
@@ -105,6 +116,10 @@ DO $direct_write_denied$ DECLARE denied boolean:=false; BEGIN
  BEGIN INSERT INTO public.deadlines(org_id,matter_id,type,due_date,description,title,legal_type,origin,verification_state,lifecycle,current_revision,created_by) VALUES('b1590000-0000-0000-0000-000000000001','d1590000-0000-0000-0000-000000000001','other',current_date,'Direct write','Direct write','other_legal','manual','verified','open',1,'a1590000-0000-0000-0000-000000000003'); EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'direct table write succeeded'; END IF;
 END $direct_write_denied$;
+DO $direct_read_denied$ DECLARE denied boolean:=false; BEGIN
+ BEGIN PERFORM id FROM public.deadlines LIMIT 1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'direct deadline table read succeeded'; END IF;
+END $direct_read_denied$;
 RESET ROLE;
 
 -- Corrupt duplicate current membership must fail closed even when uniqueness is temporarily removed in this rollback-only fixture.
@@ -112,7 +127,7 @@ DROP INDEX public.organisation_memberships_one_current_org_per_user;
 INSERT INTO public.organisation_memberships(org_id,user_id,role,state,generation) VALUES('b1590000-0000-0000-0000-000000000002','a1590000-0000-0000-0000-000000000003','associate','active',2);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','a1590000-0000-0000-0000-000000000003',true);
-DO $duplicate$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'duplicate membership did not fail closed'; END IF; END $duplicate$;
+DO $duplicate$ DECLARE r record; BEGIN SELECT * INTO r FROM public.read_matter_manual_legal_deadline_agenda('d1590000-0000-0000-0000-000000000001',50); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'duplicate membership did not fail closed'; END IF; SELECT * INTO r FROM public.read_current_deadline_attention(5); IF r.items IS NOT NULL THEN RAISE EXCEPTION 'duplicate attention did not fail closed'; END IF; END $duplicate$;
 RESET ROLE;
 
 ROLLBACK;

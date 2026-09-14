@@ -5,7 +5,7 @@ import { getCurrentOrgId } from '@/lib/actions/org'
 import { revalidatePath } from 'next/cache'
 import { getSafeMemberDirectory } from '@/lib/organisation/member-directory'
 import type { Json } from '@/lib/supabase/database.types'
-import { getDateKeyInTimeZone, getDeadlineDayStatus, type DeadlineAttentionPayload } from '@/lib/deadlines/attention'
+import { getDeadlineDayStatus, type DeadlineAttentionItem, type DeadlineAttentionPayload } from '@/lib/deadlines/attention'
 
 type ActivityMetadata = { [key: string]: Json | undefined }
 type ActivityDocument = {
@@ -259,68 +259,28 @@ export async function getDeadlineAttention(limit = 5): Promise<DeadlineAttention
     timeZone: null,
     items: [],
   }
-  const { data: timezoneRows, error: timezoneError } = await supabase.rpc('get_current_organisation_operational_timezone')
-  if (timezoneError || timezoneRows?.length !== 1) return unavailable
-
-  const [{ org_id: orgId, timezone: timeZone }] = timezoneRows
-  let asOfDate: string
-  try {
-    asOfDate = getDateKeyInTimeZone(new Date(), timeZone)
-  } catch {
-    return unavailable
-  }
   const boundedLimit = Number.isInteger(limit) ? Math.min(Math.max(limit, 1), 20) : 5
-
-  // First get matter IDs for this org
-  const { data: matters, error: mattersError } = await supabase
-    .from('matters')
-    .select('id')
-    .eq('org_id', orgId)
-    .is('deleted_at', null)
-
-  if (mattersError) return unavailable
-  if (!matters || matters.length === 0) {
-    return { status: 'available', asOfDate, timeZone, items: [] }
-  }
-  const matterIds = matters.map((matter) => matter.id)
-
-  const { data, error } = await supabase
-    .from('deadlines')
-    .select(`
-      id,
-      due_date,
-      type,
-      description,
-      matters!deadlines_matter_id_fkey (
-        title,
-        clients ( name )
-      )
-    `)
-    .in('matter_id', matterIds)
-    .eq('is_resolved', false)
-    .eq('verification_state', 'verified')
-    .order('due_date', { ascending: true })
-    .limit(boundedLimit)
+  const { data, error } = await supabase.rpc('read_current_deadline_attention', { p_limit: boundedLimit })
 
   if (error) return unavailable
   try {
+    if (data?.length !== 1) return unavailable
+    const row = data[0]
+    if (!Array.isArray(row.items) || typeof row.timezone !== 'string' || typeof row.as_of_date !== 'string') return unavailable
+    const allowedTypes = new Set<DeadlineAttentionItem['type']>(['appeal_window','pre_deposit','hearing_date','reply_deadline','stay_application','other'])
+    const items = row.items.map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid deadline attention item')
+      const item = value as Record<string, unknown>
+      if (typeof item.id !== 'string' || typeof item.due_date !== 'string' || typeof item.type !== 'string' || !allowedTypes.has(item.type as DeadlineAttentionItem['type'])
+        || typeof item.description !== 'string' || typeof item.matter_title !== 'string' || typeof item.client_name !== 'string') throw new Error('Invalid deadline attention item')
+      getDeadlineDayStatus(item.due_date, row.as_of_date)
+      return { id:item.id,dueDate:item.due_date,type:item.type as DeadlineAttentionItem['type'],description:item.description,matter:{title:item.matter_title,clientName:item.client_name} }
+    })
     return {
       status: 'available',
-      asOfDate,
-      timeZone,
-      items: (data ?? []).map((deadline) => {
-        getDeadlineDayStatus(deadline.due_date, asOfDate)
-        return {
-          id: deadline.id,
-          dueDate: deadline.due_date,
-          type: deadline.type,
-          description: deadline.description,
-          matter: {
-            title: deadline.matters.title,
-            clientName: deadline.matters.clients.name,
-          },
-        }
-      }),
+      asOfDate: row.as_of_date,
+      timeZone: row.timezone,
+      items,
     }
   } catch {
     return unavailable

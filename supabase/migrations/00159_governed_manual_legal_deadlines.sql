@@ -15,9 +15,17 @@ ALTER TABLE public.deadlines
   ADD COLUMN created_by uuid REFERENCES auth.users(id) ON DELETE RESTRICT,
   ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
 
+WITH normalized_legacy AS (
+  SELECT d.id,CASE
+    WHEN char_length(btrim(regexp_replace(coalesce(d.description,''),'[[:cntrl:]]',' ','g')))<2 THEN 'Legacy deadline'
+    ELSE left(btrim(regexp_replace(d.description,'[[:cntrl:]]',' ','g')),1000)
+  END obligation
+  FROM public.deadlines d
+)
 UPDATE public.deadlines d SET
   org_id=m.org_id,
-  title=left(coalesce(nullif(btrim(d.description),''),'Legacy deadline'),160),
+  description=normalized_legacy.obligation,
+  title=left(normalized_legacy.obligation,160),
   legal_type=CASE d.type::text
     WHEN 'appeal_window' THEN 'appeal_due'
     WHEN 'pre_deposit' THEN 'payment_or_predeposit_due'
@@ -27,7 +35,7 @@ UPDATE public.deadlines d SET
   origin='legacy', verification_state='provisional',
   lifecycle=CASE WHEN d.is_resolved THEN 'satisfied' ELSE 'open' END,
   current_revision=1
-FROM public.matters m WHERE m.id=d.matter_id;
+FROM public.matters m,normalized_legacy WHERE m.id=d.matter_id AND normalized_legacy.id=d.id;
 
 ALTER TABLE public.deadlines
   ALTER COLUMN org_id SET NOT NULL,
@@ -129,8 +137,9 @@ CREATE TRIGGER deadlines_canonical_writes BEFORE INSERT OR UPDATE OR DELETE ON p
 DROP POLICY IF EXISTS deadlines_insert ON public.deadlines;
 DROP POLICY IF EXISTS deadlines_update ON public.deadlines;
 DROP POLICY IF EXISTS deadlines_delete ON public.deadlines;
+DROP POLICY IF EXISTS deadlines_select ON public.deadlines;
 ALTER TABLE public.deadlines FORCE ROW LEVEL SECURITY;
-REVOKE INSERT,UPDATE,DELETE ON public.deadlines FROM authenticated,anon;
+REVOKE SELECT,INSERT,UPDATE,DELETE ON public.deadlines FROM PUBLIC,authenticated,anon;
 REVOKE ALL ON public.deadline_versions,public.deadline_outcomes,public.deadline_command_receipts FROM PUBLIC,anon,authenticated,service_role;
 
 INSERT INTO public.deadline_versions(deadline_id,org_id,revision,title,obligation,legal_type,due_date,manual_basis,actor_user_id)
@@ -288,7 +297,37 @@ BEGIN
   ) item;
 END $$;
 
-REVOKE ALL ON FUNCTION public.deadline_actor_for_matter(uuid,boolean),public.deadline_fingerprint(jsonb),public.create_manual_legal_deadline(uuid,text,text,text,date,text,uuid),public.amend_manual_legal_deadline(uuid,bigint,text,text,text,date,text,text,uuid),public.record_manual_legal_deadline_outcome(uuid,bigint,text,text,uuid),public.read_matter_manual_legal_deadline_agenda(uuid,integer) FROM PUBLIC,anon,service_role;
-GRANT EXECUTE ON FUNCTION public.create_manual_legal_deadline(uuid,text,text,text,date,text,uuid),public.amend_manual_legal_deadline(uuid,bigint,text,text,text,date,text,text,uuid),public.record_manual_legal_deadline_outcome(uuid,bigint,text,text,uuid),public.read_matter_manual_legal_deadline_agenda(uuid,integer) TO authenticated;
+CREATE FUNCTION public.read_current_deadline_attention(p_limit integer DEFAULT 5)
+RETURNS TABLE(items jsonb,timezone text,as_of_date date)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE member record; owner boolean; operational_timezone text; today date;
+BEGIN
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 20 THEN RETURN; END IF;
+  SELECT * INTO member FROM public.current_active_tenant_membership();
+  IF member.membership_id IS NULL THEN RETURN; END IF;
+  SELECT organisation.owner_membership_id=member.membership_id INTO owner FROM public.organisations organisation WHERE organisation.id=member.org_id;
+  IF NOT ('document.view'=ANY(public.organisation_member_capabilities(member.role,coalesce(owner,false),'active'::public.organisation_membership_state))) THEN RETURN; END IF;
+  SELECT settings.timezone INTO operational_timezone FROM public.organisation_operational_settings settings
+  WHERE settings.org_id=member.org_id AND EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names zone WHERE zone.name=settings.timezone);
+  IF operational_timezone IS NULL THEN RETURN; END IF;
+  today:=(clock_timestamp() AT TIME ZONE operational_timezone)::date;
+  RETURN QUERY SELECT coalesce(jsonb_agg(attention.item ORDER BY attention.due_date,attention.id),'[]'::jsonb),operational_timezone,today FROM (
+    SELECT deadline.id,deadline.due_date,jsonb_build_object(
+      'id',deadline.id,'due_date',deadline.due_date,'type',deadline.type::text,'description',deadline.description,
+      'matter_title',matter.title,'client_name',client.name
+    ) item
+    FROM public.deadlines deadline
+    JOIN public.matters matter ON matter.id=deadline.matter_id AND matter.org_id=deadline.org_id
+      AND matter.record_state='active' AND matter.deleted_at IS NULL AND matter.work_state='active'
+    JOIN public.clients client ON client.id=matter.client_id AND client.org_id=matter.org_id
+      AND client.record_state='active' AND client.deleted_at IS NULL
+    WHERE deadline.org_id=member.org_id AND deadline.verification_state='verified'
+      AND deadline.lifecycle='open' AND NOT deadline.is_resolved
+    ORDER BY deadline.due_date,deadline.id LIMIT p_limit
+  ) attention;
+END $$;
+
+REVOKE ALL ON FUNCTION public.deadline_actor_for_matter(uuid,boolean),public.deadline_fingerprint(jsonb),public.create_manual_legal_deadline(uuid,text,text,text,date,text,uuid),public.amend_manual_legal_deadline(uuid,bigint,text,text,text,date,text,text,uuid),public.record_manual_legal_deadline_outcome(uuid,bigint,text,text,uuid),public.read_matter_manual_legal_deadline_agenda(uuid,integer),public.read_current_deadline_attention(integer) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.create_manual_legal_deadline(uuid,text,text,text,date,text,uuid),public.amend_manual_legal_deadline(uuid,bigint,text,text,text,date,text,text,uuid),public.record_manual_legal_deadline_outcome(uuid,bigint,text,text,uuid),public.read_matter_manual_legal_deadline_agenda(uuid,integer),public.read_current_deadline_attention(integer) TO authenticated;
 
 COMMIT;

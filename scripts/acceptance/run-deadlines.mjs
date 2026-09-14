@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -11,6 +11,18 @@ function run(command,args,options={}) { const result=spawnSync(command,args,{cwd
 try {
   if(run('docker',['ps','-a','--format','{{.Names}}']).split('\n').some(name=>name.endsWith('_dms-deadlines-159'))) throw new Error('The isolated deadline acceptance project is already owned by another run.')
   cpSync(join(root,'supabase/migrations'),join(workdir,'supabase/migrations'),{recursive:true})
+  appendFileSync(join(workdir,'supabase/migrations/00158_intake_assignment_matter_lifecycle_gate.sql'),`
+INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES
+('00000000-0000-0000-0000-000000000000','a1580000-0000-0000-0000-000000000001','authenticated','authenticated','legacy-deadline@acceptance.test','x',now(),'{}','{}',now(),now());
+INSERT INTO public.organisations(id,name,created_by) VALUES('b1580000-0000-0000-0000-000000000001','Legacy deadline fixture','a1580000-0000-0000-0000-000000000001');
+INSERT INTO public.clients(id,org_id,name) VALUES('c1580000-0000-0000-0000-000000000001','b1580000-0000-0000-0000-000000000001','Legacy client');
+INSERT INTO public.matters(id,org_id,client_id,title,status) VALUES('d1580000-0000-0000-0000-000000000001','b1580000-0000-0000-0000-000000000001','c1580000-0000-0000-0000-000000000001','Legacy matter','active');
+INSERT INTO public.deadlines(id,matter_id,type,due_date,description) VALUES
+('e1580000-0000-0000-0000-000000000001','d1580000-0000-0000-0000-000000000001','other',current_date,NULL),
+('e1580000-0000-0000-0000-000000000002','d1580000-0000-0000-0000-000000000001','other',current_date,' '),
+('e1580000-0000-0000-0000-000000000003','d1580000-0000-0000-0000-000000000001','other',current_date,E'Court\\norder\\t'),
+('e1580000-0000-0000-0000-000000000004','d1580000-0000-0000-0000-000000000001','other',current_date,repeat('x',1205));
+`)
   writeFileSync(join(workdir,'supabase/config.toml'),`project_id = "dms-deadlines-159"
 [api]
 port = 55921
@@ -37,7 +49,9 @@ port = 55927
 `)
   created=true; console.log('Replaying migrations in isolated dms-deadlines-159.')
   run(node,[cli,'start','--workdir',workdir])
-  console.log(run(node,[cli,'db','lint','--local','--workdir',workdir,'--level','error']))
+  const lint=run(node,[cli,'db','lint','--local','--workdir',workdir,'--level','error'])
+  console.log(lint)
+  if(JSON.parse(lint).results?.length) throw new Error('Disposable database lint found errors.')
   if(process.argv.includes('--types')) {
     run(node,['scripts/generate-supabase-types.mjs','--local','--workdir',workdir],{env:{...process.env,PATH:`${join(root,'node_modules/.bin')}:/opt/homebrew/bin:${process.env.PATH}`}})
     const once=readFileSync(join(root,'src/lib/supabase/database.types.ts'),'utf8')
@@ -45,6 +59,7 @@ port = 55927
     if(readFileSync(join(root,'src/lib/supabase/database.types.ts'),'utf8')!==once) throw new Error('Database type generation was not deterministic.')
     console.log('Generated/refined database types twice with exact parity.')
   }
+  console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/manual_legal_deadline_legacy_backfill.sql'),'utf8')}))
   console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/manual_legal_deadlines.sql'),'utf8')}))
   console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/manual_legal_deadline_concurrency_setup.sql'),'utf8')}))
   console.log(run('sh',['supabase/tests/manual_legal_deadline_concurrency.sh'],{env:{...process.env,SUPABASE_DB_CONTAINER:container}}))

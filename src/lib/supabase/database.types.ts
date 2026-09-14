@@ -12249,6 +12249,14 @@ export type Database = {
         Returns: boolean
       }
       quarantine_legacy_outbox_event_envelopes: { Args: never; Returns: number }
+      read_current_deadline_attention: {
+        Args: { p_limit?: number }
+        Returns: {
+          as_of_date: string
+          items: Json
+          timezone: string
+        }[]
+      }
       read_current_document_assignment_projection: {
         Args: { p_document_ids: string[]; p_org_id: string }
         Returns: {
