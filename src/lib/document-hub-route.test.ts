@@ -41,6 +41,17 @@ test('mounts the Document Hub queue, details, and source closure without changin
   assert.match(documentHub, /Back to details/)
 })
 
+test('hands committed placement to the server-returned exact Workbench version', () => {
+  const [documentHub, inboxAction] = [
+    '../app/(app)/documents/DocumentHubClientView.tsx',
+    './actions/inbox.ts',
+  ].map(path => readFileSync(new URL(path, import.meta.url), 'utf8'))
+
+  assert.match(inboxAction, /documentVersionId: result\.document_version_id/)
+  assert.match(documentHub, /canonicalDocumentPath\(result\.documentId, \{[\s\S]*?matterId: selectedMatterId,[\s\S]*?version: result\.documentVersionId,[\s\S]*?page: '1'/)
+  assert.doesNotMatch(documentHub, /Assignment completed\. The remaining queue could not be refreshed/)
+})
+
 test('keeps production navigation and mutation refreshes on the canonical route', () => {
   const sources = [
     '../components/nav/SidebarNav.tsx',

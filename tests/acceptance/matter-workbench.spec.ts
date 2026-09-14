@@ -402,6 +402,27 @@ test('Document Hub defaults to My uploads, allows Associate shared Intake, and h
   await expect(page.locator('body')).not.toContainText('orgs/b0010000')
 })
 
+test('ready global Intake assignment opens the server-returned exact Workbench source and its Matter', async ({ page }) => {
+  await login(page)
+  await page.goto('/documents')
+
+  const upload = page.getByRole('button', { name: /owner-shared-intake\.pdf/ })
+  await expect(upload).toBeVisible()
+  await upload.click()
+  const details = page.getByRole('complementary', { name: /Details for owner-shared-intake\.pdf/ })
+  await details.getByRole('tab', { name: 'Placement' }).click()
+  await details.getByRole('textbox', { name: 'Matter', exact: true }).fill('Aster GST appeal')
+  await details.getByRole('option', { name: /Aster GST appeal/ }).click()
+  await details.getByRole('button', { name: 'Assign document' }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/documents/[0-9a-f-]+\\?matterId=${matterId}&version=[0-9a-f-]+&page=1`))
+  await expect(page.getByText('PDF source · Version 1 · Page 1 of 4')).toBeVisible()
+  await expect(page.locator('[data-pdf-page="1"] canvas')).toBeVisible()
+  await page.getByRole('link', { name: 'Back to Matter' }).click()
+  await expect(page).toHaveURL(new RegExp(`/matters/${matterId}`))
+  await expect(page.getByRole('heading', { name: 'Aster GST appeal' })).toBeVisible()
+})
+
 test('Trash shows final-seven-day time and restricted blocked status without Dashboard attention', async ({ page }) => {
   await login(page)
   await expect(page.locator('body')).not.toContainText('Team attention')

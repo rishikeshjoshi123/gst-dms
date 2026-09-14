@@ -17,7 +17,8 @@ BEGIN
   INSERT INTO public.organisation_memberships(id,org_id,user_id,role,state,generation,joined_at)
     VALUES('43700000-0000-0000-0000-000000000001',org_a,viewer,'viewer','active',1,now());
   INSERT INTO public.clients(id,org_id,name) VALUES(client_id,org_a,'Inbox client');
-  INSERT INTO public.matters(id,org_id,client_id,title) VALUES(matter_id,org_a,client_id,'Inbox matter');
+  INSERT INTO public.matters(id,org_id,client_id,title,status)
+    VALUES(matter_id,org_a,client_id,'Inbox matter','tribunal');
   INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
     VALUES(asset_ready,org_a,'documents','orgs/'||org_a||'/assets/'||asset_ready||'/original.pdf',10,'application/pdf','available',now(),1,owner),
           (asset_discard,org_a,'documents','orgs/'||org_a||'/assets/'||asset_discard||'/original.pdf',20,'application/pdf','available',now(),1,owner),
@@ -72,7 +73,10 @@ BEGIN
   SELECT * INTO read_grant FROM public.get_intake_item_read_grant('43600000-0000-0000-0000-000000000001');
   IF read_grant.code<>'ok' OR read_grant.bucket_id<>'documents' OR read_grant.object_key !~ '/original.pdf$' THEN RAISE EXCEPTION 'ready intake signing grant'; END IF;
   SELECT * INTO placed FROM public.assign_intake_to_new_document('43600000-0000-0000-0000-000000000001','43300000-0000-0000-0000-000000000001','Ready intake','43100000-0000-0000-0000-000000000001','43800000-0000-0000-0000-000000000001');
-  IF placed.code<>'ok' OR placed.document_id IS NULL OR placed.document_version_id IS NULL THEN RAISE EXCEPTION 'atomic placement'; END IF;
+  IF placed.code<>'ok' OR placed.document_id IS NULL OR placed.document_version_id IS NULL
+     OR (SELECT status FROM public.matters WHERE id='43300000-0000-0000-0000-000000000001')<>'tribunal' THEN
+    RAISE EXCEPTION 'atomic placement to lifecycle-active procedural matter';
+  END IF;
   PERFORM set_config('test.inbox_placed_document',placed.document_id::text,true);
   PERFORM set_config('test.inbox_placed_version',placed.document_version_id::text,true);
   SELECT * INTO terminal_result FROM public.assign_intake_to_new_document('43600000-0000-0000-0000-000000000002','43300000-0000-0000-0000-000000000001','Must not reuse receipt','43100000-0000-0000-0000-000000000001','43800000-0000-0000-0000-000000000001');

@@ -138,7 +138,14 @@ export async function assignCanonicalIntakeToMatter(intakeId: string, matterId: 
   revalidatePath('/documents')
   revalidatePath('/', 'layout')
   revalidatePath(`/matters/${matterId}`)
-  return { success: true as const, documentId: result.document_id }
+  // The database command, not the caller, authoritatively selects the newly
+  // materialised current version. Keep that exact immutable source available
+  // to the Hub handoff rather than reopening an unspecified latest version.
+  return {
+    success: true as const,
+    documentId: result.document_id,
+    documentVersionId: result.document_version_id,
+  }
 }
 
 export async function discardCanonicalIntake(intakeId: string, idempotencyKey: string) {

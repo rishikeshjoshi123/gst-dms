@@ -697,21 +697,20 @@ function ManagedDocumentHubClientView({
         setActionError(result.error)
         return
       }
+      if (!result.documentId || !result.documentVersionId) {
+        setActionError('This intake was assigned, but its exact document source was unavailable. Refresh the queue and try again.')
+        return
+      }
 
       actionKeys.current.delete(`assign:${intakeId}`)
-      const remainingDocuments = documents.filter((document) => document.id !== intakeId)
-      documentsRef.current = remainingDocuments
-      setDocuments(remainingDocuments)
-      setQueueTotal((current) => Math.max(0, current - 1))
-      closeDetails()
-      toast.success('Document assigned to the matter')
-
-      try {
-        await refreshQueue()
-      } catch {
-        setRefreshError('Assignment completed. The remaining queue could not be refreshed, so the last loaded items are still shown.')
-      }
-      router.refresh()
+      // Placement has committed at this point. Navigate from the server's
+      // canonical document/version result instead of mutating the queue and
+      // making a later refresh look like placement failed.
+      router.push(canonicalDocumentPath(result.documentId, {
+        matterId: selectedMatterId,
+        version: result.documentVersionId,
+        page: '1',
+      }))
     })
   }
 
