@@ -1,6 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { sendOrgInviteEmail } from '@/lib/email'
@@ -43,12 +44,17 @@ export async function getCurrentOrgId(): Promise<string | null> {
 }
 
 const invitationError = (code?: string) => {
-  if (code === 'rate_limited') return 'Please wait before sending another invitation.'
+  if (code === 'rate_limited') return 'Invitation sending is temporarily limited. Please try again later.'
   if (code === 'pending_exists') return 'A pending invitation already exists for this address.'
   if (code === 'not_available') return 'This invitation is not available.'
   if (code === 'conflict') return 'This invitation changed. Refresh and try again.'
+  if (code === 'idempotency_subject_mismatch') return 'This request could not be retried safely. Refresh and try again.'
+  if (code === 'invalid_request') return 'Check the invitation details and try again.'
   return 'You do not have permission to complete this invitation action.'
 }
+
+const emailSchema = z.string().trim().toLowerCase().email().max(320)
+const idempotencySchema = z.string().uuid()
 
 // ── Create Organisation ───────────────────────────────────────────
 
@@ -92,16 +98,24 @@ export async function switchOrganisation(orgId: string) {
 
 export async function inviteMember(formData: FormData) {
   const supabase = await createClient()
-  const email = (formData.get('email') as string | null)?.trim().toLowerCase() ?? ''
-  const role = formData.get('role')
-  if (!email || !['admin', 'associate', 'viewer'].includes(String(role))) return { error: 'Enter a valid email address and role.' }
+  const parsedEmail = emailSchema.safeParse(formData.get('email'))
+  const role = String(formData.get('role') ?? '')
+  const parsedIdempotency = idempotencySchema.safeParse(formData.get('idempotency_key'))
+  if (!parsedEmail.success || !['admin', 'associate', 'viewer'].includes(role) || !parsedIdempotency.success) {
+    return { error: 'Enter a valid email address and choose an available role.' }
+  }
+  const email = parsedEmail.data
   const selector = createInvitationSelector()
-  const { data, error } = await supabase.rpc('create_organisation_invite', { p_email: email, p_role: role as 'admin' | 'associate' | 'viewer', p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: randomUUID() })
+  const { data, error } = await supabase.rpc('create_organisation_invite', { p_email: email, p_role: role as 'admin' | 'associate' | 'viewer', p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: parsedIdempotency.data })
   const result = data?.[0]
-  if (error || !result || result.code !== 'created') return { error: invitationError(result?.code) }
+  if (error || !result || !['created', 'already_processed'].includes(result.code)) return { error: invitationError(result?.code) }
+  if (result.code === 'already_processed') return { success: true, replayed: true }
   const delivery = await sendOrgInviteEmail({ to: email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
-  await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
-  return { success: true }
+  const { data: deliveryRows, error: deliveryRecordError } = await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
+  const deliveryRecordCode=deliveryRows?.[0]?.code
+  revalidatePath('/team')
+  if (deliveryRecordError || !['ok','already_processed'].includes(deliveryRecordCode ?? '')) return { error: 'The invitation was created, but its delivery status could not be recorded. Refresh Team before trying again.' }
+  return delivery.success ? { success: true, replayed: false } : { error: 'The invitation was created, but email delivery failed. Resend it from Team.' }
 }
 
 // ── Get Pending Invites For User (Onboarding) ─────────────────────
@@ -158,29 +172,41 @@ export async function getUserOrgs() {
 
 export async function getPendingInvitesForOrg() {
   const supabase = await createClient()
-  const { data } = await supabase.rpc('get_organisation_invites')
+  const { data } = await supabase.rpc('get_organisation_invites', { p_state: 'pending' })
   return data ?? []
 }
 
-export async function deleteInvite(inviteId: string) {
+export async function revokeInvite(inviteId: string, expectedRevision: number, idempotencyKey: string) {
+  if (!z.string().uuid().safeParse(inviteId).success || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1 || !idempotencySchema.safeParse(idempotencyKey).success) {
+    return { error: 'This invitation action is invalid. Refresh and try again.' }
+  }
   const supabase = await createClient()
-  const { data: rows } = await supabase.rpc('get_organisation_invites')
-  const invite = rows?.find((row: { id: string }) => row.id === inviteId)
-  if (!invite) return { error: 'This invitation is not available.' }
-  const { data } = await supabase.rpc('transition_organisation_invite', { p_invite_id: inviteId, p_expected_revision: invite.revision, p_idempotency_key: randomUUID(), p_action: 'revoke', p_reason: 'Revoked by an administrator' })
-  return data?.[0]?.code === 'ok' ? { success: true } : { error: invitationError(data?.[0]?.code) }
+  const { data } = await supabase.rpc('transition_organisation_invite', { p_invite_id: inviteId, p_expected_revision: expectedRevision, p_idempotency_key: idempotencyKey, p_action: 'revoke', p_reason: 'Revoked by an administrator' })
+  if (data?.[0]?.code !== 'ok') return { error: invitationError(data?.[0]?.code) }
+  revalidatePath('/team')
+  return { success: true }
 }
 
-export async function resendInvite(inviteId: string) {
+/** @deprecated Team owns invitation administration; use revokeInvite. */
+export const deleteInvite = revokeInvite
+
+export async function resendInvite(inviteId: string, expectedRevision: number, idempotencyKey: string) {
+  if (!z.string().uuid().safeParse(inviteId).success || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1 || !idempotencySchema.safeParse(idempotencyKey).success) {
+    return { error: 'This invitation action is invalid. Refresh and try again.' }
+  }
   const supabase = await createClient()
-  const { data: rows } = await supabase.rpc('get_organisation_invites')
+  const { data: rows } = await supabase.rpc('get_organisation_invites', { p_state: 'pending' })
   const previous = rows?.find((row: { id: string }) => row.id === inviteId)
   if (!previous) return { error: 'This invitation is not available.' }
   const selector = createInvitationSelector()
-  const { data } = await supabase.rpc('resend_organisation_invite', { p_invite_id: inviteId, p_expected_revision: previous.revision, p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: randomUUID() })
+  const { data } = await supabase.rpc('resend_organisation_invite', { p_invite_id: inviteId, p_expected_revision: expectedRevision, p_selector_hash: hashInvitationOpaqueValue(selector), p_idempotency_key: idempotencyKey })
   const result = data?.[0]
-  if (!result || result.code !== 'created') return { error: invitationError(result?.code) }
+  if (!result || !['created', 'already_processed'].includes(result.code)) return { error: invitationError(result?.code) }
+  if (result.code === 'already_processed') return { success: true, replayed: true }
   const delivery = await sendOrgInviteEmail({ to: previous.authorized_email, orgName: result.org_name, inviterName: result.inviter_name, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/invites/accept?token=${encodeURIComponent(selector)}` })
-  await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
-  return { success: true }
+  const { data: deliveryRows, error: deliveryRecordError } = await supabase.rpc('record_organisation_invite_delivery', { p_invite_id: result.invite_id, p_state: delivery.success ? 'sent' : 'failed', p_provider_reference: delivery.id ?? 'delivery-unavailable', p_error_code: delivery.success ? undefined : 'delivery_failed' })
+  const deliveryRecordCode=deliveryRows?.[0]?.code
+  revalidatePath('/team')
+  if (deliveryRecordError || !['ok','already_processed'].includes(deliveryRecordCode ?? '')) return { error: 'The invitation was renewed, but its delivery status could not be recorded. Refresh Team before trying again.' }
+  return delivery.success ? { success: true, replayed: false } : { error: 'The invitation was renewed, but email delivery failed. Try resending again later.' }
 }

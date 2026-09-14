@@ -1,7 +1,5 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@gst-dms.app'
 
 /**
@@ -24,11 +22,25 @@ async function sendEmail(options: {
   html: string
 }): Promise<EmailResult> {
   if (!isProduction()) {
-    console.log('[Email skipped in development]', { subject: options.subject })
-    return { success: true, id: 'dev-skipped' }
+    const captureTarget=process.env.CASECHAIN_EMAIL_CAPTURE_URL
+    if (!captureTarget) return { success: false, error: 'delivery_failed' }
+    try {
+      const target=new URL(captureTarget)
+      if (target.protocol!=='http:' || !['127.0.0.1','localhost','::1'].includes(target.hostname)) {
+        console.error('[Email capture refused: non-loopback target]')
+        return { success: false, error: 'delivery_failed' }
+      }
+      const response=await fetch(target,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(options),signal:AbortSignal.timeout(5_000)})
+      return response.ok ? { success:true,id:'local-captured' } : { success:false,error:'delivery_failed' }
+    } catch {
+      return { success:false,error:'delivery_failed' }
+    }
   }
 
   try {
+    const apiKey=process.env.RESEND_API_KEY
+    if (!apiKey) return { success:false,error:'delivery_failed' }
+    const resend=new Resend(apiKey)
     const { data, error } = await resend.emails.send({
       from: FROM,
       to: options.to,
@@ -42,8 +54,7 @@ async function sendEmail(options: {
     }
 
     return { success: true, id: data?.id }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
+  } catch {
     console.error('[Email provider delivery failed]')
     return { success: false, error: 'delivery_failed' }
   }

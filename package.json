@@ -24,6 +24,7 @@
     "acceptance:db": "sh scripts/acceptance/local-fixtures.sh",
     "acceptance:smoke": "playwright test tests/acceptance/matter-workbench.spec.ts",
     "acceptance:onboarding": "node scripts/acceptance/run-onboarding-confirmation.mjs",
+    "acceptance:team-invitations": "node scripts/acceptance/run-team-invitations.mjs --types --browser",
     "acceptance:local": "node scripts/acceptance/run-local.mjs",
     "acceptance:review": "node scripts/acceptance/run-review.mjs",
     "typecheck": "tsc --noEmit --pretty false",

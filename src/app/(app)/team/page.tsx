@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { getTeamDirectory, normalizeTeamDirectoryParams, type TeamDirectoryParams } from '@/lib/organisation/team-directory'
+import { createClient } from '@/lib/supabase/server'
 import { TeamWorkspace } from './TeamWorkspace'
 
 export const metadata: Metadata = { title: 'Team' }
@@ -26,7 +27,28 @@ export default async function TeamPage({ searchParams }: TeamPageProps) {
     offset: Number.isInteger(page) && page > 1 ? (page - 1) * 50 : 0,
   }
   const normalizedQuery = normalizeTeamDirectoryParams(query)
-  const result = await getTeamDirectory(normalizedQuery)
+  const [result, supabase] = await Promise.all([getTeamDirectory(normalizedQuery), createClient()])
+  const { data: contexts } = await supabase.rpc('get_my_organisation_context')
+  const activeContexts = (contexts ?? []).filter((context) => context.state === 'active')
+  const activeContext = activeContexts.length === 1 ? activeContexts[0] : undefined
+  const capabilities = activeContext?.capabilities ?? []
+  const canAdministerInvitations = capabilities.includes('team.invite.standard')
+  const rawInvitationState = value(params, 'invite_state')
+  const invitationState = ['pending', 'accepted', 'rejected', 'expired', 'revoked', 'superseded', 'all'].includes(rawInvitationState ?? '') ? rawInvitationState! : 'pending'
+  const { data: invitations } = canAdministerInvitations
+    ? await supabase.rpc('get_organisation_invites', { p_state: invitationState })
+    : { data: [] }
 
-  return <TeamWorkspace result={result} initialQuery={normalizedQuery} selectedMembershipId={value(params, 'member')} />
+  const requestedView = value(params, 'view') === 'invitations' ? 'invitations' : 'members'
+  const view = requestedView === 'invitations' && !canAdministerInvitations ? 'members' : requestedView
+
+  return <TeamWorkspace
+    result={result}
+    initialQuery={normalizedQuery}
+    selectedMembershipId={value(params, 'member')}
+    view={view}
+    invitationState={invitationState}
+    invitations={invitations ?? []}
+    capabilities={capabilities}
+  />
 }

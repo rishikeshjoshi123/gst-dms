@@ -4704,6 +4704,7 @@ export type Database = {
           created_at: string
           idempotency_key: string
           invite_id: string | null
+          request_fingerprint: string
           result_code: string
           result_org_id: string | null
         }
@@ -4713,6 +4714,7 @@ export type Database = {
           created_at?: string
           idempotency_key: string
           invite_id?: string | null
+          request_fingerprint?: string
           result_code: string
           result_org_id?: string | null
         }
@@ -4722,6 +4724,7 @@ export type Database = {
           created_at?: string
           idempotency_key?: string
           invite_id?: string | null
+          request_fingerprint?: string
           result_code?: string
           result_org_id?: string | null
         }
@@ -11408,7 +11411,7 @@ export type Database = {
         }[]
       }
       get_organisation_invites: {
-        Args: never
+        Args: { p_state?: string }
         Returns: {
           authorized_email: string
           created_at: string
