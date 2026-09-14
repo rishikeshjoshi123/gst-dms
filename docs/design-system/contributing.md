@@ -8,6 +8,17 @@
 4. Decide the desktop and mobile presentations, stable chrome, and explicit scroll owner before coding.
 5. Confirm that the work does not alter business logic, routing, data contracts, or permissions unless those changes are separately authorized.
 
+## Before presenting a concept for product review
+
+A concept is a considered product proposal, not a first-pass assembly of available components.
+
+1. Inspect at least one approved concept with the closest table, workspace, sidebar, source-viewer, or decision pattern. Reuse its established geometry and interaction language unless the new task genuinely requires a different composition.
+2. Perform a content-hierarchy pass before visual styling. Remove redundant labels, repeated metadata, speculative states, unexplained terminology, and controls that duplicate actions elsewhere on the page.
+3. Perform a density pass across the full viewport. Compare table rows, workbars, pane headers, section spacing, scroll ownership, and fixed footers so no region consumes space disproportionate to its task value.
+4. Perform a deliberate visual-refinement pass in both Civic Ink appearances and at phone and desktop widths. Creativity should clarify the task through hierarchy, grouping, rhythm, and progressive disclosure; it must not mean decorative novelty or departure from shared primitives.
+5. Exercise representative records, including partial evidence, long content, closed/read-only state, source viewing, filters, and dialogs. A polished default fixture is insufficient when adjacent states become confusing or structurally inconsistent.
+6. Critique the concept as a reviewer before requesting approval: identify what feels crowded, oversized, ambiguous, visually inconsistent, or unnecessarily complex, then revise it. Do not make the product reviewer discover basic design-system drift through repeated feedback.
+
 ## During implementation
 
 - Use semantic tokens and typed component variants.
@@ -53,5 +64,6 @@ Report exact commands and results. A timed-out, interrupted, scoped, or failing 
 - Are primary, consequential, and ambiguous actions described with visible text rather than discoverable only through icons or delayed hover text?
 - Are the shared component, gallery, and documentation still consistent?
 - Did the change introduce raw colours, decorative gradients, arbitrary radii, or duplicate primitives?
+- Does the concept look intentionally composed beside the closest approved pages, with no obvious density, hierarchy, terminology, or redundancy issue left for the reviewer to discover?
 
 If a new design decision is required, stop and obtain it before creating a one-off convention. Once decision-complete, update the canonical plan when appropriate and update this living specification with the implemented contract.

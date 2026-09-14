@@ -2,7 +2,7 @@
 title: CaseChain Product Architecture Portfolio
 status: proposed
 created: 2026-08-24
-updated: 2026-09-08
+updated: 2026-09-15
 owners:
   - product
   - engineering
@@ -28,7 +28,7 @@ related:
 
 Rebuild CaseChain as an evidence-centred GST-litigation workspace with explicit boundaries between source records, immutable files, AI-derived candidates, human decisions, collaborative work, and user-facing projections. The portfolio is divided into bounded canonical plans so an implementation agent can work from an approved domain contract without inventing cross-domain architecture.
 
-The product vocabulary is **Today**, **My Work**, **Review**, **Activity**, **Document Hub**, **Search**, and the **Matter Workspace**. The legacy CaseWiki concept becomes a cited **Case Brief**. These are projections over shared domain services, not isolated page-specific data models.
+The product vocabulary is **Today**, **My Work**, **Review**, **Activity**, **Document Inbox**, **Search**, and the **Matter Workspace**. **Upload Queue** names the processing-focused view inside Document Inbox. The legacy CaseWiki concept becomes a cited **Case Brief**. These are projections over shared domain services, not isolated page-specific data models.
 
 ## Context and Goals
 
@@ -55,7 +55,7 @@ Success means:
 - **Review** owns decisions where human judgement or verification is required. It is not a generic list of unfinished work.
 - **Activity** is append-only organisation and matter history. Routine processing belongs here or inline, not in Notifications.
 - **Notifications** are personal interruptions with a reason, recipient, deep link, and useful action.
-- **Document Hub** is the intake and placement workspace. A single shared Document Workbench owns PDF inspection everywhere.
+- **Document Inbox** is the intake and placement workspace; **Upload Queue** is its processing-focused view. A single shared Document Workbench owns PDF inspection everywhere.
 - **Matter Workspace** is the flagship record workspace. Timeline, Files, Case Brief, Notes, Deadlines, Financials, Details, and Activity are coordinated sections over shared domains.
 - **Case Brief** is a cited, current orientation layer for a matter. It complements the factual timeline and is updated incrementally; it is not a periodic uncited essay or a duplicate timeline.
 - **Search** is a shell-level capability with scoped, explainable retrieval. It is not owned by Today.
@@ -139,7 +139,7 @@ This table is the architectural maturity snapshot, not the current delivery ledg
 
 Plan statuses describe approval and broad development state, not completed user capabilities. The table covers the fourteen architectural child domains; operational execution plans and the deferred demo are separately indexed. Do not maintain arithmetic completion summaries in prose. The plan index follows frontmatter; the delivery ledger owns current outcomes and evidence. Proposed plans, including the pilot sequence, do not become approved merely because the architectural child contracts are settled.
 
-The 2026-09-08 implementation direction is one task with a durable goal and one active code writer. Prioritize reproducible build/type checks and live authorization repairs, then the complete document journey. First PDF attachment is in scope; replacement UI is deferred. Development Usage aggregation is intentional but requires an enforced release boundary. Review visual approval, OCR thresholds and conflicting production-retention scope block their dependent work. When the preferred path is blocked, search all of `docs/` for another ready approved outcome, including work absent from the initial ledger. Preserve explicit implementation gates; a pilot release exclusion alone does not prohibit independent approved implementation.
+The 2026-09-08 implementation direction is one task with a durable goal and one active code writer. Prioritize reproducible build/type checks and live authorization repairs, then the complete document journey. First PDF attachment is in scope; replacement UI is deferred. Development Usage aggregation is intentional but requires an enforced release boundary. The Review visual direction, OCR thresholds, and production-retention policy now have recorded decisions; their dependent implementation and acceptance remain unfinished. When the preferred path is blocked, search all of `docs/` for another ready approved outcome, including work absent from the initial ledger. Preserve explicit implementation gates; a pilot release exclusion alone does not prohibit independent approved implementation.
 
 To resume in a new task:
 

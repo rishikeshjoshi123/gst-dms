@@ -2,7 +2,7 @@
 title: Matter Notes and Cited Case Brief
 status: approved
 created: 2026-08-25
-updated: 2026-09-13
+updated: 2026-09-14
 owners:
   - product
   - engineering
@@ -61,9 +61,11 @@ Out of scope are general chat rooms, direct messages, typing indicators, emoji r
   Search index. The only semantic index in that release is the Search plan's
   cited, matter-scoped retrieval over current PDF chunks.
 - This plan remains the approved post-pilot contract for the Notes/Case Brief
-  overhaul. Its AI generation and refresh steps become eligible only after the
-  first-release document retrieval has measured citation quality, cost, and
-  user value; they are not a design-partner release gate.
+  history, but its Case Brief product direction is no longer implementation
+  authority. The user requires a separate [Case Brief rethink](../../discovery/case-brief-rethink.md)
+  before any Brief route, generation or refresh returns to application scope.
+  Retrieval quality alone does not reactivate it. Notes remains independently
+  governed by the approved Notes contract.
 
 ### Product boundaries
 
@@ -307,7 +309,7 @@ Completion requires typecheck, lint for touched files, unit/integration/RLS/migr
 - The shared Workbench supplies immutable document versions, page rendering/OCR coordinates, and typed source locators before exact quotation cut-over.
 - The Work/Review/Activity plan supplies first-class tasks, Review items, outbox, notification intent, and configurable mention email delivery.
 - Initial rich-text storage uses a sanitized versioned JSON AST with a controlled renderer/editor; raw arbitrary HTML is never accepted.
-- Case Brief generation and auto-maintenance are disabled for the design-partner release. When the later feature gate passes, auto-maintenance is opt-out per organisation after first creation and remains separately feature-flagged during rollout.
+- Case Brief generation and auto-maintenance are disabled for the design-partner release and remain disabled until the required product rethink revises this plan. Only after that approval may a later feature gate define creation, maintenance, organisation controls and rollout.
 - Under the controlled-pilot contract, one ordinary user may have exactly one active or suspended organisation membership. Notes/Brief cursors, preferences, mentions, and search remain organisation-scoped so a future approved multi-organisation migration is compatible.
 
 ## Open Questions

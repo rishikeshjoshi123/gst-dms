@@ -2,7 +2,7 @@
 title: Hierarchical Resource Trash, Retention, and Purge
 status: approved
 created: 2026-08-24
-updated: 2026-09-08
+updated: 2026-09-11
 owners:
   - product
   - engineering
@@ -41,7 +41,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Release-policy reconciliation and matter identity
 
-- The completed retention/purge foundation remains intact. Its production activation conflicts with the proposed pilot sequence's disabled-purge rule; resolve `PILOT-RETENTION-SCOPE-2026-09-08` in [the decision queue](../../approval-based-blockers.md) before activation or confidential-data release. Do not silently remove the completed authority or enable it based on whichever plan was read last.
+- The September 11 [retention activation decision](../../decision-history/2026-09-11-trash-retention-activation.md) resolves the earlier pilot conflict: the first confidential-data pilot uses automatic 30/60/90-day Trash retention and governed purge. Exact logical expiry is distinct from later asynchronous physical cleanup. The pilot uses one routine physical-purge sweep per day at midnight `Asia/Kolkata`; the current minute schedule is historical implementation to replace, not accepted release configuration.
 - [D09](../../delivery-ledger.md) replaces the same-client/year assumption in Restore alongside Matter creation and placement. Audit/backfill and replacement identity safeguards precede removal of `idx_matters_unique_client_fy`. Legitimate separate same-year matters may restore; actual identifier conflicts still require explicit resolution and never cause automatic merging.
 - Deferred PDF replacement does not authorize deleting prior file assets or breaking historical evidence links. Any existing purge follows its established reference, hold and authorization checks.
 
@@ -96,9 +96,9 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 - Restore is root-operation scoped. It restores only resources whose active membership belongs to that operation; descendants that were already independently trashed remain in their original Trash entries.
 - Restoring an inherited child independently is not allowed. Restore the root ancestor, then make any desired child-level deletion separately.
-- Before restore, validate that required parents are active or are part of the same operation, tenant ownership remains valid, and unique identifiers/codes do not conflict with active records created after deletion.
+- Before restore, validate that required parents are active or are part of the same operation, tenant ownership remains valid, and unique identifiers/codes do not conflict with active records created after deletion. For Matters, apply the [approved September 11 namespaced identifier policy](../../decision-history/2026-09-11-matter-identity-and-extraction-normalization.md): client/financial year is not identity, while verified identity-eligible keys remain reserved across active and Trash records.
 - A separately trashed parent blocks child-root restoration. The UI links to the blocking ancestor operation.
-- Uniqueness conflicts never trigger silent renaming, identifier clearing, or merging. Restore remains blocked with a resolution workflow for an authorised admin to correct the active or trashed record deliberately.
+- Uniqueness conflicts never trigger silent renaming, identifier clearing, Matter merging, or reassignment. Restore remains blocked with a resolution workflow for an authorised admin to correct or revoke the active or trashed identifier deliberately through append-only history.
 - Restore writes all state changes, activity/outbox events, schedule recalculation requests, and search/index requests atomically. It preserves stable IDs and prior URLs.
 - Restoration does not automatically resume failed processing, accept AI candidates, send missed notifications, or reinstate archived cross-links. Those actions are re-evaluated after the records become active.
 
@@ -116,8 +116,9 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 - Organisation Settings includes one Owner/Admin-controlled Trash retention choice: 30, 60, or 90 days. The initial default is 90 days.
 - Every new root Trash operation snapshots the selected period and is scheduled for permanent deletion when that period ends. Automatic expiry is inherent to Trash and is not exposed as a separate switch; Trash cannot retain an item indefinitely.
+- The recorded deadline is an exact instant. At that instant an ordinary eligible group is logically expired: secured `/trash` and exact-resource readers stop disclosing it and Restore is unavailable, even while durable physical cleanup is queued or running. A legal hold or other mandatory blocker remains truthfully visible to authorised Owner/Admin users rather than being represented as deleted.
 - A later settings change applies prospectively. Existing Trash operations keep their snapshotted deletion date; changing them requires a separately approved bulk workflow and never bypasses a hold or blocker.
-- Twenty-four hours before scheduled permanent deletion, create one deduplicated `Today → Team attention` item for authorised Owner/Admin users. It links to the root Trash operation and resolves automatically if the operation is restored or deleted permanently first.
+- During the final seven days, `/trash` distinguishes the group and states the remaining days or hours without relying on colour alone. The first pilot exposes no separate 24-hour warning or notification. The existing content-free Team-attention projection is dormant from the pilot UI; its final presentation is deferred to the future Today/Dashboard contract.
 - Restore and authorised `Delete permanently` remain available from the Trash operation before scheduled deletion. Scheduled and manual permanent deletion share the same hold, blocker, durable execution, audit, and tombstone contract.
 - Storage quota exhaustion does not shorten retention, change a deletion date, or select records for deletion.
 
@@ -129,6 +130,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 - A legal hold on any included resource blocks the whole operation. Do not partially purge a client or matter around a held descendant.
 - Purge is asynchronous, durable, idempotent, and dependency ordered: disable active projections/jobs; remove search/embeddings; remove notification deliveries and task/review projections as policy requires; purge collaboration/derived facts according to retention; remove relationships; detach document versions; delete unreferenced assets; anonymise or retain mandatory activity tombstones; then mark the root purged.
 - Once purge begins, the subtree cannot be restored. If a stage fails, the operation becomes `purge_failed`, remains inaccessible, exposes a safe admin retry, and does not pretend that storage was freed.
+- User-visible expiry does not wait for the daily physical-deletion batch. The midnight-IST sweep selects all due and overdue operations and uses durable database job state, bounded batches, idempotent steps, safe retries and reconciliation. Failure-specific exponential-backoff or governed manual retries are allowed; they do not create another routine polling schedule.
 - A file asset is deleted only after a transaction proves there are no surviving document-version, intake, export, or hold references. Organisation-local deduplication therefore cannot make one document purge erase another document's PDF.
 - Every confirmed physical purge uses the shared minimal content-free tombstone/receipt pattern. For hierarchy purge, Activity retains organisation, resource type, former opaque ID, purge actor/policy, timestamp, and operation ID; storage-maintenance purges may additionally retain opaque source/canonical references and a safe verification code. Tombstones never retain names, legal content, filenames, raw storage paths, signed URLs, reference numbers, extracted facts, or credentials.
 - A tombstone records that a verified purge occurred; it is not a surviving copy of the deleted record and cannot be used to reconstruct purged content. Domain-specific purge workers must record durable intent before an external deletion, confirm the effect, and reconcile response loss idempotently before marking the tombstone complete.
@@ -149,7 +151,7 @@ The hierarchy, read-only experience, duplicate protection, retention defaults, p
 
 ### Canonical next action
 
-No further Trash action is currently queued. The Work selected-organisation authority blocker is resolved through the one-active-organisation membership invariant; continue the approved Task reader/transition closure under that authority. No legacy `deleted_at` compatibility migration is needed before first production deployment because the database contains test data only and production starts with the approved automatic retention policy.
+Reconcile the September 11 changed release requirement before production activation: make exact logical expiry authoritative in every Trash/exact-resource reader, add the final-seven-day `/trash` presentation, keep the 24-hour attention projection out of the pilot UI, and replace minute polling with the approved daily midnight-IST purge sweep plus failure-specific retry. Preserve the completed purge authority and historical evidence, but reopen affected browser, worker, failure, Platform Jobs, cost and deployed acceptance. No legacy `deleted_at` compatibility migration is needed because the database contains test data only.
 
 ### Completed: governed root permanent deletion (2026-09-01)
 
@@ -177,16 +179,16 @@ No further Trash action is currently queued. The Work selected-organisation auth
 
 - Migration `00090` replaces the temporary manual-compatible organisation policy with exactly one Owner/Admin-controlled 30/60/90-day automatic retention choice, defaulting to 90 days. It normalises every permitted `00079` legacy policy shape before adding the final non-null constraint, including the legacy-valid `retention_period`/NULL-days row.
 - `trash_resource` now locks and snapshots the complete current organisation policy in the same transaction that creates a root Trash operation. Each new root has an internally consistent policy version, retention period, eligibility timestamp, and scheduled permanent-deletion timestamp; later setting updates are CAS-fenced and prospective only.
-- Production Settings now presents the approved control with Owner/Admin save capability and Associate/Viewer read-only presentation. The service-private minute projector creates one content-free, operation-keyed Team-attention item inside the 24-hour window; it is tenant-fenced, replay/concurrency safe, resolves when the source leaves the eligible state, and is consumed by the current authorised dashboard rather than inventing a separate Today route.
+- Production Settings now presents the approved control with Owner/Admin save capability and Associate/Viewer read-only presentation. Historical implementation evidence: the service-private minute projector creates one content-free, operation-keyed Team-attention item inside the 24-hour window; it is tenant-fenced, replay/concurrency safe and resolves when the source leaves the eligible state. The September 11 decision supersedes its pilot presentation: keep it out of pilot UI and reconcile its schedule/cost before later Today/Dashboard use.
 - No permanent-delete executor, manual/indefinite policy, 180/365-day setting, retroactive bulk change, or hold workflow was introduced. Local reset through `00090`, an exact `00089 → 00090` legacy upgrade replay, SQL authority/acceptance fixture, policy-vs-Trash and projector concurrency harnesses, focused tests, generated type parity, TypeScript, targeted lint, migration checks, webpack production build, and fresh independent QA/recheck passed. The default Turbopack build remained inconclusive after a bounded no-progress wait; pre-existing broad lint debt remains outside the new hunks.
 
 ### Approved retention-settings concept (2026-09-01)
 
 - The inspectable fixture-only concept is available at `/dev/trash-retention-settings-concept` in [`src/app/dev/trash-retention-settings-concept/`](../../../src/app/dev/trash-retention-settings-concept/). It reuses the existing organisation Settings context and Civic Ink primitives rather than creating a separate Trash workspace.
-- It presents one 30/60/90-day choice, with 90 days as the initial value. Automatic expiry is inherent rather than a separate setting. The same panel explains that Trash still permits restore or authorised permanent deletion and that `Today → Team attention` receives a warning 24 hours before scheduled deletion.
+- It presents one 30/60/90-day choice, with 90 days as the initial value. Automatic expiry is inherent rather than a separate setting. Historical concept evidence included a `Today → Team attention` warning 24 hours before deletion; the September 11 decision removes that presentation from the pilot and parks its final UI with the future Today/Dashboard design.
 - The concept also shows Owner/Admin editing, Associate/Viewer read-only access, loading/error/long-content states, responsive one-scroller layouts, and light/dark appearances. It is not production UI and has no data/API path. The user confirmed the simplified 30/60/90-day direction is visually approved; the production Settings contract described above is implemented.
 - Design-system audit on 2026-08-31 aligned the concept with the Organisation settings contract: Settings is no longer represented as a primary rail destination; the stable workbar keeps scope at left, developer preview controls secondary, and `Save changes` rightmost; fixture-only explanation moved out of the form into the Preview menu; the binary control now uses the shared Switch; and mutually exclusive menu choices use radio semantics. User-facing language says permanent deletion rather than unexplained purge terminology. The appearance preview no longer creates a server/client hydration mismatch.
-- Product review on 2026-08-31 removed indefinite/manual retention, 180/365-day choices, and the separate automatic-deletion switch. The user-facing contract is intentionally one choice—30, 60, or 90 days—plus a concise 24-hour Team attention explanation; operational safeguards remain enforced by the domain without becoming extra settings.
+- Product review on 2026-08-31 removed indefinite/manual retention, 180/365-day choices, and the separate automatic-deletion switch. The user-facing retention setting remains intentionally one choice—30, 60, or 90 days. Its historical 24-hour Team-attention explanation is superseded for the pilot by the September 11 decision; operational safeguards remain enforced without becoming extra settings.
 
 ### Completed: Trash creation durable effect (2026-08-30)
 
@@ -310,7 +312,8 @@ type TrashImpact = {
 - Cross-matter links and shared assets remain safe when one endpoint/document is trashed, restored, or purged.
 - Retention changes are prospective. Existing entries keep their deletion date unless a separately approved bulk workflow changes it.
 - Scheduled and manual permanent deletion honor holds, recent-auth and confirmation policy where applicable, dependency order, retries, shared references, and minimal tombstones. A partial failure never reports success or freed bytes.
-- Each scheduled deletion creates at most one authorised Team attention item at the 24-hour boundary; restore or earlier permanent deletion resolves it, and inaccessible users receive no identifying data.
+- During the final seven days, `/trash` displays the exact remaining days or hours accessibly. At expiry, an ordinary eligible group disappears from Trash and exact user routes before asynchronous cleanup; blocked/held groups remain visible with truthful restricted status. The pilot exposes no 24-hour attention item, while any retained dormant projection remains deduplicated and non-disclosing for later Today/Dashboard work.
+- Production acceptance measures scheduled-run and compute cost for the complete maintenance fleet, proves the chosen India-time wake and cleanup SLA, and covers missed wake, duplicate wake, partial cleanup, exponential-backoff retry and manual governed retry through content-safe Platform Jobs state.
 - Quota exhaustion cannot invoke or accelerate purge. Trashed bytes remain visible and counted until assets are actually deleted.
 - Existing legacy soft-deleted records migrate into accessible Trash entries when their source data/files still exist; migration reports unrecoverable inconsistencies.
 - Trash and read-only routes meet Civic Ink responsive, keyboard, screen-reader, dark appearance, long-content, loading/error/empty, 200% zoom, touch-target, and scroll-ownership requirements.
@@ -321,8 +324,9 @@ type TrashImpact = {
 - CaseChain legal records require a conservative deletion model; convenience does not justify irreversible implicit cascades.
 - Ninety days is the initial retention default; organisations may choose 30 or 60 days, but cannot configure indefinite Trash retention.
 - Trash retention and legal hold are organisation policy, while platform storage guards remain independent operational constraints.
+- Initial organisations and users are India-only. Organisation-facing retention times use `Asia/Kolkata`; travelling users do not change the organisation policy. Database timestamps remain UTC instants.
 - Dependent domain plans will implement their suspension, restoration, and purge hooks against the events defined here.
 
 ## Open Questions
 
-None.
+None. Optimisation of the wider background-job fleet is parked for a separate [brainstorming session](../../discovery/background-job-scheduling-and-cost.md); it does not reopen the approved pilot purge cadence.

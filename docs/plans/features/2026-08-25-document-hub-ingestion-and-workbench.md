@@ -1,8 +1,8 @@
 ---
-title: Document Hub, Ingestion, Placement, Relationships, and Workbench
+title: Document Inbox, Ingestion, Placement, Relationships, and Workbench
 status: approved
 created: 2026-08-25
-updated: 2026-09-08
+updated: 2026-09-15
 owners:
   - product
   - engineering
@@ -16,7 +16,7 @@ related:
   - ../design-system/2026-08-20-casechain-design-system-overhaul.md
 ---
 
-# Document Hub, Ingestion, Placement, Relationships, and Workbench
+# Document Inbox, Ingestion, Placement, Relationships, and Workbench
 
 ## Reading guide
 
@@ -109,12 +109,14 @@ The present PDF experiences are also inconsistent. Document Hub opens a PDF-only
 
 ### Product vocabulary, routes, and ownership
 
-- The user-facing capability is **Document Hub**. Use `/documents` as its canonical collection route and `/documents/intake/{intakeItemId}` for an unassigned item. Keep `/inbox` as a compatibility redirect after cutover.
+- The user-facing capability is **Document Inbox**, and its processing-focused queue/view is **Upload Queue**. Use `/documents` as its canonical collection route and `/documents/intake/{intakeItemId}` for an unassigned item. Keep `/inbox` as a compatibility redirect after cutover.
+- The naming decision is recorded in [Document workspace naming](../../discovery/document-workspace-naming.md). Preserve `/documents`, domain identifiers, historical evidence and the shared Workbench contract; changing user-facing copy is not a data-model migration and requires separate implementation.
 - Use `/documents/{documentId}` as the canonical assigned-document route. Legacy `/matters/{matterId}/documents/{documentId}` routes redirect while preserving version, page, highlight, and return-context query state.
 - `Document Hub` owns upload sessions, active Intake, placement, duplicate/failure recovery, recent assignment handoff, and the intake form of the Workbench. It is not a second document database and is not the organisation Review queue.
 - `DocumentWorkbench` owns document/PDF inspection everywhere. Matter Timeline, Files, Search, Activity, Notes quotations, Review evidence, and Trash open the same component with a typed subject and capabilities.
 - Ordinary unplaced Intake stays in Document Hub. A conflict between strong placement evidence, a possible reassignment of an already filed document, or another typed consequential exception creates Review under the approved Work/Review plan.
 - Routine processing completion and ordinary auto-placement update Hub, the destination matter, and Activity. They do not create personal Notifications.
+- Global uploads and uploads initiated inside a Matter are both mandatory first-release entry points. They create durable rows in the same organisation queue and processing lifecycle; a Matter-origin item retains its intended Matter and does not disappear into a separate modal-only flow.
 
 ### End-to-end ingestion contract
 
@@ -197,7 +199,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 - Human-declared `intended_matter_id` and intended classification.
 - Exact verified matter identifiers: CaseChain `matter_code` and typed external proceeding/portal/case identifiers.
-- Exact, normalized, evidence-backed references to existing documents and their reference aliases.
+- Exact, normalized, evidence-backed references to existing documents and their typed self-identifier aliases, including the reverse case where an existing unresolved mention is waiting for the newly uploaded document.
 - Verified client identifiers such as GSTIN and PAN.
 - Tax period/financial-year overlap, document type and procedural family, issuer/authority, parties, root proceeding identifiers, and date consistency.
 - Prior human candidate rejection or explicit keep/move decision.
@@ -228,18 +230,31 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 #### Matter identity correction
 
-- Multiple active matters for one client and financial year are valid. Remove the current unique `(org_id, client_id, financial_year)` assumption after a duplicate-data audit and migration.
-- Keep an organisation-unique CaseChain `matter_code`. Add `matter_identifiers` for typed verified external keys with organisation/client/matter lineage, normalized value, issuer/system, verification, provenance, and uniqueness rules appropriate to identifier type.
-- Financial year and tax period remain attributes and matching evidence, not matter identity.
-- Existing rows retain IDs. Potentially conflated client/year matters are reported for human audit; migration never splits or merges them automatically.
+- The approved policy is recorded in the [September 11 Matter-identity decision](../../decision-history/2026-09-11-matter-identity-and-extraction-normalization.md). A Matter is one independently progressing or independently challengeable proceeding chain, not one client/financial-year tuple and not one Matter per financial year extracted from a document.
+- One root notice/proceeding can cover one month, several months, one financial year, multiple financial years, or non-contiguous periods and normally remains one Matter through reply, order, appeal, remand, and later orders. Separate root SCNs or independently actionable proceedings may be separate Matters even for the same client, GSTIN, provision, period, and financial year.
+- An official consolidation can make several notices or periods one chain. A document containing several independently actionable references is not automatically split or merged; explicit official linkage or an authorised human decision establishes the boundary.
+- Remove the current unique `(org_id, client_id, financial_year)` assumption after a duplicate-data audit and migration. Existing rows retain IDs; migration reports potentially conflated client/year Matters but never splits or merges them automatically.
+- Keep an organisation-unique CaseChain `matter_code`. `matter_identifiers` initially catalogue `proceeding_case_id`, `notice_reference`, `order_reference`, `appeal_reference`, and `court_case_number`; `other_official_reference` is suggestion-only until its issuing-system semantics are approved.
+- Every external identifier retains raw/display text, normalized value/components, issuer or portal namespace, kind, source/provenance, verification method/actor/time, and lifecycle. Only an exact, identity-eligible, verified key is reserved to one Matter within `(org_id, issuer_or_system_namespace, kind, normalized_value)` across active and Trash records.
+- AI/OCR/fuzzy output may propose identifiers but cannot verify them. Ambiguous, reused, partially read, or unverified values remain candidates. Corrections and revocations are append-only and trigger targeted reevaluation without moving an assigned document or merging Matters.
+- GSTIN/PAN identify or suggest the client. Financial year, tax period, document dates, title, filename, document type, parties, and semantic similarity describe or support the proceeding; they are not Matter identity.
+- Trash retains verified identifier reservations. Restore blocks on a real active collision without silent rename, clear, or merge. After final purge, reuse requires a deliberate authorised creation path and stale unresolved references cannot auto-place an unrelated replacement.
 
 #### Reevaluation and learning
 
 - Reevaluate placement only when an input changes: source extraction version, material human metadata correction, verified client/matter identifier, new candidate matter/document, intended target availability, restore, or explicit scoped retry.
 - Recompute candidates in a new immutable run. Do not mutate the prior explanation.
+- Each upload evaluates both directions: (1) the current document's outbound typed reference mentions against existing verified self identifiers and (2) existing unresolved mentions against the current document's verified self identifiers. Resolution is indexed by organisation, issuer/system namespace, identifier kind, and normalized value rather than by scanning every Matter.
+- Each direction records `unique_exact`, `ambiguous`, `conflicting`, or `unresolved`. No match is durable pending state, not extraction failure; a later document, verified alias, or correction triggers only the relevant pending keys.
 - An unassigned Intake item may auto-place on a later run only if the current initial policy passes and no user decision/rejection blocks it.
 - An assigned document never moves automatically. A stronger later candidate creates a `possible_reassignment` attention/Review item with old/new evidence and an impact preview; an authorised user reviews it and explicitly moves the document or keeps the current placement. The attention surface is informational until that human decision.
 - Store human outcomes and false-positive/false-negative labels for offline evaluation. Do not perform uncontrolled online learning from a single organisation's decisions. Policy/prompt changes use a versioned, anonymised evaluation set and measured promotion.
+
+#### Boundary repair and shared documents
+
+- If a user later determines that one Matter should have been two, the governed repair path creates the additional Matter, moves documents exclusive to one chain, and intentionally copies any genuinely shared source document. The inverse correction uses an impact-previewed governed move/copy sequence; an automatic Matter merge is not part of the pilot.
+- Every copied logical document references the same organisation-local `file_asset`, records source lineage and reason, and rebuilds Matter-specific placement, relationships, legal facts, deadlines, financial projections, and Search lineage. The PDF bytes and immutable base source analysis are not duplicated.
+- The impact preview identifies documents, shared assets, verified identifiers, relationships, deadlines, financial facts, notes/citations, and Trash/Restore conflicts affected by the repair. No inference silently changes a Matter boundary.
 
 ### Reference and procedural-relationship overhaul
 
@@ -251,6 +266,7 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 #### Persisted model
 
+- `document_self_identifiers`: source document/version, typed kind, issuer/system namespace, raw/display value, normalized value/components, page/quote/region evidence, verification and lifecycle state, and optional verified Matter-identifier binding.
 - `document_reference_mentions`: source document/version, semantic key, normalized cited reference identity, raw short quote, page/regions, extracted relation wording, resolution state, and optional resolved target.
 - `relationship_resolution_runs`: matter/source revision, rule-catalogue version, trigger, state, counts, and diagnostics.
 - `document_relationship_candidates`: source/target, proposed type/direction, semantic key, origin (`explicit_reference`, `deterministic_rule`, `ai_extracted`, `manual`), eligibility/state, source revision, and stale/supersession data.
@@ -322,8 +338,8 @@ Every binary source follows this sequence. Stages use durable rows and idempoten
 
 #### Shared visibility, action authority, and concurrency
 
-- Document Hub is a capability-scoped organisation Intake workspace, not a feed visible to every account. Owner/Admin and an Associate granted `intake.manage_shared` can see `All uploads`; that grant includes standard shared-triage actions on visible Intake rather than creating a largely useless view-only global queue. Ordinary Associates see `My uploads` by default and do not receive `All uploads`; a Viewer does not gain unplaced-intake visibility merely from the Viewer role. The initial release does not issue a separate shared-queue-view-only grant.
-- Queue visibility and action authority still remain distinct at the item boundary. The secured projection returns only records the caller may inspect and an allowed-action set per item. A shared-intake operator may perform ordinary existing-Matter placement, duplicate handling, recoverable retry, and other approved standard triage; an item requiring creation of a Client/Matter, reassignment of a filed document, pre-expiry takeover, or privileged recovery returns an explicit Owner/Admin escalation state rather than a dead control.
+- Document Hub is an organisation Intake workspace for active legal workers, not a feed visible to every account. Owner, Admin and Associate can see `All uploads` and perform approved standard shared-triage actions; `My uploads` remains a useful personal filter rather than an access boundary. There is no `intake.manage_shared` grant or separate shared-queue-view-only grant. A Viewer does not gain unplaced-intake visibility merely from the Viewer role.
+- Queue visibility and action authority still remain distinct at the item boundary. The secured projection returns only records the caller may inspect and an allowed-action set per item. Associate, Admin and Owner may perform the same ordinary intake work, including permitted Client/Matter creation, placement, governed filed-document reassignment, duplicate handling, recoverable retry, and other approved standard triage. Only an action independently classified as application administration or privileged recovery—such as pre-expiry takeover—returns an explicit Owner/Admin escalation state rather than a dead control.
 - Opening a row, sidebar, extracted data, or PDF is observational and never claims work. A claim is requested only when the user presses an explicit verb such as `Start conflict review` and the server successfully opens the multi-step consequential workflow. Merely clicking every queue row therefore claims nothing.
 - Each membership may hold at most one active Document Hub claim in an organisation. Starting work on a second item first shows `Release {current item} and start this review?`; confirmation performs one server transaction that releases the prior claim and acquires the new item, while cancellation leaves both unchanged. The acquire command serializes on the membership and item, clears expired state, revalidates capability and source revision, and cannot be bypassed by multiple tabs.
 - An active claim is a visible 10-minute soft lease containing actor, start, last meaningful activity, expiry, and source revision. While that resolution UI is active, source navigation, decision-draft changes, or an explicit `Continue review` action may renew the lease to 10 minutes from authoritative database time through a throttled authenticated command; a merely open or background tab does not renew it. The UI warns when two minutes remain.
@@ -637,7 +653,7 @@ type WorkbenchSubject =
 
 - Reproduce and close the reviewed empty-success refresh, late source-sign response, historical-source/current-inspector mismatch and narrow-viewer defects using real state transitions and production components. Quotes persist the exact selected version; no global quote event supplies ambiguous current-page state.
 - A real deployed upload exceeding 4.5 MB and at the 25 MiB application boundary succeeds through direct Storage transfer. Retry/cancel/expiry and reload-with-file-reselection behavior match the lifecycle contract and never duplicate finalization or paid work.
-- Distinct same-client/year matters can be created, assigned and restored while genuine identifier conflicts remain explicit; dropping the old index alone does not satisfy acceptance.
+- Distinct same-client/year Matters can be created, assigned and restored while genuine verified-identifier conflicts remain explicit. One multi-year proceeding remains one Matter, and a multi-root or uncertain-consolidation document requires a human boundary decision; dropping the old index alone does not satisfy acceptance.
 
 ### Pipeline and storage
 
@@ -651,7 +667,7 @@ type WorkbenchSubject =
 
 ### Placement quality and integrity
 
-- Tests cover intended matter, exact matter/external key, exact cited document, same reference under multiple matters, GSTIN conflict, GSTIN+FY only, multiple matters in one FY, multi-FY source, fuzzy/name/filename/semantic hints, unavailable/Trash targets, no match, later stronger evidence, and concurrent user/worker decisions.
+- Tests cover intended Matter, exact Matter/external key, exact cited document, same reference under multiple Matters, GSTIN conflict, GSTIN+FY only, multiple Matters in one FY, one proceeding spanning multiple FYs, multi-root and consolidated documents, fuzzy/name/filename/semantic hints, unavailable/Trash targets, no match, later stronger evidence, and concurrent user/worker decisions.
 - Fuzzy-reference fixtures cover punctuation/spacing variants, year formats, known OCR confusions, one-character numeric collisions, different issuers, different clients, multiple plausible targets, and adversarial near matches. They prove that fuzzy results are explainable suggestions only and cause no mutation.
 - Native/OCR routing fixtures cover good native English/Hindi/mixed pages, empty and broken text layers, large image regions, stamps, handwriting, rotation, poor scans, and representative tables. They measure missed and unnecessary OCR, source-text accuracy, reading order, page/word anchors, latency, and billed pages without allowing Gemini to supply the transcript.
 - Gemini extraction fixtures require an English neutral synopsis and English display metadata, retain original evidence for transliterated proper names, preserve exact identifiers/numbers, and reject any provider response containing page transcripts or OCR word streams.
@@ -662,13 +678,15 @@ type WorkbenchSubject =
 - A human-directed matter upload is never rerouted by AI. A conflict creates one evidence-backed Review item without blocking PDF access.
 - An assigned document never moves on reevaluation. Possible reassignment requires a current, typed Review decision and impact preview.
 - Client/matter proposal creates no record before confirmation and commits client/matter/document assignment atomically. Race tests resolve existing identifiers without orphan or duplicate records.
-- Removing client-year uniqueness preserves existing IDs and permits two legitimate active matters for the same client/FY while organisation matter-code/external-key rules prevent actual duplicates.
+- Removing client-year uniqueness preserves existing IDs and permits two legitimate active Matters for the same client/FY while organisation Matter-code and verified namespaced external-key rules prevent actual collisions across active and Trash records. Fixtures cover verification, correction/revocation, Restore collision, final-purge reuse, concurrent creation, and suggestion-only ambiguous/reused identifiers.
+- Upload-order fixtures prove both directions: an order/appeal uploaded after its predecessor resolves its outbound citation, while a predecessor uploaded after an order/appeal resolves the existing pending mention. Unique exact keys can become eligible under the stored organisation policy; ambiguous, conflicting, or absent matches remain durable and cause no silent placement or move.
+- Boundary-repair fixtures split a mistakenly combined Matter using governed create/move/copy actions, reuse one `file_asset` for a source shared by two Matters, rebuild Matter-specific projections, preserve notes/citations and audit lineage, and prove that no PDF bytes or base extraction are duplicated.
 - Shadow evaluation includes at least 100 adjudicated placement examples and reports coverage, suggestion Recall@3, auto-placement precision, conflicts, and abstention. Require 100% precision on critical fixtures and at least 98% adjudicated auto-placement precision before enabling an automatic rule in pilot; otherwise keep it suggestion-only.
 
 ### Relationships
 
 - Exact citation without procedural language resolves a reference mention but does not fabricate a Timeline edge. Unknown type pairs never default to `responds_to`.
-- Tests cover explicit relation language, exact/fuzzy/colliding/missing references, date/type/identifier conflicts, later target arrival, cross-matter reference, supporting documents, self-reference, inverse/duplicate edge, replacement version, reassignment, reclassification, Trash/restore, manual override, and prior rejection.
+- Tests cover explicit relation language, typed self identifiers, exact/fuzzy/colliding/missing references, date/type/identifier conflicts, both upload orders, later target arrival, cross-Matter reference, supporting documents, self-reference, inverse/duplicate edge, replacement version, reassignment, reclassification, Trash/Restore, manual override, and prior rejection.
 - Self-links and cross-organisation links fail at database and command layers. Only active effective proceeding relationships drive the Timeline.
 - Fuzzy/progression/AI-only suggestions require Review. Exact automatic relationships meet every evidence/policy condition and remain fully explainable.
 - Reprocessing cannot overwrite a manual relationship or recreate an unchanged rejected suggestion. Event-driven pending resolution touches only relevant unresolved mention keys.

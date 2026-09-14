@@ -2,7 +2,7 @@
 title: CaseChain Universal Search and Evidence Retrieval
 status: in-progress
 created: 2026-08-24
-updated: 2026-09-08
+updated: 2026-09-14
 owners:
   - product
   - engineering
@@ -40,6 +40,12 @@ The design-partner release limits semantic indexing to meaningful page-aware chu
 
 ## Decisions
 
+### October 2026 release boundary
+
+- Organisation-wide semantic retrieval is not required for the first production release. Organisation and Client scope may retain safe exact/lexical navigation where already supported without claiming semantic coverage.
+- Matter/current-document cited retrieval is a high-value conditional enhancement. It ships only if its acquisition, page eligibility, exact citation, lexical fallback, relevance, latency, cost, tenant/current-version/Trash and provider-failure gates pass without consuming the core journey or stabilisation window.
+- Cutting cited retrieval does not cut mandatory source-grounded metadata extraction. These are separate consumers and gates.
+
 ### Delivery evidence and initial consumer order
 
 - [D12](../../delivery-ledger.md): establish dependable exact/lexical lookup, then the bounded cited Matter/current-document retrieval after the AI acquisition gate. Existing navigation links or transitional whole-document vectors do not demonstrate the planned passage-search experience.
@@ -49,8 +55,8 @@ The design-partner release limits semantic indexing to meaningful page-aware chu
 ### Design-partner embedding boundary
 
 - Embeddings are a sensitive, regenerable retrieval index—not canonical facts, durable user memory, or a workspace-wide intelligence layer.
-- The first release embeds each changed, meaningful document chunk once for one active 768-dimensional model/chunking version. It does not create separate Matter/client/document-summary vectors or retain multiple production vector versions after a verified cutover/rollback window.
-- Semantic queries are matter-scoped by default and return cited document/page passages. Organisation and Client scopes may provide exact/lexical navigation in the first release but do not run corpus-wide vector retrieval until relevance, latency, index size, and tenant-isolation evidence justify it.
+- If conditional cited retrieval ships, the first release embeds each changed, meaningful document chunk once for one active 768-dimensional model/chunking version. It does not create separate Matter/client/document-summary vectors or retain multiple production vector versions after a verified cutover/rollback window.
+- When enabled, semantic queries are matter-scoped by default and return cited document/page passages. Organisation and Client scopes may provide exact/lexical navigation in the first release but do not run corpus-wide vector retrieval until relevance, latency, index size, and tenant-isolation evidence justify it.
 - There are no agents, autonomous workflows, generated legal answers, Note/chat distillation, or system-wide memory in the first release. A later intelligence feature requires a separate approved plan and may consume only accessible cited retrieval results and verified structured facts.
 
 ### Product and interaction model
@@ -60,7 +66,7 @@ The design-partner release limits semantic indexing to meaningful page-aware chu
 - Use two interaction depths:
   - A command palette for rapid entity navigation and exact identifier matches.
   - A full `/search` workspace for natural-language queries, grouped results, scopes, filters, saved searches, and pagination.
-- Preserve Organisation, Client, Matter, and Current document scopes in the query contract. In the first release, semantic passage retrieval is enabled only for Matter and Current document; broader scopes fall back to exact/lexical/structured results. A scope is always a relational filter over one shared index, not a separately generated embedding.
+- Preserve Organisation, Client, Matter, and Current document scopes in the query contract. If conditional semantic passage retrieval is enabled in the first release, it is enabled only for Matter and Current document; broader scopes fall back to exact/lexical/structured results. A scope is always a relational filter over one shared index, not a separately generated embedding.
 - Run cheap entity/prefix suggestions while typing. Run query embedding and deep retrieval only on explicit submission or after selecting a suggested query; do not create a paid embedding on every keystroke.
 - The first-release result groups are Matters, Documents/passages, and Clients. Notes, Case Brief, Deadlines, and Financials join the common result contract only in later verified tranches; their absence must not be presented as complete coverage.
 - Every result must show why it matched: exact identifier, matched passage, interpreted structured constraint, semantic similarity, or a combination. Similarity percentages are not user-facing confidence scores.
@@ -229,16 +235,17 @@ high aggregate confidence, and flattened output obscured table relationships.
 The run proves service/region viability, not Search quality. Preserve table
 cells/geometry and do not treat provider confidence as legal-fact validation.
 
-**Canonical next action:** expand this into a labelled 60–100-page benchmark
-covering native/scanned English, Hindi, mixed language, handwriting, tables,
-rotation, and poor scans. Measure routing precision/recall, character/word and
-critical-field exactness, table-cell/anchor correctness, latency, billed pages,
-and cost. In parallel, implement the AI plan's source-span/cell verifier and
-`@google/genai` migration. The exact Mumbai processor version
-`pretrained-ocr-v2.1.1-2025-01-31` is approved for the bounded pilot in the
-[approval record](../../approval-based-blockers.md#2026-09-03--mumbai-ocr-processor-promotion).
-Do not backfill or cut over Search until the benchmark passes; then resume the
-approved Search query contract.
+**Canonical next action:** run the labelled 60–100-page benchmark against the
+approved September 11 acquisition thresholds and exact Mumbai processor
+version. Accepted native pages and qualifying OCR pages may supply page chunks
+and embeddings after the remaining document/version and Search rollout gates
+pass. An unreliable page remains `source_unreadable` or `metadata_only` and is
+excluded from page-body vectors until successful reacquisition or explicit
+whole-page transcript verification. Human acceptance or correction of one
+structured fact makes that effective metadata eligible for structured search;
+it does not certify or index the page transcript. Do not backfill or cut over
+Search until the benchmark passes; then resume the approved Search query
+contract. See the [recorded threshold decision](../../decision-history/2026-09-11-ocr-acquisition-benchmark-thresholds.md).
 
 ## Interfaces and Data Changes
 

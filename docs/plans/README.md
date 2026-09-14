@@ -37,19 +37,19 @@ For product discussion, use the [planning prompt](../planning-prompt.md) and [pl
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Design-System Overhaul](./design-system/2026-08-20-casechain-design-system-overhaul.md) | `in-progress` | 2026-08-23 |
+| [CaseChain Design-System Overhaul](./design-system/2026-08-20-casechain-design-system-overhaul.md) | `in-progress` | 2026-09-12 |
 | [Public Brand and Landing Page](./design-system/2026-08-28-public-brand-and-landing-page.md) | `in-progress` | 2026-08-29 |
 
 ### Features
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-11 |
-| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-13 |
-| [Document Hub, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-09-11 |
+| [CaseChain Universal Search and Evidence Retrieval](./features/2026-08-24-universal-search-and-evidence-retrieval.md) | `in-progress` | 2026-09-14 |
+| [Work Orchestration, Review, Activity, Notifications, and Today](./features/2026-08-25-work-review-activity-notifications.md) | `in-progress` | 2026-09-14 |
+| [Document Inbox, Ingestion, Placement, Relationships, and Workbench](./features/2026-08-25-document-hub-ingestion-and-workbench.md) | `approved` | 2026-09-15 |
 | [Matter Workspace and Procedural Timeline](./features/2026-08-25-matter-workspace-and-procedural-timeline.md) | `approved` | 2026-09-13 |
-| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-13 |
-| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-09-11 |
+| [Matter Notes and Cited Case Brief](./features/2026-08-25-notes-and-case-brief.md) | `approved` | 2026-09-14 |
+| [Verified Deadlines and Matter Financials](./features/2026-08-26-deadlines-and-financials.md) | `approved` | 2026-09-14 |
 | [Passcode-Gated Interactive Demo Workspace](./features/2026-09-03-interactive-demo-workspace.md) | `proposed` | 2026-09-03 |
 
 ### Platform
@@ -58,17 +58,18 @@ For product discussion, use the [planning prompt](../planning-prompt.md) and [pl
 | --- | --- | --- |
 | [CaseChain Product Architecture Portfolio](./platform/2026-08-24-product-architecture-portfolio.md) | `proposed` | 2026-09-08 |
 | [Document Record and File Lifecycle](./platform/2026-08-24-document-record-and-file-lifecycle.md) | `in-progress` | 2026-09-10 |
-| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-09-08 |
-| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-09-08 |
+| [AI Extraction, Provenance, and Model Lifecycle](./platform/2026-08-24-ai-extraction-and-model-lifecycle.md) | `in-progress` | 2026-09-14 |
+| [Hierarchical Resource Trash, Retention, and Purge](./platform/2026-08-24-resource-trash-retention-and-purge.md) | `approved` | 2026-09-11 |
 | [Selective Realtime Delivery, Freshness, and Unread State](./platform/2026-08-25-realtime-delivery-freshness-and-unread-state.md) | `approved` | 2026-09-08 |
-| [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-09-10 |
-| [Platform Operations](./platform/2026-08-27-platform-operations.md) | `approved` | 2026-09-08 |
+| [Organisation Administration, Team Access, and Personal Settings](./platform/2026-08-26-organisation-administration.md) | `in-progress` | 2026-09-14 |
+| [Platform Operations](./platform/2026-08-27-platform-operations.md) | `approved` | 2026-09-14 |
 
 ### Operations
 
 | Plan | Status | Updated |
 | --- | --- | --- |
-| [Design Partner Pilot Execution Sequence](./operations/2026-08-29-design-partner-pilot-execution-sequence.md) | `proposed` | 2026-09-10 |
+| [Design Partner Pilot Execution Sequence](./operations/2026-08-29-design-partner-pilot-execution-sequence.md) | `proposed` | 2026-09-14 |
 | [Project Portal and GitHub Pages](./operations/2026-08-27-project-portal-and-github-pages.md) | `in-progress` | 2026-09-08 |
-| [Single-Task Agent Delivery and Verification](./operations/2026-09-08-agent-delivery-workflow.md) | `approved` | 2026-09-10 |
+| [Developer Concept Review Index](./operations/2026-09-12-concept-review-index.md) | `approved` | 2026-09-12 |
+| [Single-Task Agent Delivery and Verification](./operations/2026-09-08-agent-delivery-workflow.md) | `approved` | 2026-09-11 |
 | [Product Discussions and Plan Evolution](./operations/2026-09-10-product-discussions-and-plan-evolution.md) | `approved` | 2026-09-10 |

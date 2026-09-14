@@ -2,7 +2,7 @@
 title: CaseChain Design-System Overhaul
 status: in-progress
 created: 2026-08-20
-updated: 2026-08-23
+updated: 2026-09-12
 owners:
   - product
   - engineering
@@ -43,6 +43,8 @@ The authenticated product is the first priority. Authentication and public pages
 - Adopt **Stable Workspace Chrome** for operational layouts: page or pane identity, interpretation context, and primary actions remain outside the designated scrolling body. Desktop split panes may scroll independently without moving their headers; mobile normally uses one principal scroller with a compact sticky header or bottom action bar.
 - Use thin, semantic, discoverable scrollbars. Do not hide scrolling affordances, allow accidental nested scrollers, or let live updates and loading states unexpectedly move the user's context.
 - Use visible, descriptive, verb-led action labels by default. Icons reinforce labels; icon-only controls are reserved for universally understood compact actions and require an accessible name plus prompt hover/focus help. Ambiguous, primary, destructive, and workflow-changing actions never rely on an icon or delayed tooltip alone.
+- Standardize table geometry through supported density tiers rather than one forced height: 48px minimum for one-line operational rows and 56px minimum for compact two-line identity rows. Rows may grow for permitted content, but a collection and its loading state keep identical minimum geometry and feature pages do not invent cell padding.
+- Treat every concept as a considered proposal rather than an early component assembly. Before product review, compare the closest approved patterns, remove redundant or speculative content, audit density and terminology, and complete an internal visual-refinement pass across representative states, light/dark, phone, and desktop. Creativity is expected in hierarchy, grouping, rhythm, and progressive disclosure while remaining inside Civic Ink primitives.
 
 ## Implementation Plan
 
@@ -79,6 +81,7 @@ Responsive adaptations must include prioritized card or drill-down alternatives 
 - Enforce WCAG 2.2 AA contrast and interaction requirements.
 - Cover default, hover, focus, active, disabled, loading, empty, error, destructive-confirmation, and long-content states.
 - Validate long client names, GST references, multiple dates, missing metadata, large queues, duplicate filenames, low-confidence AI results, urgent deadlines, and failed uploads.
+- A concept review candidate has no unresolved basic inconsistency in table geometry, pane anatomy, header density, terminology, repeated content, modal composition, or shared source-viewer behavior when compared with the closest approved concepts.
 - Add automated accessibility checks and visual regression coverage for the gallery and the two pilot workflows.
 - Consider the system validated when Inbox and Matter require no raw styling exceptions and remain fully operable across the target viewport and accessibility matrix.
 

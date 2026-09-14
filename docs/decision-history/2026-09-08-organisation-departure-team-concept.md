@@ -14,12 +14,12 @@
 
 ## Release and resume
 
-The visual approval gate is released. The next implementation coordinator may claim **D15** in [the ledger](../delivery-ledger.md), reconcile current code and prerequisites, and implement the smallest secure live Team/departure or administrative-removal closure. Do not ask for this same visual approval again. Replace the legacy removal caller through the approved impact/disposition flow; do not attach typed destructive commands directly to the old control.
+The visual approval remains valid and must not be requested again. A later [September 11 decision](./2026-09-11-pilot-departure-removal-deferral.md) excludes both member removal and self-service resignation from the pilot and defers **D15** until the required ownership foundations exist. The concept remains the future implementation direction; it is not authority to expose the legacy removal caller or ship a partial departure flow.
 
-The canonical authority matrix, privacy/RLS boundaries, membership snapshots, transactional reassignment, stale/concurrent command protection, lifecycle effects, and required database/browser acceptance still apply. Retention activation, the Associate grant catalogue and the separate Review workspace retain their own decisions.
+The canonical authority matrix, privacy/RLS boundaries, membership snapshots, transactional reassignment, stale/concurrent command protection, lifecycle effects, and required database/browser acceptance still apply. Retention activation and the separate Review workspace retain their own decisions. The formerly separate Associate grant question was later resolved by the [September 11 working-access decision](./2026-09-11-associate-working-access-policy.md).
 
-- **Resume owner:** next implementation coordinator; task identity `unassigned`.
-- **Implementation state / commit:** `planned` / `not implemented` for the live consumer covered by this approval. Existing foundations retain their separately recorded evidence. Add the actual implementation receipt/commit through D15 when verified; visual approval alone cannot complete that outcome.
+- **Resume owner:** a post-pilot implementation coordinator after the foundation prerequisites are recorded as complete; task identity `unassigned`.
+- **Implementation state / commit:** `deferred` / `not implemented` for the live consumer covered by this approval. Existing foundations retain their separately recorded evidence. Add the actual implementation receipt/commit through D15 when verified; visual approval alone cannot complete that outcome.
 
 ## Prior concept verification
 

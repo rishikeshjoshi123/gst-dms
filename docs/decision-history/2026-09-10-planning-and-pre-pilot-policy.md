@@ -16,6 +16,7 @@ September 10 read-only inspection found no root `.env`; `.env.local` contains a 
 
 ### Subsequent clarifications
 
+- On September 11, the user resolved real-client Trash activation in favour of automatic 30/60/90-day retention, exact logical expiry, one daily midnight-IST physical-purge sweep and asynchronous cleanup. The pilot does not surface the 24-hour Team-attention item; its UI is parked with future Today/Dashboard work. Wider background-job optimisation is parked for a separate brainstorming session. [Recorded decision](./2026-09-11-trash-retention-activation.md).
 - On every login without an active/suspended organisation membership, show the account's pending invitations and a distinct create-organisation view/action. Multiple inviting organisations do not change the user-confirmed one-organisation membership rule.
 - Last-member departure, empty-organisation retention/deletion and returning to that organisation are explicitly deferred for a later brainstorming session. [Topic note](../discovery/last-member-and-empty-organisation.md). No automatic deletion/recovery or last-admin exception is approved.
 - The user reports purchasing `case-chain.com` and proposes using Resend for Supabase Auth. Domain DNS/Resend verification and remote SMTP configuration remain unverified. Production setup is separate from local captured-mail testing; no DNS, SMTP or email-send operation is authorised by this record alone.

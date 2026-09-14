@@ -4,7 +4,7 @@ Domain patterns translate CaseChain business state into consistent presentation.
 
 ## Document intake and processing
 
-The current Document Hub vocabulary is:
+The current Document Inbox / Upload Queue vocabulary is:
 
 | State | Treatment |
 | --- | --- |
@@ -19,7 +19,7 @@ Use the established stages `Queued → Extracting → Matching → Ready`. Name 
 
 Queue rows remain stable while updates arrive in place. Do not reorder an active item merely to animate progress. Announce meaningful live changes without repeatedly interrupting assistive technology.
 
-Document Hub queue scopes use task language rather than recency language:
+Document Inbox queue scopes use task language rather than recency language:
 
 | Scope | Meaning |
 | --- | --- |
@@ -34,7 +34,7 @@ Ownership scope is separate from workflow status. When the current capability ca
 
 Status and other field-specific filters belong in their table-column headings on desktop when the column remains visible. Keep scope and Search in the collection workbar. On presentations without table headings, expose the same filter as one compact labelled control near Search; never hide an active filter merely because the layout removed its desktop column.
 
-The unselected Document Hub queue is a compact table with document identity/classification, equal-width status, uploader identity, source, destination/stage, and received date. The uploader's visible name and avatar are first-class comparison context. Workflow actions live in the selected sidebar rather than being compressed into the row. When the sidebar opens, keep document, status, and uploader columns and remove repeated source, destination, and received columns instead of squeezing them.
+The unselected Upload Queue is a compact table with document identity/classification, equal-width status, uploader identity, source, destination/stage, and received date. The uploader's visible name and avatar are first-class comparison context. Workflow actions live in the selected sidebar rather than being compressed into the row. When the sidebar opens, keep document, status, and uploader columns and remove repeated source, destination, and received columns instead of squeezing them.
 
 On wide desktop, selection establishes one stable split-pane chrome row: the queue workbar occupies the table's approximately 60% pane and the sidebar tabs occupy the unchanged approximately 40% pane. Opening a source swaps the queue workbar and table for the PDF toolbar and viewer inside that left pane only. The sidebar header, width, body scroller, and action footer must not move when source mode opens or closes.
 
@@ -48,7 +48,7 @@ Allow one state-specific summary and at most three key findings on Overview. A k
 
 Do not leave state explanation as an unstructured sentence or let it occupy the sidebar's prime region as a large generic callout. After identity/status, lead with the source-backed evidence or processing facts that let the user understand the document. Follow them with one lightweight decision/outcome section: a plain section heading, explicit `Decision required` or `No action needed` cue, outcome title, consequence, and one semantic leading rule. Do not render it as another tinted alert card with an icon tile. This evidence-before-interpretation order is stable across document states.
 
-Opening and closing the Document Hub sidebar uses the shared `--duration-fast` and `--ease-smooth` transition with no entry delay. The sidebar header and body reveal/collapse as one pane, and the queue changes between condensed and full columns in the same state change; never restore columns only after the pane transition finishes. This dense collection is an intentional exception to the default structural duration because a slower expanding table makes document rows feel elastic. Switching between queue and source mode does not animate or move the already-open inspector. Reduced-motion presentation changes state without spatial movement.
+Opening and closing the Document Inbox sidebar uses the shared `--duration-fast` and `--ease-smooth` transition with no entry delay. The sidebar header and body reveal/collapse as one pane, and the queue changes between condensed and full columns in the same state change; never restore columns only after the pane transition finishes. This dense collection is an intentional exception to the default structural duration because a slower expanding table makes document rows feel elastic. Switching between queue and source mode does not animate or move the already-open inspector. Reduced-motion presentation changes state without spatial movement.
 
 Processing rows use a same-line stage marker, not a fabricated percentage or a third line that changes row height. Name the current stage and encode completed/current/future stages with text plus a compact segmented marker. When that row is selected, remove its duplicate row marker and replace it with one compact processing summary that states what is happening, one truthful completed-work fact, and whether user action is required. Do not repeat a fully labelled stage rail in the sidebar. A live collaborator claim uses the same one-place rule and always names the actor. In a queue row it is a quiet secondary activity label with a restrained pulsing dot, not a competing badge; in the selected sidebar it may become a compact structural notice because it changes action availability. The pulse must stop under reduced motion; text continues to communicate the live state.
 

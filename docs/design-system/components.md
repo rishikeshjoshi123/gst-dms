@@ -81,6 +81,9 @@ Use [`switch.tsx`](../../src/components/ui/switch.tsx) for a binary setting that
 Use Radix-backed [`dialog.tsx`](../../src/components/ui/dialog.tsx) and [`ConfirmDialog.tsx`](../../src/components/ui/ConfirmDialog.tsx).
 
 - Every dialog has a title; add a description when the consequence or task is not self-evident.
+- Use the shared semantic scrim without backdrop blur. The background is de-emphasised, not transformed into a glass effect.
+- A confirmation title states the question or action in plain language. Its body shows the selected outcome first, then concrete consequences and only the source or authority metadata needed to verify the choice.
+- Keep one quiet return action and one verb-led confirmation action in the footer. Do not add technical implementation safeguards, duplicate summaries, or unexplained metadata cards to the visible workflow.
 - Actions stack safely on phones and align horizontally on larger screens.
 - Destructive operations state what will happen and use explicit action text such as “Delete document,” not “Yes.”
 - Long or multi-step phone workflows should become a drawer or dedicated screen instead of an oversized dialog.
@@ -103,6 +106,8 @@ Cards group related information; they are not default wrappers around every sect
 ## Compact operational tables
 
 Use the shared `Table` composition for dense desktop collections whose columns have meaningful relationships. Its shared cells provide the Civic Ink compact row rhythm, semantic separators, sticky-header option, hover treatment, and selected-row treatment.
+
+Table consistency is a shared geometry contract rather than one forced absolute height. A one-line operational row uses a 48px minimum; a compact two-line identity row uses a 56px minimum, as approved for Review. Controls, validation, or permitted wrapped content may make a row taller, but rows in the same collection use the same minimum and padding. Loading rows reproduce the chosen density exactly. Feature pages select a supported density and do not invent cell padding.
 
 - Keep only information needed to identify, compare, and select a row. Move explanation, history, and long metadata into the selected detail pane or canonical record view.
 - Every column must support a repeated comparison or the row’s immediate action. Remove columns that merely repeat the detail pane or expose an unavailable future workflow.

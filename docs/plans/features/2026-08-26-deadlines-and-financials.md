@@ -2,7 +2,7 @@
 title: Verified Deadlines and Matter Financials
 status: approved
 created: 2026-08-26
-updated: 2026-09-08
+updated: 2026-09-14
 owners:
   - product
   - engineering
@@ -48,6 +48,12 @@ Success means:
 Out of scope are automatic legal advice, AI-calculated limitation dates, tax-return/accounting reconciliation, bank/payment execution, invoicing, time billing, trust accounting, currency conversion, client portal access, and arbitrary AI-generated charts.
 
 ## Decisions
+
+### October 2026 release boundary
+
+- The first production release includes manual creation/correction and explicit human verification of legal deadlines, their source/basis, and a truthful temporal/lifecycle presentation. A future date may be `Upcoming`, `Due soon` or `Due today`; once the due instant passes while the obligation remains open it is `Missed`, not silently removed.
+- Completion means a governed domain transition such as satisfied, occurred, cancelled or superseded with actor/time and reason where needed. The record remains in history so the system never makes a missed or completed legal date disappear.
+- Owned Tasks and reminders are conditional enhancements. A Task date never substitutes for a legal deadline. Broad Financials is also conditional and is cut before the mandatory deadline/document journey; no incomplete totals or unverified exposure are presented as authoritative.
 
 ### Truthful existing attention and reminder behavior
 
@@ -159,6 +165,7 @@ Out of scope are automatic legal advice, AI-calculated limitation dates, tax-ret
 
 ### Internal litigation costs
 
+- Matter-specific internal-cost access is the only optional working-access grant in the first release. Ordinary legal deadlines, legal financial positions and other legal work follow the baseline role policy; there is no general Associate feature-grant catalogue.
 - Internal costs use separate `matter_cost_entries`; they never share legal statement totals or chart series.
 - Initial categories are filing/court fee, travel, courier/printing, external counsel/consultant, research/data, and other. Entries record exact amount, incurred date, payer/payee text, description, optional receipt document locator, creator, and version history.
 - Costs are optional and disabled by default during the pilot. Owner/Admin may enable them per organisation after acknowledging the privacy boundary.

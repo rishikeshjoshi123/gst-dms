@@ -2,7 +2,7 @@
 title: Work Orchestration, Review, Activity, Notifications, and Today
 status: in-progress
 created: 2026-08-25
-updated: 2026-09-13
+updated: 2026-09-14
 owners:
   - product
   - engineering
@@ -57,12 +57,18 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 ## Decisions
 
+### October 2026 release boundary
+
+- Typed Review is mandatory for every enabled extraction conflict, placement conflict, possible duplicate, supported recovery failure and relationship candidate. Relationship Review is required only if relationship suggestions ship; disabling that optional producer does not permit a generic dismissal or an unreviewed edge.
+- Full Today/Dashboard is deferred. Owned Tasks, Notes-to-Task creation and personal reminders are desirable conditional enhancements and are cut before the mandatory document journey, verified deadlines or stabilisation window is endangered.
+- A Task due date is internal work planning. It is never displayed as an authoritative legal deadline; the Deadlines domain owns verified legal dates, missed state and legal lifecycle.
+
 ### Legacy consumer closure from the September review
 
-- [D08](../../delivery-ledger.md) requires retiring `dismissReviewFlag` as a generic status reset. A visible exception closes only through its owning typed resolver with allowed action, reason/evidence, source revision and decision history. A disabled generic action must also be denied server-side. This is not an instruction to make all AI candidates effective on dismissal.
+- [D08](../../delivery-ledger.md) requires retiring `dismissReviewFlag` as a generic status reset. A visible exception closes only through its owning typed resolver with allowed action, reason/evidence, source revision and an append-only decision record. A disabled generic action must also be denied server-side. This is not an instruction to make all AI candidates effective on dismissal.
 - Remove note action items from Review; read canonical Task state wherever linked Tasks remain visible. Do not restore dual writes to `case_notes.action_item_resolved` merely to satisfy the legacy Review reader.
-- Deliver the smallest extraction/placement/duplicate/recovery Review producer-to-decision flow that the pilot uses, including stale-decision/replay handling and Activity. Keep the recorded Review visual approval boundary; independent legacy reader repairs need not wait for that approval.
-- Activity author displays use the organization-safe member projection or immutable actor snapshot, not a global Auth-admin email lookup. Initial freshness work prioritizes claims and decisions through the Realtime plan.
+- Deliver the smallest extraction/placement/duplicate/recovery Review producer-to-decision flow that the pilot uses, including stale-decision/replay handling and Activity. Follow the recorded Review visual contract; independent legacy reader repairs do not depend on the later live Review implementation.
+- Activity author displays use the organization-safe member projection or immutable actor snapshot, not a global Auth-admin email lookup. Initial freshness work prioritizes Review decisions and closures through the Realtime plan.
 
 ### Domain separation
 
@@ -106,10 +112,12 @@ The domain separation, Today/My Work philosophy, Review and Activity models, not
 
 - Add normalized `review_items`, `review_item_evidence`, and append-only `review_item_decisions`.
 - Initial Review types are extraction invalid/conflict, possible duplicate, ambiguous placement, inferred/conflicting relationship, deadline verification, financial verification, Case Brief contradiction/proposed change, import validation exception, restore conflict, and supported processing recovery decisions.
+- Case Brief Review producers are disabled until the required Case Brief rethink approves a new product direction. Import and financial Review types remain absent when their deferred/conditional producers are disabled.
 - Staged documents waiting for an ordinary user assignment remain in Document Hub. Note tasks remain in My Work. They never appear in Review merely because they are unfinished.
 - Each Review item contains one decision boundary, reason code, impact statement, source and subject locators, client/matter/document lineage, priority, age, state, evidence, allowed actions, dedupe key, and source version/revision. It has no durable assignee: authorised intake users work from the shared queue.
+- Review priority is deterministic and stores its reason as accessible help on the priority value without repeating a priority explanation inside the decision summary. `urgent` requires a source-backed time-bound consequence due or overdue within 72 hours; `high` means the unresolved decision blocks a required workflow or materially affects a legal/financial record; `normal` covers other actionable Review. The typed producer assigns and re-evaluates priority from governed reason, impact, and deadline context—never from model confidence or an unexplained manual label.
 - Group related extraction candidates into one coherent document Review item where one decision flow can resolve them. Do not create a queue row for every harmless AI field.
-- State is `open`, `in_progress`, `resolved`, `dismissed`, `superseded`, or `suspended`. `Dismiss` exists only for Review types whose policy permits no-action resolution and always records a reason; it is not a generic hide button.
+- User-facing state is deliberately only `needs_review` or `closed`. A closed item stores a typed closure reason such as `decision_recorded`, `dismissed`, or `source_replaced`; the selected detail explains that reason without turning it into a competing queue status or a separate item-history UI. `Dismiss` exists only for Review types whose policy permits no-action closure and always records a reason; it is not a generic hide button.
 - Every type has a typed decision schema and owning resolver. A generic Review endpoint cannot apply arbitrary JSON changes to domain tables.
 - Opening, reading, or closing the detail pane does not mutate, assign, claim, or lock a Review item. Resolution uses the row revision as an optimistic concurrency check; if another decision wins first, the later command receives the current closed state rather than applying twice. Before applying a decision, revalidate current source version, tenant access, Trash state, and conflict facts. A replaced source closes the old item automatically with `source_replaced`; if the current source still needs a decision, its producer creates or refreshes the current Review item.
 - Resolution atomically applies the domain command, appends the decision and Activity, closes related items with the appropriate closure reason, and emits only the required notifications.
@@ -164,7 +172,7 @@ The constrained Timeline presentation and single-resolver decision are retained 
 - Needs action includes overdue verified deadlines/tasks and assigned failures. Exceptional Review backlog risk is an authorised team-attention signal, not personal work. Coming up is grouped by date.
 - Overdue deadlines are always included; the current future-only query behavior is removed. Provisional deadlines are clearly labelled and appear only when the user must verify them.
 - Owner/Admin may see a compact Team attention section for urgent shared Review backlog, unassigned urgent tasks, and systemic failures. Do not add portfolio totals or vanity metrics.
-- Team attention also includes a deduplicated Trash warning 24 hours before a root Trash operation is scheduled for permanent deletion. It links to that operation for restore or authorised permanent deletion and resolves automatically if the source is restored or deleted first; it is an organisation attention projection, not a copied task or Review item.
+- A future Today/Dashboard design pass will decide how a deduplicated 24-hour Trash warning appears within Team attention. The backend projection may be retained for that work, but the first pilot does not surface it. Until Today is implemented, the Trash workspace itself owns the final-seven-day countdown; exact expiry and physical purge remain governed by the Trash plan.
 - Use actual source state to derive the first-use checklist: organisation profile, first client, first matter, first upload, and team invitation where authorised. Do not store completion flags that can drift.
 - Track per-user recent resource views with tenant-scoped rows, bounded history, and explicit access/Trash filters. Viewing Activity or a list page does not overwrite substantive resume context.
 - Keep a restrained greeting/date if useful, but no motivational quotes, decorative illustrations, generated summaries, or theatrical motion.
@@ -186,7 +194,7 @@ The constrained Timeline presentation and single-resolver decision are retained 
 - Associate can manage operational tasks and resolve permitted extraction, relationship, placement, and deadline Review. Owner/Admin has organisation triage, reassignment, configuration, and privileged decision capabilities. Financial/internal-cost and destructive permissions remain with their owning plans.
 - Future matter-level access automatically limits Activity, My Work, Review, notifications, counts, and locators. No projection reveals inaccessible existence or counts.
 - Trash suspends dependent tasks/Review/reminders and removes them from active Today/My Work. Restore re-evaluates relevance; it does not send accumulated notifications or reopen stale decisions blindly.
-- Trash scheduled-deletion warnings are the exception to ordinary Trash suspension: only authorised Owner/Admin users see the 24-hour Team attention projection, and access is revalidated before identity or counts are disclosed.
+- If the deferred Trash warning is later activated in Today, it is an exception to ordinary Trash suspension: only authorised Owner/Admin users may see it, access is revalidated before identity or counts are disclosed, and its final visual placement requires the Today/Dashboard design decision. It is not active pilot UI.
 - Member removal archives their personal notifications, preserves Activity actor snapshots, unassigns open work, and triggers Admin/Owner attention for urgent orphaned responsibilities.
 
 ## Implementation Plan
@@ -215,18 +223,33 @@ The constrained Timeline presentation and single-resolver decision are retained 
 - **2026-09-01 — Step 11, one-to-one legacy action-item backfill:** migration `00110` additively classifies eligible legacy action-item notes and records a terminal disposition for every source: migrated, valid existing, already-mapped, or an explicit exclusion/conflict. It creates at most one Task, `task.created` event, and projector outbox row per source under tenant-safe lineage, immutable origin, globally bound idempotency, and concurrent-run fences. A clean local reset, focused SQL fixture, concurrent-run harness, generated types, TypeScript, migration checks, and independent QA recheck passed. Legacy fields remain compatibility-only pending their separately bounded consumer cleanup.
 - **2026-09-01 — Step 3, live Task Comments closure:** migration `00111` makes the approved peer Comments tab in the existing Tasks workspace a secured live consumer. Private task-scoped thread, comment, mention, follower, read-cursor, and receipt state is reachable only through authenticated Task RPCs; the command derives exactly one active membership, validates tenant/resource/role/active mentions/single-thread reply lineage, serializes Task membership and hierarchy-Trash changes, and writes one idempotent `task.comment_posted` Activity/outbox event without notification delivery. Completed/cancelled Tasks remain commentable; Viewer, suspended, removed, and inaccessible/trashed contexts fail closed. The `/tasks?task=<id>&tab=comments` caller supplies chronological feed, single reply, active-member mention selection, read-only/empty/error/long-content states, and a fixed visible Send composer without copying Notes messages. Local reset, authority/RLS/replay fixtures, first-thread/membership/Trash concurrency harnesses, generated types, TypeScript, focused lint/model tests, migration checks, and fresh independent QA recheck passed. Cursor observation and notification delivery remain intentionally deferred.
 
-**Canonical next action:** Review is the next Work-plan capability, but its
-dedicated queue/decision workspace crosses a material visual boundary. Review
-and approve the fixture-only `/dev/review-workspace-concept` described in
-[Approval-based blockers](../../approval-based-blockers.md#work-review-concept-2026-09-01--review-workspace-direction)
-before a live Review producer/consumer tranche. The concept is a no-live-data
-fixture that shows the evidence-first queue, explicit typed decisions,
-role/financial boundary, lifecycle states, and mobile drill-in; it adds no
-Review authority.
+**Canonical next action:** the user approved the fixture-only
+`/dev/review-workspace-concept` on 2026-09-12, resolving the material visual
+boundary recorded in [Approval-based blockers](../../approval-based-blockers.md#work-review-concept-2026-09-01--review-workspace-direction).
+The next separately authorised implementation tranche may build the smallest
+secure Review producer/consumer closure against that approved direction: a
+compact filterable queue, stable Evidence/Decision inspector, explicit typed
+decisions, exact-source PDF viewing, role/financial boundaries, the two-state
+lifecycle, and mobile drill-in. The approved fixture adds no live Review
+authority by itself.
 The independently approved Organisation Administration departure/projection
 tranche may proceed in parallel. Task-only current state remains authoritative;
 do not claim notification delivery, My Work, Activity reader/projector, Review,
 or Today completion from the verified Task slices.
+
+**Approved Review visual decision (2026-09-12):** the approved concept uses
+shared table and sidebar anatomy, a 56px compact two-line desktop row rhythm,
+filters in applicable column headings, a compact selected-item header, only
+Evidence and Decision tabs, plainly named `Needs review`/`Closed` lifecycle
+states, deterministic priority, clearly grouped citations that open the shared
+PDF workspace, and the shared confirmation-dialog pattern. It excludes
+temporary viewing locks, `In progress`, user-facing `Superseded`, assignment,
+and a separate item-history tab. The review also established a cross-concept
+quality gate: future concepts must compare approved analogues, resolve basic
+density and spacing inconsistency, remove redundant labels and unclear
+terminology, avoid speculative workflow complexity, and receive a deliberate
+visual-hierarchy/refinement pass before product review. The full rationale is
+retained in the [decision record](../../decision-history/2026-09-12-review-workspace-concept-approval.md).
 
 **Approved compatibility decision (2026-09-01):** Task is the sole live
 authority for completion, reopening, reassignment, and due-date changes. No

@@ -2,7 +2,7 @@
 title: AI Extraction, Provenance, and Model Lifecycle
 status: in-progress
 created: 2026-08-24
-updated: 2026-09-08
+updated: 2026-09-14
 owners:
   - product
   - engineering
@@ -57,19 +57,15 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - The first production release has no agents, autonomous legal workflows,
   generated answers, workspace-wide memory, Note/chat distillation, or
   system-wide context assembly.
-- AI remains bounded to source-grounded PDF extraction and the human-reviewed
-  candidate/provenance workflow already defined here. Embeddings serve only
-  the Search plan's cited, matter-scoped retrieval over meaningful chunks from
-  current PDF versions; they are derived indexes, not facts or memory.
-- Case Brief generation/automatic refresh, agent tools, and additional
-  embedding families remain disabled for the design-partner release. Enabling
-  them later requires the owning rollout gate plus measured retrieval quality,
-  citation coverage, provider cost, and human-control evidence.
+- Source-grounded PDF metadata extraction and its efficient human-reviewed candidate/provenance workflow are mandatory for the October release. The ordinary journey is AI extraction followed by review-by-exception; a workflow that normally requires lawyers to hand-type each PDF's metadata does not pass product or release acceptance. Extraction must pass the approved acquisition/extraction gates. Manual metadata entry/correction, manual placement and human-confirmed relationship creation remain exceptional recovery/repair paths for provider failure, unreadable pages and incorrect candidates, not the expected throughput path.
+- Embeddings serve only the Search plan's cited, matter-scoped retrieval over meaningful chunks from current PDF versions; they are derived indexes, not facts or memory. That cited retrieval consumer is conditional and may be cut without disabling mandatory extraction.
+- Case Brief generation/automatic refresh, agent tools, and additional embedding families remain disabled for the design-partner release. Case Brief cannot be enabled later until its required product rethink revises the owning plan; retrieval quality alone is insufficient. Other later intelligence still requires its owning rollout gate plus measured retrieval quality, citation coverage, provider cost and human-control evidence.
 
 ### Provider and model baseline
 
 - Google Cloud remains the production document-intelligence boundary for this phase: local deterministic PDF parsing supplies native text, Google Document AI Enterprise OCR supplies selective scanned-page OCR, and Vertex AI supplies structured legal extraction and embeddings. Provider-neutral CaseChain interfaces remain so later provider changes do not alter domain services, but general multi-provider runtime routing is out of scope.
-- Use `gemini-2.5-flash` only for source-grounded GST/legal metadata extraction from the immutable PDF. It must not create the canonical page transcript or return `page_text`, OCR words, or a replacement OCR layer. Configuration may retain a separately gated Case Brief synthesis capability for a later release, but no Case Brief model call is enabled in the design-partner release.
+- Use `gemini-2.5-flash` only for source-grounded GST/legal metadata extraction from the immutable PDF. It must not create the canonical page transcript or return `page_text`, OCR words, or a replacement OCR layer. No Case Brief model call or latent synthesis configuration is enabled until the required Case Brief rethink approves a new contract.
+- Retain `gemini-2.5-flash` as the first-release extraction baseline while its budget and quality gates hold. A later switch to another vision-capable model/provider requires separately billed API access, provider/privacy and India-processing review, strict schema/structured-output compatibility, representative quality/latency/cost comparison, version pinning and rollback; development-agent model access is not application inference capacity.
 - Use a pretrained Google Document AI Enterprise `OCR_PROCESSOR` only for pages rejected by the versioned native-text quality gate. No custom extractor, labelled training set, or prompt-driven OCR is required for the initial page-acquisition contract.
 - For the bounded design-partner production release, pin the Mumbai processor to exact version `pretrained-ocr-v2.1.1-2025-01-31`. Its Google release-candidate label is an explicitly accepted pilot risk because it outperformed the available `stable` alias in the diagnostic run. Never use a mutable processor alias in production. A later equivalent stable Mumbai version is preferred, but promotion remains a recorded configuration change with an availability check, bounded smoke test, relevant regression evidence, and rollback readiness.
 - Use `gemini-embedding-001` at 768 output dimensions for the rebuilt retrieval index. Corpus inputs use `RETRIEVAL_DOCUMENT`; submitted user queries use `RETRIEVAL_QUERY`.
@@ -83,6 +79,7 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Extract the native PDF text layer, text-item geometry, page size, and rotation locally for every page before any paid OCR call. Apply a deterministic, versioned page-quality policy covering absent/sparse text, invalid or replacement characters, implausible density, broken encodings, and suspicious image-heavy mixed pages.
 - Retain accepted native text exactly as the source page layer. Render rejected pages at ordinarily 300 DPI and send only those pages to Enterprise OCR, retaining OCR text, word/region coordinates, detected language, processor/version, and available page-quality evidence. Provider image-quality scores are optional telemetry, not a routing dependency: the current Mumbai processor rejects that option, so routing remains deterministic from native-text coverage/encoding, visible-image coverage, rotation, hidden-layer suspicion, and other locally reproducible signals.
 - Merge native and OCR pages into one private, immutable-asset/version-bound page artifact in 1-based PDF order. Record acquisition method and quality per page. A limited or unreadable page is disclosed and remains metadata-searchable; the worker never invents missing text.
+- Page-text eligibility is separate from field Review. An accepted native page or an OCR page that satisfies the approved acquisition gate may supply page chunks and embeddings after the document/version and Search rollout gates pass. A page with unreliable transcription, critical evidence, table structure, or source anchors is excluded from page-body chunking and marked for safe retry or `source_unreadable`/`metadata_only` handling. Accepting or correcting an extracted GSTIN, reference, date, amount, or other candidate in Review changes effective structured metadata only; it does not certify the whole page transcript. The page body becomes eligible later only after successful reacquisition or an explicitly implemented, provenance-bearing whole-page transcript verification workflow.
 - Native text and OCR are transcription, not translation. Original Hindi, English, or mixed-language text remains the authoritative citation and passage-index source. Full document-body translation is not created merely to make embeddings or the English UI work.
 - Native pages with image-only stamps, marginalia, handwriting, or material table regions are part of the evaluation corpus. The policy may conservatively OCR those pages when the native layer does not represent visible material content; apparent non-empty text alone is not sufficient quality evidence.
 - Enterprise OCR word/layout output is authoritative for OCR selection anchors, but it is not assumed to provide a legally perfect relational table. Retain structured table blocks, cells, reading-order cues, and geometry separately from the flattened page string. Gemini may interpret a table for source-grounded metadata while the source cells and coordinates remain the citation layer; a specialized table parser requires measured corpus need and a later contract.
@@ -100,11 +97,22 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - Do not let the model perform uncertain aggregation. Preserve source-stated components and totals separately; domain validation may check arithmetic but does not invent a missing total.
 - Keep quotations short and evidentiary. Before placement, source evidence binds to the immutable `file_asset_id`, page/OCR content version, and 1-based PDF page. When the analysis is bound to a document version, every user-facing evidence locator binds to the exact `document_version_id` and page from the File Lifecycle plan.
 
+#### Approved normalization contract (2026-09-11)
+
+- The [September 11 Matter-identity and extraction decision](../../decision-history/2026-09-11-matter-identity-and-extraction-normalization.md) governs this schema revision. Each material fact preserves its raw/source wording and evidence alongside a typed normalized value, precision, catalogue/normalizer version, field-level confidence, and deterministic validation state. A single document-wide confidence score never authorises or conceals a critical field.
+- Replace a single human-readable `tax_period` value with an ordered array of typed periods supporting month, quarter, exact-date range, financial year, multi-financial-year, non-contiguous, and unclear source expressions. Retain source precision: `JAN 2020 – JAN 2020` normalizes as one month, while a month-only source must not acquire invented first/last-day dates. Compare derived financial years with printed financial-year labels and route disagreement to focused Review.
+- Document/form type uses a versioned catalogue and retains the printed label. Title retains raw wording plus a correctable display value and is never identity. Client identifiers are typed (`gstin`, `pan`, `tan`, `cin`, or catalogued `other`); GSTIN is uppercased and format/checksum validated, while client-name aliases are search evidence only.
+- Dates are separate candidates classified by legal meaning, including issue, filing, communication/service, order, hearing, due, and source-unknown date; one document may contain several. Financial years are normalized arrays with raw labels and must not be inferred from a document date when the source concerns an earlier period.
+- Direction is derived from typed issuer/recipient roles. Issuer retains raw text plus normalized authority, office, and jurisdiction where source-supported. Parties use typed procedural roles; unknown roles stay unknown rather than being guessed.
+- Official self identifiers and outbound document references retain raw/display values, typed kind, issuer/system namespace, normalized components, role, and page evidence. Legal provisions use their own normalized legal-reference catalogue and are not conflated with proceeding/document identity.
+- Deadlines distinguish explicit source dates from later calculated dates; extraction cannot make a calculated deadline authoritative. Money uses decimal strings or integer paise with currency, component, applicable period, and legal posture such as alleged, demanded, confirmed, paid, refunded, or disputed; it never uses floating-point values or collapses unlike amounts into an invented total.
+- The canonical Zod/domain schema owns these meanings. The Vertex-compatible schema is generated through the adapter and parity-tested, so prompt, provider, persistence, and consumer contracts cannot drift independently.
+
 ### Append-only extraction and candidates
 
 - `source_analysis_runs` is append-only and immutable-asset scoped. It stores request identity, source `file_asset`, page/OCR content version, model/prompt/schema/catalogue versions, state, validated payload or validation errors, safe provider metadata, token/billable usage, latency, and timestamps. It can run while the source is an unassigned Intake item.
 - Raw provider output may be retained encrypted and access-restricted for audit/debugging subject to retention policy; ordinary application clients and platform metadata views cannot read it.
-- A successful source run materializes field-addressable immutable rows in `source_field_candidates`. Each records field path/type, typed JSON value, source run/asset, page/quote/region evidence, confidence, validation state, and semantic key.
+- A successful source run materializes field-addressable immutable rows in `source_field_candidates`. Each records field path/type, raw/source display value where applicable, typed normalized JSON value and precision, source run/asset, page/quote/region evidence, field-level confidence, deterministic validation state, and semantic key.
 - Placement or later attachment creates a `document_version_analysis_binding` between the immutable source run and document version, then materializes document-level rows in `document_field_candidates` referencing that source candidate/binding. This permits an intentional same-organisation Copy to reuse source analysis while each logical document retains independent effective values and human decisions.
 - Arrays such as parties, legal references, deadlines, financial events, and relationships use stable semantic candidate keys so re-extraction can compare the same fact without depending on array order.
 - `document_field_decisions` is append-only. A decision accepts, corrects, rejects, or clears a candidate/field path and records actor, reason, replacement value where applicable, and timestamp.
@@ -156,7 +164,9 @@ The target system must preserve source evidence and prior runs, prevent incompat
 - The 2026-09-02 diagnostic corpus contained 311 discovered PDFs, 117 unique files, and 194 exact duplicates. A first 12-page representative run plus focused diagnostics found strong Hindi/English body OCR and useful table detection, but also a consequential handwritten-date digit error (`29.01.2025` read as `29.01.2015`) despite high aggregate confidence. Flattened text also lost important table structure. This validates selective OCR and preserved geometry, but does not approve automatic critical-field acceptance or Search cutover.
 - In Mumbai, the exact stable v2.1 processor identifier tested was unavailable, the `stable` alias behaved like the older v1.0 family, and deployed `pretrained-ocr-v2.1.1-2025-01-31` produced the best diagnostic output but is labelled a Google release candidate. On 2026-09-03 the user approved this exact pin for the bounded design-partner production release and authorised the representative-corpus testing needed to validate it. The labelled benchmark, critical-field Review controls, monitoring, and rollback remain release gates; the version decision itself is resolved in the [approval record](../../approval-based-blockers.md#2026-09-03--mumbai-ocr-processor-promotion).
 - The release-quality page-acquisition benchmark labels 60–100 unique representative pages across native English, scanned English, Hindi, mixed language, handwriting, stamps, tables, rotation, and poor scans. Report routing precision/recall, missed and unnecessary paid OCR, character/word accuracy, exact GSTIN/reference/date/amount accuracy, table-cell and evidence-anchor correctness, latency, billed pages, and cost separately; no aggregate confidence score may conceal a critical-field error.
-- The local benchmark evidence harness requires exact pinned evaluator provenance, 60–100 unique source pages, independent adjudication, and content-safe reports. It reports only `evidence_complete` until the numeric quality gate in [AI-ACQUISITION-BENCHMARK-THRESHOLDS-2026-09-03](../../approval-based-blockers.md#ai-acquisition-benchmark-thresholds-2026-09-03--ocr-quality-gate-thresholds) is resolved; it never treats structural evidence as approval for backfill or cutover.
+- The approved acquisition gate requires: no failed or unknown GSTIN, reference, date, amount, table-cell, or evidence-anchor check; `100%` routing recall and at least `90%` routing precision; at least `98%` mean character accuracy and `95%` mean word accuracy across every adjudicated OCR page, with no missing OCR quality label; mean acquisition latency no greater than `10` seconds per source page and a normal bounded 100-page acquisition no greater than `20` minutes; and OCR charges no greater than `USD 0.01` per billed page or `USD 1.00` for a fully OCR-processed 100-page document, excluding tax and currency conversion. Report Hindi, mixed-language, handwriting, poor-scan, table, stamp, and rotation results separately even when the combined gate passes.
+- Critical/source-integrity failure sends only the affected fact or page to the appropriate safe path. Field Review may accept, correct, reject, or clear a structured candidate against the rendered source; it does not approve an OCR transcript. A failed page remains out of page-body vector indexing until successful reacquisition or a future explicit whole-page transcript-verification workflow. Pages with accepted native text or qualifying OCR may proceed independently once the document/version and Search rollout gates pass. Latency or cost failure blocks rollout for tuning/capacity review but does not label accurate page text as false.
+- The local benchmark evidence harness requires exact pinned evaluator provenance, 60–100 unique source pages, independent adjudication, and content-safe reports. It must apply and report the approved numeric gate without treating structural evidence, a field correction, or an aggregate confidence score as approval for page-body backfill or Search cutover. The decision and rationale are recorded in [the September 11 acquisition-threshold decision](../../decision-history/2026-09-11-ocr-acquisition-benchmark-thresholds.md).
 
 ### Embedding and search-index lifecycle
 
@@ -247,7 +257,7 @@ The Inbox staged-document adapter deliberately nulls `raw_metadata`, so its card
 
 Completed 2026-09-02: migrations `00117`–`00121` make verified candidates source-span/cell grounded against the same canonical page artifact that `processDocument` persists. The service-only writer enforces tenant/version/current-page/lease fences, idempotent replay, unique quote/page/cell resolution, canonical token/region or table-cell geometry, exact bounded code/decimal/date matching, and the same supported 1000–9999 calendar-year rule as the runtime verifier. All Gemini structured-generation callers, including Matter Wiki, use `@google/genai`; embeddings remain separately scoped. Focused developer checks, clean local reset and SQL fixture, generated-type parity, and fresh read-only adversarial QA passed. Existing repository-wide TypeScript nullability-test failures remain a recorded unrelated baseline.
 
-The exact next tranche is the labelled 60–100-page acquisition benchmark using the approved exact Mumbai processor version: assemble the representative native/OCR corpus and report routing precision/recall, critical GSTIN/reference/date/amount accuracy, table/anchor correctness, multilingual behavior, latency, billed pages, and cost. Do not backfill or cut over Search until that benchmark passes. Keep Client, Matter, Task, Note, chat, Case Brief, Activity, arbitrary-row embeddings, generated answers, and workspace-wide memory out of the first release.
+The exact next tranche is the labelled 60–100-page acquisition benchmark using the approved exact Mumbai processor version and the September 11 numeric gate: assemble the representative native/OCR corpus, extend the evidence report for the approved thresholds and page/field dispositions, and report routing, quality, critical facts, structures, multilingual behavior, latency, billed pages, and cost separately. Do not backfill or cut over Search until that benchmark passes. Keep Client, Matter, Task, Note, chat, Case Brief, Activity, arbitrary-row embeddings, generated answers, and workspace-wide memory out of the first release.
 
 1. **Resolve the blocking migration defect.** Assign the embedding migration the next unused monotonically ordered prefix and add a CI migration-version uniqueness check before applying it anywhere. Do not apply the duplicate `00024` file.
 2. **Freeze and test the canonical schema.** Make Zod authoritative, add the Vertex compatibility adapter, and add parity fixtures for valid, invalid, optional, unknown, array, enum, and null behavior.
@@ -291,11 +301,50 @@ type ExtractionRunResult = {
 }
 ```
 
+The canonical response uses field-specific contracts rather than a flat bag of strings. Representative shared shapes are:
+
+```ts
+type SourceValue<T> = {
+  raw: string
+  normalized: T | null
+  precision: 'exact' | 'month' | 'quarter' | 'financial_year' | 'unclear'
+  confidence: number
+  validationState: 'valid' | 'provisional' | 'conflicting' | 'invalid'
+  evidence: SourceEvidenceLocator
+}
+
+type NormalizedTaxPeriod =
+  | { kind: 'month'; year: number; month: number }
+  | { kind: 'quarter'; financialYear: string; quarter: 1 | 2 | 3 | 4 }
+  | { kind: 'date_range'; from: string; to: string }
+  | { kind: 'financial_year'; financialYear: string }
+  | { kind: 'multi_financial_year'; financialYears: string[] }
+  | { kind: 'non_contiguous'; members: NormalizedTaxPeriod[] }
+  | { kind: 'unclear'; reason: string }
+
+type NormalizedOfficialReference = {
+  role: 'self_identifier' | 'outbound_mention'
+  kind:
+    | 'proceeding_case_id'
+    | 'notice_reference'
+    | 'order_reference'
+    | 'appeal_reference'
+    | 'court_case_number'
+    | 'other_official_reference'
+  issuerOrSystemNamespace: string | null
+  displayValue: string
+  normalizedValue: string | null
+  components: Record<string, string>
+}
+```
+
+Recursive provider-schema compatibility is an adapter concern: the authoritative Zod/domain contract may emit a provider-safe bounded equivalent while runtime validation restores the canonical shape. `other_official_reference` and `unclear` remain non-identity/non-automation outcomes.
+
 ### Core provenance storage
 
 - `source_analysis_runs`: source asset and organisation; page/OCR content version; idempotency key; provider/model and prompt/schema/catalogue/normalizer versions; state; current attempt; validated payload reference; safe error category; usage/cost; latency; timestamps; and supersession.
 - `source_analysis_attempts`: append-only provider/model/prompt/schema versions, provider request/run identity, start/end and latency, token/billable usage and cost, retry reason, failure category, and access-restricted raw-response evidence reference where retention permits. The outbox and ordinary logs never store the raw response.
-- `source_field_candidates`: source run/asset/organisation; semantic key; field path/type; typed and normalized value; page/quote/region evidence; confidence; validation errors/state; timestamps.
+- `source_field_candidates`: source run/asset/organisation; semantic key; field path/type; raw/display value; typed normalized value and precision; page/quote/region evidence; field-level confidence; validation errors/state; normalizer/catalogue versions; timestamps.
 - `document_version_analysis_bindings`: organisation/document/version/source run; binding reason and actor/time; compatibility and uniqueness constraints.
 - `document_field_candidates`: binding/source candidate/document/version/organisation; semantic key; field path/type; applicable normalized value; validation/lifecycle state; timestamps.
 - `document_field_decisions`: document/organisation; field path/semantic key; candidate; action (`accepted`, `corrected`, `rejected`, `cleared`); optional replacement; actor/reason/time. Rows are append-only.
@@ -350,6 +399,9 @@ The adapter rejects unexpected dimensions, missing token statistics where requir
 
 - TypeScript compilation, repository unit tests, targeted lint for touched code, and migration uniqueness/schema-drift checks pass before application.
 - Zod/provider-schema parity tests prove canonical fixtures accepted by provider guidance are accepted at runtime and unsupported or unknown shapes are rejected safely.
+- Normalization fixtures cover tax-period month, quarter, date range, one FY, multiple FYs, non-contiguous periods, `JAN 2020 – JAN 2020`, alternate separators/order/case, and unclear text. They preserve source precision, never invent day boundaries, and create focused Review when printed and derived financial years conflict.
+- Contract fixtures cover every audited field family: catalogued document/form type with printed label; raw/display title; typed GSTIN/PAN/TAN/CIN with GSTIN checksum; multiple legally typed dates; issuer/recipient direction and authority/jurisdiction; typed parties; self identifiers and outbound references; explicit versus calculated deadlines; decimal/paise money with component/period/posture; and normalized legal references with raw evidence.
+- Every material candidate has its own confidence, validation state, evidence, and raw/normalized representation. Tests prove that a high aggregate-quality document cannot make one incorrect or ambiguous GSTIN, official reference, date, period, or amount effective.
 - Mocked provider tests cover document analysis, the disabled/gated Case Brief boundary, embedding shape/dimensions/tokens/task types, JSON MIME/schema configuration, provider failures, timeouts, throttling/5xx responses, malformed/non-JSON/truncated payloads, controlled regeneration, retry exhaustion, and content-safe logs without spending Vertex credits.
 - Invalid structural output writes an `invalid_model_output` attempt and no candidate/effective metadata or partial domain effects. Only one fresh controlled generation follows invalid output; a second invalid result creates Review/recovery. Transient failures retry no more than twice with the same run/document-version identity and capped exponential backoff with jitter.
 - Strict parsing does not use regex recovery. Unknown keys fail Zod validation, access-restricted raw evidence never leaks to outbox/logs/client payloads, and every attempt records provider/model/prompt/schema version, usage/cost, latency, and failure category.
@@ -363,6 +415,7 @@ The adapter rejects unexpected dimensions, missing token statistics where requir
 - Gemini provider-contract tests prove the response schema has no transcript, `page_text`, or OCR-word field; the English synopsis is source-grounded; named entities retain an English display form plus exact original evidence; and exact identifiers/numbers are unchanged.
 - Native-page fixtures prove accepted text and geometry are deterministic. Selective-OCR fixtures cover empty, broken-encoding, image-heavy mixed, Hindi/mixed-language, stamp, handwriting, table, low-quality, unreadable, rotated, and long-document cases; only rejected pages incur OCR and every OCR page retains processor/version, quality, and normalized anchors.
 - Critical-field fixtures prove source-span/cell verification rather than payload-internal equality: normalized date formats compare as calendar values, GSTIN/reference punctuation does not create a false mismatch, table-cell values retain their cell/box anchors, one-digit collisions and ambiguous repeated values fail closed, and a high-confidence OCR/Gemini conflict creates one focused Review exception.
+- Official-reference fixtures preserve issuer/system namespaces and self-versus-mention roles, reject unknown or partial values as identity, and give placement/relationship consumers the same normalized key regardless of which related document arrived first.
 - A clean document requires no field-by-field confirmation. The Workbench can bulk accept safe unflagged values, while missing/ambiguous source matches, invalid GSTIN/date/amount facts, handwriting, and consequential Tier C effects remain visibly reviewable.
 - Region tests prove Gemini document extraction and Document AI OCR address `asia-south1`, embedding location is independently configured, and no India-residency path silently falls back to `us-central1` or `global`.
 - Provider tests and one bounded Mumbai smoke call prove the `@google/genai` structured-generation path preserves the existing strict Zod/schema, safety, usage, retry, and safe-error contracts before production cutover.

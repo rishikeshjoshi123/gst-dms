@@ -5,11 +5,11 @@ Choose the entry point for the work you want. This page is a lookup map, not ano
 | What you want | Start here |
 | --- | --- |
 | Suggest a topic or discuss your idea | [Product discussion prompt](planning-prompt.md): overlap, critique, alternatives and saved decisions |
-| Understand the October target and tradeoffs | [Current release assessment](reviews/2026-09-10-october-release-reassessment.md), reconciled with [September 10 decisions](decision-history/2026-09-10-planning-and-pre-pilot-policy.md); the pilot plan remains proposed |
+| Understand the October target and tradeoffs | [September 14 release scope](decision-history/2026-09-14-first-production-release-scope.md) → [current pilot plan](plans/operations/2026-08-29-design-partner-pilot-execution-sequence.md); [go-live ownership](discovery/production-go-live-ownership-and-incident-response.md) remains the priority discussion, with the [environment/recovery options](discovery/production-environment-and-recovery-options.md) session targeted for October 1–2 |
 | See what is built, unverified or still missing | [Delivery ledger](delivery-ledger.md), then relevant receipts; coverage is partial, not a whole-app percentage |
 | See what needs your decision | [Open decision index](approval-based-blockers.md#open-decision-index) |
 | See the current implementation task/restart point | [Handoff](implementation-handoff.md); editing docs does not wake a stopped task |
-| Start authorised implementation | [Implementation prompt](implementation-prompt.md) → [current bounded run](plans/operations/2026-09-08-agent-delivery-workflow.md#current-bounded-run); no full assessment read required |
+| Start or resume authorised implementation | [Implementation prompt](implementation-prompt.md) → [current scope and takeover rules](plans/operations/2026-09-08-agent-delivery-workflow.md#current-bounded-run), using the latest handoff; complete one outcome-sized packet and stop, with no replay of a completed queue |
 
 ## Document roles
 
