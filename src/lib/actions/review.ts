@@ -14,8 +14,11 @@ export async function resolveExplicitDueDate(input: DeadlineReviewResolution) {
   } as never)
   if(error || !data?.[0]) return {code:'failed',message:'The date decision could not be confirmed. Retry.',item:null}
   const row=data[0],item=row.current_item?reviewDetail.parse(row.current_item):null
-  revalidatePath('/review')
-  if(item?.document_id){revalidatePath('/matters','layout');revalidatePath(`/documents/${item.document_id}`)}
+  if(row.code==='ok'){
+    revalidatePath('/review')
+    revalidatePath('/dashboard')
+    if(item?.document_id){revalidatePath('/matters','layout');revalidatePath(`/documents/${item.document_id}`)}
+  }
   const messages:Record<string,string>={
     ok:'Date decision recorded with its cited source and reason.',
     stale:'The source or decision changed. Inspect the latest state.',
