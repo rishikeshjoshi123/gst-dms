@@ -59,6 +59,7 @@ port = 55327
   const browserMulti=process.argv.includes('--browser-multi')
   const sqlConflict=process.argv.includes('--sql-conflict')
   const sqlMulti=process.argv.includes('--sql-multi')
+  const stabilisation=process.argv.includes('--stabilisation')
   if(browserConflict||browserMulti){
     for(const file of ['document_boundary_repair_setup.sql',browserMulti?'multi_placed_document_identity_conflict_browser_setup.sql':'placed_document_identity_conflict_browser_setup.sql']){
       let input=readFileSync(join(root,'supabase/tests',file),'utf8')
@@ -76,6 +77,12 @@ port = 55327
     console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep',browserMulti?'multiple filed Matter conflicts':'placed document conflict'],{
       env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}
     }))
+  } else if(stabilisation){
+    const output=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],
+      {input:readFileSync(join(root,'supabase/tests/document_boundary_repair_setup.sql'),'utf8')})
+    console.log(`document_boundary_repair_setup.sql: ${output.trim()}`)
+    console.log(run(node,['scripts/acceptance/placed-document-review-stabilisation.mjs'],
+      {env:{...process.env,SUPABASE_DB_CONTAINER:container}}))
   } else if(sqlConflict||sqlMulti){
     for(const file of ['document_boundary_repair_setup.sql',sqlMulti?'multi_placed_document_identity_conflict_review.sql':'placed_document_identity_conflict_review.sql']){
       const output=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests',file),'utf8')})
