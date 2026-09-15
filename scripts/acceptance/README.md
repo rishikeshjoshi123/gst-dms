@@ -1,5 +1,32 @@
 # Local acceptance
 
+The mandatory first-release local integration rehearsal has one exclusively owned,
+confirmation-required Supabase stack and one stateful production-webpack Chromium
+journey:
+
+```sh
+/opt/homebrew/opt/node@24/bin/node scripts/acceptance/run-release-journey.mjs
+```
+
+It uses project `dms-release-journey-162` (API 56221, database 56222, shadow
+56220, captured mail 56224, app 3113), replays current migrations, runs error-level
+database lint, proves deterministic checked-in database types, and builds only in a
+temporary application copy with the repository `node_modules` symlinked. The browser
+creates a newly verified Owner, organisation, Client and two active Matters; performs
+global and Matter-origin signed private-Storage uploads; follows the accepted no-call
+terminal-processing manual recovery and typed ambiguous-placement branches; reopens
+the exact version/page in Workbench and the Matter; then inspects chronology, the
+truthful read-only graph and a manually verified deadline. A bounded 320px dark,
+keyboard, touch-target and overflow segment and final cross-feature SQL assertions
+cover tenant/role/source/version/assignment/decision/Activity identity and duplicate
+side effects. The run does not call or evaluate an extraction provider, and therefore
+makes no D12 provider/corpus-quality claim. It does not deploy or touch the ordinary
+local `dms` stack or the repository `.next` directory. Its only seeded journey
+preconditions are worker-owned validation/processing outcomes and proceeding-class
+relationship endpoints that the first-release UI cannot author; the graph edge still
+uses the canonical governed relationship command, and all other journey state is
+created or decided through the product UI.
+
 Timeline relationship authoring uses its own exclusively owned disposable project:
 
 ```sh
