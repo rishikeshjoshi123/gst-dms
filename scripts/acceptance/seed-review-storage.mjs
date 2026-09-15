@@ -16,18 +16,23 @@ assert.equal(local.API_URL, 'http://127.0.0.1:55321')
 assert.equal(new URL(local.DB_URL).port, '55322')
 const client = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 const pdf = readFileSync('tests/acceptance/fixtures/synthetic-multi-page.pdf')
-const hash = createHash('sha256').update(pdf).digest('hex')
-const assetId = '153f0000-0000-0000-0000-000000000001'
-const key = `orgs/153b0000-0000-0000-0000-000000000001/assets/${assetId}/original.pdf`
+const sources = [
+  { assetId: '153f0000-0000-0000-0000-000000000001', bytes: pdf },
+  { assetId: '164f0000-0000-0000-0000-000000000001', bytes: Buffer.concat([pdf, Buffer.from('\n% placement fixture\n')]) },
+]
 const { data: buckets, error: bucketsError } = await client.storage.listBuckets()
 assert.equal(bucketsError, null)
 assert.equal(buckets.find(bucket => bucket.id === 'documents')?.public, false)
-const { error } = await client.storage.from('documents').upload(key, pdf, { contentType: 'application/pdf', upsert: false })
-assert.equal(error, null)
-const { data: bytes, error: downloadError } = await client.storage.from('documents').download(key)
-assert.equal(downloadError, null)
-assert.equal(createHash('sha256').update(Buffer.from(await bytes.arrayBuffer())).digest('hex'), hash)
-const { data: asset, error: assetError } = await client.from('file_assets').select('sha256,byte_size,validated_page_count').eq('id', assetId).single()
-assert.equal(assetError, null)
-assert.deepEqual(asset, { sha256: hash, byte_size: pdf.length, validated_page_count: 4 })
-console.log(`Seeded and verified the existing private synthetic PDF (${pdf.length} bytes, four pages) in isolated Review Storage.`)
+for (const { assetId, bytes: sourceBytes } of sources) {
+  const key = `orgs/153b0000-0000-0000-0000-000000000001/assets/${assetId}/original.pdf`
+  const { error } = await client.storage.from('documents').upload(key, sourceBytes, { contentType: 'application/pdf', upsert: false })
+  assert.equal(error, null)
+  const { data: bytes, error: downloadError } = await client.storage.from('documents').download(key)
+  assert.equal(downloadError, null)
+  const expectedHash = createHash('sha256').update(sourceBytes).digest('hex')
+  assert.equal(createHash('sha256').update(Buffer.from(await bytes.arrayBuffer())).digest('hex'), expectedHash)
+  const { data: asset, error: assetError } = await client.from('file_assets').select('sha256,byte_size,validated_page_count').eq('id', assetId).single()
+  assert.equal(assetError, null)
+  assert.deepEqual(asset, { sha256: expectedHash, byte_size: sourceBytes.length, validated_page_count: 4 })
+}
+console.log(`Seeded and verified ${sources.length} private synthetic four-page PDFs in isolated Review Storage.`)

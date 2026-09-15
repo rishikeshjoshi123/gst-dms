@@ -55,17 +55,21 @@ port = 55327
     if (readFileSync(join(root, 'src/lib/supabase/database.types.ts'), 'utf8') !== generatedTypes) throw new Error('Isolated database type generation is not deterministic.')
     console.log('Regenerated and refined database types; repeated generation has exact parity.')
   }
-  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql']) {
+  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql', 'ambiguous_intake_placement_review.sql']) {
     const output = run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests', file), 'utf8') })
     console.log(`${file}: ${output.trim()}`)
   }
+  console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_concurrency_setup.sql'), 'utf8') }))
+  console.log(run('sh', ['supabase/tests/ambiguous_intake_placement_concurrency.sh'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   console.log(run('bash', ['supabase/tests/extraction_conflict_review_concurrency.sh'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   console.log(run(node, ['scripts/acceptance/review-finisher-concurrency.mjs'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
-  const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery')
+  const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery') || process.argv.includes('--browser-placement')
+  if (browserRequested) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_setup.sql'), 'utf8') }))
   if (browserRequested) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
   if (browserRequested) {
     const browserArgs = ['node_modules/@playwright/test/cli.js', 'test', '--config', 'playwright.review.config.ts']
     if (process.argv.includes('--browser-recovery')) browserArgs.push('--grep', 'responsive processing recovery')
+    if (process.argv.includes('--browser-placement')) browserArgs.push('--grep', 'trusted ambiguous global Intake')
     console.log(run(node, browserArgs, { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
   }
   if (process.argv.includes('--build')) console.log(run(node, ['scripts/acceptance/start-review-server.mjs', '--build'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))

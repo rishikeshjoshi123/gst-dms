@@ -3786,6 +3786,250 @@ export type Database = {
           },
         ]
       }
+      intake_placement_candidates: {
+        Row: {
+          created_at: string
+          id: string
+          matter_id: string
+          matter_revision: number
+          ordinal: number
+          org_id: string
+          placement_run_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matter_id: string
+          matter_revision: number
+          ordinal: number
+          org_id: string
+          placement_run_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matter_id?: string
+          matter_revision?: number
+          ordinal?: number
+          org_id?: string
+          placement_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_placement_candidates_org_id_matter_id_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_candidates_org_id_placement_run_id_fkey"
+            columns: ["org_id", "placement_run_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      intake_placement_decisions: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          document_id: string
+          document_version_id: string
+          id: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          placement_candidate_id: string
+          placement_run_id: string
+          reason: string
+          review_item_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          document_id: string
+          document_version_id: string
+          id?: string
+          idempotency_key: string
+          matter_id: string
+          org_id: string
+          placement_candidate_id: string
+          placement_run_id: string
+          reason: string
+          review_item_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          document_id?: string
+          document_version_id?: string
+          id?: string
+          idempotency_key?: string
+          matter_id?: string
+          org_id?: string
+          placement_candidate_id?: string
+          placement_run_id?: string
+          reason?: string
+          review_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_document_id_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_document_version_id_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_matter_id_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_placement_candidate_id_fkey"
+            columns: ["org_id", "placement_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_placement_run_id_fkey"
+            columns: ["org_id", "placement_run_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      intake_placement_evidence: {
+        Row: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["intake_placement_evidence_kind"]
+          ordinal: number
+          org_id: string
+          placement_candidate_id: string
+          source_page_number: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["intake_placement_evidence_kind"]
+          ordinal: number
+          org_id: string
+          placement_candidate_id: string
+          source_page_number?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["intake_placement_evidence_kind"]
+          ordinal?: number
+          org_id?: string
+          placement_candidate_id?: string
+          source_page_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_placement_evidence_org_id_placement_candidate_id_fkey"
+            columns: ["org_id", "placement_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      intake_placement_runs: {
+        Row: {
+          asset_id: string
+          asset_sha256: string
+          candidate_count: number
+          created_at: string
+          id: string
+          intake_id: string
+          intake_updated_at: string
+          org_id: string
+          policy_version: number
+          resolved_at: string | null
+          source_revision: string
+          state: Database["public"]["Enums"]["intake_placement_run_state"]
+          superseded_at: string | null
+          unavailable_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          asset_sha256: string
+          candidate_count: number
+          created_at?: string
+          id?: string
+          intake_id: string
+          intake_updated_at: string
+          org_id: string
+          policy_version?: number
+          resolved_at?: string | null
+          source_revision: string
+          state?: Database["public"]["Enums"]["intake_placement_run_state"]
+          superseded_at?: string | null
+          unavailable_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          asset_sha256?: string
+          candidate_count?: number
+          created_at?: string
+          id?: string
+          intake_id?: string
+          intake_updated_at?: string
+          org_id?: string
+          policy_version?: number
+          resolved_at?: string | null
+          source_revision?: string
+          state?: Database["public"]["Enums"]["intake_placement_run_state"]
+          superseded_at?: string | null
+          unavailable_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_placement_runs_org_id_asset_id_fkey"
+            columns: ["org_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "intake_placement_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_placement_runs_org_id_intake_id_fkey"
+            columns: ["org_id", "intake_id"]
+            isOneToOne: false
+            referencedRelation: "intake_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       matter_command_receipts: {
         Row: {
           actor_user_id: string
@@ -6365,7 +6609,12 @@ export type Database = {
           idempotency_key: string
           manual_metadata: Json | null
           org_id: string
+          placement_candidate_id: string | null
           reason: string
+          result_document_id: string | null
+          result_document_version_id: string | null
+          result_lifecycle_revision: number | null
+          result_matter_id: string | null
           result_revision: number
           review_item_id: string
           selected_candidate_id: string | null
@@ -6379,7 +6628,12 @@ export type Database = {
           idempotency_key: string
           manual_metadata?: Json | null
           org_id: string
+          placement_candidate_id?: string | null
           reason: string
+          result_document_id?: string | null
+          result_document_version_id?: string | null
+          result_lifecycle_revision?: number | null
+          result_matter_id?: string | null
           result_revision: number
           review_item_id: string
           selected_candidate_id?: string | null
@@ -6393,7 +6647,12 @@ export type Database = {
           idempotency_key?: string
           manual_metadata?: Json | null
           org_id?: string
+          placement_candidate_id?: string | null
           reason?: string
+          result_document_id?: string | null
+          result_document_version_id?: string | null
+          result_lifecycle_revision?: number | null
+          result_matter_id?: string | null
           result_revision?: number
           review_item_id?: string
           selected_candidate_id?: string | null
@@ -6404,6 +6663,13 @@ export type Database = {
             columns: ["org_id", "review_item_id"]
             isOneToOne: false
             referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "review_item_decisions_placement_candidate_fkey"
+            columns: ["org_id", "placement_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_candidates"
             referencedColumns: ["org_id", "id"]
           },
           {
@@ -6458,14 +6724,17 @@ export type Database = {
             | null
           created_at: string
           dedupe_key: string
-          document_id: string
+          document_id: string | null
           document_lifecycle_revision: number | null
-          document_version_id: string
+          document_version_id: string | null
           field_decision_sequence: number | null
           field_path: string | null
           id: string
           impact: string
+          intake_asset_id: string | null
+          intake_id: string | null
           org_id: string
+          placement_run_id: string | null
           priority: Database["public"]["Enums"]["review_item_priority"]
           priority_reason: string
           processing_run_id: string | null
@@ -6488,14 +6757,17 @@ export type Database = {
             | null
           created_at?: string
           dedupe_key: string
-          document_id: string
+          document_id?: string | null
           document_lifecycle_revision?: number | null
-          document_version_id: string
+          document_version_id?: string | null
           field_decision_sequence?: number | null
           field_path?: string | null
           id?: string
           impact?: string
+          intake_asset_id?: string | null
+          intake_id?: string | null
           org_id: string
+          placement_run_id?: string | null
           priority?: Database["public"]["Enums"]["review_item_priority"]
           priority_reason?: string
           processing_run_id?: string | null
@@ -6518,14 +6790,17 @@ export type Database = {
             | null
           created_at?: string
           dedupe_key?: string
-          document_id?: string
+          document_id?: string | null
           document_lifecycle_revision?: number | null
-          document_version_id?: string
+          document_version_id?: string | null
           field_decision_sequence?: number | null
           field_path?: string | null
           id?: string
           impact?: string
+          intake_asset_id?: string | null
+          intake_id?: string | null
           org_id?: string
+          placement_run_id?: string | null
           priority?: Database["public"]["Enums"]["review_item_priority"]
           priority_reason?: string
           processing_run_id?: string | null
@@ -6540,11 +6815,32 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "review_items_intake_asset_fkey"
+            columns: ["org_id", "intake_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "review_items_intake_fkey"
+            columns: ["org_id", "intake_id"]
+            isOneToOne: false
+            referencedRelation: "intake_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
             foreignKeyName: "review_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organisations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_items_placement_run_fkey"
+            columns: ["org_id", "placement_run_id"]
+            isOneToOne: false
+            referencedRelation: "intake_placement_runs"
+            referencedColumns: ["org_id", "id"]
           },
         ]
       }
@@ -12280,6 +12576,18 @@ export type Database = {
         }
         Returns: Json
       }
+      produce_ambiguous_intake_placement_review: {
+        Args: {
+          p_candidates: Json
+          p_intake_id: string
+          p_source_revision: string
+        }
+        Returns: {
+          code: string
+          placement_run_id: string
+          review_item_id: string
+        }[]
+      }
       produce_extraction_conflict_review: {
         Args: { p_binding_id: string }
         Returns: undefined
@@ -12926,6 +13234,24 @@ export type Database = {
         Returns: {
           code: string
           lease_token: string
+        }[]
+      }
+      resolve_ambiguous_intake_placement: {
+        Args: {
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_placement_candidate_id: string
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          document_id: string
+          document_version_id: string
+          lifecycle_revision: number
+          matter_id: string
+          replayed: boolean
         }[]
       }
       resolve_extraction_conflict: {
@@ -13758,6 +14084,18 @@ export type Database = {
         | "failed"
         | "discarded"
         | "expired"
+      intake_placement_evidence_kind:
+        | "matter_code_exact"
+        | "external_proceeding_id_exact"
+        | "referenced_document_exact"
+        | "verified_client_identifier"
+        | "tax_period_overlap"
+        | "procedure_compatible"
+      intake_placement_run_state:
+        | "ambiguous"
+        | "superseded"
+        | "resolved"
+        | "unavailable"
       invite_status: "pending" | "accepted" | "rejected" | "expired"
       link_status: "confirmed" | "pending" | "rejected"
       link_type:
@@ -13912,10 +14250,17 @@ export type Database = {
         | "select_candidate"
         | "request_clarification"
         | "continue_manual"
-      review_item_closure: "decision_recorded" | "source_replaced"
+        | "select_destination"
+      review_item_closure:
+        | "decision_recorded"
+        | "source_replaced"
+        | "source_unavailable"
       review_item_priority: "normal" | "high" | "urgent"
       review_item_status: "needs_review" | "closed"
-      review_item_type: "extraction_conflict" | "processing_recovery"
+      review_item_type:
+        | "extraction_conflict"
+        | "processing_recovery"
+        | "ambiguous_placement"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -14354,6 +14699,20 @@ export const Constants = {
         "discarded",
         "expired",
       ],
+      intake_placement_evidence_kind: [
+        "matter_code_exact",
+        "external_proceeding_id_exact",
+        "referenced_document_exact",
+        "verified_client_identifier",
+        "tax_period_overlap",
+        "procedure_compatible",
+      ],
+      intake_placement_run_state: [
+        "ambiguous",
+        "superseded",
+        "resolved",
+        "unavailable",
+      ],
       invite_status: ["pending", "accepted", "rejected", "expired"],
       link_status: ["confirmed", "pending", "rejected"],
       link_type: [
@@ -14530,11 +14889,20 @@ export const Constants = {
         "select_candidate",
         "request_clarification",
         "continue_manual",
+        "select_destination",
       ],
-      review_item_closure: ["decision_recorded", "source_replaced"],
+      review_item_closure: [
+        "decision_recorded",
+        "source_replaced",
+        "source_unavailable",
+      ],
       review_item_priority: ["normal", "high", "urgent"],
       review_item_status: ["needs_review", "closed"],
-      review_item_type: ["extraction_conflict", "processing_recovery"],
+      review_item_type: [
+        "extraction_conflict",
+        "processing_recovery",
+        "ambiguous_placement",
+      ],
       source_analysis_attempt_state: [
         "queued",
         "running",

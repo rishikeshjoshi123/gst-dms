@@ -1,20 +1,21 @@
 import { z } from 'zod'
 
-export const reviewAction = z.enum(['select_candidate', 'request_clarification', 'continue_manual'])
+export const reviewAction = z.enum(['select_candidate', 'request_clarification', 'continue_manual', 'select_destination'])
 const reviewQueueBase = z.object({
   id: z.string().uuid(),
   priority: z.enum(['normal', 'high', 'urgent']), priority_reason: z.string(),
-  status: z.enum(['needs_review', 'closed']), closure_reason: z.enum(['decision_recorded', 'source_replaced']).nullable(),
+  status: z.enum(['needs_review', 'closed']), closure_reason: z.enum(['decision_recorded', 'source_replaced', 'source_unavailable']).nullable(),
   revision: z.number().int().positive(), created_at: z.string(),
-  document_id: z.string().uuid(), document_version_id: z.string().uuid(),
   document_title: z.string().nullable(), matter_title: z.string(), client_name: z.string(),
 })
+const documentReviewQueueBase = reviewQueueBase.extend({ document_id: z.string().uuid(), document_version_id: z.string().uuid(), intake_id: z.null().optional() })
 export const reviewQueueItem = z.discriminatedUnion('type', [
-  reviewQueueBase.extend({ type: z.literal('extraction_conflict'), field_path: z.string(), reason_code: z.literal('material_candidate_conflict'), impact: z.string() }),
-  reviewQueueBase.extend({ type: z.literal('processing_recovery'), field_path: z.null(), reason_code: z.enum(['invalid_model_output', 'provider_failed', 'domain_invalid']), impact: z.string(), source_page_number: z.literal(1) }),
+  documentReviewQueueBase.extend({ type: z.literal('extraction_conflict'), field_path: z.string(), reason_code: z.literal('material_candidate_conflict'), impact: z.string() }),
+  documentReviewQueueBase.extend({ type: z.literal('processing_recovery'), field_path: z.null(), reason_code: z.enum(['invalid_model_output', 'provider_failed', 'domain_invalid']), impact: z.string(), source_page_number: z.literal(1) }),
+  reviewQueueBase.extend({ type: z.literal('ambiguous_placement'), field_path: z.null(), reason_code: z.literal('multiple_eligible_matters'), impact: z.string(), source_page_number: z.literal(1), intake_id: z.string().uuid(), document_id: z.null(), document_version_id: z.null() }),
 ])
 const reviewDetailBase = z.object({
-  impact: z.string(), version_number: z.number().int(), is_current: z.boolean(),
+  impact: z.string(), version_number: z.number().int().nullable(), is_current: z.boolean(),
   source_identity: z.string(), allowed_actions: z.array(reviewAction),
   record_baseline: z.object({ value: z.string(), origin_kind: z.string(), captured_at: z.string() }).nullable().optional(),
   evidence: z.array(z.object({
@@ -22,12 +23,12 @@ const reviewDetailBase = z.object({
     page_number: z.number().int().positive(), quotation: z.string(), value: z.unknown(),
     validation_state: z.enum(['eligible', 'provisional', 'conflicting', 'invalid']),
   })),
-  last_decision: z.object({ action: reviewAction, selected_candidate_id: z.string().uuid().nullable(), manual_metadata: z.unknown().nullable().optional(), reason: z.string(), created_at: z.string() }).nullable(),
+  last_decision: z.object({ action: reviewAction, selected_candidate_id: z.string().uuid().nullable(), placement_candidate_id: z.string().uuid().nullable().optional(), result_matter_id: z.string().uuid().nullable().optional(), result_document_id: z.string().uuid().nullable().optional(), result_document_version_id: z.string().uuid().nullable().optional(), result_lifecycle_revision: z.number().int().positive().nullable().optional(), manual_metadata: z.unknown().nullable().optional(), reason: z.string(), created_at: z.string() }).nullable(),
 })
 export const reviewDetail = z.intersection(reviewQueueItem, reviewDetailBase)
 export type ReviewQueueItem = z.infer<typeof reviewQueueItem>
 export type ReviewDetail = z.infer<typeof reviewDetail>
-export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
+export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
 export const extractionReviewResolution = z.object({
   itemId: z.string().uuid(), revision: z.number().int().positive(), action: z.enum(['select_candidate', 'request_clarification']),
   candidateId: z.string().uuid().nullable(), reason: z.string().trim().min(1).max(500).refine(value => !/[\u0000-\u001f\u007f]/.test(value)),
@@ -48,12 +49,18 @@ export const processingRecoveryResolution = z.object({
   idempotencyKey: z.string().uuid(),
 }).strict()
 export type ProcessingRecoveryResolution = z.infer<typeof processingRecoveryResolution>
+export const ambiguousPlacementResolution = z.object({
+  itemId: z.string().uuid(), revision: z.number().int().positive(), action: z.literal('select_destination'),
+  placementCandidateId: z.string().uuid(), reason: z.string().trim().min(1).max(500).refine(value => !/[\u0000-\u001f\u007f]/.test(value)),
+  idempotencyKey: z.string().uuid(),
+}).strict()
+export type AmbiguousPlacementResolution = z.infer<typeof ambiguousPlacementResolution>
 
 export function parseReviewFilters(params: Record<string, string | string[] | undefined>): ReviewFilters {
   const page = typeof params.page === 'string' && /^[1-9]\d{0,5}$/.test(params.page) ? Number(params.page) : 1
   return {
     status: params.status === 'closed' || params.status === 'all' ? params.status : 'needs_review',
-    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' ? params.type : 'all',
+    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' || params.type === 'ambiguous_placement' ? params.type : 'all',
     priority: params.priority === 'normal' || params.priority === 'high' || params.priority === 'urgent' ? params.priority : 'all',
     search: typeof params.search === 'string' ? params.search.slice(0, 200) : '', page: Math.min(page, 100000),
     item: typeof params.item === 'string' && z.string().uuid().safeParse(params.item).success ? params.item : undefined,

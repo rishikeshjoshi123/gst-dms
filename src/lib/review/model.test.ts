@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { extractionReviewResolution, parseReviewFilters, processingRecoveryResolution, reviewValueLabel, taxPeriodComparison } from './model'
+import { ambiguousPlacementResolution, extractionReviewResolution, parseReviewFilters, processingRecoveryResolution, reviewValueLabel, taxPeriodComparison } from './model'
 
 test('Review URL parsing allowlists filters, bounds search/page and rejects repeated authority', () => {
   assert.deepEqual(parseReviewFilters({ status: ['closed', 'all'], type: 'deadline', priority: 'critical', page: '-1', item: 'not-an-id', tab: 'history' }), {
@@ -10,6 +10,12 @@ test('Review URL parsing allowlists filters, bounds search/page and rejects repe
   assert.equal(result.search.length, 200)
   assert.equal(result.page, 100000)
   assert.equal(result.item, '153e0000-0000-0000-0000-000000000001')
+})
+test('ambiguous placement exposes only one typed destination decision', () => {
+  const base = { itemId: '153e0000-0000-0000-0000-000000000001', revision: 1, action: 'select_destination', placementCandidateId: '162e0000-0000-0000-0000-000000000001', reason: 'Exact referenced order supports this proceeding', idempotencyKey: '16290000-0000-0000-0000-000000000001' }
+  assert.equal(ambiguousPlacementResolution.safeParse(base).success, true)
+  for (const invalid of [{ ...base, action: 'dismiss' }, { ...base, matterId: base.placementCandidateId }, { ...base, placementCandidateId: 'forged' }, { ...base, reason: '' }, { ...base, reason: 'line\nbreak' }, { ...base, revision: 0 }]) assert.equal(ambiguousPlacementResolution.safeParse(invalid).success, false)
+  assert.equal(parseReviewFilters({ type: 'ambiguous_placement' }).type, 'ambiguous_placement')
 })
 test('typed decision rejects arbitrary domain changes, dismiss and mismatched candidate shape', () => {
   const base = { itemId: '153e0000-0000-0000-0000-000000000001', revision: 1, action: 'request_clarification', candidateId: null, reason: 'Explain the source difference', idempotencyKey: '15390000-0000-0000-0000-000000000001' }
