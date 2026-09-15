@@ -66,7 +66,7 @@ export default function DesignSystemPage() {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-base font-semibold">PDF viewer source location</h2>
-            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">A server-derived one-based page opens the shared viewer. It clamps to the PDF’s actual page count after loading; bounded native-text search and a synchronized horizontal thumbnail disclosure remain outside the vertical source scroller.</p>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">A server-derived one-based page opens the shared viewer. It clamps to the PDF’s actual page count after loading; bounded native-text search and a synchronized horizontal thumbnail disclosure remain outside the vertical source scroller. An explicit missing-object response instead keeps the exact document record visible without a misleading link refresh.</p>
           </div>
           <Badge variant="outline">Static reference</Badge>
         </div>

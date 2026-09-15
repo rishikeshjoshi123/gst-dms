@@ -17,8 +17,13 @@ if (!ownerEmail || !/^release-owner-[0-9a-f]{12}@acceptance\.test$/.test(ownerEm
 }
 const conflictPageTexts = JSON.parse(process.env.RELEASE_JOURNEY_CONFLICT_PAGE_TEXTS ?? '[]')
 const expectedConflictUploadSha256 = process.env.RELEASE_JOURNEY_CONFLICT_UPLOAD_SHA256
+const expectedGlobalUploadSha256 = process.env.RELEASE_JOURNEY_GLOBAL_UPLOAD_SHA256
+const expectedGlobalUploadBytes = process.env.RELEASE_JOURNEY_GLOBAL_UPLOAD_BYTES
 if (!expectedConflictUploadSha256 || !/^[0-9a-f]{64}$/.test(expectedConflictUploadSha256)) {
   if (operation === 'prepare' || operation === 'verify') throw new Error('Release-journey conflict source requires the exact uploaded-byte SHA-256.')
+}
+if (['loss-target', 'loss-verify'].includes(operation) && (!/^[0-9a-f]{64}$/.test(expectedGlobalUploadSha256 ?? '') || !/^[1-9][0-9]*$/.test(expectedGlobalUploadBytes ?? ''))) {
+  throw new Error('Missing-object fixture requires its exact uploaded byte identity.')
 }
 if (!Array.isArray(conflictPageTexts) || conflictPageTexts.length !== 4 || conflictPageTexts.some(page => typeof page !== 'string' || page.length > 8000)
   || !conflictPageTexts[0].includes('Document type OIO') || !conflictPageTexts[1].includes('Document type SCN')) {
@@ -453,8 +458,66 @@ SELECT jsonb_build_object(
 );
 `
 
+const lossTarget = String.raw`
+SELECT jsonb_build_object('bucket',asset.bucket_id,'key',asset.object_key)
+FROM auth.users owner JOIN public.organisations organisation ON organisation.created_by=owner.id
+JOIN public.documents document ON document.org_id=organisation.id AND document.current_version_id IS NOT NULL
+JOIN public.document_versions version ON version.id=document.current_version_id AND version.document_id=document.id AND version.state='current' AND version.validation_state='valid'
+JOIN public.file_assets asset ON asset.id=version.asset_id AND asset.org_id=document.org_id
+JOIN public.upload_sessions session ON session.asset_id=asset.id AND session.org_id=asset.org_id
+JOIN storage.objects object ON object.bucket_id=asset.bucket_id AND object.name=asset.object_key
+WHERE owner.email='${ownerEmail}' AND organisation.name='Release Journey Organisation'
+AND session.declared_filename='release-global-intake.pdf' AND document.record_state='active'
+AND asset.sha256='${expectedGlobalUploadSha256}' AND asset.byte_size=${expectedGlobalUploadBytes}
+AND asset.bucket_id='documents' AND asset.availability='available';
+`
+
+const lossVerify = String.raw`
+DO $loss$
+DECLARE v_document uuid; v_version uuid; v_asset uuid; v_org uuid;
+BEGIN
+  SELECT document.id,version.id,asset.id,document.org_id INTO STRICT v_document,v_version,v_asset,v_org
+  FROM auth.users owner JOIN public.organisations organisation ON organisation.created_by=owner.id
+  JOIN public.documents document ON document.org_id=organisation.id AND document.current_version_id IS NOT NULL
+  JOIN public.document_versions version ON version.id=document.current_version_id AND version.document_id=document.id
+  JOIN public.file_assets asset ON asset.id=version.asset_id AND asset.org_id=document.org_id
+  JOIN public.upload_sessions session ON session.asset_id=asset.id AND session.org_id=asset.org_id
+  WHERE owner.email='${ownerEmail}' AND organisation.name='Release Journey Organisation'
+    AND session.declared_filename='release-global-intake.pdf'
+    AND asset.sha256='${expectedGlobalUploadSha256}' AND asset.byte_size=${expectedGlobalUploadBytes};
+  IF EXISTS(SELECT 1 FROM storage.objects object JOIN public.file_assets asset ON asset.bucket_id=object.bucket_id AND asset.object_key=object.name WHERE asset.id=v_asset)
+    OR NOT EXISTS(SELECT 1 FROM public.file_assets WHERE id=v_asset AND org_id=v_org AND availability='available' AND sha256='${expectedGlobalUploadSha256}' AND byte_size=${expectedGlobalUploadBytes})
+    OR NOT EXISTS(SELECT 1 FROM public.document_versions WHERE id=v_version AND document_id=v_document AND asset_id=v_asset AND state='current' AND validation_state='valid')
+    OR NOT EXISTS(SELECT 1 FROM public.documents WHERE id=v_document AND org_id=v_org AND current_version_id=v_version AND record_state='active')
+    OR (SELECT count(*) FROM public.review_items review JOIN public.intake_item_assignments assignment ON assignment.intake_item_id=review.intake_id
+        WHERE assignment.document_id=v_document AND assignment.document_version_id=v_version AND review.type='ambiguous_placement' AND review.status='closed')<>1
+    OR (SELECT count(*) FROM public.intake_item_assignments WHERE document_id=v_document AND document_version_id=v_version)<>1 THEN
+    RAISE EXCEPTION 'Missing-object fixture changed document, asset, placement, or Review identity';
+  END IF;
+END $loss$;
+SELECT 'Missing-object metadata and Review identity remain exact.';
+`
+
+const extractionClosure = String.raw`
+SELECT jsonb_build_object(
+  'closed',(SELECT count(*) FROM public.review_items review JOIN public.document_versions version ON version.id=review.document_version_id
+      JOIN public.upload_sessions session ON session.asset_id=version.asset_id
+      WHERE session.declared_filename='release-extraction-conflict.pdf' AND review.type='extraction_conflict' AND review.status='closed'),
+  'decisions',(SELECT count(*) FROM public.review_item_decisions decision JOIN public.review_items review ON review.id=decision.review_item_id
+      JOIN public.document_versions version ON version.id=review.document_version_id JOIN public.upload_sessions session ON session.asset_id=version.asset_id
+      WHERE session.declared_filename='release-extraction-conflict.pdf' AND review.type='extraction_conflict')
+);
+`
+
 if (operation === 'prepare') process.stdout.write(`${sql(prepare, { tuples: true })}\n`)
 else if (operation === 'activate-relationship') process.stdout.write(`${sql(activate)}\n`)
 else if (operation === 'verify') process.stdout.write(`${sql(verify)}\n`)
 else if (operation === 'signup-diagnostic') process.stdout.write(`${sql(signupDiagnostic, { tuples: true })}\n`)
-else throw new Error('Use prepare, activate-relationship, verify, or signup-diagnostic.')
+else if (operation === 'loss-target') {
+  const target = sql(lossTarget, { tuples: true })
+  if (!target || target.split('\n').length !== 1) throw new Error('Missing-object fixture did not identify one exact formerly valid source.')
+  process.stdout.write(`${target}\n`)
+}
+else if (operation === 'loss-verify') process.stdout.write(`${sql(lossVerify)}\n`)
+else if (operation === 'extraction-closure') process.stdout.write(`${sql(extractionClosure, { tuples: true })}\n`)
+else throw new Error('Use prepare, activate-relationship, verify, signup-diagnostic, loss-target, loss-verify, or extraction-closure.')

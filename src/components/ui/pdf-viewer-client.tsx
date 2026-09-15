@@ -23,8 +23,11 @@ import {
   pdfPageHeight,
   pdfThumbnailPages,
   pdfSourceFailureCopy,
+  pdfRefreshFailure,
+  pdfRefreshedUrl,
   retryPdfSourceAccess,
   type PdfSourceFailure,
+  type PdfSourceRefreshOutcome,
 } from './pdf-viewer-model';
 
 // Configure the worker for pdf.js
@@ -38,7 +41,7 @@ type PdfViewerProps = {
   /** One-based source-locator page. It is clamped when the PDF reports its length. */
   initialPage?: number
   initialFailure?: PdfSourceFailure
-  onRequestSourceRefresh?: () => Promise<string | null>
+  onRequestSourceRefresh?: () => Promise<string | null | PdfSourceRefreshOutcome>
   quoteSource?: PdfQuoteSource
   onCreateQuotation?: (selection: PdfQuotationSelection) => void
 }
@@ -209,8 +212,7 @@ export function PdfViewer({
   }
 
   function onDocumentSourceError(error: unknown) {
-    if (classifyPdfSourceFailure(error) === null) return;
-    presentSourceFailure('unavailable');
+    presentSourceFailure(classifyPdfSourceFailure(error));
   }
 
   async function retrySource() {
@@ -221,7 +223,7 @@ export function PdfViewer({
     setIsSourceRetryPending(true);
     setSourceRetryError(null);
     try {
-      const refreshedUrl = await retryPdfSourceAccess({
+      const refreshOutcome = await retryPdfSourceAccess({
         currentUrl: activeUrl,
         requestFreshUrl: onRequestSourceRefresh,
         refreshRoute: router.refresh,
@@ -230,6 +232,12 @@ export function PdfViewer({
         { generation: requestGeneration, sourceIdentity: requestedIdentity },
         sourceRequestCurrentRef.current,
       )) return;
+      const failure = pdfRefreshFailure(refreshOutcome);
+      if (failure === 'missing') {
+        presentSourceFailure('missing');
+        return;
+      }
+      const refreshedUrl = pdfRefreshedUrl(refreshOutcome);
       if (!refreshedUrl) {
         if (onRequestSourceRefresh) setSourceRetryError('PDF access could not be refreshed. Try again.');
         return;

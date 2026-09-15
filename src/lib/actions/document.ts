@@ -15,7 +15,7 @@ import {
 } from '@/lib/document-upload'
 import { buildMatterReturnPath, canonicalDocumentPath } from '@/lib/canonical-document-route'
 import { getCanonicalAssignedDocument } from '@/lib/trash/exact-resource'
-import { pdfSourceLookupFailureCode } from '@/lib/pdf-source-access'
+import { pdfSignedHeadFailureCode, pdfSourceLookupFailureCode, pdfStorageFailureCode } from '@/lib/pdf-source-access'
 import { z } from 'zod'
 
 // ── Get Documents for a Matter ────────────────────────────────────
@@ -536,7 +536,33 @@ export async function setDocumentClass(
  * version lookup happens under the user's RLS context; callers never provide a
  * Storage path, and the service client sees it only after that grant succeeds.
  */
-export async function getDocumentVersionSignedUrl(documentVersionId: string) {
+async function signReachablePdfSource(bucketId: string, objectKey: string) {
+  const storage = createServiceClient()
+  const { error: objectError } = await storage.storage.from(bucketId).info(objectKey)
+  if (objectError) return { code: pdfStorageFailureCode(objectError) as 'source_unavailable' | 'access_temporary' }
+  const { data, error } = await storage.storage.from(bucketId).createSignedUrl(objectKey, 60 * 15)
+  if (error || !data) return { code: pdfStorageFailureCode(error) as 'source_unavailable' | 'access_temporary' }
+
+  // Signing alone does not prove that the object still exists. Probe the exact
+  // private locator with HEAD: no PDF body is downloaded or logged. A later
+  // deletion race is handled by PDF.js's trusted response status.
+  try {
+    const response = await fetch(data.signedUrl, { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(5_000) })
+    const failureCode = pdfSignedHeadFailureCode(response.status)
+    if (failureCode) return { code: failureCode }
+    return { url: data.signedUrl, code: 'ok' as const }
+  } catch {
+    return { code: 'access_temporary' as const }
+  }
+}
+
+type PdfSignedSourceResult = {
+  url?: string
+  error?: string
+  code: 'ok' | 'not_authenticated' | 'source_unavailable' | 'access_temporary'
+}
+
+export async function getDocumentVersionSignedUrl(documentVersionId: string): Promise<PdfSignedSourceResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
@@ -552,24 +578,19 @@ export async function getDocumentVersionSignedUrl(documentVersionId: string) {
     sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
   })
   if (grantFailureCode) {
-    if (grantError) console.error('Failed to resolve versioned document read grant:', grantError)
+    if (grantError) console.error('Failed to resolve versioned document read grant')
     return grantFailureCode === 'access_temporary'
       ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
       : { error: 'This document version is not available.', code: grantFailureCode }
   }
   if (!bucketId || !objectKey) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
-  const storage = createServiceClient()
-  const { data, error } = await storage.storage
-    .from(bucketId)
-    .createSignedUrl(objectKey, 60 * 15)
-
-  if (error || !data) {
-    console.error('Failed to create versioned document URL:', error)
-    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
-  }
-
-  return { url: data.signedUrl, code: 'ok' as const }
+  const signed = await signReachablePdfSource(bucketId, objectKey)
+  return signed.code === 'ok'
+    ? signed
+    : signed.code === 'source_unavailable'
+      ? { error: 'This stored PDF source is unavailable. Its document record remains available.', code: signed.code }
+      : { error: 'PDF source access is temporarily unavailable.', code: signed.code }
 }
 
 /**
@@ -609,7 +630,7 @@ export async function getCanonicalDocumentVersionSignedUrl(
     sourceAvailable: Boolean(version),
   })
   if (versionFailureCode) {
-    if (error) console.error('Failed to resolve canonical document version:', error)
+    if (error) console.error('Failed to resolve canonical document version')
     return versionFailureCode === 'access_temporary'
       ? { error: 'PDF source access is temporarily unavailable.', code: versionFailureCode }
       : { error: 'This document version is not available.', code: versionFailureCode }
@@ -646,7 +667,11 @@ export async function renewCanonicalDocumentVersionSource(input: {
     input.expectedMatterId,
     input.page,
   )
-  return result.code === 'ok' && 'url' in result ? result.url : null
+  return result.code === 'ok'
+    ? { url: result.url ?? null, code: 'ok' as const }
+    : result.code === 'source_unavailable'
+      ? { url: null, code: 'source_unavailable' as const }
+      : { url: null, code: 'access_temporary' as const }
 }
 
 /**
@@ -659,7 +684,7 @@ export async function getTrashedDocumentVersionSignedUrl(
   matterId: string,
   documentId: string,
   documentVersionId: string,
-) {
+): Promise<PdfSignedSourceResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
@@ -677,26 +702,23 @@ export async function getTrashedDocumentVersionSignedUrl(
     sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
   })
   if (grantFailureCode) {
-    if (grantError) console.error('Failed to resolve trashed document read grant:', grantError)
+    if (grantError) console.error('Failed to resolve trashed document read grant')
     return grantFailureCode === 'access_temporary'
       ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
       : { error: 'This document version is not available.', code: grantFailureCode }
   }
   if (!bucketId || !objectKey) return { error: 'This document version is not available.', code: 'source_unavailable' as const }
 
-  const storage = createServiceClient()
-  const { data, error } = await storage.storage
-    .from(bucketId)
-    .createSignedUrl(objectKey, 60 * 15)
-  if (error || !data) {
-    console.error('Failed to create trashed document URL:', error)
-    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
-  }
-  return { url: data.signedUrl, code: 'ok' as const }
+  const signed = await signReachablePdfSource(bucketId, objectKey)
+  return signed.code === 'ok'
+    ? signed
+    : signed.code === 'source_unavailable'
+      ? { error: 'This stored PDF source is unavailable. Its document record remains available.', code: signed.code }
+      : { error: 'PDF source access is temporarily unavailable.', code: signed.code }
 }
 
 /** Create an authorised short-lived PDF URL for a ready, unassigned intake. */
-export async function getIntakeItemSignedUrl(intakeId: string) {
+export async function getIntakeItemSignedUrl(intakeId: string): Promise<PdfSignedSourceResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.', code: 'not_authenticated' as const }
@@ -712,22 +734,19 @@ export async function getIntakeItemSignedUrl(intakeId: string) {
     sourceAvailable: Boolean(grant?.code === 'ok' && bucketId && objectKey),
   })
   if (grantFailureCode) {
-    if (grantError) console.error('Failed to resolve intake document read grant:', grantError)
+    if (grantError) console.error('Failed to resolve intake document read grant')
     return grantFailureCode === 'access_temporary'
       ? { error: 'PDF source access is temporarily unavailable.', code: grantFailureCode }
       : { error: 'This intake PDF is not available for preview.', code: grantFailureCode }
   }
   if (!bucketId || !objectKey) return { error: 'This intake PDF is not available for preview.', code: 'source_unavailable' as const }
 
-  const storage = createServiceClient()
-  const { data, error } = await storage.storage
-    .from(bucketId)
-    .createSignedUrl(objectKey, 60 * 15)
-  if (error || !data) {
-    console.error('Failed to create intake document URL:', error)
-    return { error: 'PDF source access is temporarily unavailable.', code: 'access_temporary' as const }
-  }
-  return { url: data.signedUrl, code: 'ok' as const }
+  const signed = await signReachablePdfSource(bucketId, objectKey)
+  return signed.code === 'ok'
+    ? signed
+    : signed.code === 'source_unavailable'
+      ? { error: 'This stored PDF source is unavailable. Its intake record remains available.', code: signed.code }
+      : { error: 'PDF source access is temporarily unavailable.', code: signed.code }
 }
 
 

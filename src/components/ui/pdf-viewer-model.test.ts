@@ -14,6 +14,8 @@ import {
   pdfThumbnailPages,
   pdfSourceFailureFromAccessCode,
   pdfSourceFailureCopy,
+  pdfRefreshFailure,
+  pdfRefreshedUrl,
   pdfPageHeight,
   pdfFitPageScale,
   retryPdfSourceAccess,
@@ -100,6 +102,9 @@ test('classifies stable PDF.js failures without exposing private error messages'
   assert.equal(classifyPdfSourceFailure({ name: 'InvalidPDFException' }), 'malformed')
   assert.equal(classifyPdfSourceFailure({ name: 'FormatError' }), 'malformed')
   assert.equal(classifyPdfSourceFailure({ name: 'ResponseException', status: 403 }), 'unavailable')
+  assert.equal(classifyPdfSourceFailure({ name: 'ResponseException', status: 404, message: 'private key' }), 'missing')
+  assert.equal(classifyPdfSourceFailure({ name: 'ResponseException', status: 500 }), 'unavailable')
+  assert.equal(classifyPdfSourceFailure({ name: 'ResponseException', message: '404 private key' }), 'unavailable')
   assert.equal(classifyPdfSourceFailure({ name: 'AbortException' }), null)
   assert.equal(classifyPdfSourceFailure(new TypeError('Failed to fetch a private URL')), 'render_failed')
   assert.equal(classifyPdfSourceFailure(new Error('private detail')), 'render_failed')
@@ -124,6 +129,14 @@ test('classifies stable PDF.js failures without exposing private error messages'
     retryable: true,
     retryLabel: 'Retry PDF',
   })
+})
+
+test('one exact server renewal promotes typed missing loss without guessing from HTTP 400', () => {
+  assert.equal(pdfRefreshFailure({ url: null, code: 'source_unavailable' }), 'missing')
+  assert.equal(pdfRefreshedUrl({ url: null, code: 'source_unavailable' }), null)
+  assert.equal(pdfRefreshFailure({ url: null, code: 'access_temporary' }), 'unavailable')
+  assert.equal(pdfRefreshedUrl({ url: 'private signed link', code: 'ok' }), 'private signed link')
+  assert.equal(pdfRefreshFailure(null), 'unavailable')
 })
 
 test('renews caller-owned signed access and keeps route-owned retry behavior distinct', async () => {

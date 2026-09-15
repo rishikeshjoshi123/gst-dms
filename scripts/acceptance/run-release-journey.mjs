@@ -5,10 +5,12 @@ import { randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { requireNode24 } from './runtime.mjs'
 import { authHealthIsReady, capturedMailIsReady } from './release-journey-readiness.mjs'
+import { createClient } from '@supabase/supabase-js'
 
 const node = requireNode24()
 const repository = process.cwd()
 const profile = JSON.parse(readFileSync(join(repository, 'scripts/acceptance/release-journey-profile.json'), 'utf8'))
+const storageProbeOnly = process.argv.includes('--probe-storage-loss')
 const root = mkdtempSync(join(realpathSync(tmpdir()), 'casechain-release-journey-'))
 const supabaseRoot = join(root, 'supabase')
 const cli = join(repository, 'node_modules/supabase/dist/supabase.js')
@@ -53,6 +55,36 @@ function assertLoopback(local) {
   if (new URL(local.DB_URL).port !== profile.portMap['54322']) {
     throw new Error('Refusing a database outside the release-journey profile port.')
   }
+}
+
+async function probeOwnedStorageLoss(local) {
+  const storage = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { persistSession: false } }).storage.from('documents')
+  const objectKey = `release-journey-probe/${randomBytes(12).toString('hex')}.pdf`
+  const bytes = readFileSync(join(repository, 'tests/acceptance/fixtures/synthetic-multi-page.pdf'))
+  const uploaded = await storage.upload(objectKey, bytes, { upsert: false, contentType: 'application/pdf' })
+  if (uploaded.error) throw new Error('Disposable Storage probe upload failed.')
+  const validInfo = await storage.info(objectKey)
+  const validSigned = await storage.createSignedUrl(objectKey, 60)
+  if (validInfo.error || validSigned.error || !validSigned.data) throw new Error('Disposable Storage probe valid source failed.')
+  const validHead = await fetch(validSigned.data.signedUrl, { method: 'HEAD' })
+  const removed = await storage.remove([objectKey])
+  if (removed.error || removed.data?.length !== 1) throw new Error('Disposable Storage probe removal failed.')
+  const missingInfo = await storage.info(objectKey)
+  const missingSign = await storage.createSignedUrl(objectKey, 60)
+  const missingHead = await fetch(validSigned.data.signedUrl, { method: 'HEAD' })
+  const missingDownload = await storage.download(objectKey)
+  process.stdout.write(JSON.stringify({
+    valid: { info: 'ok', sign: 'ok', head: validHead.status },
+    missing: {
+      infoHttp: missingInfo.error?.status ?? null,
+      infoApi: missingInfo.error?.statusCode ?? null,
+      signHttp: missingSign.error?.status ?? null,
+      signApi: missingSign.error?.statusCode ?? null,
+      head: missingHead.status,
+      downloadHttp: missingDownload.error?.status ?? null,
+      downloadApi: missingDownload.error?.statusCode ?? null,
+    },
+  }) + '\n')
 }
 
 function acquireOwnershipLock() {
@@ -190,6 +222,8 @@ try {
   await run(node, [cli, 'start', '--workdir', root, '--exclude', 'realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor'])
   const local = JSON.parse(await run(node, [cli, 'status', '--workdir', root, '-o', 'json']))
   assertLoopback(local)
+  if (storageProbeOnly) await probeOwnedStorageLoss(local)
+  else {
   await Promise.all([
     waitForLocalService(`${local.API_URL}/auth/v1/health`, 'Local Auth', authHealthIsReady),
     waitForCapturedMail(local),
@@ -211,8 +245,11 @@ try {
       RELEASE_JOURNEY_SUPABASE_WORKDIR: root,
       RELEASE_JOURNEY_INBUCKET_URL: local.INBUCKET_URL,
       RELEASE_JOURNEY_OWNER_EMAIL: ownerEmail,
+      RELEASE_JOURNEY_API_URL: local.API_URL,
+      RELEASE_JOURNEY_SERVICE_ROLE_KEY: local.SERVICE_ROLE_KEY,
     },
   }))
+  }
 } finally {
   cleanup()
 }

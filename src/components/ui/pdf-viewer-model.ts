@@ -6,6 +6,19 @@ export const DEFAULT_PDF_PAGE_SIZE = { width: 612, height: 792 }
 export const PDF_SEARCH_BATCH_SIZE = 25
 
 export type PdfSourceFailure = 'encrypted' | 'malformed' | 'missing' | 'unavailable' | 'render_failed'
+export type PdfSourceRefreshOutcome = {
+  url: string | null
+  code: 'ok' | 'source_unavailable' | 'access_temporary'
+}
+
+export function pdfRefreshFailure(outcome: string | null | PdfSourceRefreshOutcome): PdfSourceFailure | null {
+  if (typeof outcome === 'string') return null
+  return outcome?.code === 'source_unavailable' ? 'missing' : 'unavailable'
+}
+
+export function pdfRefreshedUrl(outcome: string | null | PdfSourceRefreshOutcome): string | null {
+  return typeof outcome === 'string' ? outcome : outcome?.code === 'ok' ? outcome.url : null
+}
 
 export function pdfSourceFailureFromAccessCode(code: PdfSourceAccessFailureCode): PdfSourceFailure {
   return code === 'source_unavailable' ? 'missing' : 'unavailable'
@@ -17,7 +30,7 @@ export async function retryPdfSourceAccess({
   refreshRoute,
 }: {
   currentUrl: string | null
-  requestFreshUrl?: () => Promise<string | null>
+  requestFreshUrl?: () => Promise<string | null | PdfSourceRefreshOutcome>
   refreshRoute: () => void
 }) {
   if (requestFreshUrl) return requestFreshUrl()
@@ -31,7 +44,9 @@ export function classifyPdfSourceFailure(error: unknown): PdfSourceFailure | nul
   if (name === 'AbortException' || name === 'RenderingCancelledException') return null
   if (name === 'PasswordException') return 'encrypted'
   if (name === 'InvalidPDFException' || name === 'FormatError') return 'malformed'
-  if (name === 'ResponseException') return 'unavailable'
+  if (name === 'ResponseException') {
+    return 'status' in error && error.status === 404 ? 'missing' : 'unavailable'
+  }
   return 'render_failed'
 }
 

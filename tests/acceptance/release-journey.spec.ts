@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { createClient } from '@supabase/supabase-js'
 import { validateCallbackLocation, validateVerificationUrl } from '../../scripts/acceptance/release-journey-boundary.mjs'
 import { assessNativePageQuality, extractNativePdfPages } from '../../src/lib/documents/native-pdf-pages'
 
@@ -22,13 +23,23 @@ const sourcePdf = readFileSync(join(process.cwd(), 'tests/acceptance/fixtures/sy
 const conflictPdf = readFileSync(join(process.cwd(), 'tests/acceptance/fixtures/synthetic-extraction-conflict.pdf'))
 const conflictUploadSuffix = '\n% conflict-release-journey\n'
 const conflictUploadHash = createHash('sha256').update(Buffer.concat([conflictPdf, Buffer.from(conflictUploadSuffix)])).digest('hex')
+const globalUploadBytes = Buffer.concat([sourcePdf, Buffer.from('\n% global-release-journey\n')])
+const globalUploadHash = createHash('sha256').update(globalUploadBytes).digest('hex')
+const isolatedApiUrl = process.env.RELEASE_JOURNEY_API_URL
+const isolatedServiceKey = process.env.RELEASE_JOURNEY_SERVICE_ROLE_KEY
+if (isolatedApiUrl !== 'http://127.0.0.1:56221' || !isolatedServiceKey) {
+  throw new Error('Object-loss acceptance requires the exclusively owned loopback Storage service.')
+}
 let conflictPageTexts: string[] = []
 
-function databaseOperation(operation: 'prepare' | 'activate-relationship' | 'verify' | 'signup-diagnostic') {
+function databaseOperation(operation: 'prepare' | 'activate-relationship' | 'verify' | 'signup-diagnostic' | 'loss-target' | 'loss-verify' | 'extraction-closure') {
   const result = spawnSync(process.execPath, ['scripts/acceptance/release-journey-db.mjs', operation], {
-    cwd: process.cwd(), env: { ...process.env, RELEASE_JOURNEY_CONFLICT_PAGE_TEXTS: JSON.stringify(conflictPageTexts), RELEASE_JOURNEY_CONFLICT_UPLOAD_SHA256: conflictUploadHash }, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
+    cwd: process.cwd(), env: { ...process.env, RELEASE_JOURNEY_CONFLICT_PAGE_TEXTS: JSON.stringify(conflictPageTexts), RELEASE_JOURNEY_CONFLICT_UPLOAD_SHA256: conflictUploadHash, RELEASE_JOURNEY_GLOBAL_UPLOAD_SHA256: globalUploadHash, RELEASE_JOURNEY_GLOBAL_UPLOAD_BYTES: String(globalUploadBytes.length) }, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
   })
-  if (result.error || result.status !== 0) throw new Error(result.error?.message ?? `${result.stderr}\n${result.stdout}`)
+  if (result.error || result.status !== 0) {
+    if (operation === 'loss-target') throw new Error('Exact disposable source-loss target lookup failed.')
+    throw new Error(result.error?.message ?? `${result.stderr}\n${result.stdout}`)
+  }
   return result.stdout.trim()
 }
 
@@ -217,7 +228,9 @@ test('fresh Owner completes the coherent local mandatory first-release rehearsal
   await expect(page.getByRole('dialog')).toContainText('Competing item candidates will be rejected')
   await page.getByLabel('Reason', { exact: true }).fill('The printed page-two SCN label is the chosen current-version document type.')
   await page.getByRole('button', { name: 'Confirm selected value' }).click()
-  await expect(page.getByText('Decision recorded. Review closed.')).toBeVisible()
+  // The client refresh can replace its transient confirmation message before
+  // Playwright observes it. Assert the durable typed decision instead.
+  await expect.poll(() => JSON.parse(databaseOperation('extraction-closure')).closed).toBe(1)
   await page.goto(`/documents/${prepared.extractionDocumentId}?version=${prepared.extractionVersionId}&page=2`)
   await expect(page.getByText('PDF source · Version 1 · Page 2 of 4')).toBeVisible()
 
@@ -303,4 +316,42 @@ test('fresh Owner completes the coherent local mandatory first-release rehearsal
   await expectNoOverflow(page)
 
   expect(databaseOperation('verify')).toContain('Release journey cross-feature SQL assertions passed.')
+
+  // A formerly valid, placed canonical source is removed only from this owned
+  // disposable Storage stack. SQL identity and typed Review remain authoritative.
+  const lossTarget = JSON.parse(databaseOperation('loss-target')) as { bucket: string; key: string }
+  const isolatedStorage = createClient(isolatedApiUrl, isolatedServiceKey, { auth: { persistSession: false } }).storage
+  const { data: removed, error: removalError } = await isolatedStorage.from(lossTarget.bucket).remove([lossTarget.key])
+  if (removalError || removed?.length !== 1) throw new Error('Exact disposable Storage object removal failed.')
+  const { error: missingInfoError } = await isolatedStorage.from(lossTarget.bucket).info(lossTarget.key)
+  console.log(`Missing-object Storage info safe status: HTTP ${missingInfoError?.status ?? 'unavailable'}, API ${missingInfoError?.statusCode ?? 'unavailable'}`)
+  if (missingInfoError?.statusCode !== '404') throw new Error('Disposable missing-object probe did not return trusted Storage API 404.')
+  expect(databaseOperation('loss-verify')).toContain('Missing-object metadata and Review identity remain exact.')
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(exactWorkbenchUrl)
+  await expect(page.getByText('PDF file unavailable')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Refresh PDF access' })).toHaveCount(0)
+  await expect(page.getByText('PDF source · Version 1 · Page 1 of 4')).toBeVisible()
+  await page.goto(`/matters/${primaryMatterId}?section=timeline&view=chronology`)
+  await expect(page.getByRole('table')).toContainText('release-global-intake')
+  await page.getByRole('link', { name: /release-global-intake/ }).first().click()
+  await page.getByRole('link', { name: 'Open document' }).click()
+  await expect(page.getByText('PDF file unavailable')).toBeVisible()
+  await page.goto('/documents')
+  await expect(page.getByRole('heading', { name: 'Upload Queue', exact: true })).toBeVisible()
+  // Placed Intake leaves the active Upload Queue; its assigned identity is
+  // asserted in SQL and its missing exact source remains reachable from Matter.
+  await expect(page.getByRole('button', { name: 'View details for release-global-intake.pdf' })).toHaveCount(0)
+  await page.goto(`/documents/${prepared.extractionDocumentId}?version=${prepared.extractionVersionId}&page=2`)
+  await expect(page.locator('[data-pdf-page="2"] canvas')).toBeVisible()
+
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.goto(exactWorkbenchUrl)
+  const lostStatus = page.getByText('PDF file unavailable')
+  await page.getByRole('link', { name: 'Back to Matter' }).focus()
+  await expect(page.getByRole('link', { name: 'Back to Matter' })).toBeFocused()
+  await expect(lostStatus).toBeVisible()
+  await expectNoOverflow(page)
+  expect(databaseOperation('loss-verify')).toContain('Missing-object metadata and Review identity remain exact.')
 })
