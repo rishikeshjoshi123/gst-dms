@@ -1,4 +1,4 @@
-import { schedules, task } from '@trigger.dev/sdk'
+import { schedules, task, tasks } from '@trigger.dev/sdk'
 import { createSupabaseOutboxTransport } from '@/lib/outbox/supabase-transport'
 import {
   dispatchLeasedEvents,
@@ -11,7 +11,7 @@ import { runValidationWorker, safeProcessingOutcome } from '@/lib/documents/orch
 import { isScopedSearchIndexClaim, runScopedSearchIndexReprocessWorker } from '@/lib/documents/scoped-reprocess'
 import { validatePdfBytes } from '@/lib/documents/validation'
 import { runTrashOperationCreatedEffect, runTrashRestoreEffect } from '@/lib/trash/restore-effects'
-import { runTrashPurgeBatch } from '@/lib/trash/purge-worker'
+import { runTrashPurgeDispatchCycle, type TrashPurgeDispatchPayload } from '@/lib/trash/purge-worker'
 
 type RpcClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }>
@@ -180,36 +180,27 @@ export const recoverDocumentOutbox = schedules.task({
   run: async () => documentOutboxDispatcher.trigger({}),
 })
 
-// Trash operations already contain their authoritative deletion schedule. A
-// minute-level projector creates the one operation-keyed Team attention row
-// only inside its 24-hour window; it never starts permanent deletion.
-export const projectTrashRetentionTeamAttention = schedules.task({
-  id: 'project-trash-retention-team-attention',
-  cron: { pattern: '* * * * *', timezone: 'UTC' },
-  run: async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server')
-    const client = createServiceClient() as unknown as RpcClient
-    const result = await client.rpc('project_due_trash_retention_team_attention', { p_batch_size: 100 })
-    if (result.error) throw new Error('Trash retention attention projection unavailable')
-    return (result.data as Array<Record<string, unknown>> | null)?.[0]
-      ?? { projected_count: 0, already_projected_count: 0 }
-  },
-})
-
 export const trashPurgeDispatcher = task({
   id: 'dispatch-trash-permanent-delete',
-  retry: { maxAttempts: 1 },
+  retry: { maxAttempts: 2 },
   queue: { concurrencyLimit: 1 },
-  run: async () => {
+  run: async (payload: TrashPurgeDispatchPayload = {}) => {
     const { createServiceClient } = await import('@/lib/supabase/server')
-    return runTrashPurgeBatch(createServiceClient() as unknown as RpcClient)
+    const client = createServiceClient() as unknown as RpcClient
+    return runTrashPurgeDispatchCycle(client, payload, {
+      continue: continuation => tasks.trigger('dispatch-trash-permanent-delete', continuation),
+      failure: wakeAt => tasks.trigger('dispatch-trash-permanent-delete', {}, {
+        delay: new Date(Math.max(wakeAt.getTime(), Date.now() + 2000)),
+        idempotencyKey: `trash-purge-failure:${wakeAt.toISOString()}`,
+      }),
+    })
   },
 })
 
-export const reconcileTrashPurge = schedules.task({
-  id: 'reconcile-trash-permanent-delete',
-  cron: { pattern: '* * * * *', timezone: 'UTC' },
-  run: async () => trashPurgeDispatcher.trigger(),
+export const sweepTrashPurgeDaily = schedules.task({
+  id: 'sweep-trash-permanent-delete-daily',
+  cron: { pattern: '0 0 * * *', timezone: 'Asia/Kolkata' },
+  run: async () => trashPurgeDispatcher.trigger({ routine: true }),
 })
 
 // A successful gateway delivery only proves Trigger accepted the event. This

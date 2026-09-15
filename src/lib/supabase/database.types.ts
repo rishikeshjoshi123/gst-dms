@@ -9275,6 +9275,7 @@ export type Database = {
           impact_fingerprint: string
           lease_expires_at: string | null
           lease_token: string | null
+          next_attempt_at: string | null
           operation_id: string
           org_id: string
           safe_error_code: string | null
@@ -9294,6 +9295,7 @@ export type Database = {
           impact_fingerprint: string
           lease_expires_at?: string | null
           lease_token?: string | null
+          next_attempt_at?: string | null
           operation_id: string
           org_id: string
           safe_error_code?: string | null
@@ -9313,6 +9315,7 @@ export type Database = {
           impact_fingerprint?: string
           lease_expires_at?: string | null
           lease_token?: string | null
+          next_attempt_at?: string | null
           operation_id?: string
           org_id?: string
           safe_error_code?: string | null
@@ -10946,6 +10949,20 @@ export type Database = {
           queued_count: number
         }[]
       }
+      enqueue_due_trash_purges_page: {
+        Args: {
+          p_after_at?: string
+          p_after_id?: string
+          p_batch_size?: number
+        }
+        Returns: {
+          blocked_count: number
+          examined_count: number
+          last_at: string
+          last_id: string
+          queued_count: number
+        }[]
+      }
       execute_document_boundary_repair: {
         Args: {
           p_document_id: string
@@ -12434,6 +12451,12 @@ export type Database = {
         Returns: Database["public"]["Enums"]["matter_work_state"]
       }
       my_org_ids: { Args: never; Returns: string[] }
+      next_trash_purge_failure_wake: {
+        Args: never
+        Returns: {
+          wake_at: string
+        }[]
+      }
       normalize_matter_identifier_namespace_v1: {
         Args: { p_namespace: string }
         Returns: string

@@ -235,8 +235,22 @@ BEGIN
   SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
   IF result.code<>'stale_lease' THEN RAISE EXCEPTION 'expired worker lease retained authority'; END IF;
   SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
+  IF job.job_id IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM public.trash_purge_jobs WHERE operation_id=unique_operation
+      AND state='retryable' AND safe_error_code='stale_lease'
+      AND next_attempt_at=now()+interval '30 seconds'
+  ) THEN
+    RAISE EXCEPTION 'expired job lease was not durably backed off';
+  END IF;
+  IF (SELECT wake_at FROM public.next_trash_purge_failure_wake()) IS DISTINCT FROM
+     (SELECT next_attempt_at FROM public.trash_purge_jobs WHERE operation_id=unique_operation) THEN
+    RAISE EXCEPTION 'expired lease did not expose its durable failure-specific wake';
+  END IF;
+  UPDATE public.trash_purge_jobs SET next_attempt_at=now()-interval '1 second'
+    WHERE operation_id=unique_operation;
+  SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
   IF job.job_id IS NULL OR (SELECT attempt_count FROM public.trash_purge_jobs WHERE id=job.job_id)<>2 THEN
-    RAISE EXCEPTION 'expired job lease was not safely recovered';
+    RAISE EXCEPTION 'due retry was not safely recovered';
   END IF;
   SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
   IF result.code<>'prepared' OR result.storage_deletion_count<>1
@@ -252,6 +266,24 @@ BEGIN
      OR EXISTS (SELECT 1 FROM public.source_analysis_runs WHERE id IN (provenance_run,provenance_successor)) THEN
     RAISE EXCEPTION 'normal fenced provenance purge did not complete';
   END IF;
+  SELECT * INTO deletion FROM public.claim_trash_purge_storage_deletions(job.job_id,job.lease_token,25,120);
+  SELECT * INTO result FROM public.finish_trash_purge_storage_deletion(deletion.deletion_id,deletion.lease_token,'failed');
+  IF result.code<>'failed' THEN RAISE EXCEPTION 'Storage failure was not recorded'; END IF;
+  SELECT * INTO result FROM public.finish_trash_purge_attempt(job.job_id,job.lease_token);
+  IF result.code<>'retryable' OR NOT EXISTS (
+    SELECT 1 FROM public.trash_purge_jobs WHERE id=job.job_id
+      AND state='retryable' AND safe_error_code='storage_delete_failed'
+      AND next_attempt_at=now()+interval '60 seconds'
+  ) THEN RAISE EXCEPTION 'Storage failure did not create a durable bounded retry'; END IF;
+  SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
+  IF job.job_id IS NOT NULL THEN RAISE EXCEPTION 'Storage failure retried before its due clock'; END IF;
+  UPDATE public.trash_purge_jobs SET next_attempt_at=now()-interval '1 second'
+    WHERE operation_id=unique_operation;
+  SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=unique_operation;
+  IF job.job_id IS NULL OR (SELECT attempt_count FROM public.trash_purge_jobs WHERE id=job.job_id)<>3 THEN
+    RAISE EXCEPTION 'due Storage retry was not reclaimed'; END IF;
+  SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);
+  IF result.code<>'already_prepared' THEN RAISE EXCEPTION 'Storage retry changed prepared database state'; END IF;
   SELECT * INTO deletion FROM public.claim_trash_purge_storage_deletions(job.job_id,job.lease_token,25,120);
   SELECT * INTO result FROM public.finish_trash_purge_storage_deletion(deletion.deletion_id,deletion.lease_token,'deleted');
   IF result.code<>'deleted' THEN RAISE EXCEPTION 'storage completion failed'; END IF;
@@ -329,6 +361,9 @@ BEGIN
   IF result.code<>'retried' OR (SELECT attempt_count FROM public.trash_purge_jobs WHERE id=job.job_id)<>0 THEN
     RAISE EXCEPTION 'authorised prepared retry did not reset durable reconciliation';
   END IF;
+  IF (SELECT next_attempt_at FROM public.trash_purge_jobs WHERE id=job.job_id) IS NOT NULL THEN
+    RAISE EXCEPTION 'authorised prepared retry was incorrectly delayed';
+  END IF;
   SELECT * INTO result FROM public.retry_trash_purge(race_operation,
     (SELECT impact_fingerprint FROM public.get_trash_purge_impact(race_operation)),'purge.fixture.retry.resume');
   IF result.code<>'not_available' THEN RAISE EXCEPTION 'retry idempotency key was reused across subjects'; END IF;
@@ -340,14 +375,27 @@ BEGIN
   IF result.code<>'not_available' THEN RAISE EXCEPTION 'terminal purged operation accepted retry'; END IF;
 
   UPDATE public.trash_operations SET auto_purge_enabled_snapshot=true,
+    purge_eligible_at=now()-interval '2 seconds',auto_purge_at=now()-interval '2 seconds'
+    WHERE id=blocked_operation;
+  UPDATE public.trash_operations SET auto_purge_enabled_snapshot=true,
     purge_eligible_at=now()-interval '1 second',auto_purge_at=now()-interval '1 second'
-    WHERE id IN (shared_operation,blocked_operation);
-  SELECT * INTO result FROM public.enqueue_due_trash_purges(100);
-  IF result.queued_count<>1 OR result.blocked_count<>1
+    WHERE id=shared_operation;
+  SELECT * INTO result FROM public.enqueue_due_trash_purges_page(1,NULL,NULL);
+  IF result.examined_count<>1 OR result.blocked_count<>1 OR result.queued_count<>0
+     OR result.last_id<>blocked_operation THEN
+    RAISE EXCEPTION 'daily page did not inspect the held earliest due root';
+  END IF;
+  SELECT * INTO result FROM public.enqueue_due_trash_purges_page(1,result.last_at,result.last_id);
+  IF result.examined_count<>1 OR result.queued_count<>1 OR result.blocked_count<>0
      OR NOT EXISTS (SELECT 1 FROM public.trash_purge_jobs WHERE operation_id=shared_operation
        AND source='retention_schedule' AND confirmed_by IS NULL)
      OR EXISTS (SELECT 1 FROM public.trash_purge_jobs WHERE operation_id=blocked_operation) THEN
-    RAISE EXCEPTION 'scheduled purge did not share the manual blocker/workflow policy';
+    RAISE EXCEPTION 'daily keyset purge did not advance past a held root or share manual safeguards';
+  END IF;
+  SELECT * INTO result FROM public.enqueue_due_trash_purges_page(100,NULL,NULL);
+  IF result.queued_count<>0 OR
+     (SELECT count(*) FROM public.trash_purge_jobs WHERE operation_id=shared_operation)<>1 THEN
+    RAISE EXCEPTION 'duplicate daily wake created a second durable purge job';
   END IF;
   SELECT * INTO job FROM public.claim_trash_purge_work(10,120) WHERE operation_id=shared_operation;
   SELECT * INTO result FROM public.prepare_trash_purge_database(job.job_id,job.lease_token);

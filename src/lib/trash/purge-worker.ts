@@ -30,7 +30,6 @@ export function isExplicitStorageNotFound(error: unknown) {
  * Storage receives only private locators returned after transactional proof.
  */
 export async function runTrashPurgeBatch(client: TrashPurgeRpcClient) {
-  await rpc(client, 'enqueue_due_trash_purges', { p_batch_size: 100 })
   const jobs = await rpc(client, 'claim_trash_purge_work', { p_batch_size: 10, p_lease_seconds: 600 })
   const results: Array<{ operationId: string; code: string }> = []
 
@@ -58,8 +57,15 @@ export async function runTrashPurgeBatch(client: TrashPurgeRpcClient) {
       })
       if (!deletions.length) break
       for (const deletion of deletions) {
-        const removal = await client.storage.from(String(deletion.bucket_id)).remove([String(deletion.object_key)])
-        const outcome = !removal.error || isExplicitStorageNotFound(removal.error) ? 'deleted' : 'failed'
+        let outcome: 'deleted' | 'failed' = 'failed'
+        try {
+          const removal = await client.storage.from(String(deletion.bucket_id)).remove([String(deletion.object_key)])
+          outcome = !removal.error || isExplicitStorageNotFound(removal.error) ? 'deleted' : 'failed'
+        } catch {
+          // Transport failures must become durable failed effects rather than
+          // escaping with an unobserved running lease.
+          outcome = 'failed'
+        }
         await rpc(client, 'finish_trash_purge_storage_deletion', {
           p_deletion_id: deletion.deletion_id,
           p_lease_token: deletion.lease_token,
@@ -76,4 +82,56 @@ export async function runTrashPurgeBatch(client: TrashPurgeRpcClient) {
     results.push({ operationId, code: String(finished[0]?.code ?? 'not_available') })
   }
   return results
+}
+
+export type TrashPurgeSweepCursor = { at: string; id: string } | null
+
+// Keyset paging prevents a held operation from repeatedly occupying the
+// first due-work batch. Each invocation is bounded; a full page resumes from
+// its database-issued cursor in a new dispatcher run.
+export async function enqueueTrashPurgeSweepPage(client: TrashPurgeRpcClient, cursor: TrashPurgeSweepCursor) {
+  const [page] = await rpc(client, 'enqueue_due_trash_purges_page', {
+    p_batch_size: 100, p_after_at: cursor?.at ?? null, p_after_id: cursor?.id ?? null,
+  })
+  const examined = Number(page?.examined_count ?? 0)
+  const next = examined === 100 && page?.last_at && page?.last_id
+    ? { at: String(page.last_at), id: String(page.last_id) } : null
+  return { examined, queued: Number(page?.queued_count ?? 0), next }
+}
+
+export async function nextTrashPurgeFailureWake(client: TrashPurgeRpcClient) {
+  const [row] = await rpc(client, 'next_trash_purge_failure_wake', {})
+  return row?.wake_at ? new Date(String(row.wake_at)) : null
+}
+
+export type TrashPurgeDispatchPayload = { routine?: boolean; cursor?: TrashPurgeSweepCursor }
+export type TrashPurgeDispatchWakes = {
+  continue: (payload: TrashPurgeDispatchPayload) => Promise<unknown>
+  failure: (wakeAt: Date) => Promise<unknown>
+}
+
+export async function runTrashPurgeDispatchCycle(
+  client: TrashPurgeRpcClient,
+  payload: TrashPurgeDispatchPayload,
+  wakes: TrashPurgeDispatchWakes,
+) {
+  let cursor = payload.cursor ?? null
+  let fullPage = false
+  let fullClaim = false
+  for (let batch = 0; batch < 20; batch += 1) {
+    if (payload.routine) {
+      const page = await enqueueTrashPurgeSweepPage(client, cursor)
+      fullPage = page.next !== null
+      cursor = page.next
+    }
+    const results = await runTrashPurgeBatch(client)
+    fullClaim = results.length === 10
+    if (!fullPage && !fullClaim) break
+  }
+  if (fullPage || fullClaim) {
+    await wakes.continue({ routine: payload.routine, cursor: payload.routine ? cursor : null })
+  }
+  const wakeAt = await nextTrashPurgeFailureWake(client)
+  if (wakeAt) await wakes.failure(wakeAt)
+  return { continuation: fullPage || fullClaim, failureWakeAt: wakeAt?.toISOString() ?? null }
 }

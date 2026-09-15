@@ -13,6 +13,7 @@ DECLARE
   intake_changed uuid:='16570000-0000-0000-0000-000000000001';
   asset_changed uuid:='16570000-0000-0000-0000-000000000002';
   client_changed uuid:='16570000-0000-0000-0000-000000000003';
+  matter_changed uuid:='16570000-0000-0000-0000-000000000004';
   produced record; updated_client record;
   hash_denied boolean:=false; mime_denied boolean:=false; page_count_denied boolean:=false;
   source_candidates jsonb; client_candidates jsonb;
@@ -34,15 +35,18 @@ BEGIN
   VALUES
     ('165f0000-0000-0000-0000-000000000001',org,'documents','orgs/'||org||'/assets/165f0000-0000-0000-0000-000000000001/original.pdf',repeat('1',64),100,'application/pdf','available',now(),2,actor),
     ('165f0000-0000-0000-0000-000000000002',org,'documents','orgs/'||org||'/assets/165f0000-0000-0000-0000-000000000002/original.pdf',repeat('2',64),100,'application/pdf','available',now(),2,actor),
-    ('165f0000-0000-0000-0000-000000000003',org,'documents','orgs/'||org||'/assets/165f0000-0000-0000-0000-000000000003/original.pdf',repeat('3',64),100,'application/pdf','available',now(),2,actor);
+    ('165f0000-0000-0000-0000-000000000003',org,'documents','orgs/'||org||'/assets/165f0000-0000-0000-0000-000000000003/original.pdf',repeat('3',64),100,'application/pdf','available',now(),2,actor),
+    ('165f0000-0000-0000-0000-000000000004',org,'documents','orgs/'||org||'/assets/165f0000-0000-0000-0000-000000000004/original.pdf',repeat('5',64),100,'application/pdf','available',now(),2,actor);
   INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at) VALUES
     ('16580000-0000-0000-0000-000000000001',org,'165f0000-0000-0000-0000-000000000001','intake-revision.pdf','application/pdf',100,'finalized',actor,now(),now()),
     ('16580000-0000-0000-0000-000000000002',org,'165f0000-0000-0000-0000-000000000002','asset-revision.pdf','application/pdf',100,'finalized',actor,now(),now()),
-    ('16580000-0000-0000-0000-000000000003',org,'165f0000-0000-0000-0000-000000000003','client-revision.pdf','application/pdf',100,'finalized',actor,now(),now());
+    ('16580000-0000-0000-0000-000000000003',org,'165f0000-0000-0000-0000-000000000003','client-revision.pdf','application/pdf',100,'finalized',actor,now(),now()),
+    ('16580000-0000-0000-0000-000000000004',org,'165f0000-0000-0000-0000-000000000004','matter-revision.pdf','application/pdf',100,'finalized',actor,now(),now());
   INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by) VALUES
     (intake_changed,org,'165f0000-0000-0000-0000-000000000001','16580000-0000-0000-0000-000000000001','ready',actor),
     (asset_changed,org,'165f0000-0000-0000-0000-000000000002','16580000-0000-0000-0000-000000000002','ready',actor),
-    (client_changed,org,'165f0000-0000-0000-0000-000000000003','16580000-0000-0000-0000-000000000003','ready',actor);
+    (client_changed,org,'165f0000-0000-0000-0000-000000000003','16580000-0000-0000-0000-000000000003','ready',actor),
+    (matter_changed,org,'165f0000-0000-0000-0000-000000000004','16580000-0000-0000-0000-000000000004','ready',actor);
 
   PERFORM set_config('request.jwt.claim.role','service_role',true);
   SELECT * INTO produced FROM public.produce_ambiguous_intake_placement_review(intake_changed,'trusted-stale-v1',source_candidates);
@@ -56,6 +60,8 @@ BEGIN
     WHERE c.placement_run_id=produced.placement_run_id
       AND (c.client_id<>m.client_id OR c.client_revision<>cl.revision)
   ) THEN RAISE EXCEPTION 'Exact Client identity/revision was not snapshotted'; END IF;
+  SELECT * INTO produced FROM public.produce_ambiguous_intake_placement_review(matter_changed,'trusted-stale-v1',source_candidates);
+  IF produced.code<>'ok' THEN RAISE EXCEPTION 'Matter lifecycle fixture was not produced'; END IF;
 
   UPDATE public.intake_items SET updated_at=updated_at+interval '1 second' WHERE id=intake_changed;
   UPDATE public.file_assets SET availability='quarantined',validated_at=NULL WHERE id='165f0000-0000-0000-0000-000000000002';
@@ -72,11 +78,12 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub',actor::text,true);
   SELECT * INTO updated_client FROM public.update_client_command(changing_client,1,'Placement lifecycle client updated',NULL,NULL,gen_random_uuid());
   IF updated_client.code<>'ok' THEN RAISE EXCEPTION 'Client revision fixture could not be changed'; END IF;
+  PERFORM public.trash_resource('matter',source_matter_a,'placement.lifecycle.matter');
 
-  IF (SELECT count(*) FROM public.review_items WHERE intake_id IN(intake_changed,asset_changed,client_changed)
-      AND status='closed' AND closure_reason='source_unavailable')<>3
-    OR EXISTS(SELECT 1 FROM public.intake_placement_runs WHERE intake_id IN(intake_changed,asset_changed,client_changed) AND state='ambiguous') THEN
-    RAISE EXCEPTION 'A stale Intake, asset, or Client fact left an active placement fence';
+  IF (SELECT count(*) FROM public.review_items WHERE intake_id IN(intake_changed,asset_changed,client_changed,matter_changed)
+      AND status='closed' AND closure_reason='source_unavailable')<>4
+    OR EXISTS(SELECT 1 FROM public.intake_placement_runs WHERE intake_id IN(intake_changed,asset_changed,client_changed,matter_changed) AND state='ambiguous') THEN
+    RAISE EXCEPTION 'A stale Intake, asset, Client, or Matter fact left an active placement fence';
   END IF;
   IF NOT EXISTS(SELECT 1 FROM public.get_intake_item_triage_context(intake_changed)) THEN
     RAISE EXCEPTION 'Closed stale Review still fenced ordinary Intake triage';
