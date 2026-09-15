@@ -16,7 +16,16 @@ test('release journey interruption cleanup is single-entry and exact-project sco
 
 test('runner waits for local Auth and captured mail and uses a per-run address',()=>{
  assert.match(source,/waitForLocalService\(`\$\{local\.API_URL\}\/auth\/v1\/health`/)
- assert.match(source,/waitForLocalService\(`\$\{local\.INBUCKET_URL\}\/api\/v1\/mailbox\/release-readiness@acceptance\.test`/)
+ assert.match(source,/waitForCapturedMail\(local\)/)
  assert.match(source,/randomBytes\(6\)/)
  assert.match(source,/RELEASE_JOURNEY_OWNER_EMAIL: ownerEmail/)
+})
+
+test('profile ownership is exclusive before Docker inspection and is released only after cleanup',()=>{
+ assert.match(source,/mkdirSync\(lockPath\)/)
+ assert.match(source,/flag: 'wx'/)
+ assert.match(source,/owner\.runId !== runId/)
+ assert.ok(source.indexOf('acquireOwnershipLock()\n  const existing') < source.indexOf("await run('docker', ['ps', '-a'"))
+ assert.match(source,/releaseOwnershipLock\(\)/)
+ assert.match(source,/name\.startsWith\('supabase_'\) && name\.endsWith/)
 })

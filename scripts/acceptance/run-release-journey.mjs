@@ -1,9 +1,10 @@
-import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, rmdirSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { requireNode24 } from './runtime.mjs'
+import { authHealthIsReady, capturedMailIsReady } from './release-journey-readiness.mjs'
 
 const node = requireNode24()
 const repository = process.cwd()
@@ -13,6 +14,10 @@ const supabaseRoot = join(root, 'supabase')
 const cli = join(repository, 'node_modules/supabase/dist/supabase.js')
 const container = `supabase_db_${profile.projectId}`
 const ownerEmail = `release-owner-${randomBytes(6).toString('hex')}@acceptance.test`
+const lockPath = join(realpathSync(tmpdir()), `casechain-release-journey-${profile.projectId}.lock`)
+const lockOwnerPath = join(lockPath, 'owner.json')
+const runId = randomBytes(16).toString('hex')
+let lockIdentity = null
 let owned = false
 let cleanupStarted = false
 let activeChild = null
@@ -50,6 +55,37 @@ function assertLoopback(local) {
   }
 }
 
+function acquireOwnershipLock() {
+  try {
+    mkdirSync(lockPath)
+  } catch (error) {
+    if (error?.code === 'EEXIST') throw new Error(`The ${profile.projectId} local profile is already locked by another run; nothing was changed.`)
+    throw error
+  }
+  lockIdentity = statSync(lockPath)
+  try {
+    writeFileSync(lockOwnerPath, JSON.stringify({ projectId: profile.projectId, pid: process.pid, runId }), { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    const current = statSync(lockPath)
+    if (current.dev === lockIdentity.dev && current.ino === lockIdentity.ino) rmdirSync(lockPath)
+    lockIdentity = null
+    throw error
+  }
+}
+
+function releaseOwnershipLock() {
+  if (!lockIdentity) return
+  let current
+  try { current = statSync(lockPath) } catch { return }
+  if (current.dev !== lockIdentity.dev || current.ino !== lockIdentity.ino) return
+  let owner
+  try { owner = JSON.parse(readFileSync(lockOwnerPath, 'utf8')) } catch { return }
+  if (owner.projectId !== profile.projectId || owner.runId !== runId || owner.pid !== process.pid) return
+  unlinkSync(lockOwnerPath)
+  rmdirSync(lockPath)
+  lockIdentity = null
+}
+
 async function verifyGeneratedTypes() {
   const typeRoot = mkdtempSync(join(root, 'types-'))
   try {
@@ -74,15 +110,32 @@ async function verifyGeneratedTypes() {
   }
 }
 
-async function waitForLocalService(url, label, { statusIsReady = (status) => status >= 200 && status < 500 } = {}) {
+async function waitForLocalService(url, label, acceptResponse) {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_000) })
-      if (statusIsReady(response.status)) return
+      if (await acceptResponse(response)) return
     } catch {}
     await new Promise((resolveWait) => setTimeout(resolveWait, 250))
   }
   throw new Error(`${label} did not become ready on its expected loopback endpoint.`)
+}
+
+async function waitForCapturedMail(local) {
+  const candidates = [
+    `${local.INBUCKET_URL}/api/v1/messages?limit=1`,
+    `${local.INBUCKET_URL}/api/v1/mailbox/${encodeURIComponent(ownerEmail)}`,
+  ]
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    for (const url of candidates) {
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(1_000) })
+        if (await capturedMailIsReady(response)) return
+      } catch {}
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 250))
+  }
+  throw new Error('Captured mail did not become ready on an expected loopback API shape.')
 }
 
 function cleanup() {
@@ -104,6 +157,7 @@ function cleanup() {
   if (!resolvedRoot.startsWith(`${resolvedTemp}${sep}`)) throw new Error('Refusing to remove a non-temporary acceptance directory.')
   rmSync(resolvedRoot, { recursive: true, force: true })
   rmSync('/tmp/casechain-release-journey-playwright', { recursive: true, force: true })
+  releaseOwnershipLock()
 }
 
 for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
@@ -114,8 +168,9 @@ for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
 }
 
 try {
+  acquireOwnershipLock()
   const existing = await run('docker', ['ps', '-a', '--format', '{{.Names}}'])
-  if (existing.split('\n').includes(container)) {
+  if (existing.split('\n').some((name) => name.startsWith('supabase_') && name.endsWith(`_${profile.projectId}`))) {
     throw new Error(`The isolated ${profile.projectId} project is already owned by another run; nothing was changed.`)
   }
   cpSync(join(repository, 'supabase'), supabaseRoot, { recursive: true })
@@ -136,8 +191,8 @@ try {
   const local = JSON.parse(await run(node, [cli, 'status', '--workdir', root, '-o', 'json']))
   assertLoopback(local)
   await Promise.all([
-    waitForLocalService(`${local.API_URL}/auth/v1/health`, 'Local Auth'),
-    waitForLocalService(`${local.INBUCKET_URL}/api/v1/mailbox/release-readiness@acceptance.test`, 'Captured mail'),
+    waitForLocalService(`${local.API_URL}/auth/v1/health`, 'Local Auth', authHealthIsReady),
+    waitForCapturedMail(local),
   ])
   process.stdout.write('Local Auth and captured mail are ready for confirmation-required signup.\n')
   const resolved = (await run('docker', ['ps', '--format', '{{.Names}}|{{.Ports}}']))

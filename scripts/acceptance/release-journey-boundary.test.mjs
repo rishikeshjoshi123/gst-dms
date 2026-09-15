@@ -25,3 +25,21 @@ test('rejects arbitrary verification and callback destinations before navigation
   '/auth/callback?code=opaque-code&next=%2Fdashboard',
  ]) assert.throws(()=>validateCallbackLocation(candidate,contract))
 })
+
+test('rejects hashes, duplicate fields, and embedded callback query pollution',()=>{
+ for(const candidate of [
+  `${verification}#fragment`,
+  `${verification}&token=second`,
+  `${verification}&type=signup`,
+  `${verification}&redirect_to=http%3A%2F%2F127.0.0.1%3A3113%2Fauth%2Fcallback`,
+  verification.replace('%2Fonboarding','%2Fonboarding%26next%3D%2Fonboarding'),
+  verification.replace('%2Fonboarding','%2Fonboarding%26extra%3D1'),
+  verification.replace('%2Fonboarding','%2Fonboarding%23fragment'),
+ ]) assert.throws(()=>validateVerificationUrl(candidate,contract))
+ for(const candidate of [
+  '/auth/callback?code=opaque-code&next=%2Fonboarding#fragment',
+  '/auth/callback?code=opaque-code&next=%2Fonboarding&code=second',
+  '/auth/callback?code=opaque-code&next=%2Fonboarding&next=%2Fonboarding',
+  '/auth/callback?code=opaque-code&next=%2Fonboarding&extra=1',
+ ]) assert.throws(()=>validateCallbackLocation(candidate,contract))
+})
