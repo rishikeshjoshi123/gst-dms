@@ -1,8 +1,10 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { validateCallbackLocation, validateVerificationUrl } from '../../scripts/acceptance/release-journey-boundary.mjs'
+import { assessNativePageQuality, extractNativePdfPages } from '../../src/lib/documents/native-pdf-pages'
 
 const capturedMailUrl = process.env.RELEASE_JOURNEY_INBUCKET_URL
 const workdir = process.env.RELEASE_JOURNEY_SUPABASE_WORKDIR
@@ -17,10 +19,14 @@ const ownerEmail = process.env.RELEASE_JOURNEY_OWNER_EMAIL
 if (!ownerEmail || !/^release-owner-[0-9a-f]{12}@acceptance\.test$/.test(ownerEmail)) throw new Error('Release-journey acceptance requires its per-run Owner address.')
 const password = 'Release-journey-only-2026!'
 const sourcePdf = readFileSync(join(process.cwd(), 'tests/acceptance/fixtures/synthetic-multi-page.pdf'))
+const conflictPdf = readFileSync(join(process.cwd(), 'tests/acceptance/fixtures/synthetic-extraction-conflict.pdf'))
+const conflictUploadSuffix = '\n% conflict-release-journey\n'
+const conflictUploadHash = createHash('sha256').update(Buffer.concat([conflictPdf, Buffer.from(conflictUploadSuffix)])).digest('hex')
+let conflictPageTexts: string[] = []
 
 function databaseOperation(operation: 'prepare' | 'activate-relationship' | 'verify' | 'signup-diagnostic') {
   const result = spawnSync(process.execPath, ['scripts/acceptance/release-journey-db.mjs', operation], {
-    cwd: process.cwd(), env: process.env, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
+    cwd: process.cwd(), env: { ...process.env, RELEASE_JOURNEY_CONFLICT_PAGE_TEXTS: JSON.stringify(conflictPageTexts), RELEASE_JOURNEY_CONFLICT_UPLOAD_SHA256: conflictUploadHash }, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
   })
   if (result.error || result.status !== 0) throw new Error(result.error?.message ?? `${result.stderr}\n${result.stdout}`)
   return result.stdout.trim()
@@ -103,14 +109,14 @@ async function expectMinimumTarget(locator: Locator) {
   expect(Math.max(box?.height ?? 0, pseudo.height)).toBeGreaterThanOrEqual(43.9)
 }
 
-async function uploadPdf(page: Page, filename: string, suffix: string, destination: string) {
+async function uploadPdf(page: Page, filename: string, suffix: string, destination: string, source: Buffer = sourcePdf) {
   await page.getByRole('button', { name: 'Upload PDFs' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'Add Documents' })
   await expect(dialog).toContainText(destination)
   await dialog.locator('input[type="file"]').setInputFiles({
     name: filename,
     mimeType: 'application/pdf',
-    buffer: Buffer.concat([sourcePdf, Buffer.from(suffix)]),
+    buffer: Buffer.concat([source, Buffer.from(suffix)]),
   })
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('button', { name: new RegExp(filename.replace('.', '\\.')) })).toBeVisible()
@@ -118,6 +124,14 @@ async function uploadPdf(page: Page, filename: string, suffix: string, destinati
 
 test('fresh Owner completes the coherent local mandatory first-release rehearsal', async ({ page, request }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
+  const acquiredPages = await extractNativePdfPages(conflictPdf)
+  expect(acquiredPages).toHaveLength(4)
+  for (const acquired of acquiredPages) expect(assessNativePageQuality(acquired)).toEqual({ accepted: true, reasons: [] })
+  conflictPageTexts = acquiredPages.map(acquired => acquired.text)
+  expect(conflictPageTexts[0]).toContain('Document type OIO')
+  expect(conflictPageTexts[1]).toContain('Document type SCN')
+  expect(conflictPageTexts[0].match(/\bOIO\b/g)).toHaveLength(1)
+  expect(conflictPageTexts[1].match(/\bSCN\b/g)).toHaveLength(1)
 
   await page.goto('/signup')
   await page.getByLabel('Full name').fill('Release Journey Owner')
@@ -177,9 +191,35 @@ test('fresh Owner completes the coherent local mandatory first-release rehearsal
   await expect(page.getByRole('link', { name: 'Return to Matter' })).toHaveAttribute('href', `/matters/${primaryMatterId}`)
   await expect(page.getByRole('button', { name: 'Clear Matter context' })).toBeVisible()
   await uploadPdf(page, 'release-matter-origin.pdf', '\n% matter-release-journey\n', 'Destination: Release Journey Primary')
+  await uploadPdf(page, 'release-extraction-conflict.pdf', conflictUploadSuffix, 'Destination: Release Journey Primary', conflictPdf)
 
   const prepared = JSON.parse(databaseOperation('prepare').split('\n').at(-1)!)
   expect(prepared.primaryMatterId).toBe(primaryMatterId)
+  expect(prepared.extractionReviewId).toMatch(/^[0-9a-f-]{36}$/)
+  await page.goto('/review?type=extraction_conflict&search=release-extraction-conflict')
+  await page.getByRole('button', { name: /^Review type/ }).click()
+  await expect(page.getByText('Document version 1')).toBeVisible()
+  await expect(page.getByText('Evidence 1 · Page 1')).toBeVisible()
+  await expect(page.getByText('Evidence 2 · Page 2')).toBeVisible()
+  await expect(page.locator('blockquote').first()).toContainText('Document type OIO')
+  await expect(page.locator('blockquote').last()).toContainText('Document type SCN')
+  const citedPage = page.getByRole('link', { name: 'Open exact source · Page 2' })
+  await expect(citedPage).toHaveAttribute('href', `/documents/${prepared.extractionDocumentId}?version=${prepared.extractionVersionId}&page=2`)
+  await citedPage.click()
+  await expect(page).toHaveURL(new RegExp(`/documents/${prepared.extractionDocumentId}\\?version=${prepared.extractionVersionId}&page=2$`))
+  await expect(page.getByText('PDF source · Version 1 · Page 2 of 4')).toBeVisible()
+  await expect(page.locator('[data-pdf-page="2"] canvas')).toBeVisible()
+  await page.goto('/review?type=extraction_conflict&search=release-extraction-conflict')
+  await page.getByRole('button', { name: /^Review type/ }).click()
+  await page.getByRole('button', { name: 'View decision' }).click()
+  await page.getByRole('radio', { name: /Use SCN/ }).check()
+  await page.getByRole('button', { name: 'Review decision' }).click()
+  await expect(page.getByRole('dialog')).toContainText('Competing item candidates will be rejected')
+  await page.getByLabel('Reason', { exact: true }).fill('The printed page-two SCN label is the chosen current-version document type.')
+  await page.getByRole('button', { name: 'Confirm selected value' }).click()
+  await expect(page.getByText('Decision recorded. Review closed.')).toBeVisible()
+  await page.goto(`/documents/${prepared.extractionDocumentId}?version=${prepared.extractionVersionId}&page=2`)
+  await expect(page.getByText('PDF source · Version 1 · Page 2 of 4')).toBeVisible()
 
   await page.goto('/review?type=processing_recovery&search=release-matter-origin')
   await page.getByRole('button', { name: /^Continue document manually/ }).click()
@@ -231,7 +271,9 @@ test('fresh Owner completes the coherent local mandatory first-release rehearsal
   await page.getByLabel('Due date').fill('2030-10-15')
   await page.getByLabel('Manual basis').fill('Synthetic tribunal direction checked by the Owner')
   await page.getByRole('button', { name: 'Add deadline', exact: true }).last().click()
-  await expect(page.getByText('Verified manual agenda')).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Add legal deadline' })).toHaveCount(0)
+  await page.goto(`/matters/${primaryMatterId}?section=deadlines`)
+  await expect(page.getByText('Legal date agenda')).toBeVisible()
   const deadlineRow = page.getByRole('row', { name: /File release rehearsal response/ })
   await expect(deadlineRow).toContainText('Upcoming')
   await deadlineRow.getByRole('button', { name: 'View details' }).click()
