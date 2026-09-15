@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export const reviewAction = z.enum(['select_candidate', 'request_clarification', 'continue_manual', 'select_destination',
-  'verify_deadline','correct_deadline','reject_deadline','clear_deadline','verify','correct','reject','clear'])
+  'verify_deadline','correct_deadline','reject_deadline','clear_deadline','verify','correct','reject','clear',
+  'keep_placement','move_placement','keep','move'])
 const reviewQueueBase = z.object({
   id: z.string().uuid(),
   priority: z.enum(['normal', 'high', 'urgent']), priority_reason: z.string(),
@@ -14,6 +15,7 @@ export const reviewQueueItem = z.discriminatedUnion('type', [
   documentReviewQueueBase.extend({ type: z.literal('extraction_conflict'), field_path: z.string(), reason_code: z.literal('material_candidate_conflict'), impact: z.string() }),
   documentReviewQueueBase.extend({ type: z.literal('processing_recovery'), field_path: z.null(), reason_code: z.enum(['invalid_model_output', 'provider_failed', 'domain_invalid']), impact: z.string(), source_page_number: z.literal(1) }),
   documentReviewQueueBase.extend({ type: z.literal('deadline_verification'), field_path: z.literal('document.legal_date.due'), reason_code: z.literal('source_stated_due_date'), impact: z.string() }),
+  documentReviewQueueBase.extend({ type: z.literal('placement_conflict'), field_path: z.literal('document.official_reference.self_identifier'), reason_code: z.literal('verified_matter_identity_mismatch'), impact: z.string(), source_page_number: z.number().int().positive() }),
   reviewQueueBase.extend({ type: z.literal('ambiguous_placement'), field_path: z.null(), reason_code: z.literal('multiple_eligible_matters'), impact: z.string(), source_page_number: z.literal(1), intake_id: z.string().uuid(), document_id: z.null(), document_version_id: z.null() }),
 ])
 const reviewDetailBase = z.object({
@@ -31,11 +33,27 @@ const reviewDetailBase = z.object({
     action:z.enum(['verify','correct','reject','clear']),due_date:z.string().nullable(),
     reason:z.string(),decided_at:z.string(),
   })).optional(),
+  old_matter_id:z.string().uuid().optional(),old_matter_code:z.string().optional(),
+  target_matter_id:z.string().uuid().optional(),target_matter_code:z.string().optional(),
+  target_matter_title:z.string().optional(),target_client_name:z.string().optional(),
+  target_identifier_id:z.string().uuid().optional(),target_identifier_revision:z.number().int().positive().optional(),
+  identifier_kind:z.string().optional(),issuer_namespace_normalized:z.string().optional(),
+  normalized_value:z.string().optional(),display_value:z.string().optional(),target_verified_at:z.string().optional(),
+  source_analysis_run_id:z.string().uuid().optional(),source_candidate_id:z.string().uuid().optional(),
+  source_quote:z.string().optional(),
+  conflict_current:z.boolean().optional(),
 })
 export const reviewDetail = z.intersection(reviewQueueItem, reviewDetailBase)
 export type ReviewQueueItem = z.infer<typeof reviewQueueItem>
 export type ReviewDetail = z.infer<typeof reviewDetail>
-export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'deadline_verification' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
+export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'deadline_verification' | 'placement_conflict' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
+export const placementConflictResolution=z.object({
+  itemId:z.string().uuid(),revision:z.number().int().positive(),action:z.enum(['keep','move']),
+  impactFingerprint:z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+  reason:z.string().trim().min(2).max(500).refine(value=>!/[\u0000-\u001f\u007f]/.test(value)),
+  idempotencyKey:z.string().uuid(),
+}).strict().refine(value=>(value.action==='move')===(value.impactFingerprint!==null))
+export type PlacementConflictResolution=z.infer<typeof placementConflictResolution>
 export const deadlineReviewResolution = z.object({
   itemId:z.string().uuid(),revision:z.number().int().positive(),
   action:z.enum(['verify','correct','reject','clear']),correctedDueDate:z.string().nullable(),
@@ -81,7 +99,7 @@ export function parseReviewFilters(params: Record<string, string | string[] | un
   const page = typeof params.page === 'string' && /^[1-9]\d{0,5}$/.test(params.page) ? Number(params.page) : 1
   return {
     status: params.status === 'closed' || params.status === 'all' ? params.status : 'needs_review',
-    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' || params.type === 'ambiguous_placement' || params.type === 'deadline_verification' ? params.type : 'all',
+    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' || params.type === 'ambiguous_placement' || params.type === 'deadline_verification' || params.type === 'placement_conflict' ? params.type : 'all',
     priority: params.priority === 'normal' || params.priority === 'high' || params.priority === 'urgent' ? params.priority : 'all',
     search: typeof params.search === 'string' ? params.search.slice(0, 200) : '', page: Math.min(page, 100000),
     item: typeof params.item === 'string' && z.string().uuid().safeParse(params.item).success ? params.item : undefined,

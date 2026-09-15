@@ -55,7 +55,32 @@ port = 55327
     if (readFileSync(join(root, 'src/lib/supabase/database.types.ts'), 'utf8') !== generatedTypes) throw new Error('Isolated database type generation is not deterministic.')
     console.log('Regenerated and refined database types; repeated generation has exact parity.')
   }
-  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql', 'ambiguous_intake_placement_review.sql', 'ambiguous_intake_placement_stale_facts.sql']) {
+  const browserConflict=process.argv.includes('--browser-conflict')
+  const sqlConflict=process.argv.includes('--sql-conflict')
+  if(browserConflict){
+    for(const file of ['document_boundary_repair_setup.sql','placed_document_identity_conflict_browser_setup.sql']){
+      let input=readFileSync(join(root,'supabase/tests',file),'utf8')
+      if(file==='document_boundary_repair_setup.sql'){
+        const old='lpad(i::text,64,i::text),100'
+        if(!input.includes(old)) throw new Error('Source fixture asset INSERT changed; browser byte provenance must be reconciled.')
+        input=input.replace(old,`CASE i WHEN 1 THEN 'f469b1e2a159150fa5e152951b804e34d0255930f582a22f041d435cddcabe24' WHEN 2 THEN '5c5f5fc27a7f710c694ca9aa9e3afe54cf7b0254a2465d440d62fb13a154fdbd' ELSE lpad(i::text,64,i::text) END,CASE i WHEN 1 THEN 1967 WHEN 2 THEN 1977 ELSE 100 END`)
+      }
+      const output=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input})
+      console.log(`${file}: ${output.trim()}`)
+    }
+    console.log(run(node,['scripts/acceptance/seed-review-storage.mjs'],{
+      env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir,REVIEW_ACCEPTANCE_CONFLICT_ONLY:'1'}
+    }))
+    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep','placed document conflict'],{
+      env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}
+    }))
+  } else if(sqlConflict){
+    for(const file of ['document_boundary_repair_setup.sql','placed_document_identity_conflict_review.sql']){
+      const output=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests',file),'utf8')})
+      console.log(`${file}: ${output.trim()}`)
+    }
+  } else {
+  for (const file of ['extraction_conflict_review_setup.sql', 'document_boundary_repair_setup.sql', 'placed_document_identity_conflict_review.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql', 'ambiguous_intake_placement_review.sql', 'ambiguous_intake_placement_stale_facts.sql']) {
     const output = run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests', file), 'utf8') })
     console.log(`${file}: ${output.trim()}`)
   }
@@ -82,6 +107,7 @@ port = 55327
     console.log(run(node, browserArgs, { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
   }
   if (process.argv.includes('--build')) console.log(run(node, ['scripts/acceptance/start-review-server.mjs', '--build'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
+  }
 } finally {
   if (createdProject) {
     const stopped = spawnSync(node, [cli, 'stop', '--no-backup', '--workdir', workdir], { encoding: 'utf8' })

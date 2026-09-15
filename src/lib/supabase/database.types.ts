@@ -5877,6 +5877,151 @@ export type Database = {
         }
         Relationships: []
       }
+      placement_conflict_decisions: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          document_version_id: string
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          impact_fingerprint: string | null
+          old_matter_id: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          source_candidate_id: string
+          target_matter_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          document_version_id: string
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          impact_fingerprint?: string | null
+          old_matter_id: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          source_candidate_id: string
+          target_matter_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          document_version_id?: string
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          impact_fingerprint?: string | null
+          old_matter_id?: string
+          org_id?: string
+          reason?: string
+          request_fingerprint?: string
+          result_revision?: number
+          review_item_id?: string
+          source_candidate_id?: string
+          target_matter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placement_conflict_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      placement_conflict_sources: {
+        Row: {
+          created_at: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          old_matter_code: string
+          old_matter_id: string
+          org_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_anchor: Json
+          source_candidate_id: string
+          source_page_number: number
+          source_quote: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_matter_code: string
+          target_matter_id: string
+          target_verified_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          old_matter_code: string
+          old_matter_id: string
+          org_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_anchor: Json
+          source_candidate_id: string
+          source_page_number: number
+          source_quote: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_matter_code: string
+          target_matter_id: string
+          target_verified_at: string
+        }
+        Update: {
+          created_at?: string
+          display_value?: string
+          document_id?: string
+          document_version_id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          normalized_value?: string
+          old_matter_code?: string
+          old_matter_id?: string
+          org_id?: string
+          review_item_id?: string
+          source_analysis_run_id?: string
+          source_anchor?: Json
+          source_candidate_id?: string
+          source_page_number?: number
+          source_quote?: string
+          target_identifier_id?: string
+          target_identifier_revision?: number
+          target_matter_code?: string
+          target_matter_id?: string
+          target_verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "placement_conflict_sources_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       platform_alert_events: {
         Row: {
           alert_id: string
@@ -11196,6 +11341,25 @@ export type Database = {
           pricing_version_id: string
         }[]
       }
+      finish_ai_extraction_before_placement_conflict: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
       finish_document_asset_storage_deletion_work: {
         Args: { p_asset_id: string; p_lease_token: string; p_outcome: string }
         Returns: {
@@ -12625,6 +12789,15 @@ export type Database = {
         }
         Returns: string
       }
+      materialize_document_version_analysis_before_placement_conflict: {
+        Args: {
+          p_binding_reason: string
+          p_created_by?: string
+          p_document_version_id: string
+          p_source_analysis_run_id: string
+        }
+        Returns: string
+      }
       materialize_source_field_candidate: {
         Args: {
           p_confidence: number
@@ -12855,6 +13028,10 @@ export type Database = {
           p_mode: string
           p_target_matter_id: string
         }
+        Returns: Json
+      }
+      preview_placement_conflict_move: {
+        Args: { p_review_item_id: string }
         Returns: Json
       }
       produce_ambiguous_intake_placement_review: {
@@ -13141,6 +13318,10 @@ export type Database = {
         Args: { p_review_item_id: string }
         Returns: Json
       }
+      read_review_detail_before_placement_conflict: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_queue: {
         Args: {
           p_page?: number
@@ -13180,6 +13361,10 @@ export type Database = {
       }
       reconcile_extraction_conflict_review: {
         Args: { p_binding_id: string; p_create: boolean }
+        Returns: undefined
+      }
+      reconcile_placed_document_identity_conflict: {
+        Args: { p_document_id: string }
         Returns: undefined
       }
       record_completed_document_extraction_provider_usage: {
@@ -13562,6 +13747,21 @@ export type Database = {
         Args: {
           p_action: Database["public"]["Enums"]["review_extraction_action"]
           p_candidate_id: string | null
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
+      resolve_placement_conflict: {
+        Args: {
+          p_action: string
+          p_expected_impact_fingerprint: string
           p_expected_revision: number
           p_idempotency_key: string
           p_reason: string
@@ -14566,6 +14766,7 @@ export type Database = {
         | "processing_recovery"
         | "ambiguous_placement"
         | "deadline_verification"
+        | "placement_conflict"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -15208,6 +15409,7 @@ export const Constants = {
         "processing_recovery",
         "ambiguous_placement",
         "deadline_verification",
+        "placement_conflict",
       ],
       source_analysis_attempt_state: [
         "queued",

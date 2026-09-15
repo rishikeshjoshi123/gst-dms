@@ -7,6 +7,8 @@ from reportlab.pdfgen import canvas
 
 OUTPUT = Path(__file__).resolve().parents[2] / "tests" / "acceptance" / "fixtures" / "synthetic-multi-page.pdf"
 CONFLICT_OUTPUT = OUTPUT.with_name("synthetic-extraction-conflict.pdf")
+PLACEMENT_OUTPUT = OUTPUT.with_name("synthetic-placement-conflict.pdf")
+PLACEMENT_SECOND_OUTPUT = OUTPUT.with_name("synthetic-placement-conflict-second.pdf")
 PAGE_COPY = (
     ("CaseChain acceptance source", "Order in Original", "Reference OIO/ASTER/2026/17"),
     ("Chronology evidence", "Demand confirmed", "Synthetic amount INR 125,000"),
@@ -18,6 +20,12 @@ CONFLICT_PAGE_COPY = (
     ("Competing document labels", "Document type SCN", "Show Cause Notice label printed above"),
     ("Source interpretation", "Human decision required", "The two printed type labels conflict."),
     ("Closing fixture page", "Synthetic source only", "No real client or provider data"),
+)
+PLACEMENT_PAGE_COPY = (
+    ("Placed document identity", "GST Tribunal order", "References GST/555/2026 in this proceeding."),
+)
+PLACEMENT_SECOND_PAGE_COPY = (
+    ("Placed document identity", "Second source, same typed key", "References GST/555/2026 in this proceeding."),
 )
 
 
@@ -57,3 +65,5 @@ def build(output: Path = OUTPUT, page_copy=PAGE_COPY) -> None:
 
 if __name__ == "__main__":
     build(CONFLICT_OUTPUT, CONFLICT_PAGE_COPY)
+    build(PLACEMENT_OUTPUT, PLACEMENT_PAGE_COPY)
+    build(PLACEMENT_SECOND_OUTPUT, PLACEMENT_SECOND_PAGE_COPY)
