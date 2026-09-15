@@ -11569,6 +11569,7 @@ export type Database = {
           target_role: Database["public"]["Enums"]["org_member_role"]
           target_user_id: string
           task_disposition: string
+          task_impact_fingerprint: string
           verified_deadlines_applicable: boolean
         }[]
       }
@@ -13223,6 +13224,7 @@ export type Database = {
           p_reason: string
           p_target_membership_id: string
           p_task_disposition: string
+          p_task_impact_fingerprint: string
         }
         Returns: {
           code: string
@@ -13264,6 +13266,23 @@ export type Database = {
           revision: number | null
           status: Database["public"]["Enums"]["task_status"] | null
           task_id: string | null
+        }[]
+      }
+      transition_task_pre_suspension_fence: {
+        Args: {
+          p_assignee_user_id?: string
+          p_command: string
+          p_due_date?: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_task_id: string
+        }
+        Returns: {
+          code: string
+          replayed: boolean
+          revision: number
+          status: Database["public"]["Enums"]["task_status"]
+          task_id: string
         }[]
       }
       trash_purge_active_blockers: {

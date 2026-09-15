@@ -44,14 +44,57 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-CREATE TRIGGER tasks_assignee_active_fence
-  BEFORE INSERT OR UPDATE OF assignee_user_id ON public.tasks
-  FOR EACH ROW EXECUTE FUNCTION public.task_assignee_must_be_active();
+CREATE TRIGGER tasks_assignee_active_insert_fence
+  BEFORE INSERT ON public.tasks FOR EACH ROW
+  EXECUTE FUNCTION public.task_assignee_must_be_active();
+CREATE TRIGGER tasks_assignee_active_update_fence
+  BEFORE UPDATE OF assignee_user_id ON public.tasks FOR EACH ROW
+  WHEN (OLD.assignee_user_id IS DISTINCT FROM NEW.assignee_user_id)
+  EXECUTE FUNCTION public.task_assignee_must_be_active();
+
+-- Canonical assignment must take membership locks before the Task lock. Keep
+-- the previous implementation private behind a wrapper so its mature
+-- transition/history/activity contract remains unchanged.
+ALTER FUNCTION public.transition_task(uuid,text,bigint,uuid,uuid,date)
+  RENAME TO transition_task_pre_suspension_fence;
+
+CREATE FUNCTION public.transition_task(
+  p_task_id uuid,p_command text,p_expected_revision bigint,p_idempotency_key uuid,
+  p_assignee_user_id uuid DEFAULT NULL,p_due_date date DEFAULT NULL
+) RETURNS TABLE(code text,task_id uuid,revision bigint,status public.task_status,replayed boolean)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE v_actor uuid:=auth.uid(); v_org uuid; v_actor_membership uuid; v_assignee_membership uuid; v_command text:=nullif(btrim(p_command),'');
+BEGIN
+  IF v_actor IS NULL THEN
+    RETURN QUERY SELECT 'not_allowed'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
+  END IF;
+  SELECT current.membership_id,current.org_id INTO v_actor_membership,v_org
+    FROM public.current_active_tenant_membership() current;
+  IF v_actor_membership IS NULL THEN
+    RETURN QUERY SELECT 'not_allowed'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
+  END IF;
+  PERFORM 1 FROM public.organisation_memberships membership
+    WHERE membership.id=v_actor_membership AND membership.state='active' FOR UPDATE;
+  IF v_command='set_assignee' AND p_assignee_user_id IS NOT NULL THEN
+    SELECT membership.id INTO v_assignee_membership
+      FROM public.organisation_memberships membership
+      LEFT JOIN public.organisations organisation ON organisation.id=membership.org_id
+      WHERE membership.org_id=v_org AND membership.user_id=p_assignee_user_id
+        AND membership.state='active'
+        AND (membership.role IN ('admin','associate') OR organisation.owner_membership_id=membership.id)
+      FOR UPDATE OF membership;
+    IF v_assignee_membership IS NULL THEN
+      RETURN QUERY SELECT 'invalid_assignee'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
+    END IF;
+  END IF;
+  RETURN QUERY SELECT * FROM public.transition_task_pre_suspension_fence(
+    p_task_id,v_command,p_expected_revision,p_idempotency_key,p_assignee_user_id,p_due_date);
+END $$;
 
 CREATE FUNCTION public.get_standard_member_suspension_impact(p_target_membership_id uuid)
 RETURNS TABLE(
   code text,target_membership_id uuid,target_revision bigint,target_user_id uuid,
-  target_display_name text,target_role public.org_member_role,open_task_count integer,
+  target_display_name text,target_role public.org_member_role,open_task_count integer,task_impact_fingerprint text,
   task_disposition text,verified_deadlines_applicable boolean,review_claims_applicable boolean,
   invitation_governance_applicable boolean,digest_grants_applicable boolean,
   internal_expense_grants_applicable boolean
@@ -62,19 +105,19 @@ AS $$
 DECLARE actor record; target record; v_owner boolean:=false;
 BEGIN
   IF auth.uid() IS NULL OR p_target_membership_id IS NULL THEN
-    RETURN QUERY SELECT 'invalid_request',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,false,false,false,false,false;
+    RETURN QUERY SELECT 'invalid_request',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,NULL::text,false,false,false,false,false;
     RETURN;
   END IF;
   SELECT current.membership_id,current.org_id,current.role INTO actor
   FROM public.current_active_tenant_membership() current;
   IF actor.membership_id IS NULL THEN
-    RETURN QUERY SELECT 'not_allowed',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,false,false,false,false,false;
+    RETURN QUERY SELECT 'not_allowed',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,NULL::text,false,false,false,false,false;
     RETURN;
   END IF;
   SELECT organisation.owner_membership_id=actor.membership_id INTO v_owner
   FROM public.organisations organisation WHERE organisation.id=actor.org_id;
   IF NOT ('team.membership.suspend_standard'=ANY(public.organisation_member_capabilities(actor.role,coalesce(v_owner,false),'active'))) THEN
-    RETURN QUERY SELECT 'not_allowed',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,false,false,false,false,false;
+    RETURN QUERY SELECT 'not_allowed',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,NULL::text,false,false,false,false,false;
     RETURN;
   END IF;
   SELECT membership.id,membership.revision,membership.user_id,membership.role,
@@ -86,20 +129,23 @@ BEGIN
     AND membership.state='active' AND membership.role IN ('associate','viewer')
     AND membership.id<>actor.membership_id;
   IF target.id IS NULL THEN
-    RETURN QUERY SELECT 'not_available',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,false,false,false,false,false;
+    RETURN QUERY SELECT 'not_available',NULL::uuid,NULL::bigint,NULL::uuid,NULL::text,NULL::public.org_member_role,NULL::integer,NULL::text,NULL::text,false,false,false,false,false;
     RETURN;
   END IF;
   RETURN QUERY SELECT 'ok',target.id,target.revision,target.user_id,target.display_name,target.role,
     (SELECT count(*)::integer FROM public.tasks task WHERE task.org_id=actor.org_id
       AND task.assignee_user_id=target.user_id AND task.lifecycle_state='active'
       AND task.status IN ('open','in_progress')),
+    encode(extensions.digest(convert_to(coalesce((SELECT string_agg(task.id::text||':'||task.revision::text,',' ORDER BY task.id)
+      FROM public.tasks task WHERE task.org_id=actor.org_id AND task.assignee_user_id=target.user_id
+        AND task.lifecycle_state='active' AND task.status IN ('open','in_progress')),''),'utf8'),'sha256'),'hex'),
     'return_open_tasks_to_team'::text,
     false,false,false,false,false;
 END $$;
 
 CREATE FUNCTION public.suspend_standard_organisation_member(
   p_target_membership_id uuid,p_expected_revision bigint,p_reason text,
-  p_task_disposition text,p_idempotency_key uuid
+  p_task_disposition text,p_task_impact_fingerprint text,p_idempotency_key uuid
 )
 RETURNS TABLE(code text,target_membership_id uuid,target_revision bigint,returned_task_count integer,replayed boolean)
 LANGUAGE plpgsql SECURITY DEFINER
@@ -109,16 +155,17 @@ DECLARE
   v_actor uuid:=auth.uid(); v_actor_row public.organisation_memberships%ROWTYPE;
   v_target public.organisation_memberships%ROWTYPE; v_owner boolean:=false;
   v_reason text:=nullif(btrim(p_reason),''); v_fingerprint text; v_receipt public.organisation_membership_suspension_receipts%ROWTYPE;
-  v_task public.tasks%ROWTYPE; v_count integer:=0; v_history_key uuid; v_activity_key text; v_correlation uuid:=gen_random_uuid();
+  v_task public.tasks%ROWTYPE; v_count integer:=0; v_current_task_fingerprint text; v_history_key uuid; v_activity_key text; v_correlation uuid:=gen_random_uuid();
 BEGIN
   IF v_actor IS NULL OR p_target_membership_id IS NULL OR p_expected_revision IS NULL OR p_expected_revision<1
      OR p_idempotency_key IS NULL OR p_task_disposition<>'return_open_tasks_to_team'
+     OR p_task_impact_fingerprint IS NULL OR p_task_impact_fingerprint !~ '^[0-9a-f]{64}$'
      OR v_reason IS NULL OR char_length(v_reason)<3 OR char_length(v_reason)>500 OR v_reason~'[[:cntrl:]]' THEN
     RETURN QUERY SELECT 'invalid_request',NULL::uuid,NULL::bigint,NULL::integer,false; RETURN;
   END IF;
   v_fingerprint:=encode(extensions.digest(convert_to(jsonb_build_object(
     'actor_user_id',v_actor,'target_membership_id',p_target_membership_id,'expected_revision',p_expected_revision,
-    'reason',v_reason,'task_disposition',p_task_disposition)::text,'utf8'),'sha256'),'hex');
+    'reason',v_reason,'task_disposition',p_task_disposition,'task_impact_fingerprint',p_task_impact_fingerprint)::text,'utf8'),'sha256'),'hex');
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_idempotency_key::text,161));
   SELECT * INTO v_receipt FROM public.organisation_membership_suspension_receipts receipt WHERE receipt.idempotency_key=p_idempotency_key;
   IF v_receipt.idempotency_key IS NOT NULL THEN
@@ -146,6 +193,23 @@ BEGIN
   END IF;
   IF v_target.revision<>p_expected_revision THEN
     RETURN QUERY SELECT 'conflict',v_target.id,v_target.revision,NULL::integer,false; RETURN;
+  END IF;
+  -- The target membership lock is the assignment fence. Canonical assignment
+  -- takes this same lock before any Task lock, so no new assignment can slip
+  -- into the set while these rows are locked and fingerprinted.
+  BEGIN
+    PERFORM 1 FROM public.tasks task WHERE task.org_id=v_actor_row.org_id
+      AND task.assignee_user_id=v_target.user_id AND task.lifecycle_state='active'
+      AND task.status IN ('open','in_progress') ORDER BY task.id FOR UPDATE NOWAIT;
+  EXCEPTION WHEN lock_not_available THEN
+    RETURN QUERY SELECT 'impact_conflict',v_target.id,v_target.revision,NULL::integer,false; RETURN;
+  END;
+  SELECT encode(extensions.digest(convert_to(coalesce(string_agg(task.id::text||':'||task.revision::text,',' ORDER BY task.id),''),'utf8'),'sha256'),'hex')
+    INTO v_current_task_fingerprint FROM public.tasks task WHERE task.org_id=v_actor_row.org_id
+      AND task.assignee_user_id=v_target.user_id AND task.lifecycle_state='active'
+      AND task.status IN ('open','in_progress');
+  IF v_current_task_fingerprint<>p_task_impact_fingerprint THEN
+    RETURN QUERY SELECT 'impact_conflict',v_target.id,v_target.revision,NULL::integer,false; RETURN;
   END IF;
   FOR v_task IN SELECT task.* FROM public.tasks task WHERE task.org_id=v_actor_row.org_id
     AND task.assignee_user_id=v_target.user_id AND task.lifecycle_state='active'
@@ -183,10 +247,35 @@ END $$;
 
 REVOKE ALL ON TABLE public.organisation_membership_suspension_receipts FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.get_standard_member_suspension_impact(uuid),
-  public.suspend_standard_organisation_member(uuid,bigint,text,text,uuid),
+  public.suspend_standard_organisation_member(uuid,bigint,text,text,text,uuid),
+  public.transition_task(uuid,text,bigint,uuid,uuid,date),
+  public.transition_task_pre_suspension_fence(uuid,text,bigint,uuid,uuid,date),
   public.task_assignee_must_be_active() FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.get_standard_member_suspension_impact(uuid),
-  public.suspend_standard_organisation_member(uuid,bigint,text,text,uuid) TO authenticated;
+  public.suspend_standard_organisation_member(uuid,bigint,text,text,text,uuid),
+  public.transition_task(uuid,text,bigint,uuid,uuid,date) TO authenticated;
+
+-- Notification access follows the canonical exact-active tenant lifecycle,
+-- not the compatibility org_members identity bridge.
+DROP POLICY notifications_select ON public.notifications;
+DROP POLICY notifications_update ON public.notifications;
+CREATE POLICY notifications_select ON public.notifications FOR SELECT USING (
+  user_id=auth.uid() AND EXISTS (
+    SELECT 1 FROM public.current_active_tenant_membership() current
+    WHERE current.org_id=notifications.org_id
+  )
+);
+CREATE POLICY notifications_update ON public.notifications FOR UPDATE USING (
+  user_id=auth.uid() AND EXISTS (
+    SELECT 1 FROM public.current_active_tenant_membership() current
+    WHERE current.org_id=notifications.org_id
+  )
+) WITH CHECK (
+  user_id=auth.uid() AND EXISTS (
+    SELECT 1 FROM public.current_active_tenant_membership() current
+    WHERE current.org_id=notifications.org_id
+  )
+);
 
 -- Canonical lifecycle state is command-owned. Legacy identity remains readable
 -- only through its active-canonical RLS bridge and cannot restore access.
@@ -195,6 +284,6 @@ REVOKE INSERT,UPDATE,DELETE ON public.organisation_memberships FROM service_role
 
 COMMENT ON FUNCTION public.get_standard_member_suspension_impact(uuid) IS
   'Admin-only bounded impact: open Tasks are actionable; verified deadlines, Review claims, invite governance, digests and optional grants are currently non-applicable.';
-COMMENT ON FUNCTION public.suspend_standard_organisation_member(uuid,bigint,text,text,uuid) IS
+COMMENT ON FUNCTION public.suspend_standard_organisation_member(uuid,bigint,text,text,text,uuid) IS
   'Atomically returns target open Tasks to the team and suspends one same-tenant active Associate/Viewer with CAS and actor-bound global idempotency.';
 COMMIT;

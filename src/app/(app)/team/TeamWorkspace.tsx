@@ -62,6 +62,7 @@ function InvitationStateBadge({ state }: { state: InvitationState }) {
 function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectoryEntry; onBack: () => void; canSuspend: boolean }) {
   const router = useRouter()
   const suspendButtonRef = useRef<HTMLButtonElement>(null)
+  const inspectorHeadingRef = useRef<HTMLHeadingElement>(null)
   const [impact, setImpact] = useState<StandardMemberSuspensionImpact | null>(null)
   const [impactPending, startImpactTransition] = useTransition()
   const [submitPending, startSubmitTransition] = useTransition()
@@ -73,12 +74,16 @@ function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectory
   const capabilitySummary = member.capabilities.length === 0 ? 'Unavailable' : member.capabilities.length > shownCapabilities.length ? `${shownCapabilities.map(capabilityLabel).join(', ')} and ${member.capabilities.length - shownCapabilities.length} more` : `${shownCapabilities.map(capabilityLabel).join(', ')} (complete)`
   const suspensionAvailable = canSuspend && member.state === 'active' && !member.is_owner && (member.role === 'associate' || member.role === 'viewer')
 
+  async function readLatestImpact() {
+    const result = await getStandardMemberSuspensionImpact(member.membership_id)
+    if ('error' in result) { setError(result.error ?? 'This member is no longer available for suspension.'); return null }
+    setImpact(result.impact)
+    return result.impact
+  }
   function previewSuspension() {
     setError(null)
     startImpactTransition(async () => {
-      const result = await getStandardMemberSuspensionImpact(member.membership_id)
-      if ('error' in result) { setError(result.error ?? 'This member is no longer available for suspension.'); return }
-      setImpact(result.impact)
+      await readLatestImpact()
     })
   }
   function closeSuspension() {
@@ -90,11 +95,20 @@ function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectory
     if (!impact || !acceptTaskReturn) return
     setError(null)
     startSubmitTransition(async () => {
-      const result = await suspendStandardMember({ membershipId: impact.targetMembershipId, expectedRevision: impact.targetRevision, reason, idempotencyKey: idempotencyKey.current })
-      if ('error' in result) { setError(result.error ?? 'This member is no longer available for suspension.'); return }
+      const result = await suspendStandardMember({ membershipId: impact.targetMembershipId, expectedRevision: impact.targetRevision, reason, taskImpactFingerprint: impact.taskImpactFingerprint, idempotencyKey: idempotencyKey.current })
+      if ('error' in result) {
+        if (result.impactConflict) {
+          setAcceptTaskReturn(false)
+          idempotencyKey.current=crypto.randomUUID()
+          const latest = await readLatestImpact()
+          setError(latest ? 'Assigned work changed. Review the updated impact and accept the latest task return before trying again.' : (result.error ?? 'This member is no longer available for suspension.'))
+        } else setError(result.error ?? 'This member is no longer available for suspension.')
+        return
+      }
       toast.success(`${impact.targetDisplayName}'s access was suspended. ${result.returnedTaskCount} task${result.returnedTaskCount === 1 ? '' : 's'} returned to the team.`)
       setImpact(null)
       router.refresh()
+      requestAnimationFrame(() => inspectorHeadingRef.current?.focus())
     })
   }
   return (
@@ -104,7 +118,7 @@ function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectory
         <div className="flex items-center gap-3">
           <Avatar name={member.display_name ?? undefined} size="lg" />
           <div className="min-w-0">
-            <h2 className="truncate text-section-heading text-[var(--text-primary)]">{memberName(member)}</h2>
+            <h2 ref={inspectorHeadingRef} tabIndex={-1} className="truncate text-section-heading text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">{memberName(member)}</h2>
             <p className="mt-0.5 truncate text-caption text-[var(--text-muted)]">{member.professional_title ?? 'Professional title unavailable'}</p>
           </div>
         </div>
@@ -145,7 +159,7 @@ function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectory
               <span>I accept returning all {impact.openTaskCount} affected task{impact.openTaskCount === 1 ? '' : 's'} to the team queue.</span>
             </label>
           </div>}
-          <DialogFooter><Button type="button" variant="outline" onClick={closeSuspension} disabled={submitPending}>Cancel</Button><Button type="button" variant="destructive" loading={submitPending} disabled={!impact || reason.trim().length<3 || !acceptTaskReturn} onClick={confirmSuspension}>Suspend access and return tasks</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" className="min-h-12" onClick={closeSuspension} disabled={submitPending}>Cancel</Button><Button type="button" variant="destructive" className="min-h-12" loading={submitPending} disabled={!impact || reason.trim().length<3 || !acceptTaskReturn} onClick={confirmSuspension}>Suspend access and return tasks</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </aside>

@@ -44,6 +44,18 @@ enable_confirmations = false
   console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/governed_standard_member_suspension.sql'),'utf8')}))
   run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/governed_standard_member_suspension_concurrency_setup.sql'),'utf8')})
   console.log(run('bash',['supabase/tests/governed_standard_member_suspension_concurrency.sh'],{env:{...process.env,SUPABASE_DB_CONTAINER:container}}))
+  if(process.argv.includes('--types')){
+    const env={...process.env,PATH:`${join(root,'node_modules/.bin')}:/opt/homebrew/bin:${process.env.PATH}`}
+    run(node,['scripts/generate-supabase-types.mjs','--local','--workdir',workdir],{env})
+    const once=readFileSync(join(root,'src/lib/supabase/database.types.ts'),'utf8')
+    run(node,['scripts/generate-supabase-types.mjs','--local','--workdir',workdir],{env})
+    if(readFileSync(join(root,'src/lib/supabase/database.types.ts'),'utf8')!==once)throw new Error('Database type generation was not deterministic.')
+    console.log('Generated/refined database types twice with exact parity.')
+  }
+  if(process.argv.includes('--browser')){
+    run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'scripts/acceptance/seed-member-suspension-browser.sql'),'utf8')})
+    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.member-suspension.config.ts'],{env:{...process.env,MEMBER_SUSPENSION_SUPABASE_WORKDIR:workdir}}))
+  }
 }finally{
   if(created){const stopped=spawnSync(node,[cli,'stop','--no-backup','--workdir',workdir],{encoding:'utf8'});if(stopped.status!==0)console.error('Disposable member-suspension stack cleanup failed.');else console.log('Removed the disposable member-suspension stack and data.')}
   rmSync(workdir,{recursive:true,force:true})

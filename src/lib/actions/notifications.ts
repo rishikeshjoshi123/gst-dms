@@ -28,6 +28,7 @@ export async function getNotifications() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { notifications: [], unreadCount: 0 }
+  if (!await getCurrentOrgId()) return { notifications: [], unreadCount: 0 }
 
   const { data } = await supabase
     .from('notifications')
@@ -45,6 +46,7 @@ export async function markNotificationRead(notificationId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
+  if (!await getCurrentOrgId()) return { error: 'Organisation access is unavailable.' }
 
   const { error } = await supabase
     .from('notifications')
@@ -61,6 +63,7 @@ export async function markAllNotificationsRead() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
+  if (!await getCurrentOrgId()) return { error: 'Organisation access is unavailable.' }
 
   const { error } = await supabase
     .from('notifications')
@@ -77,6 +80,7 @@ export async function getUnreadNotificationCount(): Promise<number> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return 0
+  if (!await getCurrentOrgId()) return 0
 
   const { count } = await supabase
     .from('notifications')

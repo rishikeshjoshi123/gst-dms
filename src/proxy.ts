@@ -58,6 +58,7 @@ export async function proxy(request: NextRequest) {
     '/auth/callback',
     '/api/invites/accept',
     '/contact',
+    '/api/revalidate',
   ]
   const isPublicRoute = pathname === '/' || publicRoutes.some((route) => route === '/api/invites/accept' ? pathname === route : pathname === route || pathname.startsWith(`${route}/`))
 
@@ -69,10 +70,30 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+  let hasExactActiveContext = false
+  if (user) {
+    const { data: contexts, error } = await supabase.rpc('get_my_organisation_context')
+    hasExactActiveContext = !error && (contexts ?? []).length === 1 && contexts?.[0]?.state === 'active'
+  }
+
   if (user && (pathname === '/login' || pathname === '/signup')) {
-    // Redirect authenticated users away from auth pages
+    // A valid Auth session may belong to a suspended member. Route it to the
+    // existing non-disclosing onboarding state instead of the protected shell.
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = hasExactActiveContext ? '/dashboard' : '/onboarding'
+    return NextResponse.redirect(url)
+  }
+
+  // Proxy is the Next 16 request boundary. Unlike a cached layout it runs for
+  // RSC/client-navigation requests as well as full document requests.
+  if (user && !isPublicRoute && !isOnboarding && !hasExactActiveContext) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Organisation access is unavailable.' }, { status: 403 })
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/onboarding'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 

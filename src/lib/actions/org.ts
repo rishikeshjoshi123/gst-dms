@@ -225,6 +225,7 @@ export type StandardMemberSuspensionImpact = {
   targetDisplayName: string
   targetRole: 'associate' | 'viewer'
   openTaskCount: number
+  taskImpactFingerprint: string
 }
 
 export async function getStandardMemberSuspensionImpact(membershipId: string): Promise<
@@ -236,7 +237,7 @@ export async function getStandardMemberSuspensionImpact(membershipId: string): P
   const impact = data?.[0]
   if (error || !impact || impact.code !== 'ok' || !impact.target_membership_id || !impact.target_revision ||
       !impact.target_display_name || !['associate', 'viewer'].includes(impact.target_role) ||
-      impact.task_disposition !== 'return_open_tasks_to_team') {
+      impact.task_disposition !== 'return_open_tasks_to_team' || !/^[0-9a-f]{64}$/.test(impact.task_impact_fingerprint)) {
     return { error: impact?.code === 'not_allowed' ? 'You do not have permission to suspend this member.' : 'This member is no longer available for suspension.' }
   }
   return { impact: {
@@ -245,6 +246,7 @@ export async function getStandardMemberSuspensionImpact(membershipId: string): P
     targetDisplayName: impact.target_display_name,
     targetRole: impact.target_role as 'associate' | 'viewer',
     openTaskCount: impact.open_task_count,
+    taskImpactFingerprint: impact.task_impact_fingerprint,
   } }
 }
 
@@ -252,12 +254,14 @@ export async function suspendStandardMember(input: {
   membershipId: string
   expectedRevision: number
   reason: string
+  taskImpactFingerprint: string
   idempotencyKey: string
 }) {
   const parsed = z.object({
     membershipId: z.string().uuid(),
     expectedRevision: z.number().int().positive(),
     reason: z.string().trim().min(3).max(500).refine((value) => !/[\u0000-\u001f\u007f]/.test(value)),
+    taskImpactFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     idempotencyKey: z.string().uuid(),
   }).safeParse(input)
   if (!parsed.success) return { error: 'Enter a reason between 3 and 500 characters.' }
@@ -267,11 +271,12 @@ export async function suspendStandardMember(input: {
     p_expected_revision: parsed.data.expectedRevision,
     p_reason: parsed.data.reason,
     p_task_disposition: 'return_open_tasks_to_team',
+    p_task_impact_fingerprint: parsed.data.taskImpactFingerprint,
     p_idempotency_key: parsed.data.idempotencyKey,
   })
   const result = data?.[0]
   if (error || !result || !['suspended', 'already_processed'].includes(result.code)) {
-    const message = result?.code === 'conflict'
+    const message = ['conflict', 'impact_conflict'].includes(result?.code ?? '')
       ? 'This member changed after the impact preview. Review the latest impact and try again.'
       : result?.code === 'idempotency_subject_mismatch'
         ? 'This request could not be retried safely. Close the dialog and try again.'
@@ -280,7 +285,7 @@ export async function suspendStandardMember(input: {
           : result?.code === 'not_allowed'
             ? 'You do not have permission to suspend this member.'
             : 'This member is no longer available for suspension.'
-    return { error: message }
+    return { error: message, impactConflict: result?.code === 'impact_conflict' }
   }
   revalidatePath('/team')
   return { success: true, returnedTaskCount: result.returned_task_count }
