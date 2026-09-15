@@ -20,6 +20,7 @@ DECLARE
   activated record; target_a_identifier uuid; target_b_identifier uuid; source_identifier uuid; corrected_identifier uuid; correction_candidate uuid; outbound_candidate uuid; mention_one uuid; mention_two uuid;
   matter_identifier uuid; v_revision bigint; rejected boolean; links_before bigint; relationships_before bigint; outbox_before bigint; effective_before bigint; decisions_before bigint; activity_before bigint; identifiers_before bigint; query_plan json;
   purged_identifier uuid; trashed record; purge_impact record; purge_queue record; purge_job record; purge_step record; storage_step record;
+  duplicate_item uuid; duplicate_revision bigint; duplicate_resolution record; third_identifier uuid;
 BEGIN
   INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES
     ('00000000-0000-0000-0000-000000000000',actor,'authenticated','authenticated','reference-owner@example.test','x',now(),'{}','{}',now(),now()),
@@ -72,6 +73,19 @@ BEGIN
     IF finished.code<>'validated' OR finished.binding_id IS NULL THEN RAISE EXCEPTION 'fenced v4 finisher failed for row %: %',i,finished.code; END IF;
   END LOOP;
 
+  -- The server-read SHA fence prevents an alternate asset with the same bytes;
+  -- the possible-duplicate path cannot turn that exact upload into a second item.
+  BEGIN
+    INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
+      VALUES('151f0000-0000-0000-0000-000000000099',org,'documents','orgs/'||org||'/assets/151f0000-0000-0000-0000-000000000099/original.pdf',
+        (SELECT sha256 FROM public.file_assets WHERE id=assets[1]),100,'application/pdf','available',now(),1,actor);
+    RAISE EXCEPTION 'same-hash alternate asset bypassed exact upload fence';
+  EXCEPTION WHEN unique_violation THEN
+    IF (SELECT count(*) FROM public.file_assets WHERE org_id=org AND sha256=(SELECT sha256 FROM public.file_assets WHERE id=assets[1]))<>1
+      OR EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate') THEN
+      RAISE EXCEPTION 'same-hash duplicate was not fenced before Review'; END IF;
+  END;
+
   SELECT id INTO mention_one FROM public.document_reference_mentions WHERE source_document_id=docs[1];
   IF mention_one IS NULL OR (SELECT outcome FROM public.current_document_reference_resolutions WHERE mention_id=mention_one)<>'unresolved' THEN RAISE EXCEPTION 'mention-first unresolved state was not durable'; END IF;
   SELECT id INTO correction_candidate FROM public.document_field_candidates WHERE document_id=docs[2] AND field_path='document.official_reference.self_identifier' AND normalized_value->>'normalized_value'='GST/556/2026';
@@ -113,6 +127,73 @@ BEGIN
   SELECT * INTO activated FROM public.activate_document_self_identifier(target_b_candidate,v_revision,NULL,'15160000-0000-0000-0000-000000000002');
   target_b_identifier:=activated.identifier_id;
   IF activated.code<>'ok' OR EXISTS(SELECT 1 FROM public.current_document_reference_resolutions WHERE mention_id IN (mention_one,mention_two) AND outcome<>'ambiguous') THEN RAISE EXCEPTION 'same exact key did not become ambiguous'; END IF;
+  SELECT id,revision INTO duplicate_item,duplicate_revision FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review';
+  IF duplicate_item IS NULL OR (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>1
+    OR NOT public.possible_duplicate_current(duplicate_item)
+    OR jsonb_array_length(public.read_review_detail(duplicate_item)->'evidence')<>2
+    OR EXISTS(SELECT 1 FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item GROUP BY review_item_id HAVING count(DISTINCT asset_id)<>2)
+    THEN RAISE EXCEPTION 'two source-grounded distinct assets did not make exactly one current Review'; END IF;
+  -- Three current sources close the formerly active pair and abstain, never presenting a misleading two-source item.
+  SELECT id INTO source_candidate FROM public.document_field_candidates WHERE document_id=docs[1] AND field_path='document.official_reference.self_identifier';
+  SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[1];
+  SELECT * INTO activated FROM public.activate_document_self_identifier(source_candidate,v_revision,NULL,'15160000-0000-0000-0000-000000000016');
+  third_identifier:=activated.identifier_id;
+  IF activated.code<>'ok' OR (SELECT count(*) FROM public.document_self_identifiers WHERE org_id=org AND lifecycle_state='active'
+      AND normalized_value='GST/555/2026')<>3
+    OR EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')
+    OR (SELECT closure_reason FROM public.review_items WHERE id=duplicate_item)<>'source_replaced'
+    THEN RAISE EXCEPTION 'three-way collision did not abstain without pairwise proliferation'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+    'Stale former pair','15170000-0000-0000-0000-000000000010');
+  IF duplicate_resolution.code<>'stale' OR EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)
+    THEN RAISE EXCEPTION 'third-source closure remained actionable'; END IF;
+  UPDATE public.documents SET record_state='trashed',deleted_at=now(),trashed_at=now(),trashed_by=actor,lifecycle_revision=lifecycle_revision+1 WHERE id=docs[1];
+  IF (SELECT count(*) FROM public.possible_duplicate_eligible WHERE org_id=org AND normalized_value='GST/555/2026')<>2
+    OR EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')
+    THEN RAISE EXCEPTION 'unavailable third source was silently omitted to create a pair'; END IF;
+  UPDATE public.documents SET record_state='active',deleted_at=NULL,trashed_at=NULL,trashed_by=NULL,restored_at=now(),lifecycle_revision=lifecycle_revision+1 WHERE id=docs[1];
+  SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[1];
+  PERFORM public.revoke_document_self_identifier(third_identifier,1,v_revision,'Three-way abstention fixture reset',
+    '15160000-0000-0000-0000-000000000017');
+  SELECT id,revision INTO duplicate_item,duplicate_revision FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review';
+  IF duplicate_item IS NULL OR (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>1
+    THEN RAISE EXCEPTION 'return from three-way abstention did not refresh one current pair'; END IF;
+  FOREACH source_candidate IN ARRAY ARRAY[viewer,suspended,ambiguous_actor,foreign_actor] LOOP
+    PERFORM set_config('request.jwt.claim.sub',source_candidate::text,true);
+    PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',source_candidate,'iat',extract(epoch FROM now())::bigint)::text,true);
+    IF source_candidate=viewer THEN
+      IF public.read_review_detail(duplicate_item)->'allowed_actions'<>'[]'::jsonb
+        OR (SELECT total_count FROM public.read_review_queue('needs_review','possible_duplicate','all','',1,25))<>1 THEN
+        RAISE EXCEPTION 'Viewer source read or decision capability was wrong'; END IF;
+    ELSE
+      IF public.read_review_detail(duplicate_item) IS NOT NULL
+        OR EXISTS(SELECT 1 FROM public.read_review_queue('needs_review','possible_duplicate','all','',1,25) WHERE total_count>0) THEN
+        RAISE EXCEPTION 'non-member context disclosed possible-duplicate Review'; END IF;
+    END IF;
+    SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+      'Unauthorised direct item attempt',gen_random_uuid());
+    IF (source_candidate=foreign_actor AND duplicate_resolution.code<>'unavailable')
+      OR (source_candidate<>foreign_actor AND duplicate_resolution.code<>'forbidden')
+      OR EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item) THEN
+      RAISE EXCEPTION 'direct possible-duplicate resolver authority leaked to %: %',source_candidate,duplicate_resolution.code; END IF;
+  END LOOP;
+  PERFORM set_config('request.jwt.claim.sub',actor::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+    'Later order legitimately reuses the official reference','15170000-0000-0000-0000-000000000001');
+  IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed OR (SELECT status FROM public.review_items WHERE id=duplicate_item)<>'closed'
+    OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>1
+    THEN RAISE EXCEPTION 'distinct decision did not close once with Activity'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+    'Later order legitimately reuses the official reference','15170000-0000-0000-0000-000000000001');
+  IF duplicate_resolution.code<>'ok' OR NOT duplicate_resolution.replayed THEN RAISE EXCEPTION 'duplicate decision replay diverged'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+    'Different request under the same idempotency key','15170000-0000-0000-0000-000000000001');
+  IF duplicate_resolution.code<>'idempotency_conflict' THEN RAISE EXCEPTION 'decision key replay accepted different payload'; END IF;
+  PERFORM public.reconcile_possible_duplicate_key(org,'order_reference','GST TRIBUNAL','GST/555/2026');
+  IF EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')
+    OR (SELECT count(*) FROM public.possible_duplicate_decisions WHERE org_id=org)<>1 THEN
+    RAISE EXCEPTION 'unchanged distinct decision reopened or duplicated'; END IF;
   IF EXISTS(SELECT 1 FROM public.current_document_reference_resolutions WHERE mention_id IN (mention_one,mention_two) AND (target_document_id IS NOT NULL OR target_identifier_id IS NOT NULL)) THEN RAISE EXCEPTION 'ambiguous outcome leaked target identities'; END IF;
 
   SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[3];
@@ -125,6 +206,25 @@ BEGIN
   SELECT * INTO activated FROM public.activate_document_self_identifier(source_candidate,v_revision,NULL,'15160000-0000-0000-0000-000000000004');
   source_identifier:=activated.identifier_id;
   IF activated.code<>'ok' OR (SELECT outcome FROM public.current_document_reference_resolutions WHERE mention_id=mention_one)<>'conflicting' THEN RAISE EXCEPTION 'self-target did not become conflicting'; END IF;
+  SELECT id,revision INTO duplicate_item,duplicate_revision FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review';
+  IF duplicate_item IS NULL OR (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>1
+    THEN RAISE EXCEPTION 'new legitimate same-reference pair was not independently reviewed'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision+1,'possible_same_document',
+    'Check whether these versions represent one source','15170000-0000-0000-0000-000000000002');
+  IF duplicate_resolution.code<>'stale' THEN RAISE EXCEPTION 'possible-duplicate resolver accepted a stale revision'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+    'Check whether these versions represent one source','15170000-0000-0000-0000-000000000002');
+  IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed
+    OR (SELECT count(*) FROM public.possible_duplicate_decisions WHERE action='possible_same_document')<>1
+    OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>2
+    OR NOT EXISTS(SELECT 1 FROM public.documents d JOIN public.document_versions v ON v.id=d.current_version_id AND v.org_id=d.org_id
+      WHERE d.id=docs[1] AND d.org_id=org AND v.asset_id=assets[1] AND d.matter_id=matter_a)
+    OR NOT EXISTS(SELECT 1 FROM public.documents d JOIN public.document_versions v ON v.id=d.current_version_id AND v.org_id=d.org_id
+      WHERE d.id=docs[2] AND d.org_id=org AND v.asset_id=assets[2] AND d.matter_id=matter_a)
+    THEN RAISE EXCEPTION 'possible-same interpretation did not close once without changing either document'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+    'Check whether these versions represent one source','15170000-0000-0000-0000-000000000002');
+  IF duplicate_resolution.code<>'ok' OR NOT duplicate_resolution.replayed THEN RAISE EXCEPTION 'possible-same replay diverged'; END IF;
   IF (SELECT target_document_id FROM public.current_document_reference_resolutions WHERE mention_id=mention_one) IS NOT NULL THEN RAISE EXCEPTION 'conflict leaked a target'; END IF;
   SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[1];
   PERFORM public.revoke_document_self_identifier(source_identifier,1,v_revision,'Self claim corrected','15160000-0000-0000-0000-000000000005');

@@ -28,6 +28,85 @@ async function login(page: Page, user = 1) {
 async function noOverflow(page: Page) {
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.body.scrollWidth <= innerWidth)).toBe(true)
 }
+test('possible duplicate exact PDF comparison records both interpretations without document mutation',async({page,browser})=>{
+  async function referenceLogin(target:Page,email:string){
+    await target.goto('/login')
+    await target.getByLabel('Email address').fill(email)
+    await target.getByLabel('Password').fill('PlacementFixture167!')
+    await target.getByRole('button',{name:'Sign in'}).click()
+    await expect(target).toHaveURL(/\/dashboard$/)
+  }
+  const viewer=await browser.newContext({viewport:{width:320,height:740},colorScheme:'dark'})
+  const viewerPage=await viewer.newPage()
+  await referenceLogin(viewerPage,'reference-viewer@example.test')
+  await viewerPage.goto('/review?type=possible_duplicate')
+  await viewerPage.getByRole('button',{name:'Compare two documents'}).click()
+  await expect(viewerPage.getByText('Exact official key in two current PDFs')).toBeVisible()
+  await expect(viewerPage.getByRole('link',{name:'Open exact PDF source · Page 1'})).toHaveCount(2)
+  for(const link of await viewerPage.getByRole('link',{name:'Open exact PDF source · Page 1'}).all())
+    await expect(link).toHaveAttribute('href',/\/documents\/152e0000.*version=15200000.*page=1/)
+  await viewerPage.getByRole('button',{name:'View decision'}).click()
+  await expect(viewerPage.getByRole('button',{name:'Review document interpretation'})).toHaveCount(0)
+  await noOverflow(viewerPage)
+  await viewer.close()
+  await page.setViewportSize({width:320,height:740})
+  await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'})
+  await referenceLogin(page,'reference-owner@example.test')
+  await page.goto('/review?type=possible_duplicate')
+  await page.getByRole('button',{name:'Compare two documents'}).click()
+  await expect(page.getByRole('link',{name:'Open exact PDF source · Page 1'})).toHaveCount(2)
+  await expect(page.getByRole('link',{name:'Inspect version in Workbench'})).toHaveCount(2)
+  const sourceLinks=await Promise.all((await page.getByRole('link',{name:'Open exact PDF source · Page 1'}).all()).map(link=>link.getAttribute('href')))
+  expect(new Set(sourceLinks).size).toBe(2)
+  for(const href of sourceLinks){
+    expect(href).toMatch(/\/documents\/152e0000.*version=15200000.*page=1/)
+    await page.goto(href!)
+    await expect(page.getByText('PDF source · Version 1 · Page 1 of 1')).toBeVisible()
+    await expect(page.locator('[data-pdf-page="1"] canvas')).toBeVisible()
+    await expect(page.getByText(/PDF source permanently unavailable|PDF could not be opened|Signed link expired/)).toHaveCount(0)
+    await page.goBack()
+    await expect(page.getByRole('heading',{name:'Compare two documents'})).toBeVisible()
+  }
+  await page.getByRole('tab',{name:'Evidence'}).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('tab',{name:'Decision'})).toBeFocused()
+  await page.getByRole('radio',{name:/Mark as distinct documents/}).check()
+  await page.getByRole('button',{name:'Review document interpretation'}).click()
+  await expect(page.getByRole('dialog')).toContainText('both documents, sources, filings and effective facts remain untouched')
+  await page.getByLabel('Reason',{exact:true}).fill('This later order is a distinct current document using the same official key.')
+  await page.getByRole('button',{name:'Record distinct documents'}).click()
+  await expect(page.getByRole('heading',{name:'Distinct documents recorded'})).toBeVisible()
+  await expect(page.getByText(/unchanged source pair will not raise Review again/)).toBeVisible()
+  await noOverflow(page)
+  db(`DO $$ DECLARE actor uuid:='152a0000-0000-0000-0000-000000000001'; r record; identifier_id uuid; candidate_id uuid; revision_value bigint; BEGIN
+    PERFORM set_config('request.jwt.claim.role','authenticated',true);
+    PERFORM set_config('request.jwt.claim.sub',actor::text,true);
+    PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+    SELECT id INTO identifier_id FROM public.document_self_identifiers WHERE document_id='152e0000-0000-0000-0000-000000000002' AND lifecycle_state='active' AND normalized_value='GST/555/2026';
+    SELECT lifecycle_revision INTO revision_value FROM public.documents WHERE id='152e0000-0000-0000-0000-000000000002';
+    SELECT * INTO r FROM public.revoke_document_self_identifier(identifier_id,1,revision_value,'Browser new-source revision fixture','15260000-0000-0000-0000-000000000018');
+    IF r.code<>'ok' THEN RAISE EXCEPTION 'fixture revoke failed: %',r.code; END IF;
+    SELECT id INTO candidate_id FROM public.document_field_candidates WHERE document_id='152e0000-0000-0000-0000-000000000002' AND field_path='document.official_reference.self_identifier' AND normalized_value->>'normalized_value'='GST/555/2026';
+    SELECT lifecycle_revision INTO revision_value FROM public.documents WHERE id='152e0000-0000-0000-0000-000000000002';
+    SELECT * INTO r FROM public.activate_document_self_identifier(candidate_id,revision_value,NULL,'15260000-0000-0000-0000-000000000019');
+    IF r.code<>'ok' THEN RAISE EXCEPTION 'fixture activation failed: %',r.code; END IF;
+  END $$;`)
+  await page.setViewportSize({width:1440,height:900})
+  await page.emulateMedia({colorScheme:'light',reducedMotion:'no-preference'})
+  await page.goto('/review?type=possible_duplicate&status=needs_review')
+  await page.getByRole('button',{name:'Compare two documents'}).click()
+  await page.getByRole('button',{name:'View decision'}).click()
+  await page.getByRole('radio',{name:/Mark as possibly the same document/}).check()
+  await page.getByRole('button',{name:'Review document interpretation'}).click()
+  await expect(page.getByRole('dialog')).toContainText('No merge, deletion, move, replacement or effective-fact change')
+  await page.getByLabel('Reason',{exact:true}).fill('Investigate the shared printed identity in a separate governed workflow.')
+  await page.getByRole('button',{name:'Record possible same document'}).click()
+  await expect(page.getByRole('heading',{name:'Possible same document recorded'})).toBeVisible()
+  await expect(page.getByText(/Both cited PDF versions and logical documents remain separate and unchanged/)).toBeVisible()
+  await page.getByRole('tab',{name:'Evidence'}).click()
+  await expect(page.getByRole('link',{name:'Open exact PDF source · Page 1'})).toHaveCount(2)
+  await noOverflow(page)
+})
 test('multiple filed Matter conflicts require one printed target, current impact and human Move on mobile and desktop',async({page,browser})=>{
   async function placementLogin(target:Page,email:string){
     await target.goto('/login')

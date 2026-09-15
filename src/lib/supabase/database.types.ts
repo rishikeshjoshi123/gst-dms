@@ -751,6 +751,13 @@ export type Database = {
             referencedRelation: "document_self_identifiers"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "current_document_reference_resolutions_target_identifier_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
+          },
         ]
       }
       deadline_candidate_bindings: {
@@ -2013,11 +2020,25 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "document_identifier_receipts_identifier_fkey"
+            columns: ["org_id", "identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
+          },
+          {
             foreignKeyName: "document_identifier_receipts_previous_fkey"
             columns: ["org_id", "previous_identifier_id"]
             isOneToOne: false
             referencedRelation: "document_self_identifiers"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_identifier_receipts_previous_fkey"
+            columns: ["org_id", "previous_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
           },
         ]
       }
@@ -2076,6 +2097,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "document_identifier_decisions_identifier_fkey"
+            columns: ["org_id", "identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
+          },
+          {
             foreignKeyName: "document_identifier_decisions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -2088,6 +2116,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_self_identifiers"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_identifier_decisions_previous_fkey"
+            columns: ["org_id", "previous_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
           },
         ]
       }
@@ -2678,6 +2713,13 @@ export type Database = {
             referencedRelation: "document_self_identifiers"
             referencedColumns: ["org_id", "id"]
           },
+          {
+            foreignKeyName: "document_reference_resolution_results_target_identifier_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
+          },
         ]
       }
       document_reference_resolution_runs: {
@@ -3212,6 +3254,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_self_identifiers"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_predecessor_fkey"
+            columns: ["org_id", "predecessor_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
           },
           {
             foreignKeyName: "document_self_identifiers_source_candidate_fkey"
@@ -6563,6 +6612,124 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      possible_duplicate_decisions: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          org_id: string
+          pair_fingerprint: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          org_id: string
+          pair_fingerprint: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          pair_fingerprint?: string
+          reason?: string
+          request_fingerprint?: string
+          result_revision?: number
+          review_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "possible_duplicate_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      possible_duplicate_sources: {
+        Row: {
+          asset_id: string
+          created_at: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          evidence_page_number: number
+          evidence_quote: string
+          identifier_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          identifier_revision: number
+          issuer_namespace_normalized: string
+          normalized_value: string
+          ordinal: number
+          org_id: string
+          review_item_id: string
+          verified_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          evidence_page_number: number
+          evidence_quote: string
+          identifier_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          identifier_revision: number
+          issuer_namespace_normalized: string
+          normalized_value: string
+          ordinal: number
+          org_id: string
+          review_item_id: string
+          verified_at: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          display_value?: string
+          document_id?: string
+          document_version_id?: string
+          evidence_page_number?: number
+          evidence_quote?: string
+          identifier_id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          identifier_revision?: number
+          issuer_namespace_normalized?: string
+          normalized_value?: string
+          ordinal?: number
+          org_id?: string
+          review_item_id?: string
+          verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "possible_duplicate_sources_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
       }
       provider_pricing_rate_finalizations: {
         Row: {
@@ -10452,6 +10619,60 @@ export type Database = {
         }
         Relationships: []
       }
+      possible_duplicate_eligible: {
+        Row: {
+          asset_id: string | null
+          binding_id: string | null
+          display_value: string | null
+          document_id: string | null
+          document_version_id: string | null
+          evidence_page_number: number | null
+          evidence_quote: string | null
+          identifier_id: string | null
+          identifier_kind:
+            | Database["public"]["Enums"]["matter_identifier_kind"]
+            | null
+          identifier_revision: number | null
+          issuer_namespace_normalized: string | null
+          lifecycle_revision: number | null
+          materialization_sequence: number | null
+          normalized_value: string | null
+          org_id: string | null
+          semantic_candidate_key: string | null
+          sha256: string | null
+          verified_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_self_identifiers_binding_fkey"
+            columns: ["org_id", "binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_document_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_version_fkey"
+            columns: ["org_id", "document_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+        ]
+      }
       staged_document_backfill_diagnostics: {
         Row: {
           affected_count: number | null
@@ -13264,6 +13485,14 @@ export type Database = {
         }
         Returns: string
       }
+      possible_duplicate_current: {
+        Args: { p_item_id: string }
+        Returns: boolean
+      }
+      possible_duplicate_pair_key: {
+        Args: { p_item_id: string }
+        Returns: string
+      }
       post_task_comment: {
         Args: {
           p_body: string
@@ -13599,6 +13828,10 @@ export type Database = {
         Args: { p_review_item_id: string }
         Returns: Json
       }
+      read_review_detail_before_possible_duplicate: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_queue: {
         Args: {
           p_page?: number
@@ -13646,6 +13879,15 @@ export type Database = {
       }
       reconcile_placed_document_identity_conflict_single: {
         Args: { p_document_id: string }
+        Returns: undefined
+      }
+      reconcile_possible_duplicate_key: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          p_namespace: string
+          p_org_id: string
+          p_value: string
+        }
         Returns: undefined
       }
       record_completed_document_extraction_provider_usage: {
@@ -14059,6 +14301,20 @@ export type Database = {
         Args: {
           p_action: string
           p_expected_impact_fingerprint: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
+      resolve_possible_duplicate: {
+        Args: {
+          p_action: string
           p_expected_revision: number
           p_idempotency_key: string
           p_reason: string
@@ -15065,6 +15321,7 @@ export type Database = {
         | "deadline_verification"
         | "placement_conflict"
         | "multi_placement_conflict"
+        | "possible_duplicate"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -15709,6 +15966,7 @@ export const Constants = {
         "deadline_verification",
         "placement_conflict",
         "multi_placement_conflict",
+        "possible_duplicate",
       ],
       source_analysis_attempt_state: [
         "queued",

@@ -2,7 +2,31 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, multiPlacementConflictResolution, placementConflictResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type MultiPlacementConflictResolution, type PlacementConflictResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, multiPlacementConflictResolution, placementConflictResolution, possibleDuplicateResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type MultiPlacementConflictResolution, type PlacementConflictResolution, type PossibleDuplicateResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+
+export async function resolvePossibleDuplicate(input:PossibleDuplicateResolution){
+  const request=possibleDuplicateResolution.safeParse(input)
+  if(!request.success) return {code:'invalid_request',message:'Choose one document interpretation and give a reason.',item:null}
+  const supabase=await createClient()
+  const {data,error}=await supabase.rpc('resolve_possible_duplicate',{
+    p_review_item_id:request.data.itemId,p_expected_revision:request.data.revision,
+    p_action:request.data.action,p_reason:request.data.reason,p_idempotency_key:request.data.idempotencyKey,
+  })
+  if(error||!Array.isArray(data)||!data[0]) return {code:'failed',message:'The document comparison decision could not be confirmed.',item:null}
+  const row=data[0] as {code:string;current_item:unknown;replayed:boolean}
+  const item=row.current_item?reviewDetail.parse(row.current_item):null
+  if(row.code==='ok'){revalidatePath('/review');if(item?.document_id)revalidatePath(`/documents/${item.document_id}`)}
+  const messages:Record<string,string>={
+    ok:request.data.action==='distinct_documents'
+      ?'Distinct documents recorded. The unchanged pair will not raise this Review again.'
+      :'Possible same document recorded for follow-up. Neither PDF or document was changed.',
+    stale:'The sources, official key or Review changed. Compare the current sources before deciding.',
+    forbidden:'Your current access cannot resolve this Review.',unavailable:'This Review item is unavailable.',
+    idempotency_conflict:'This submission key was already used for another decision.',
+    busy:'Another source change is in progress. Refresh and retry.',
+  }
+  return {code:row.code,message:messages[row.code]??'The comparison decision was not completed.',item}
+}
 
 export async function previewMultiPlacementConflictMove(itemId:string,targetMatterId:string){
   const item=z.string().uuid().safeParse(itemId),target=z.string().uuid().safeParse(targetMatterId)
