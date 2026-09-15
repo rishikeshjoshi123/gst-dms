@@ -16,7 +16,7 @@ DECLARE org uuid:='152b0000-0000-0000-0000-000000000001';
   lower_source uuid:='00000000-0000-0000-0000-000000000001';
   lower_candidate uuid:='00000000-0000-0000-0000-000000000002';
   candidate_to_clone uuid; adversarial_item uuid; trash_op uuid; restore_code text;
-  preview jsonb; result record; keep_key uuid:=gen_random_uuid(); move_key uuid:=gen_random_uuid();
+  preview jsonb; move_fingerprint text; result record; keep_key uuid:=gen_random_uuid(); move_key uuid:=gen_random_uuid();
   activity_before bigint; before_count bigint; trash_code text; resolve_code text;
 BEGIN
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
@@ -199,18 +199,41 @@ BEGIN
     THEN RAISE EXCEPTION 'Stale impact preview applied Move'; END IF;
   SELECT * INTO result FROM public.resolve_placement_conflict(moving_item,1,'move',preview->>'fingerprint',
     'Human checked exact verified target and current impact',move_key);
+  move_fingerprint:=preview->>'fingerprint';
   IF result.code<>'ok' OR result.replayed OR (SELECT matter_id FROM public.documents WHERE id=moving_doc)<>target_m
     OR (SELECT current_version_id FROM public.documents WHERE id=moving_doc)<>current_version
     OR (SELECT asset_id FROM public.document_versions WHERE id=current_version)<>asset
+    OR public.read_review_detail(moving_item)->>'current_matter_id'<>target_m::text
+    OR public.read_review_detail(moving_item)->>'current_matter_title'<>'Reference B'
     OR (SELECT closure_reason FROM public.review_items WHERE id=moving_item)<>'decision_recorded'
     OR (SELECT count(*) FROM public.placement_conflict_decisions WHERE review_item_id=moving_item)<>1
     THEN RAISE EXCEPTION 'Typed transactional Move lost logical document/version/asset or Review closure'; END IF;
-  SELECT * INTO result FROM public.resolve_placement_conflict(moving_item,1,'move',preview->>'fingerprint',
+  BEGIN
+    -- The first governed Move queues reprocessing; finish only this synthetic
+    -- fixture attempt before testing a separate authorised later Move.
+    UPDATE public.document_processing_runs SET state='completed',stage='ready',
+      started_at=coalesce(started_at,now()),completed_at=now(),
+      lease_token=NULL,lease_expires_at=NULL WHERE org_id=org AND document_id=moving_doc
+        AND state IN ('queued','running');
+    preview:=public.preview_document_boundary_repair(moving_doc,source_m,'move');
+    IF preview->>'code'<>'ok' OR jsonb_array_length(preview->'blockers')<>0
+      THEN RAISE EXCEPTION 'Later governed Move precondition failed: %',preview; END IF;
+    IF public.execute_document_boundary_repair(moving_doc,source_m,'move',preview->>'fingerprint',
+      'Later authorised Matter correction',gen_random_uuid())->>'code'<>'ok'
+      OR public.read_review_detail(moving_item)->>'current_matter_id'<>source_m::text
+      OR public.read_review_detail(moving_item)->>'target_matter_id'<>target_m::text
+      OR (SELECT closure_reason FROM public.review_items WHERE id=moving_item)<>'decision_recorded'
+      THEN RAISE EXCEPTION 'Closed Move falsely retained its recorded destination as live current filing'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0167',MESSAGE='rollback later governed Move';
+  EXCEPTION WHEN SQLSTATE 'Z0167' THEN NULL; END;
+  SELECT * INTO result FROM public.resolve_placement_conflict(moving_item,1,'move',move_fingerprint,
     'Human checked exact verified target and current impact',move_key);
-  IF result.code<>'ok' OR NOT result.replayed
-    OR (SELECT code FROM public.resolve_placement_conflict(moving_item,1,'keep',NULL,'Racing Keep',gen_random_uuid()))<>'stale'
+  SELECT code INTO resolve_code FROM public.resolve_placement_conflict(moving_item,1,'keep',NULL,'Racing Keep',gen_random_uuid());
+  IF result.code<>'ok' OR NOT result.replayed OR resolve_code<>'stale'
     OR (SELECT count(*) FROM public.activity_events WHERE org_id=org AND event_type='review.placement_conflict_decided')<>activity_before+2
-    THEN RAISE EXCEPTION 'Racing or replayed decision duplicated Review Activity'; END IF;
+    THEN RAISE EXCEPTION 'Racing or replayed decision duplicated Review Activity: replay %, replayed %, race %, before %, after %',
+      result.code,result.replayed,resolve_code,activity_before,
+      (SELECT count(*) FROM public.activity_events WHERE org_id=org AND event_type='review.placement_conflict_decided'); END IF;
 END $test$;
 SET LOCAL ROLE authenticated;
 DO $rls$

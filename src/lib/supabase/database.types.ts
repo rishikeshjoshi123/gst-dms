@@ -13314,6 +13314,10 @@ export type Database = {
         Args: { p_review_item_id: string }
         Returns: Json
       }
+      read_review_detail_before_current_filing_truth: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_detail_before_due_dates: {
         Args: { p_review_item_id: string }
         Returns: Json

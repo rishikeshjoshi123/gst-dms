@@ -34,6 +34,8 @@ const reviewDetailBase = z.object({
     reason:z.string(),decided_at:z.string(),
   })).optional(),
   old_matter_id:z.string().uuid().optional(),old_matter_code:z.string().optional(),
+  current_matter_id:z.string().uuid().nullable().optional(),current_matter_title:z.string().nullable().optional(),
+  current_matter_code:z.string().nullable().optional(),
   target_matter_id:z.string().uuid().optional(),target_matter_code:z.string().optional(),
   target_matter_title:z.string().optional(),target_client_name:z.string().optional(),
   target_identifier_id:z.string().uuid().optional(),target_identifier_revision:z.number().int().positive().optional(),

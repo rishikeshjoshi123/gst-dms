@@ -129,6 +129,12 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
   const router = useRouter()
   const selected = item.evidence.find(evidence => evidence.candidate_id === choice)
   const canResolve = item.allowed_actions.length > 0
+  const recordedSource = `${item.matter_title}${item.old_matter_code ? ` (${item.old_matter_code})` : ''}`
+  const recordedTarget = `${item.target_matter_title ?? 'verified target'}${item.target_matter_code ? ` (${item.target_matter_code})` : ''}`
+  const currentFiling = item.current_matter_title
+    ? `${item.current_matter_title}${item.current_matter_code ? ` (${item.current_matter_code})` : ''}` : null
+  const recordedPlacementAction = item.type==='placement_conflict' && item.closure_reason==='decision_recorded'
+    ? item.last_decision?.action : null
   async function choosePlacement(action:'keep'|'move'){
     setChoice(action);setMovePreview(null)
     if(action==='move'){
@@ -189,15 +195,21 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
       {item.closure_reason === 'source_replaced' && <p className="text-sm">The source or its candidate evidence was replaced. This item is closed; it cannot change the current document.</p>}
       {item.closure_reason === 'source_unavailable' && <p className="text-sm">The Intake source or an eligible destination changed and is no longer available for this decision. This item is closed and no longer blocks Intake assignment.</p>}
       {tab === 'evidence' ? <>
-        <p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title}{item.version_number !== null && <> · Document version {item.version_number}{!item.is_current && ' (historical)'}</>}</p>
+        <p className="break-words text-caption text-[var(--text-muted)]">{item.type==='placement_conflict' ? 'Recorded source: ' : ''}{item.client_name} · {item.matter_title}{item.version_number !== null && <> · Document version {item.version_number}{!item.is_current && ' (historical)'}</>}</p>
         {item.type==='placement_conflict' && <section className="space-y-3 border-t border-[var(--border)] pt-3">
           <h3 className="text-sm font-medium">Printed source and verified destination</h3>
-          <p className="break-words text-sm">Currently filed in {item.matter_title} ({item.old_matter_code}). The PDF has not moved.</p>
+          <p className="break-words text-sm">{recordedPlacementAction==='move'
+            ? `Recorded Move: ${recordedSource} → ${recordedTarget}. ${currentFiling ? `Current filing: ${currentFiling}.` : 'Current filing is unavailable.'}`
+            : recordedPlacementAction==='keep'
+              ? `Recorded Keep: ${recordedSource} was retained. ${currentFiling ? `Current filing: ${currentFiling}.` : 'Current filing is unavailable.'}`
+              : item.status==='needs_review' && item.conflict_current
+                ? `Currently filed in ${currentFiling ?? recordedSource}. The PDF has not moved for this Review.`
+                : `Historical filing snapshot: ${recordedSource}. This Review did not decide a Move. ${currentFiling ? `Live current filing: ${currentFiling}.` : 'The current filing is unavailable.'}`}</p>
           <blockquote className="break-words border-l-2 border-[var(--border-strong)] pl-3 text-sm text-[var(--text-secondary)]">“{item.source_quote}”</blockquote>
           <Link className="inline-flex min-h-11 items-center text-sm text-[var(--primary)] underline underline-offset-4" href={canonicalDocumentPath(item.document_id,{version:item.document_version_id,page:String(item.source_page_number)})}>Open exact source · Page {item.source_page_number}</Link>
           <p className="break-words text-sm">Printed candidate: {item.identifier_kind?.replaceAll('_',' ')} · {item.issuer_namespace_normalized} · {item.normalized_value}. This PDF observation is source-grounded, not itself a human verification.</p>
           <p className="break-words text-sm">Verified Matter key: {item.display_value} · {item.target_matter_title} ({item.target_matter_code}) · {item.target_client_name}. Verified {item.target_verified_at ? new Date(item.target_verified_at).toLocaleDateString() : 'previously'}.</p>
-          <p className="text-caption text-[var(--text-muted)]">A verified key contradicts the current filing. Keep or Move is a human decision; source bytes and version remain exact.</p>
+          <p className="text-caption text-[var(--text-muted)]">{item.status==='needs_review' ? 'A verified key contradicts the current filing. Keep or Move is a human decision; source bytes and version remain exact.' : 'This is a recorded source and key snapshot. Its exact PDF version remains available through the source link.'}</p>
         </section>}
         {item.type === 'deadline_verification' && <section className="space-y-3 border-t border-[var(--border)] pt-3">
           <h3 className="text-sm font-medium">Source-stated date · Page {item.evidence[0]?.page_number}</h3>
@@ -239,7 +251,7 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
       </> : <>
         <p className="text-sm">{item.impact}</p>
         {item.type==='deadline_verification' && item.decision_history && item.decision_history.length>0 && <section><h3 className="text-sm font-medium">Date decisions</h3><ol className="mt-2 space-y-2">{item.decision_history.map((decision,index)=><li key={index} className="break-words text-sm">{decision.action} {decision.due_date??'without activation'} · {decision.reason}</li>)}</ol></section>}
-        {item.last_decision && <section className="space-y-2"><h3 className="text-sm font-medium">{item.type==='deadline_verification'?'Legal date decision recorded':item.last_decision.action === 'select_candidate' ? 'Recorded outcome' : item.last_decision.action === 'continue_manual' ? 'Manual continuation recorded' : item.last_decision.action === 'select_destination' ? 'Placement recorded' : 'Clarification requested'}</h3>{item.type!=='deadline_verification'&&item.last_decision.selected_candidate_id && <p className="break-words text-sm">Selected: {reviewValueLabel(item.evidence.find(e => e.candidate_id === item.last_decision?.selected_candidate_id)?.value)}</p>}{item.last_decision.placement_candidate_id && <p className="break-words text-sm">Destination: {placementValue(item.evidence.find(e => e.candidate_id === item.last_decision?.placement_candidate_id)?.value)?.matter_title}</p>}<p className="break-words text-sm">{item.last_decision.reason}</p></section>}
+        {item.last_decision && <section className="space-y-2"><h3 className="text-sm font-medium">{item.type==='deadline_verification'?'Legal date decision recorded':item.type==='placement_conflict' && item.last_decision.action==='keep' ? 'Current filing kept' : item.type==='placement_conflict' && item.last_decision.action==='move' ? 'Document moved' : item.last_decision.action === 'select_candidate' ? 'Recorded outcome' : item.last_decision.action === 'continue_manual' ? 'Manual continuation recorded' : item.last_decision.action === 'select_destination' ? 'Placement recorded' : 'Clarification requested'}</h3>{item.type!=='deadline_verification'&&item.last_decision.selected_candidate_id && <p className="break-words text-sm">Selected: {reviewValueLabel(item.evidence.find(e => e.candidate_id === item.last_decision?.selected_candidate_id)?.value)}</p>}{item.last_decision.placement_candidate_id && <p className="break-words text-sm">Destination: {placementValue(item.evidence.find(e => e.candidate_id === item.last_decision?.placement_candidate_id)?.value)?.matter_title}</p>}{item.type==='placement_conflict' && <p className="break-words text-sm">Recorded {item.last_decision.action==='move' ? `Move from ${recordedSource} to ${recordedTarget}` : `Keep in ${recordedSource}`}.</p>}<p className="break-words text-sm">{item.type==='placement_conflict' ? `Reason: ${item.last_decision.reason}` : item.last_decision.reason}</p></section>}
         {canResolve && item.type==='placement_conflict' ? <fieldset className="space-y-3"><legend className="text-sm font-medium">Decide the current filing</legend>
           <p className="text-caption text-[var(--text-muted)]">Inspect the exact source before deciding. Keep records why the verified key does not change this filing. Move requires the current dependency impact and can be blocked.</p>
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border)] p-3"><input type="radio" name="placed-outcome" checked={choice==='keep'} onChange={()=>void choosePlacement('keep')} className="mt-1 size-4 accent-[var(--primary)]"/><span className="text-sm">Keep current filing<span className="mt-1 block text-caption text-[var(--text-muted)]">Document and exact Workbench target remain in {item.matter_title}; explain why.</span></span></label>
