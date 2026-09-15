@@ -5,7 +5,7 @@ import { searchMatterDestinations } from '@/lib/actions/matter'
 import { getCurrentOrgId } from '@/lib/actions/org'
 import { createClient } from '@/lib/supabase/server'
 
-export const metadata = { title: 'Document Hub — GST Litigation DMS' }
+export const metadata = { title: 'Document Inbox — GST Litigation DMS' }
 
 interface DocumentsPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>

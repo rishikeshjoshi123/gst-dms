@@ -341,7 +341,7 @@ export function DashboardContent({
             </div>
             <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Your workspace is ready</h2>
             <p className="text-sm text-[var(--text-secondary)] mb-1">
-              Upload documents via the <span className="font-semibold text-[var(--text-primary)]">Document Hub</span> in the sidebar to get started.
+              Upload documents through <span className="font-semibold text-[var(--text-primary)]">Document Inbox</span> in the sidebar to get started.
             </p>
             <p className="text-xs text-[var(--text-muted)]">
               Clients and matters will be created automatically as documents are processed.

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
@@ -344,11 +345,11 @@ function ManagedDocumentHubClientView({
       setBreadcrumbs([
         { label: 'Matters', href: '/matters' },
         { label: selectedMatterContext.title || 'Matter', href: `/matters/${preselectedMatterId}` },
-        { label: 'Document Hub' },
+        { label: 'Document Inbox' },
       ])
       return
     }
-    setBreadcrumbs([{ label: 'Document Hub' }])
+    setBreadcrumbs([{ label: 'Document Inbox' }])
   }, [preselectedMatterId, selectedMatterContext, setBreadcrumbs])
 
   useEffect(() => {
@@ -762,8 +763,19 @@ function ManagedDocumentHubClientView({
   }
 
   const queueWorkbar = (
-    <header className="flex min-h-14 shrink-0 flex-col gap-2 border-b border-[var(--border)] bg-[var(--surface)] p-3 sm:flex-row sm:items-center">
-      <fieldset className="flex shrink-0 items-center rounded-[var(--radius-sm)] border border-[var(--border)] p-0.5">
+    <header aria-labelledby="upload-queue-heading" className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] p-3">
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 id="upload-queue-heading" className="text-section-heading">Upload Queue</h1>
+          <p className="truncate text-caption text-[var(--text-muted)]">Incoming PDFs and their processing status</p>
+        </div>
+        <Button ref={uploadButtonRef} type="button" className="shrink-0" onClick={() => setIsUploadOpen(true)}>
+          <Upload className="size-4" aria-hidden="true" />
+          Upload PDFs
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <fieldset className="flex shrink-0 items-center rounded-[var(--radius-sm)] border border-[var(--border)] p-0.5">
         <legend className="sr-only">Upload ownership</legend>
         {(['mine', 'all'] as const).map((scope) => (
           <Button
@@ -779,8 +791,8 @@ function ManagedDocumentHubClientView({
           </Button>
         ))}
       </fieldset>
-      <div className="relative min-w-0 flex-1">
-        <Label htmlFor="document-hub-search" className="sr-only">Search document queue</Label>
+        <div className="relative min-w-0 flex-1">
+          <Label htmlFor="document-hub-search" className="sr-only">Search Upload Queue</Label>
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
         <Input
           id="document-hub-search"
@@ -789,23 +801,18 @@ function ManagedDocumentHubClientView({
           placeholder="Search loaded documents"
           className="h-11 pl-9 sm:h-9"
         />
-      </div>
-      <p className="shrink-0 text-xs text-[var(--text-muted)]" aria-live="polite">
+        </div>
+        <p className="shrink-0 text-xs text-[var(--text-muted)]" aria-live="polite">
         {query.trim()
           ? `${filteredDocuments.length} matches in ${documents.length} loaded · ${queueTotal} total`
           : `${documents.length} of ${queueTotal} documents`}
-      </p>
-      <p
-        className="shrink-0 text-xs text-[var(--text-muted)]"
-        title="Live updates are unavailable. This foreground view periodically checks the authoritative queue."
-      >
-        {freshnessLabel(lastSuccessfulRefreshAt, freshnessClock, isOffline)}
-      </p>
-      <div className="flex shrink-0 items-center gap-2">
-        <Button ref={uploadButtonRef} type="button" onClick={() => setIsUploadOpen(true)}>
-          <Upload className="size-4" aria-hidden="true" />
-          Upload PDFs
-        </Button>
+        </p>
+        <p
+          className="shrink-0 text-xs text-[var(--text-muted)]"
+          title="Live updates are unavailable. This foreground view periodically checks the authoritative queue."
+        >
+          {freshnessLabel(lastSuccessfulRefreshAt, freshnessClock, isOffline)}
+        </p>
       </div>
     </header>
   )
@@ -827,7 +834,7 @@ function ManagedDocumentHubClientView({
             <h2 className="mt-3 text-section-heading">
               {query.trim()
                 ? 'No matches in loaded documents'
-                : ownershipScope === 'mine' ? 'No uploads from you' : 'No uploads in intake'}
+                : ownershipScope === 'mine' ? 'Your Upload Queue is clear' : 'The Upload Queue is clear'}
             </h2>
             <p className="mt-1 text-body text-[var(--text-muted)]">
               {query.trim() && nextOffset < queueTotal
@@ -835,8 +842,8 @@ function ManagedDocumentHubClientView({
                 : query.trim()
                   ? 'Clear the search to return to the full queue.'
                   : ownershipScope === 'mine'
-                    ? 'Upload PDFs here, or choose All uploads to review shared organisation intake.'
-                    : 'Upload PDFs to add documents for organisation triage.'}
+                    ? 'Upload a PDF here, or choose All uploads to see the shared organisation queue.'
+                    : 'Upload a PDF to start processing it in the organisation queue.'}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {query.trim() ? (
@@ -859,7 +866,7 @@ function ManagedDocumentHubClientView({
         <>
           <div className="hidden lg:block">
             <Table>
-              <TableCaption>Accessible document intake queue.</TableCaption>
+              <TableCaption>Upload Queue — accessible organisation intake items.</TableCaption>
               <TableHeader sticky>
                 <TableRow>
                   <TableHead>Document</TableHead>
@@ -983,7 +990,7 @@ function ManagedDocumentHubClientView({
       <div className="flex min-h-12 shrink-0 items-center border-b border-[var(--border)] px-2 lg:hidden">
         <Button type="button" variant="ghost" onClick={closeDetails}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to documents
+          Back to Upload Queue
         </Button>
       </div>
       <header className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)]">
@@ -1197,25 +1204,28 @@ function ManagedDocumentHubClientView({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
-      {selectedMatterContext && (
-        <div className="mb-3 flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm">
-          <span className="text-[var(--text-muted)]">Upload destination</span>
+      {selectedMatterContext && preselectedMatterId && (
+        <div className="mb-3 flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm" aria-label="Matter upload context">
+          <span className="text-[var(--text-muted)]">From Matter</span>
           <span className="min-w-0 truncate font-medium">{matterLabel(selectedMatterContext)}</span>
+          <Link href={`/matters/${preselectedMatterId}`} className="ml-auto inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-[var(--primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
+            Return to Matter
+          </Link>
           <Button
             type="button"
             variant="ghost"
-            className="ml-auto shrink-0"
+            className="shrink-0"
             onClick={() => router.replace(documentHubPath({ intakeId: selectedId ?? undefined }))}
           >
             <X className="size-4" aria-hidden="true" />
-            Remove destination
+            Clear Matter context
           </Button>
         </div>
       )}
 
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)]">
           <section
-            aria-label={sourceUrl && selectedDocument ? `PDF workspace for ${fileName(selectedDocument)}` : 'Document queue'}
+            aria-label={sourceUrl && selectedDocument ? `Source PDF for ${fileName(selectedDocument)}` : 'Upload Queue'}
             className={cn(
               'min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)]',
               selectedDocument && !sourceUrl ? 'hidden lg:flex' : 'flex',

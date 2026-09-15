@@ -4,7 +4,7 @@ import test from 'node:test'
 
 import { documentHubPath } from './document-hub-route'
 
-test('builds the canonical Document Hub route from allowlisted state only', () => {
+test('builds the canonical Document Inbox route from allowlisted state only', () => {
   assert.equal(documentHubPath(), '/documents')
   assert.equal(documentHubPath({ matterId: 'matter one' }), '/documents?matterId=matter+one')
   assert.equal(documentHubPath({ intakeId: 'intake/one' }), '/documents?intakeId=intake%2Fone')
@@ -28,7 +28,7 @@ test('makes documents the queue owner and inbox a redirect-only compatibility ro
   assert.doesNotMatch(inboxPage, /getStagedDocuments|InboxClientView/)
 })
 
-test('mounts the Document Hub queue, details, and source closure without changing the legacy inbox client', () => {
+test('mounts the Upload Queue, details, and source closure without changing the legacy inbox client', () => {
   const documentHub = readFileSync(new URL('../app/(app)/documents/DocumentHubClientView.tsx', import.meta.url), 'utf8')
 
   assert.match(documentHub, /canonicalIntakeActions/)
@@ -37,8 +37,29 @@ test('mounts the Document Hub queue, details, and source closure without changin
   assert.match(documentHub, /canonicalDocumentPath/)
   assert.match(documentHub, /lg:w-3\/5 lg:flex-none/)
   assert.match(documentHub, /lg:w-2\/5 lg:flex-none/)
-  assert.match(documentHub, /Back to documents/)
+  assert.match(documentHub, /Back to Upload Queue/)
   assert.match(documentHub, /Back to details/)
+})
+
+test('uses Document Inbox for the workspace and Upload Queue for processing without conflating Review', () => {
+  const [documentsPage, documentHub, sidebar, breadcrumbs] = [
+    '../app/(app)/documents/page.tsx',
+    '../app/(app)/documents/DocumentHubClientView.tsx',
+    '../components/nav/SidebarNav.tsx',
+    '../components/nav/BreadcrumbNav.tsx',
+  ].map(path => readFileSync(new URL(path, import.meta.url), 'utf8'))
+
+  assert.match(documentsPage, /title: 'Document Inbox — GST Litigation DMS'/)
+  assert.match(sidebar, /href: '\/documents',[\s\S]*label: 'Document Inbox'/)
+  assert.match(breadcrumbs, /'\/documents': 'Document Inbox'/)
+  assert.match(breadcrumbs, /'\/review': 'Pending Review'/)
+  assert.match(documentHub, /id="upload-queue-heading"[\s\S]*>Upload Queue</)
+  assert.match(documentHub, /aria-label=.*Upload Queue/)
+  assert.match(documentHub, /Search Upload Queue/)
+  assert.match(documentHub, /Upload PDFs/)
+  assert.match(documentHub, /From Matter/)
+  assert.match(documentHub, /Return to Matter/)
+  assert.doesNotMatch(documentHub, /Review queue/)
 })
 
 test('hands committed placement to the server-returned exact Workbench version', () => {
