@@ -55,7 +55,7 @@ port = 55327
     if (readFileSync(join(root, 'src/lib/supabase/database.types.ts'), 'utf8') !== generatedTypes) throw new Error('Isolated database type generation is not deterministic.')
     console.log('Regenerated and refined database types; repeated generation has exact parity.')
   }
-  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql', 'ambiguous_intake_placement_review.sql']) {
+  for (const file of ['extraction_conflict_review_setup.sql', 'extraction_conflict_review.sql', 'extraction_conflict_review_lifecycle.sql', 'processing_recovery_review.sql', 'ambiguous_intake_placement_review.sql', 'ambiguous_intake_placement_stale_facts.sql']) {
     const output = run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests', file), 'utf8') })
     console.log(`${file}: ${output.trim()}`)
   }
@@ -65,6 +65,8 @@ port = 55327
   console.log(run(node, ['scripts/acceptance/review-finisher-concurrency.mjs'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery') || process.argv.includes('--browser-placement')
   if (browserRequested) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_setup.sql'), 'utf8') }))
+  if (browserRequested) console.log(run(node, ['node_modules/tsx/dist/cli.mjs', 'scripts/acceptance/produce-review-placement.mts'], { env: { ...process.env, NODE_OPTIONS: '--conditions=react-server', NODE_PATH: `${join(root, 'node_modules/next/dist/compiled')}${process.env.NODE_PATH ? `:${process.env.NODE_PATH}` : ''}`, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55321', SUPABASE_SERVICE_ROLE_KEY: JSON.parse(run(node, [cli, 'status', '--workdir', workdir, '-o', 'json'])).SERVICE_ROLE_KEY } }))
+  if (browserRequested) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_invalidate.sql'), 'utf8') }))
   if (browserRequested) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
   if (browserRequested) {
     const browserArgs = ['node_modules/@playwright/test/cli.js', 'test', '--config', 'playwright.review.config.ts']

@@ -12,8 +12,9 @@ DECLARE
   session_id uuid:='16280000-0000-0000-0000-000000000001';
   fixture_intake_id uuid:='16270000-0000-0000-0000-000000000001';
   intended_intake uuid:='16270000-0000-0000-0000-000000000002';
+  no_pages_intake uuid:='16270000-0000-0000-0000-000000000003';
   item_id uuid; candidate_id uuid; key uuid:='16290000-0000-0000-0000-000000000001';
-  produced record; resolved record; detail jsonb; before_count bigint;
+  produced record; resolved record; detail jsonb; before_count bigint; page_rejected boolean:=false;
   candidates jsonb:=jsonb_build_array(
     jsonb_build_object('matter_id',matter_a,'evidence',jsonb_build_array(jsonb_build_object('kind','matter_code_exact','source_page_number',NULL))),
     jsonb_build_object('matter_id',matter_b,'evidence',jsonb_build_array(jsonb_build_object('kind','referenced_document_exact','source_page_number',1)))
@@ -37,6 +38,26 @@ BEGIN
   SELECT * INTO produced FROM public.produce_ambiguous_intake_placement_review(fixture_intake_id,'trusted-placement-v1',candidates);
   IF produced.review_item_id<>item_id OR (SELECT count(*) FROM public.intake_placement_runs WHERE intake_id=fixture_intake_id)<>1 THEN
     RAISE EXCEPTION 'Trusted producer replay did not dedupe';
+  END IF;
+  BEGIN
+    PERFORM public.produce_ambiguous_intake_placement_review(fixture_intake_id,'trusted-placement-page-boundary',jsonb_build_array(
+      jsonb_build_object('matter_id',matter_a,'evidence',jsonb_build_array(jsonb_build_object('kind','matter_code_exact','source_page_number',5))),
+      jsonb_build_object('matter_id',matter_b,'evidence',jsonb_build_array(jsonb_build_object('kind','referenced_document_exact','source_page_number',1)))
+    ));
+  EXCEPTION WHEN OTHERS THEN page_rejected:=SQLERRM='invalid trusted placement evidence';
+  END;
+  IF NOT page_rejected OR EXISTS(SELECT 1 FROM public.intake_placement_runs WHERE intake_id=fixture_intake_id AND source_revision='trusted-placement-page-boundary') THEN
+    RAISE EXCEPTION 'Evidence beyond the validated PDF page count was accepted';
+  END IF;
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
+    VALUES('162f0000-0000-0000-0000-000000000003',org,'documents','orgs/'||org||'/assets/162f0000-0000-0000-0000-000000000003/original.pdf',repeat('d',64),100,'application/pdf','available',now(),NULL,actor);
+  INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at)
+    VALUES('16280000-0000-0000-0000-000000000003',org,'162f0000-0000-0000-0000-000000000003','no-pages.pdf','application/pdf',100,'finalized',actor,now(),now());
+  INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by)
+    VALUES(no_pages_intake,org,'162f0000-0000-0000-0000-000000000003','16280000-0000-0000-0000-000000000003','ready',actor);
+  SELECT * INTO produced FROM public.produce_ambiguous_intake_placement_review(no_pages_intake,'trusted-placement-v1',candidates);
+  IF produced.code<>'ineligible_intake' OR EXISTS(SELECT 1 FROM public.review_items WHERE intake_id=no_pages_intake) THEN
+    RAISE EXCEPTION 'Placement evidence was accepted without a validated page count';
   END IF;
   -- Matter-origin Intake remains outside this packet even if candidates exist.
   INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { launchChromiumPageZoom } from './chromium-page-zoom'
 import { spawn, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -33,10 +34,15 @@ test('trusted ambiguous global Intake places once and opens the exact new Workbe
   await page.goto('/review?type=ambiguous_placement&search=ambiguous-browser-source')
   await page.getByRole('button', { name: /^Choose a Matter destination/ }).click()
   await expect(page.getByText('Exact referenced document · Page 2', { exact: true })).toBeVisible()
-  const reviewUrl = page.url()
+  const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Open exact Intake source · Page 1', exact: true }).click()
-  await expect(page).toHaveURL(/\/storage\/v1\/object\/sign\/documents\/.*#page=1/)
-  await page.goto(reviewUrl)
+  const download = await downloadPromise
+  const downloadPath = await download.path()
+  expect(downloadPath).not.toBeNull()
+  const sourceBytes = readFileSync(downloadPath!)
+  expect(sourceBytes.subarray(0, 5).toString()).toBe('%PDF-')
+  expect(sourceBytes.length).toBe(4551)
+  expect(createHash('sha256').update(sourceBytes).digest('hex')).toBe('5d02d605e459d75c07055734a17b172b7fa523b6450047e62edbd2c8f5033b88')
   await page.getByRole('button', { name: 'View decision', exact: true }).click()
   await page.getByRole('radio', { name: /Place in Appeal proceeding/ }).check()
   await page.getByRole('button', { name: 'Review destination', exact: true }).click()
@@ -56,6 +62,11 @@ test('trusted ambiguous global Intake places once and opens the exact new Workbe
   await expect(page.getByText('Placement recorded', { exact: true })).toBeVisible()
   await expect(page.getByText('Destination: Appeal proceeding', { exact: true })).toBeVisible()
   await expect(page.getByText('This Review item is closed.', { exact: true })).toBeVisible()
+  await noOverflow(page)
+  await page.goto('/review?status=closed&type=ambiguous_placement&search=unavailable-browser-source')
+  await page.getByRole('button', { name: /^Choose a Matter destination/ }).click()
+  await expect(page.getByText('The Intake source or an eligible destination changed and is no longer available for this decision.', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Place in selected Matter', exact: true })).toHaveCount(0)
   await noOverflow(page)
 })
 test('live Review shows exact source evidence, URL selection, confirmation and Viewer authority', async ({ page }) => {

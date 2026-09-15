@@ -3788,6 +3788,8 @@ export type Database = {
       }
       intake_placement_candidates: {
         Row: {
+          client_id: string
+          client_revision: number
           created_at: string
           id: string
           matter_id: string
@@ -3797,6 +3799,8 @@ export type Database = {
           placement_run_id: string
         }
         Insert: {
+          client_id: string
+          client_revision: number
           created_at?: string
           id?: string
           matter_id: string
@@ -3806,6 +3810,8 @@ export type Database = {
           placement_run_id: string
         }
         Update: {
+          client_id?: string
+          client_revision?: number
           created_at?: string
           id?: string
           matter_id?: string
@@ -3815,6 +3821,13 @@ export type Database = {
           placement_run_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "intake_placement_candidates_org_id_client_id_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
           {
             foreignKeyName: "intake_placement_candidates_org_id_matter_id_fkey"
             columns: ["org_id", "matter_id"]

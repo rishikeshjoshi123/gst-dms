@@ -12,9 +12,10 @@ BEGIN
     VALUES('16480000-0000-0000-0000-000000000001',org,asset_id,'ambiguous-browser-source.pdf','application/pdf',4551,'finalized',actor,now(),now());
   INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by)
     VALUES('16470000-0000-0000-0000-000000000001',org,asset_id,'16480000-0000-0000-0000-000000000001','ready',actor);
-  PERFORM set_config('request.jwt.claim.role','service_role',true);
-  PERFORM public.produce_ambiguous_intake_placement_review('16470000-0000-0000-0000-000000000001','trusted-placement-browser-v1',jsonb_build_array(
-    jsonb_build_object('matter_id','164d0000-0000-0000-0000-000000000001','evidence',jsonb_build_array(jsonb_build_object('kind','verified_client_identifier','source_page_number',1))),
-    jsonb_build_object('matter_id','164d0000-0000-0000-0000-000000000002','evidence',jsonb_build_array(jsonb_build_object('kind','referenced_document_exact','source_page_number',2)))
-  ));
+  INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
+    VALUES('164f0000-0000-0000-0000-000000000002',org,'documents','orgs/'||org||'/assets/164f0000-0000-0000-0000-000000000002/original.pdf',repeat('e',64),4551,'application/pdf','available',now(),4,actor);
+  INSERT INTO public.upload_sessions(id,org_id,asset_id,declared_filename,declared_mime_type,declared_byte_size,state,created_by,uploaded_at,finalized_at)
+    VALUES('16480000-0000-0000-0000-000000000002',org,'164f0000-0000-0000-0000-000000000002','unavailable-browser-source.pdf','application/pdf',4551,'finalized',actor,now(),now());
+  INSERT INTO public.intake_items(id,org_id,asset_id,upload_session_id,state,uploaded_by)
+    VALUES('16470000-0000-0000-0000-000000000002',org,'164f0000-0000-0000-0000-000000000002','16480000-0000-0000-0000-000000000002','ready',actor);
 END $setup$;

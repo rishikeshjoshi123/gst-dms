@@ -160,6 +160,7 @@ function ReviewItemDetail({ detail, tab, onDecisionTab, asOf }: { detail: Review
     <div key={tab} id="review-tabpanel" role="tabpanel" aria-labelledby={`review-tab-${tab}`} tabIndex={0} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
       {message && <p role="status" className="text-sm">{message}</p>}
       {item.closure_reason === 'source_replaced' && <p className="text-sm">The source or its candidate evidence was replaced. This item is closed; it cannot change the current document.</p>}
+      {item.closure_reason === 'source_unavailable' && <p className="text-sm">The Intake source or an eligible destination changed and is no longer available for this decision. This item is closed and no longer blocks Intake assignment.</p>}
       {tab === 'evidence' ? <>
         <p className="break-words text-caption text-[var(--text-muted)]">{item.client_name} · {item.matter_title}{item.version_number !== null && <> · Document version {item.version_number}{!item.is_current && ' (historical)'}</>}</p>
         {item.type === 'ambiguous_placement' && <section className="space-y-3 border-t border-[var(--border)] pt-3">

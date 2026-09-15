@@ -47,13 +47,16 @@ CREATE TABLE public.intake_placement_candidates (
   placement_run_id uuid NOT NULL,
   matter_id uuid NOT NULL,
   matter_revision bigint NOT NULL CHECK(matter_revision>0),
+  client_id uuid NOT NULL,
+  client_revision bigint NOT NULL CHECK(client_revision>0),
   ordinal integer NOT NULL CHECK(ordinal BETWEEN 1 AND 20),
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(org_id,id),
   UNIQUE(placement_run_id,matter_id),
   UNIQUE(placement_run_id,ordinal),
   FOREIGN KEY(org_id,placement_run_id) REFERENCES public.intake_placement_runs(org_id,id),
-  FOREIGN KEY(org_id,matter_id) REFERENCES public.matters(org_id,id)
+  FOREIGN KEY(org_id,matter_id) REFERENCES public.matters(org_id,id),
+  FOREIGN KEY(org_id,client_id) REFERENCES public.clients(org_id,id)
 );
 
 CREATE TABLE public.intake_placement_evidence (
@@ -172,7 +175,7 @@ CREATE FUNCTION public.produce_ambiguous_intake_placement_review(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   intake_row public.intake_items%ROWTYPE; asset_row public.file_assets%ROWTYPE;
-  candidate jsonb; evidence jsonb; matter_row public.matters%ROWTYPE;
+  candidate jsonb; evidence jsonb; matter_row public.matters%ROWTYPE; client_row public.clients%ROWTYPE;
   run_id uuid; item_id uuid; candidate_id uuid; candidate_count integer;
   candidate_ids uuid[]:='{}'; candidate_ordinal integer:=0; evidence_ordinal integer;
 BEGIN
@@ -190,7 +193,8 @@ BEGIN
     WHERE id=intake_row.asset_id AND org_id=intake_row.org_id FOR UPDATE;
   IF intake_row.state<>'ready' OR intake_row.uploaded_by IS NULL OR asset_row.id IS NULL
     OR asset_row.availability<>'available' OR asset_row.detected_mime_type<>'application/pdf'
-    OR asset_row.storage_deleted_at IS NOT NULL OR asset_row.sha256 IS NULL THEN
+    OR asset_row.storage_deleted_at IS NOT NULL OR asset_row.sha256 IS NULL
+    OR asset_row.validated_page_count IS NULL OR asset_row.validated_page_count<1 THEN
     RETURN QUERY SELECT 'ineligible_intake',NULL::uuid,NULL::uuid; RETURN;
   END IF;
   SELECT count(DISTINCT value->>'matter_id') INTO candidate_count
@@ -219,14 +223,15 @@ BEGIN
   FOR candidate IN SELECT value FROM jsonb_array_elements(p_candidates) entry(value) ORDER BY value->>'matter_id' LOOP
     SELECT * INTO matter_row FROM public.matters m
       WHERE m.id=(candidate->>'matter_id')::uuid AND m.org_id=intake_row.org_id FOR SHARE;
+    SELECT * INTO client_row FROM public.clients c
+      WHERE c.id=matter_row.client_id AND c.org_id=intake_row.org_id FOR SHARE;
     IF matter_row.id IS NULL OR matter_row.record_state<>'active' OR matter_row.deleted_at IS NOT NULL
-      OR EXISTS(SELECT 1 FROM public.clients c WHERE c.id=matter_row.client_id
-        AND (c.org_id<>intake_row.org_id OR c.record_state<>'active' OR c.deleted_at IS NOT NULL)) THEN
+      OR client_row.id IS NULL OR client_row.record_state<>'active' OR client_row.deleted_at IS NOT NULL THEN
       RAISE EXCEPTION 'trusted placement candidate must be an active destination';
     END IF;
     candidate_ordinal:=candidate_ordinal+1;
-    INSERT INTO public.intake_placement_candidates(org_id,placement_run_id,matter_id,matter_revision,ordinal)
-      VALUES(intake_row.org_id,run_id,matter_row.id,matter_row.revision,candidate_ordinal) RETURNING id INTO candidate_id;
+    INSERT INTO public.intake_placement_candidates(org_id,placement_run_id,matter_id,matter_revision,client_id,client_revision,ordinal)
+      VALUES(intake_row.org_id,run_id,matter_row.id,matter_row.revision,client_row.id,client_row.revision,candidate_ordinal) RETURNING id INTO candidate_id;
     candidate_ids:=array_append(candidate_ids,candidate_id);
     evidence_ordinal:=0;
     FOR evidence IN SELECT value FROM jsonb_array_elements(candidate->'evidence') entry(value) LOOP
@@ -234,7 +239,9 @@ BEGIN
         OR jsonb_typeof(evidence->'kind')<>'string'
         OR evidence->>'kind' NOT IN ('matter_code_exact','external_proceeding_id_exact','referenced_document_exact','verified_client_identifier','tax_period_overlap','procedure_compatible')
         OR (evidence->'source_page_number'<>'null'::jsonb AND
-          (jsonb_typeof(evidence->'source_page_number')<>'number' OR NOT pg_input_is_valid(evidence->>'source_page_number','integer') OR (evidence->>'source_page_number')::integer<1)) THEN
+          (jsonb_typeof(evidence->'source_page_number')<>'number' OR NOT pg_input_is_valid(evidence->>'source_page_number','integer')
+            OR (evidence->>'source_page_number')::integer<1
+            OR (evidence->>'source_page_number')::integer>asset_row.validated_page_count)) THEN
         RAISE EXCEPTION 'invalid trusted placement evidence';
       END IF;
       evidence_ordinal:=evidence_ordinal+1;
@@ -260,13 +267,18 @@ BEGIN
     IF OLD.state='ready' AND NEW.state='assigned' AND EXISTS(
       SELECT 1 FROM public.review_items i WHERE i.intake_id=NEW.id AND i.type='ambiguous_placement' AND i.status='needs_review'
     ) THEN RAISE EXCEPTION 'ambiguous_intake_requires_typed_review'; END IF;
-    IF NEW.state<>'ready' OR NEW.asset_id IS DISTINCT FROM OLD.asset_id OR NEW.intended_matter_id IS NOT NULL THEN
+    IF NEW.state<>'ready' OR NEW.asset_id IS DISTINCT FROM OLD.asset_id OR NEW.intended_matter_id IS NOT NULL
+      OR NEW.updated_at IS DISTINCT FROM OLD.updated_at THEN
       UPDATE public.review_items SET status='closed',closure_reason='source_unavailable',closed_at=now(),updated_at=now(),revision=revision+1
         WHERE intake_id=NEW.id AND type='ambiguous_placement' AND status='needs_review';
       UPDATE public.intake_placement_runs SET state='unavailable',unavailable_at=now()
         WHERE intake_id=NEW.id AND state='ambiguous';
     END IF;
-  ELSIF TG_TABLE_NAME='file_assets' AND (NEW.availability<>'available' OR NEW.storage_deleted_at IS NOT NULL OR NEW.sha256 IS DISTINCT FROM OLD.sha256) THEN
+  ELSIF TG_TABLE_NAME='file_assets' AND (NEW.availability IS DISTINCT FROM OLD.availability
+    OR NEW.storage_deleted_at IS DISTINCT FROM OLD.storage_deleted_at
+    OR NEW.sha256 IS DISTINCT FROM OLD.sha256
+    OR NEW.detected_mime_type IS DISTINCT FROM OLD.detected_mime_type
+    OR NEW.validated_page_count IS DISTINCT FROM OLD.validated_page_count) THEN
     UPDATE public.review_items SET status='closed',closure_reason='source_unavailable',closed_at=now(),updated_at=now(),revision=revision+1
       WHERE intake_asset_id=NEW.id AND type='ambiguous_placement' AND status='needs_review';
     UPDATE public.intake_placement_runs SET state='unavailable',unavailable_at=now()
@@ -281,12 +293,27 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
+CREATE FUNCTION public.ambiguous_intake_review_client_lifecycle() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+  IF NEW.record_state<>'active' OR NEW.deleted_at IS NOT NULL OR NEW.revision<>OLD.revision THEN
+    UPDATE public.review_items SET status='closed',closure_reason='source_unavailable',closed_at=now(),updated_at=now(),revision=revision+1
+      WHERE type='ambiguous_placement' AND status='needs_review' AND placement_run_id IN(
+        SELECT placement_run_id FROM public.intake_placement_candidates WHERE client_id=NEW.id
+      );
+    UPDATE public.intake_placement_runs SET state='unavailable',unavailable_at=now()
+      WHERE state='ambiguous' AND id IN(SELECT placement_run_id FROM public.intake_placement_candidates WHERE client_id=NEW.id);
+  END IF;
+  RETURN NEW;
+END $$;
 CREATE TRIGGER ambiguous_intake_review_intake_lifecycle AFTER UPDATE ON public.intake_items
   FOR EACH ROW EXECUTE FUNCTION public.ambiguous_intake_review_lifecycle();
 CREATE TRIGGER ambiguous_intake_review_asset_lifecycle AFTER UPDATE ON public.file_assets
   FOR EACH ROW EXECUTE FUNCTION public.ambiguous_intake_review_lifecycle();
 CREATE TRIGGER ambiguous_intake_review_matter_lifecycle AFTER UPDATE ON public.matters
   FOR EACH ROW EXECUTE FUNCTION public.ambiguous_intake_review_lifecycle();
+CREATE TRIGGER ambiguous_intake_review_client_lifecycle AFTER UPDATE ON public.clients
+  FOR EACH ROW EXECUTE FUNCTION public.ambiguous_intake_review_client_lifecycle();
 
 DROP FUNCTION public.read_review_queue(text,text,text,text,integer,integer);
 CREATE FUNCTION public.read_review_queue(
@@ -340,9 +367,13 @@ BEGIN
       'version_number',NULL,'is_current',intake.state='ready','source_identity','Immutable Intake PDF · Page 1',
       'allowed_actions',CASE WHEN actor.can_resolve AND item.status='needs_review' AND intake.state='ready'
         AND intake.intended_matter_id IS NULL AND asset.id=item.intake_asset_id AND asset.availability='available'
-        AND asset.storage_deleted_at IS NULL AND asset.sha256=run.asset_sha256 AND intake.updated_at=run.intake_updated_at
+        AND asset.storage_deleted_at IS NULL AND asset.sha256=run.asset_sha256
+        AND asset.detected_mime_type='application/pdf' AND asset.validated_page_count>=1
+        AND intake.updated_at=run.intake_updated_at
         AND run.state='ambiguous' AND NOT EXISTS(SELECT 1 FROM public.intake_placement_candidates pc JOIN public.matters m ON m.id=pc.matter_id AND m.org_id=pc.org_id
-          JOIN public.clients c ON c.id=m.client_id AND c.org_id=m.org_id WHERE pc.placement_run_id=run.id AND (m.revision<>pc.matter_revision OR m.record_state<>'active' OR m.deleted_at IS NOT NULL OR c.record_state<>'active' OR c.deleted_at IS NOT NULL))
+          JOIN public.clients c ON c.id=pc.client_id AND c.org_id=pc.org_id WHERE pc.placement_run_id=run.id AND
+          (m.client_id<>pc.client_id OR m.revision<>pc.matter_revision OR m.record_state<>'active' OR m.deleted_at IS NOT NULL
+            OR c.revision<>pc.client_revision OR c.record_state<>'active' OR c.deleted_at IS NOT NULL))
         THEN jsonb_build_array('select_destination') ELSE '[]'::jsonb END,
       'record_baseline',NULL,'evidence',coalesce((SELECT jsonb_agg(jsonb_build_object(
         'candidate_id',pc.id,'ordinal',pc.ordinal,'selectable',true,'page_number',1,
@@ -396,7 +427,7 @@ CREATE FUNCTION public.resolve_ambiguous_intake_placement(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE actor record; item public.review_items%ROWTYPE; prior public.review_item_decisions%ROWTYPE;
   intake_row public.intake_items%ROWTYPE; asset_row public.file_assets%ROWTYPE; run_row public.intake_placement_runs%ROWTYPE;
-  candidate_row public.intake_placement_candidates%ROWTYPE; matter_row public.matters%ROWTYPE; client_id_value uuid;
+  candidate_row public.intake_placement_candidates%ROWTYPE; matter_row public.matters%ROWTYPE; client_row public.clients%ROWTYPE;
   assigned record; reason_value text:=btrim(p_reason);
 BEGIN
   SELECT * INTO actor FROM public.review_actor(true);
@@ -421,13 +452,14 @@ BEGIN
   SELECT * INTO run_row FROM public.intake_placement_runs WHERE id=item.placement_run_id AND org_id=item.org_id FOR UPDATE;
   SELECT * INTO candidate_row FROM public.intake_placement_candidates WHERE id=p_placement_candidate_id AND placement_run_id=run_row.id AND org_id=item.org_id;
   SELECT * INTO matter_row FROM public.matters WHERE id=candidate_row.matter_id AND org_id=item.org_id FOR UPDATE;
-  SELECT client_id INTO client_id_value FROM public.matters WHERE id=matter_row.id;
-  PERFORM 1 FROM public.clients WHERE id=client_id_value AND org_id=item.org_id FOR SHARE;
+  SELECT * INTO client_row FROM public.clients WHERE id=candidate_row.client_id AND org_id=item.org_id FOR SHARE;
   IF item.revision<>p_expected_revision OR item.status<>'needs_review' OR run_row.state<>'ambiguous' OR candidate_row.id IS NULL
     OR intake_row.state<>'ready' OR intake_row.intended_matter_id IS NOT NULL OR intake_row.asset_id<>asset_row.id
     OR intake_row.updated_at<>run_row.intake_updated_at OR asset_row.sha256<>run_row.asset_sha256 OR asset_row.availability<>'available'
-    OR asset_row.storage_deleted_at IS NOT NULL OR matter_row.revision<>candidate_row.matter_revision OR matter_row.record_state<>'active'
-    OR matter_row.deleted_at IS NOT NULL OR NOT EXISTS(SELECT 1 FROM public.clients c WHERE c.id=matter_row.client_id AND c.org_id=item.org_id AND c.record_state='active' AND c.deleted_at IS NULL) THEN
+    OR asset_row.storage_deleted_at IS NOT NULL OR asset_row.detected_mime_type<>'application/pdf' OR asset_row.validated_page_count<1
+    OR matter_row.revision<>candidate_row.matter_revision OR matter_row.record_state<>'active' OR matter_row.deleted_at IS NOT NULL
+    OR matter_row.client_id<>candidate_row.client_id OR client_row.id IS NULL OR client_row.revision<>candidate_row.client_revision
+    OR client_row.record_state<>'active' OR client_row.deleted_at IS NOT NULL THEN
     RETURN QUERY SELECT 'stale',public.read_review_detail(item.id),false,NULL::uuid,NULL::uuid,NULL::uuid,NULL::bigint; RETURN;
   END IF;
   UPDATE public.review_items SET status='closed',closure_reason='decision_recorded',closed_at=now(),updated_at=now(),revision=revision+1 WHERE id=item.id;
@@ -442,7 +474,7 @@ BEGIN
   INSERT INTO public.intake_placement_decisions(org_id,placement_run_id,review_item_id,placement_candidate_id,matter_id,document_id,document_version_id,actor_user_id,reason,idempotency_key)
   VALUES(item.org_id,run_row.id,item.id,candidate_row.id,matter_row.id,assigned.document_id,assigned.document_version_id,actor.actor_user_id,reason_value,p_idempotency_key);
   PERFORM public.append_activity_event(item.org_id,'review.ambiguous_placement_decided',1::smallint,'user',actor.actor_user_id,'Member','document',
-    assigned.document_id,client_id_value,matter_row.id,'Document','Intake placement decision recorded',
+    assigned.document_id,client_row.id,matter_row.id,'Document','Intake placement decision recorded',
     jsonb_build_object('action','select_destination','intake_id',intake_row.id,'matter_id',matter_row.id,'revision',item.revision+1),
     'document',assigned.document_id,assigned.document_version_id,item.id,NULL,
     'review.placement.'||item.org_id||'.'||actor.actor_user_id||'.'||p_idempotency_key,now());
@@ -471,7 +503,7 @@ ALTER TABLE public.intake_placement_candidates FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.intake_placement_evidence FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.intake_placement_decisions FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.intake_placement_runs,public.intake_placement_candidates,public.intake_placement_evidence,public.intake_placement_decisions FROM PUBLIC,anon,authenticated,service_role;
-REVOKE ALL ON FUNCTION public.produce_ambiguous_intake_placement_review(uuid,text,jsonb),public.ambiguous_intake_review_lifecycle() FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION public.produce_ambiguous_intake_placement_review(uuid,text,jsonb),public.ambiguous_intake_review_lifecycle(),public.ambiguous_intake_review_client_lifecycle() FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.produce_ambiguous_intake_placement_review(uuid,text,jsonb) TO service_role;
 REVOKE ALL ON FUNCTION public.read_review_queue(text,text,text,text,integer,integer),public.read_review_detail(uuid),public.resolve_ambiguous_intake_placement(uuid,bigint,uuid,text,uuid),public.get_intake_item_triage_context(uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.read_review_queue(text,text,text,text,integer,integer),public.read_review_detail(uuid),public.resolve_ambiguous_intake_placement(uuid,bigint,uuid,text,uuid),public.get_intake_item_triage_context(uuid) TO authenticated;
