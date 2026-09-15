@@ -34,8 +34,25 @@ September 10–12 decisions resolve onboarding, Trash activation, departure/remo
 Read this index at startup and the affected entries below. Detailed history is under [Resolved](#resolved); read a dated record only when its decision is relevant.
 
 - [2026-09-14 — Production go-live ownership, hosting, recovery and incident response](#2026-09-14--production-go-live-ownership-hosting-recovery-and-incident-response)
+- [2026-09-15 — D12 adjudicated extraction corpus and paid-provider execution](#2026-09-15--d12-adjudicated-extraction-corpus-and-paid-provider-execution)
 
 ## Open
+
+### 2026-09-15 — D12 adjudicated extraction corpus and paid-provider execution
+
+**Status:** Open; mandatory release gate, while local implementation may continue.
+
+**Input and authority needed:** provide or approve the content-safe 60–100-page independently adjudicated representative source corpus required by the [September 11 acquisition decision](decision-history/2026-09-11-ocr-acquisition-benchmark-thresholds.md), and separately authorise the bounded paid Google Document AI and `gemini-2.5-flash` benchmark execution with the approved Mumbai/India configuration. Credentials remain outside the repository.
+
+**Why it cannot be inferred:** no qualifying adjudicated corpus is present, the benchmark must measure real provider accuracy/latency/billing rather than fixtures, and the current implementation instruction expressly forbids paid-provider invocation. Local structural tests cannot establish the mandatory ordinary extraction-quality result.
+
+**Recommendation:** finish ready provider-free producer/resolver and release-harness dependencies with synthetic data, prepare a content-safe benchmark manifest/report path, then run one separately authorised bounded benchmark without logging source content. Promote nothing unless every approved accuracy, evidence, regional, latency and cost threshold passes.
+
+**Affected outcome / gate:** D12 ordinary source-grounded extraction and D13 confidential-data release. Manual recovery remains exceptional evidence only and does not waive this gate.
+
+**Safe work while pending:** typed placement/possible-duplicate/deadline Review dependencies, local worker/recovery checks and provider-free release integration using synthetic PDFs. Do not claim provider quality or deploy.
+
+**Resume owner / action:** product owner supplies/approves the adjudicated corpus and paid-run authority; the D12 implementation owner verifies current provider pricing/configuration, executes the bounded benchmark, records content-safe evidence and preserves fail-closed rollout.
 
 ### 2026-09-14 — Production go-live ownership, hosting, recovery and incident response
 
