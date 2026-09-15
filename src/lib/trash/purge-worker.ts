@@ -87,8 +87,8 @@ export async function runTrashPurgeBatch(client: TrashPurgeRpcClient) {
 export type TrashPurgeSweepCursor = { at: string; id: string } | null
 
 // Keyset paging prevents a held operation from repeatedly occupying the
-// first due-work batch. Each invocation is bounded; a full page resumes from
-// its database-issued cursor in a new dispatcher run.
+// first due-work batch. The database persists progress; the returned cursor
+// is only a continuation hint, so a lost Trigger wake can resume next day.
 export async function enqueueTrashPurgeSweepPage(client: TrashPurgeRpcClient, cursor: TrashPurgeSweepCursor) {
   const [page] = await rpc(client, 'enqueue_due_trash_purges_page', {
     p_batch_size: 100, p_after_at: cursor?.at ?? null, p_after_id: cursor?.id ?? null,

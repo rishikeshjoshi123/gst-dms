@@ -54,8 +54,10 @@ test('conditional scope has its required cut order while retention remains enabl
   assert.equal(PILOT_RELEASE_MANIFEST.capabilities.permanentPurge, 'enabled')
   assert.deepEqual(PILOT_RELEASE_MANIFEST.workers.releaseGated, [
     'dispatch-trash-permanent-delete',
-    'reconcile-trash-permanent-delete',
+    'sweep-trash-permanent-delete-daily',
   ])
+  assert.ok(!PILOT_RELEASE_MANIFEST.workers.releaseGated.includes('reconcile-trash-permanent-delete'))
+  assert.ok(!PILOT_RELEASE_MANIFEST.workers.releaseGated.includes('project-trash-retention-team-attention'))
   assert.deepEqual(PILOT_RELEASE_MANIFEST.conditionalCapabilityCutOrder, [
     'matterScopedCitedRetrieval',
     'tasksAndReminders',

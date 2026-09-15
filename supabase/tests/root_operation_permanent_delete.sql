@@ -338,9 +338,19 @@ BEGIN
   EXCEPTION WHEN others THEN denied:=true;
   END;
   IF NOT denied THEN RAISE EXCEPTION 'subtree hold writer bypassed prepared-operation fence'; END IF;
-  UPDATE public.trash_purge_jobs SET state='blocked',attempt_count=20,lease_token=NULL,lease_expires_at=NULL,
-    safe_error_code='retry_exhausted' WHERE id=job.job_id;
-  UPDATE public.trash_operations SET state='purge_failed',purge_failed_at=now(),last_error_code='retry_exhausted' WHERE id=retry_operation;
+  UPDATE public.trash_purge_jobs SET state='waiting_storage',attempt_count=20,
+    lease_token=NULL,lease_expires_at=NULL,safe_error_code='storage_delete_failed' WHERE id=job.job_id;
+  IF (SELECT wake_at FROM public.next_trash_purge_failure_wake())>now() THEN
+    RAISE EXCEPTION 'exhausted waiting_storage did not request failure-specific reconciliation';
+  END IF;
+  PERFORM public.claim_trash_purge_work(10,120);
+  IF NOT EXISTS (
+    SELECT 1 FROM public.trash_purge_jobs WHERE id=job.job_id
+      AND state='blocked' AND safe_error_code='retry_exhausted' AND next_attempt_at IS NULL
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.trash_operations WHERE id=retry_operation
+      AND state='purge_failed' AND last_error_code='retry_exhausted' AND purge_failed_at IS NOT NULL
+  ) THEN RAISE EXCEPTION 'exhausted waiting_storage was not coherently terminalized'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.get_trash_workspace(org,NULL,NULL,retry_operation,50) workspace
     WHERE workspace.row_kind='operation' AND workspace.operation_id=retry_operation) THEN
     RAISE EXCEPTION 'purge_failed operation disappeared from secured workspace';

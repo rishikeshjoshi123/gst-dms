@@ -9389,6 +9389,27 @@ export type Database = {
           },
         ]
       }
+      trash_purge_sweep_progress: {
+        Row: {
+          id: number
+          scan_after_at: string | null
+          scan_after_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          id: number
+          scan_after_at?: string | null
+          scan_after_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          scan_after_at?: string | null
+          scan_after_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       trash_purge_tombstones: {
         Row: {
           actor_user_id: string | null

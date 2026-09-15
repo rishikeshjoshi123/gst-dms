@@ -33,11 +33,11 @@ test('Trash command snapshots the locked policy and creates a schedule without a
   assert.doesNotMatch(migration, /DELETE FROM public\.(clients|matters|documents)|storage\.objects/)
 })
 
-test('Team attention is operation-keyed, windowed, replay-safe, source-resolved, and live-scheduled', async () => {
+test('Team attention remains a dormant operation-keyed projection, while daily IST purge is the pilot schedule', async () => {
   const [migration, worker, dashboard, reader] = await Promise.all([
     read('supabase/migrations/00090_trash_retention_policy_and_attention.sql'),
     read('src/trigger/outbox.ts'),
-    read('src/app/(app)/dashboard/TrashRetentionTeamAttentionPanel.tsx'),
+    read('src/app/(app)/dashboard/page.tsx'),
     read('src/lib/trash/retention-policy.ts'),
   ])
   assert.match(migration, /operation_id uuid PRIMARY KEY/)
@@ -48,9 +48,10 @@ test('Team attention is operation-keyed, windowed, replay-safe, source-resolved,
   assert.match(migration, /WHEN NEW\.state='restored' THEN 'source_restored'[\s\S]*ELSE 'source_purged'/)
   assert.match(migration, /NOT \('trash\.retention\.manage'=ANY\(actor\.capabilities\)\)/)
   assert.doesNotMatch(migration, /CREATE TABLE public\.trash_retention_team_attention_items[\s\S]{0,900}\b(title|body|content|storage_path)\b/)
-  assert.match(worker, /id: 'project-trash-retention-team-attention'/)
-  assert.match(worker, /project_due_trash_retention_team_attention/)
-  assert.match(dashboard, /\/trash\?selected=\$\{item\.operationId\}/)
+  assert.doesNotMatch(worker, /id: 'project-trash-retention-team-attention'/)
+  assert.doesNotMatch(worker, /id: 'reconcile-trash-permanent-delete'/)
+  assert.match(worker, /id: 'sweep-trash-permanent-delete-daily',[\s\S]*pattern: '0 0 \* \* \*', timezone: 'Asia\/Kolkata'/)
+  assert.doesNotMatch(dashboard, /TrashRetentionTeamAttentionPanel|getTrashRetentionTeamAttention/)
   assert.match(reader, /get_trash_retention_team_attention/)
 })
 

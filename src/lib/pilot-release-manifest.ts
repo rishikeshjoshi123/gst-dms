@@ -114,7 +114,7 @@ export const PILOT_RELEASE_MANIFEST = {
     disabled: ['generate-matter-wiki', 'deadline-reminders'],
     releaseGated: [
       'dispatch-trash-permanent-delete',
-      'reconcile-trash-permanent-delete',
+      'sweep-trash-permanent-delete-daily',
     ],
   },
   limits: {
