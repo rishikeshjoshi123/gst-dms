@@ -63,15 +63,22 @@ port = 55327
   console.log(run('sh', ['supabase/tests/ambiguous_intake_placement_concurrency.sh'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   console.log(run('bash', ['supabase/tests/extraction_conflict_review_concurrency.sh'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
   console.log(run(node, ['scripts/acceptance/review-finisher-concurrency.mjs'], { env: { ...process.env, SUPABASE_DB_CONTAINER: container } }))
-  const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery') || process.argv.includes('--browser-placement')
-  if (browserRequested) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_setup.sql'), 'utf8') }))
-  if (browserRequested) console.log(run(node, ['node_modules/tsx/dist/cli.mjs', 'scripts/acceptance/produce-review-placement.mts'], { env: { ...process.env, NODE_OPTIONS: '--conditions=react-server', NODE_PATH: `${join(root, 'node_modules/next/dist/compiled')}${process.env.NODE_PATH ? `:${process.env.NODE_PATH}` : ''}`, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55321', SUPABASE_SERVICE_ROLE_KEY: JSON.parse(run(node, [cli, 'status', '--workdir', workdir, '-o', 'json'])).SERVICE_ROLE_KEY } }))
-  if (browserRequested) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_invalidate.sql'), 'utf8') }))
-  if (browserRequested) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
-  if (browserRequested) {
+  const probeDate = process.argv.includes('--probe-date')
+  const browserDate = process.argv.includes('--browser-date') || probeDate
+  const browserRequested = process.argv.includes('--browser') || process.argv.includes('--browser-recovery') || process.argv.includes('--browser-placement') || browserDate
+  if (browserRequested && !browserDate) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_setup.sql'), 'utf8') }))
+  if (browserRequested && !browserDate) console.log(run(node, ['node_modules/tsx/dist/cli.mjs', 'scripts/acceptance/produce-review-placement.mts'], { env: { ...process.env, NODE_OPTIONS: '--conditions=react-server', NODE_PATH: `${join(root, 'node_modules/next/dist/compiled')}${process.env.NODE_PATH ? `:${process.env.NODE_PATH}` : ''}`, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55321', SUPABASE_SERVICE_ROLE_KEY: JSON.parse(run(node, [cli, 'status', '--workdir', workdir, '-o', 'json'])).SERVICE_ROLE_KEY } }))
+  if (browserRequested && !browserDate) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/ambiguous_intake_placement_browser_invalidate.sql'), 'utf8') }))
+  if (browserDate) console.log(run('docker', ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'], { input: readFileSync(join(root, 'supabase/tests/explicit_due_date_browser_setup.sql'), 'utf8') }))
+  if (browserRequested) console.log(run(node, ['scripts/acceptance/seed-review-storage.mjs'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir, REVIEW_ACCEPTANCE_DATE_ONLY: browserDate ? '1' : '0' } }))
+  if (probeDate) console.log(run(node,['scripts/acceptance/probe-explicit-due-rpc.mjs'],{
+    env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}
+  }))
+  if (browserRequested && !probeDate) {
     const browserArgs = ['node_modules/@playwright/test/cli.js', 'test', '--config', 'playwright.review.config.ts']
     if (process.argv.includes('--browser-recovery')) browserArgs.push('--grep', 'responsive processing recovery')
     if (process.argv.includes('--browser-placement')) browserArgs.push('--grep', 'trusted ambiguous global Intake')
+    if (browserDate) browserArgs.push('--grep', 'exact legal date')
     console.log(run(node, browserArgs, { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))
   }
   if (process.argv.includes('--build')) console.log(run(node, ['scripts/acceptance/start-review-server.mjs', '--build'], { env: { ...process.env, REVIEW_ACCEPTANCE_WORKDIR: workdir } }))

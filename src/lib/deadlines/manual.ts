@@ -36,15 +36,15 @@ export const deadlineOutcomeSchema = z.object({
 })
 
 export type DeadlineHistoryItem = {
-  kind: 'created' | 'amended' | 'satisfied' | 'cancelled'
+  kind: 'created' | 'extracted' | 'amended' | 'verify' | 'correct' | 'reject' | 'clear' | 'satisfied' | 'cancelled'
   revision: number
   at: string
   actor_label: string
   title?: string
   obligation?: string
   legal_type?: LegalDeadlineType
-  due_date?: string
-  manual_basis?: string
+  due_date?: string | null
+  manual_basis?: string | null
   reason?: string | null
 }
 export type ManualDeadlineItem = {
@@ -53,9 +53,10 @@ export type ManualDeadlineItem = {
   obligation: string
   legal_type: LegalDeadlineType
   due_date: string
-  manual_basis: string
-  origin: 'manual'
-  verification_state: 'verified'
+  manual_basis: string | null
+  origin: 'manual' | 'document_explicit'
+  verification_state: 'verified' | 'provisional'
+  source?: { document_id: string; document_version_id: string; page_number: number; quotation: string; candidate_due_date: string; review_item_id: string } | null
   lifecycle: 'open' | 'satisfied' | 'cancelled'
   temporal: 'upcoming' | 'due_soon' | 'due_today' | 'missed'
   revision: number
@@ -71,12 +72,15 @@ export type ManualDeadlineAgenda = {
 }
 
 const historySchema = z.object({
-  kind: z.enum(['created', 'amended', 'satisfied', 'cancelled']), revision: z.number().int().positive(), at: z.string(), actor_label: z.string().min(1),
-  title: z.string().optional(), obligation: z.string().optional(), legal_type: legalDeadlineTypeSchema.optional(), due_date: dateOnlySchema.optional(), manual_basis: z.string().optional(), reason: z.string().nullable().optional(),
+  kind: z.enum(['created', 'extracted', 'amended', 'verify', 'correct', 'reject', 'clear', 'satisfied', 'cancelled']), revision: z.number().int().positive(), at: z.string(), actor_label: z.string().min(1),
+  title: z.string().optional(), obligation: z.string().optional(), legal_type: legalDeadlineTypeSchema.optional(), due_date: dateOnlySchema.nullable().optional(), manual_basis: z.string().nullable().optional(), reason: z.string().nullable().optional(),
 })
+const sourceSchema = z.object({ document_id:z.string().uuid(),document_version_id:z.string().uuid(),page_number:z.number().int().positive(),
+  quotation:z.string().min(1),candidate_due_date:dateOnlySchema,review_item_id:z.string().uuid() })
 const itemSchema = z.object({
-  id: z.string().uuid(), title: z.string(), obligation: z.string(), legal_type: legalDeadlineTypeSchema, due_date: dateOnlySchema, manual_basis: z.string().min(2),
-  origin: z.literal('manual'), verification_state: z.literal('verified'), lifecycle: z.enum(['open', 'satisfied', 'cancelled']),
+  id: z.string().uuid(), title: z.string(), obligation: z.string(), legal_type: legalDeadlineTypeSchema, due_date: dateOnlySchema, manual_basis: z.string().min(2).nullable(),
+  origin: z.enum(['manual','document_explicit']), verification_state: z.enum(['verified','provisional']), source:sourceSchema.nullable().optional(),
+  lifecycle: z.enum(['open', 'satisfied', 'cancelled']),
   temporal: z.enum(['upcoming', 'due_soon', 'due_today', 'missed']), revision: z.number().int().positive(), created_at: z.string(), updated_at: z.string(), history: z.array(historySchema),
 })
 export const agendaRowSchema = z.object({ items: z.array(itemSchema), timezone: z.string().min(1), as_of_date: dateOnlySchema, can_mutate: z.boolean() })

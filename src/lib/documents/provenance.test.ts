@@ -68,6 +68,29 @@ test('invalid one-character GSTIN/date remain field-local invalid candidates wit
   assert.deepEqual(invalidDate?.validation_error_codes, ['invalid_calendar_date'])
 })
 
+test('only an exact calendar due date printed on the cited canonical page can seed legal-date Review', () => {
+  const due = observed('Reply must be filed by 2026-10-15.', 2, { meaning:'due',
+    normalized_date:'2026-10-15',source_quote:'Reply must be filed by 2026-10-15.' })
+  const relative = observed('Reply within thirty days of service', 1, { meaning:'due',
+    normalized_date:null,precision:'unclear' })
+  const payload = aiDocumentPayloadSchema.parse({ ...providerPayload,legal_dates:[due,relative] })
+  const source = [{...pages[0],text:`${pages[0].text}. Reply within thirty days of service.`},
+    {...pages[1],text:`${pages[1].text}. Reply must be filed by 2026-10-15.`}]
+  const result=provenanceMaterializationFromAnalysis(payload,2,source)
+  const dates=result.candidates.filter(candidate=>candidate.field_path==='document.legal_date.due')
+  assert.equal(dates.length,2)
+  assert.equal(dates[0].validation_state,'provisional')
+  assert.ok(dates[0].verified_source_anchor)
+  assert.equal((dates[0].normalized_value as {normalized_date:string}).normalized_date,'2026-10-15')
+  assert.equal(dates[1].validation_state,'invalid')
+  assert.equal((dates[1].normalized_value as {normalized_date:null}).normalized_date,null)
+  const unsupported=provenanceMaterializationFromAnalysis(payload,2,[source[0],pages[1]])
+    .candidates.find(candidate=>candidate.field_path==='document.legal_date.due'
+      && (candidate.normalized_value as {normalized_date:string|null}).normalized_date==='2026-10-15')
+  assert.equal(unsupported?.validation_state,'invalid')
+  assert.equal(unsupported?.verified_source_anchor,null)
+})
+
 test('structured semantic keys are stable across reordered arrays and do not use indexes', () => {
   const first = provenanceMaterializationFromAnalysis(analysis, 2, pages)
   const reordered = aiDocumentPayloadSchema.parse({ ...providerPayload,

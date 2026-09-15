@@ -18,7 +18,8 @@ const client = createClient(local.API_URL, local.SERVICE_ROLE_KEY, { auth: { per
 const pdf = readFileSync('tests/acceptance/fixtures/synthetic-multi-page.pdf')
 const sources = [
   { assetId: '153f0000-0000-0000-0000-000000000001', bytes: pdf },
-  { assetId: '164f0000-0000-0000-0000-000000000001', bytes: Buffer.concat([pdf, Buffer.from('\n% placement fixture\n')]) },
+  ...(process.env.REVIEW_ACCEPTANCE_DATE_ONLY === '1' ? [] :
+    [{ assetId: '164f0000-0000-0000-0000-000000000001', bytes: Buffer.concat([pdf, Buffer.from('\n% placement fixture\n')]) }]),
 ]
 const { data: buckets, error: bucketsError } = await client.storage.listBuckets()
 assert.equal(bucketsError, null)
@@ -31,8 +32,14 @@ for (const { assetId, bytes: sourceBytes } of sources) {
   assert.equal(downloadError, null)
   const expectedHash = createHash('sha256').update(sourceBytes).digest('hex')
   assert.equal(createHash('sha256').update(Buffer.from(await bytes.arrayBuffer())).digest('hex'), expectedHash)
-  const { data: asset, error: assetError } = await client.from('file_assets').select('sha256,byte_size,validated_page_count').eq('id', assetId).single()
-  assert.equal(assetError, null)
-  assert.deepEqual(asset, { sha256: expectedHash, byte_size: sourceBytes.length, validated_page_count: 4 })
+  // Later force-RLS lifecycle migrations intentionally remove service-role
+  // direct table reads. Inspect this known isolated fixture via local psql,
+  // without weakening the application's private file-asset boundary.
+  const inspected=spawnSync('docker',['exec','supabase_db_dms-review-153','psql','-X','-qAt',
+    '-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres','-c',
+    `SELECT sha256||':'||byte_size||':'||validated_page_count FROM public.file_assets WHERE id='${assetId}'`],
+    {encoding:'utf8'})
+  assert.equal(inspected.status,0,inspected.stderr)
+  assert.equal(inspected.stdout.trim(),`${expectedHash}:${sourceBytes.length}:4`)
 }
 console.log(`Seeded and verified ${sources.length} private synthetic four-page PDFs in isolated Review Storage.`)

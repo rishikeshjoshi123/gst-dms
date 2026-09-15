@@ -753,6 +753,147 @@ export type Database = {
           },
         ]
       }
+      deadline_candidate_bindings: {
+        Row: {
+          binding_id: string
+          candidate_id: string
+          created_at: string
+          deadline_id: string
+          document_id: string
+          document_version_id: string
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_due_date: string
+        }
+        Insert: {
+          binding_id: string
+          candidate_id: string
+          created_at?: string
+          deadline_id: string
+          document_id: string
+          document_version_id: string
+          org_id: string
+          page_number: number
+          quotation: string
+          semantic_candidate_key: string
+          source_due_date: string
+        }
+        Update: {
+          binding_id?: string
+          candidate_id?: string
+          created_at?: string
+          deadline_id?: string
+          document_id?: string
+          document_version_id?: string
+          org_id?: string
+          page_number?: number
+          quotation?: string
+          semantic_candidate_key?: string
+          source_due_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadline_candidate_bindings_org_id_binding_id_fkey"
+            columns: ["org_id", "binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_bindings_org_id_candidate_id_fkey"
+            columns: ["org_id", "candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_bindings_org_id_deadline_id_fkey"
+            columns: ["org_id", "deadline_id"]
+            isOneToOne: true
+            referencedRelation: "deadlines"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_bindings_org_id_document_version_id_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      deadline_candidate_decisions: {
+        Row: {
+          action: string
+          actor_user_id: string
+          candidate_id: string
+          deadline_id: string
+          decided_at: string
+          decided_due_date: string | null
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          result_revision: number
+          review_item_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          candidate_id: string
+          deadline_id: string
+          decided_at?: string
+          decided_due_date?: string | null
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          result_revision: number
+          review_item_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          candidate_id?: string
+          deadline_id?: string
+          decided_at?: string
+          decided_due_date?: string | null
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          reason?: string
+          result_revision?: number
+          review_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadline_candidate_decisions_org_id_candidate_id_fkey"
+            columns: ["org_id", "candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_decisions_org_id_deadline_id_fkey"
+            columns: ["org_id", "deadline_id"]
+            isOneToOne: false
+            referencedRelation: "deadlines"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       deadline_command_receipts: {
         Row: {
           actor_user_id: string
@@ -851,39 +992,39 @@ export type Database = {
       }
       deadline_versions: {
         Row: {
-          actor_user_id: string
+          actor_user_id: string | null
           amendment_reason: string | null
           created_at: string
           deadline_id: string
           due_date: string
           legal_type: string
-          manual_basis: string
+          manual_basis: string | null
           obligation: string
           org_id: string
           revision: number
           title: string
         }
         Insert: {
-          actor_user_id: string
+          actor_user_id?: string | null
           amendment_reason?: string | null
           created_at?: string
           deadline_id: string
           due_date: string
           legal_type: string
-          manual_basis: string
+          manual_basis?: string | null
           obligation: string
           org_id: string
           revision: number
           title: string
         }
         Update: {
-          actor_user_id?: string
+          actor_user_id?: string | null
           amendment_reason?: string | null
           created_at?: string
           deadline_id?: string
           due_date?: string
           legal_type?: string
-          manual_basis?: string
+          manual_basis?: string | null
           obligation?: string
           org_id?: string
           revision?: number
@@ -11066,6 +11207,25 @@ export type Database = {
           code: string
         }[]
       }
+      finish_document_processing_ai_extraction_before_due_dates: {
+        Args: {
+          p_candidates?: Json
+          p_input_tokens: number
+          p_latency_ms: number
+          p_legacy_metadata?: Json
+          p_outcome: string
+          p_output_tokens: number
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_review_required?: boolean
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          binding_id: string
+          code: string
+        }[]
+      }
       finish_document_processing_ai_extraction_before_recovery: {
         Args: {
           p_candidates?: Json
@@ -12401,6 +12561,15 @@ export type Database = {
         }
         Returns: string
       }
+      materialize_document_version_analysis_before_due_dates: {
+        Args: {
+          p_binding_reason: string
+          p_created_by?: string
+          p_document_version_id: string
+          p_source_analysis_run_id: string
+        }
+        Returns: string
+      }
       materialize_source_field_candidate: {
         Args: {
           p_confidence: number
@@ -12644,6 +12813,10 @@ export type Database = {
           placement_run_id: string
           review_item_id: string
         }[]
+      }
+      produce_explicit_due_date_review: {
+        Args: { p_binding_id: string }
+        Returns: undefined
       }
       produce_extraction_conflict_review: {
         Args: { p_binding_id: string }
@@ -12906,6 +13079,10 @@ export type Database = {
       }
       read_review_detail: { Args: { p_review_item_id: string }; Returns: Json }
       read_review_detail_before_attachment: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
+      read_review_detail_before_due_dates: {
         Args: { p_review_item_id: string }
         Returns: Json
       }
@@ -13308,6 +13485,21 @@ export type Database = {
           document_version_id: string
           lifecycle_revision: number
           matter_id: string
+          replayed: boolean
+        }[]
+      }
+      resolve_explicit_due_date_review: {
+        Args: {
+          p_action: string
+          p_corrected_due_date: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
           replayed: boolean
         }[]
       }
@@ -14318,6 +14510,7 @@ export type Database = {
         | "extraction_conflict"
         | "processing_recovery"
         | "ambiguous_placement"
+        | "deadline_verification"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -14959,6 +15152,7 @@ export const Constants = {
         "extraction_conflict",
         "processing_recovery",
         "ambiguous_placement",
+        "deadline_verification",
       ],
       source_analysis_attempt_state: [
         "queued",

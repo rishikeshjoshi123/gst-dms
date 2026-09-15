@@ -1,7 +1,31 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { ambiguousPlacementResolution, extractionReviewResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type ExtractionReviewResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+
+export async function resolveExplicitDueDate(input: DeadlineReviewResolution) {
+  const request=deadlineReviewResolution.safeParse(input)
+  if(!request.success) return {code:'invalid_request',message:'Choose an outcome, valid date when correcting, and a reason.',item:null}
+  const supabase=await createClient()
+  const {data,error}=await supabase.rpc('resolve_explicit_due_date_review',{
+    p_review_item_id:request.data.itemId,p_expected_revision:request.data.revision,
+    p_action:request.data.action,p_corrected_due_date:request.data.correctedDueDate,
+    p_reason:request.data.reason,p_idempotency_key:request.data.idempotencyKey,
+  } as never)
+  if(error || !data?.[0]) return {code:'failed',message:'The date decision could not be confirmed. Retry.',item:null}
+  const row=data[0],item=row.current_item?reviewDetail.parse(row.current_item):null
+  revalidatePath('/review')
+  if(item?.document_id){revalidatePath('/matters','layout');revalidatePath(`/documents/${item.document_id}`)}
+  const messages:Record<string,string>={
+    ok:'Date decision recorded with its cited source and reason.',
+    stale:'The source or decision changed. Inspect the latest state.',
+    forbidden:'You cannot decide legal dates with your current access.',
+    unavailable:'The exact source is no longer available.',
+    idempotency_conflict:'This submission key was used for another decision.',
+    invalid_request:'Choose an outcome, valid date when correcting, and a reason.',
+  }
+  return {code:row.code,message:messages[row.code]??'The decision was not completed.',item}
+}
 
 export async function resolveExtractionConflict(input: ExtractionReviewResolution) {
   const request = extractionReviewResolution.safeParse(input)

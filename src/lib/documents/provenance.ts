@@ -313,7 +313,15 @@ export function provenanceMaterializationFromAnalysis(
   for (const date of analysis.legal_dates) {
     addStructuredCandidate(candidates, reviewCodes, terminalReviewCodes, date,
       legalDateSemanticKey(date), `document.legal_date.${date.meaning}`, pageCount, pages,
-      date.normalized_date ?? date.raw, date.normalized_date ? 'date' : 'text', undefined, true)
+      // A due date is materializable only when the PDF itself states the exact
+      // calendar value. A relative or uncertain due expression stays a source
+      // observation, never a domain deadline.
+      date.meaning === 'due' && date.normalization_state === 'valid' && date.precision === 'exact' && date.normalized_date
+        ? date.normalized_date : date.raw,
+      date.meaning === 'due' && date.normalization_state === 'valid' && date.precision === 'exact' && date.normalized_date
+        ? 'date' : 'text', undefined, true,
+      date.meaning === 'due' && (date.normalization_state !== 'valid' || date.precision !== 'exact' || !date.normalized_date)
+        ? 'due_date_not_source_explicit' : undefined)
   }
 
   for (const actor of analysis.actors) {
