@@ -2,7 +2,48 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, placementConflictResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type PlacementConflictResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, multiPlacementConflictResolution, placementConflictResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type MultiPlacementConflictResolution, type PlacementConflictResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+
+export async function previewMultiPlacementConflictMove(itemId:string,targetMatterId:string){
+  const item=z.string().uuid().safeParse(itemId),target=z.string().uuid().safeParse(targetMatterId)
+  if(!item.success||!target.success) return {code:'invalid_request'}
+  const supabase=await createClient()
+  const {data,error}=await supabase.rpc('preview_multi_placement_conflict_move',{
+    p_review_item_id:item.data,p_target_matter_id:target.data,
+  } as never)
+  return error||!data||typeof data!=='object' ? {code:'failed'} : data as {code:string;fingerprint?:string;blockers?:string[];categories?:{key:string;label:string;count:number}[];sourceMatterTitle?:string;targetMatterTitle?:string;documentTitle?:string}
+}
+
+export async function resolveMultiPlacementConflict(input:MultiPlacementConflictResolution){
+  const request=multiPlacementConflictResolution.safeParse(input)
+  if(!request.success) return {code:'invalid_request',message:'Choose exactly one eligible Matter for Move, its current impact, and a reason.',item:null}
+  const supabase=await createClient()
+  const {data,error}=await supabase.rpc('resolve_multi_placement_conflict',{
+    p_review_item_id:request.data.itemId,p_expected_revision:request.data.revision,
+    p_action:request.data.action,p_target_matter_id:request.data.targetMatterId,
+    p_expected_impact_fingerprint:request.data.impactFingerprint,p_reason:request.data.reason,
+    p_idempotency_key:request.data.idempotencyKey,
+  } as never)
+  if(error||!Array.isArray(data)||!data[0]) return {code:'failed',message:'The filed-document decision could not be confirmed.',item:null}
+  const row=data[0] as {code:string;current_item:unknown;replayed:boolean}
+  const item=row.current_item?reviewDetail.parse(row.current_item):null
+  if(row.code==='ok'){
+    revalidatePath('/review');revalidatePath('/matters','layout')
+    if(item?.document_id) revalidatePath(`/documents/${item.document_id}`)
+  }
+  const messages:Record<string,string>={
+    ok:request.data.action==='move'?'Document moved to the chosen Matter with the exact source retained.':'Current filing kept; unchanged printed and verified evidence will not raise this Review again.',
+    stale:'The source, verified candidate set or Review changed. Inspect the current item.',
+    stale_preview:'This target’s Move impact changed. Request a new preview.',
+    blocked:'This target’s Move is blocked by a current dependency.',
+    invalid_target:'This target was not in the eligible candidate set.',
+    forbidden:'Your current access cannot resolve this Review.',
+    unavailable:'This Review item is unavailable.',
+    idempotency_conflict:'This submission key was already used for a different decision.',
+    busy:'Another change is in progress. Retry after refreshing.',
+  }
+  return {code:row.code,message:messages[row.code]??'The filed-document decision was not completed.',item}
+}
 
 export async function previewPlacementConflictMove(itemId:string){
   const id=z.string().uuid().safeParse(itemId)

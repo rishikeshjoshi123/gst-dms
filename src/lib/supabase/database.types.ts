@@ -809,6 +809,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "deadline_candidate_bindings_org_id_candidate_id_fkey"
+            columns: ["org_id", "candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
+          },
+          {
             foreignKeyName: "deadline_candidate_bindings_org_id_deadline_id_fkey"
             columns: ["org_id", "deadline_id"]
             isOneToOne: true
@@ -877,6 +884,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_field_candidates"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "deadline_candidate_decisions_org_id_candidate_id_fkey"
+            columns: ["org_id", "candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
           },
           {
             foreignKeyName: "deadline_candidate_decisions_org_id_deadline_id_fkey"
@@ -1466,6 +1480,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "document_effective_metadata_candidate_org_fkey"
+            columns: ["org_id", "winning_document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
+          },
+          {
             foreignKeyName: "document_effective_metadata_decision_org_fkey"
             columns: ["org_id", "winning_document_field_decision_id"]
             isOneToOne: false
@@ -1905,6 +1926,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_field_candidates"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_decisions_candidate_org_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
           },
           {
             foreignKeyName: "document_field_decisions_document_org_fkey"
@@ -2518,6 +2546,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_field_candidates"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_candidate_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
           },
           {
             foreignKeyName: "document_reference_mentions_document_fkey"
@@ -3142,6 +3177,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_field_candidates"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_self_identifiers_candidate_fkey"
+            columns: ["org_id", "document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
           },
           {
             foreignKeyName: "document_self_identifiers_document_fkey"
@@ -4843,6 +4885,160 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      multi_placement_conflict_decisions: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          document_version_id: string
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          impact_fingerprint: string | null
+          old_matter_id: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          selected_target_matter_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          document_version_id: string
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          impact_fingerprint?: string | null
+          old_matter_id: string
+          org_id: string
+          reason: string
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          selected_target_matter_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          document_version_id?: string
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          impact_fingerprint?: string | null
+          old_matter_id?: string
+          org_id?: string
+          reason?: string
+          request_fingerprint?: string
+          result_revision?: number
+          review_item_id?: string
+          selected_target_matter_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multi_placement_conflict_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      multi_placement_conflict_sources: {
+        Row: {
+          candidate_ordinal: number
+          candidate_set_key: string
+          created_at: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          old_matter_code: string
+          old_matter_id: string
+          org_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_anchor: Json
+          source_candidate_id: string
+          source_page_number: number
+          source_quote: string
+          target_client_name: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_matter_code: string
+          target_matter_id: string
+          target_matter_title: string
+          target_verified_at: string
+        }
+        Insert: {
+          candidate_ordinal: number
+          candidate_set_key: string
+          created_at?: string
+          display_value: string
+          document_id: string
+          document_version_id: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          normalized_value: string
+          old_matter_code: string
+          old_matter_id: string
+          org_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_anchor: Json
+          source_candidate_id: string
+          source_page_number: number
+          source_quote: string
+          target_client_name: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_matter_code: string
+          target_matter_id: string
+          target_matter_title: string
+          target_verified_at: string
+        }
+        Update: {
+          candidate_ordinal?: number
+          candidate_set_key?: string
+          created_at?: string
+          display_value?: string
+          document_id?: string
+          document_version_id?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          normalized_value?: string
+          old_matter_code?: string
+          old_matter_id?: string
+          org_id?: string
+          review_item_id?: string
+          source_analysis_run_id?: string
+          source_anchor?: Json
+          source_candidate_id?: string
+          source_page_number?: number
+          source_quote?: string
+          target_client_name?: string
+          target_identifier_id?: string
+          target_identifier_revision?: number
+          target_matter_code?: string
+          target_matter_id?: string
+          target_matter_title?: string
+          target_verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "multi_placement_conflict_sources_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
       }
       note_document_quotes: {
         Row: {
@@ -7414,6 +7610,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_field_candidates"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "search_document_structured_facts_candidate_org_fkey"
+            columns: ["org_id", "winning_document_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
           },
           {
             foreignKeyName: "search_document_structured_facts_decision_org_fkey"
@@ -10174,6 +10377,64 @@ export type Database = {
         }
         Relationships: []
       }
+      multi_placement_current_candidates: {
+        Row: {
+          binding_id: string | null
+          display_value: string | null
+          document_id: string | null
+          document_version_id: string | null
+          identifier_id: string | null
+          identifier_kind:
+            | Database["public"]["Enums"]["matter_identifier_kind"]
+            | null
+          identifier_revision: number | null
+          issuer_namespace_normalized: string | null
+          materialization_sequence: number | null
+          normalized_value: string | null
+          org_id: string | null
+          page_number: number | null
+          quotation: string | null
+          semantic_candidate_key: string | null
+          source_analysis_run_id: string | null
+          source_candidate_id: string | null
+          target_client_name: string | null
+          target_matter_code: string | null
+          target_matter_id: string | null
+          target_matter_title: string | null
+          verified_at: string | null
+          verified_source_anchor: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_field_candidates_binding_org_fkey"
+            columns: ["org_id", "binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_document_org_fkey"
+            columns: ["org_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_field_candidates_version_org_fkey"
+            columns: ["org_id", "document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       organisation_identity_cutover_diagnostics: {
         Row: {
           detail: Json | null
@@ -12868,6 +13129,10 @@ export type Database = {
         Args: { p_status: Database["public"]["Enums"]["matter_status"] }
         Returns: Database["public"]["Enums"]["matter_work_state"]
       }
+      multi_placement_conflict_current: {
+        Args: { p_review_item_id: string }
+        Returns: boolean
+      }
       my_org_ids: { Args: never; Returns: string[] }
       next_trash_purge_failure_wake: {
         Args: never
@@ -13028,6 +13293,10 @@ export type Database = {
           p_mode: string
           p_target_matter_id: string
         }
+        Returns: Json
+      }
+      preview_multi_placement_conflict_move: {
+        Args: { p_review_item_id: string; p_target_matter_id: string }
         Returns: Json
       }
       preview_placement_conflict_move: {
@@ -13322,6 +13591,10 @@ export type Database = {
         Args: { p_review_item_id: string }
         Returns: Json
       }
+      read_review_detail_before_multi_placement: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_detail_before_placement_conflict: {
         Args: { p_review_item_id: string }
         Returns: Json
@@ -13368,6 +13641,10 @@ export type Database = {
         Returns: undefined
       }
       reconcile_placed_document_identity_conflict: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
+      reconcile_placed_document_identity_conflict_single: {
         Args: { p_document_id: string }
         Returns: undefined
       }
@@ -13755,6 +14032,22 @@ export type Database = {
           p_idempotency_key: string
           p_reason: string
           p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
+      resolve_multi_placement_conflict: {
+        Args: {
+          p_action: string
+          p_expected_impact_fingerprint: string
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_review_item_id: string
+          p_target_matter_id: string
         }
         Returns: {
           code: string
@@ -14771,6 +15064,7 @@ export type Database = {
         | "ambiguous_placement"
         | "deadline_verification"
         | "placement_conflict"
+        | "multi_placement_conflict"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -15414,6 +15708,7 @@ export const Constants = {
         "ambiguous_placement",
         "deadline_verification",
         "placement_conflict",
+        "multi_placement_conflict",
       ],
       source_analysis_attempt_state: [
         "queued",

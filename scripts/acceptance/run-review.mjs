@@ -56,9 +56,11 @@ port = 55327
     console.log('Regenerated and refined database types; repeated generation has exact parity.')
   }
   const browserConflict=process.argv.includes('--browser-conflict')
+  const browserMulti=process.argv.includes('--browser-multi')
   const sqlConflict=process.argv.includes('--sql-conflict')
-  if(browserConflict){
-    for(const file of ['document_boundary_repair_setup.sql','placed_document_identity_conflict_browser_setup.sql']){
+  const sqlMulti=process.argv.includes('--sql-multi')
+  if(browserConflict||browserMulti){
+    for(const file of ['document_boundary_repair_setup.sql',browserMulti?'multi_placed_document_identity_conflict_browser_setup.sql':'placed_document_identity_conflict_browser_setup.sql']){
       let input=readFileSync(join(root,'supabase/tests',file),'utf8')
       if(file==='document_boundary_repair_setup.sql'){
         const old='lpad(i::text,64,i::text),100'
@@ -71,11 +73,11 @@ port = 55327
     console.log(run(node,['scripts/acceptance/seed-review-storage.mjs'],{
       env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir,REVIEW_ACCEPTANCE_CONFLICT_ONLY:'1'}
     }))
-    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep','placed document conflict'],{
+    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep',browserMulti?'multiple filed Matter conflicts':'placed document conflict'],{
       env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}
     }))
-  } else if(sqlConflict){
-    for(const file of ['document_boundary_repair_setup.sql','placed_document_identity_conflict_review.sql']){
+  } else if(sqlConflict||sqlMulti){
+    for(const file of ['document_boundary_repair_setup.sql',sqlMulti?'multi_placed_document_identity_conflict_review.sql':'placed_document_identity_conflict_review.sql']){
       const output=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests',file),'utf8')})
       console.log(`${file}: ${output.trim()}`)
     }
