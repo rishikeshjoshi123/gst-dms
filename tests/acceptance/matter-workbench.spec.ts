@@ -440,7 +440,7 @@ test('Trash shows final-seven-day time and restricted blocked status without Das
 test('Dashboard and Inbox lead to one authoritative local TUS completion', async ({ page }) => {
   await login(page)
 
-  const documentHub = page.getByRole('link', { name: 'Document Hub' })
+  const documentHub = page.getByRole('link', { name: 'Document Inbox' })
   await documentHub.focus()
   await documentHub.press('Enter')
   await expect(page).toHaveURL(/\/documents$/)

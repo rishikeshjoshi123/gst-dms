@@ -776,36 +776,36 @@ function ManagedDocumentHubClientView({
       </div>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
         <fieldset className="flex shrink-0 items-center rounded-[var(--radius-sm)] border border-[var(--border)] p-0.5">
-        <legend className="sr-only">Upload ownership</legend>
-        {(['mine', 'all'] as const).map((scope) => (
-          <Button
-            key={scope}
-            type="button"
-            variant={ownershipScope === scope ? 'secondary' : 'ghost'}
-            size="sm"
-            className="min-h-11 sm:min-h-9"
-            aria-pressed={ownershipScope === scope}
-            onClick={() => void changeOwnershipScope(scope)}
-          >
-            {scope === 'mine' ? 'My uploads' : 'All uploads'}
-          </Button>
-        ))}
-      </fieldset>
+          <legend className="sr-only">Upload ownership</legend>
+          {(['mine', 'all'] as const).map((scope) => (
+            <Button
+              key={scope}
+              type="button"
+              variant={ownershipScope === scope ? 'secondary' : 'ghost'}
+              size="sm"
+              className="min-h-11 sm:min-h-9"
+              aria-pressed={ownershipScope === scope}
+              onClick={() => void changeOwnershipScope(scope)}
+            >
+              {scope === 'mine' ? 'My uploads' : 'All uploads'}
+            </Button>
+          ))}
+        </fieldset>
         <div className="relative min-w-0 flex-1">
           <Label htmlFor="document-hub-search" className="sr-only">Search Upload Queue</Label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
-        <Input
-          id="document-hub-search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search loaded documents"
-          className="h-11 pl-9 sm:h-9"
-        />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
+          <Input
+            id="document-hub-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search loaded documents"
+            className="h-11 pl-9 sm:h-9"
+          />
         </div>
         <p className="shrink-0 text-xs text-[var(--text-muted)]" aria-live="polite">
-        {query.trim()
-          ? `${filteredDocuments.length} matches in ${documents.length} loaded · ${queueTotal} total`
-          : `${documents.length} of ${queueTotal} documents`}
+          {query.trim()
+            ? `${filteredDocuments.length} matches in ${documents.length} loaded · ${queueTotal} total`
+            : `${documents.length} of ${queueTotal} documents`}
         </p>
         <p
           className="shrink-0 text-xs text-[var(--text-muted)]"
@@ -1205,21 +1205,25 @@ function ManagedDocumentHubClientView({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-primary)]">
       {selectedMatterContext && preselectedMatterId && (
-        <div className="mb-3 flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm" aria-label="Matter upload context">
-          <span className="text-[var(--text-muted)]">From Matter</span>
-          <span className="min-w-0 truncate font-medium">{matterLabel(selectedMatterContext)}</span>
-          <Link href={`/matters/${preselectedMatterId}`} className="ml-auto inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-[var(--primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
-            Return to Matter
-          </Link>
-          <Button
-            type="button"
-            variant="ghost"
-            className="shrink-0"
-            onClick={() => router.replace(documentHubPath({ intakeId: selectedId ?? undefined }))}
-          >
-            <X className="size-4" aria-hidden="true" />
-            Clear Matter context
-          </Button>
+        <div className="mb-3 flex shrink-0 flex-col gap-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm sm:flex-row sm:items-center" aria-label="Matter upload context">
+          <div className="min-w-0 flex-1">
+            <span className="text-[var(--text-muted)]">From Matter</span>
+            <span className="ml-2 break-words font-medium">{matterLabel(selectedMatterContext)}</span>
+          </div>
+          <div className="flex flex-wrap gap-2 sm:ml-auto sm:flex-nowrap">
+            <Link href={`/matters/${preselectedMatterId}`} className="inline-flex min-h-11 items-center text-sm font-medium text-[var(--primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">
+              Return to Matter
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              className="min-h-11"
+              onClick={() => router.replace(documentHubPath({ intakeId: selectedId ?? undefined }))}
+            >
+              <X className="size-4" aria-hidden="true" />
+              Clear Matter context
+            </Button>
+          </div>
         </div>
       )}
 
