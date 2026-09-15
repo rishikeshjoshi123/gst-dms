@@ -3,7 +3,7 @@
  * benchmark. The input manifest is deliberately supplied outside the repo.
  */
 import { createHash } from 'node:crypto'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
 
 export const APPROVED_PROCESSOR_VERSION = 'pretrained-ocr-v2.1.1-2025-01-31'
@@ -15,7 +15,8 @@ export const REQUIRED_CATEGORIES = [
 type Category = (typeof REQUIRED_CATEGORIES)[number]
 type Verdict = 'pass' | 'fail' | 'unknown' | 'not_applicable'
 type Action = 'native' | 'ocr'
-type Label = { verdict: Verdict; evidence: 'adjudicated' }
+type Label = { verdict: Verdict; evidence: 'adjudicated'; itemId: string }
+type Check = { adjudicatedItemCount: number; items: Label[] }
 
 export type BenchmarkCase = {
   caseId: string
@@ -24,17 +25,20 @@ export type BenchmarkCase = {
   evaluatorDocumentDirectory: string
   categories: Category[]
   routing: { expectedAction: Action; evidence: 'adjudicated' }
-  checks: Record<'gstin' | 'reference' | 'date' | 'amount' | 'table' | 'anchor', Label>
+  checks: Record<'gstin' | 'reference' | 'date' | 'amount' | 'table' | 'anchor', Check>
   quality: { characterAccuracy: number | null; wordAccuracy: number | null; evidence: 'adjudicated' }
+  sourceDisposition: 'readable' | 'source_unreadable'
 }
 
 export type BenchmarkManifest = {
-  schemaVersion: 1
+  schemaVersion: 2
   benchmarkRunId: string
   evaluatorRunId: string
   processorVersion: string
   location: string
-  billing: { currency: string; costPerBilledPage: number }
+  adjudication: { reviewerId: string; method: 'independent_source_comparison' }
+  billing: { currency: string; costPerBilledPage: number; usdPerCurrencyUnit: number | null; evidenceSha256: string; billedFeature: 'enterprise_ocr_page' }
+  hundredPageAcquisition: { measuredPages: 100; elapsedMs: number; evidenceSha256: string } | null
   cases: BenchmarkCase[]
 }
 
@@ -58,13 +62,24 @@ function assertFiniteNonNegative(value: unknown, name: string): asserts value is
 }
 
 export function validateManifest(manifest: BenchmarkManifest): void {
-  if (manifest?.schemaVersion !== 1) fail('schemaVersion must be 1')
+  if (manifest?.schemaVersion !== 2) fail('schemaVersion must be 2; legacy structural reports cannot certify acceptance')
   if (!isSafeSegment(manifest.benchmarkRunId) || !isSafeSegment(manifest.evaluatorRunId)) fail('run IDs must be safe non-empty identifiers')
   if (manifest.processorVersion !== APPROVED_PROCESSOR_VERSION) fail(`processorVersion must equal approved pin ${APPROVED_PROCESSOR_VERSION}`)
   if (manifest.location !== 'asia-south1') fail('location must be asia-south1')
+  if (!isSafeSegment(manifest.adjudication?.reviewerId) || manifest.adjudication.method !== 'independent_source_comparison' || manifest.adjudication.reviewerId === manifest.evaluatorRunId) fail('independent adjudicator provenance is required')
   if (!manifest.billing || !/^[A-Z]{3}$/.test(manifest.billing.currency)) fail('billing.currency must be an ISO-like uppercase code')
   assertFiniteNonNegative(manifest.billing.costPerBilledPage, 'billing.costPerBilledPage')
   if (manifest.billing.costPerBilledPage === 0) fail('billing.costPerBilledPage must be positive')
+  if (!isSha256(manifest.billing.evidenceSha256) || manifest.billing.billedFeature !== 'enterprise_ocr_page') fail('billing feature and source evidence hash are required')
+  if (manifest.billing.usdPerCurrencyUnit !== null) {
+    assertFiniteNonNegative(manifest.billing.usdPerCurrencyUnit, 'billing.usdPerCurrencyUnit')
+    if (manifest.billing.usdPerCurrencyUnit === 0) fail('billing.usdPerCurrencyUnit must be positive')
+  }
+  if (manifest.billing.currency === 'USD' && manifest.billing.usdPerCurrencyUnit !== 1) fail('USD billing conversion must equal 1')
+  if (manifest.hundredPageAcquisition !== null) {
+    if (manifest.hundredPageAcquisition?.measuredPages !== 100 || !isSha256(manifest.hundredPageAcquisition.evidenceSha256)) fail('100-page acquisition needs measured 100 pages and evidence hash')
+    assertFiniteNonNegative(manifest.hundredPageAcquisition.elapsedMs, 'hundredPageAcquisition.elapsedMs')
+  }
   if (!Array.isArray(manifest.cases) || manifest.cases.length < 60 || manifest.cases.length > 100) fail('must contain exactly 60–100 selected pages')
 
   const caseIds = new Set<string>(); const sourcePages = new Set<string>(); const covered = new Set<Category>(); const directorySources = new Map<string, string>()
@@ -85,9 +100,19 @@ export function validateManifest(manifest: BenchmarkManifest): void {
       covered.add(category)
     }
     if (!entry.routing || !['native', 'ocr'].includes(entry.routing.expectedAction) || entry.routing.evidence !== 'adjudicated') fail(`case ${entry.caseId} has incomplete routing label evidence`)
+    if (!['readable', 'source_unreadable'].includes(entry.sourceDisposition)) fail(`case ${entry.caseId} has missing source disposition`)
     for (const name of ['gstin', 'reference', 'date', 'amount', 'table', 'anchor'] as const) {
       const check = entry.checks?.[name]
-      if (!check || !['pass', 'fail', 'unknown', 'not_applicable'].includes(check.verdict) || check.evidence !== 'adjudicated') fail(`case ${entry.caseId} has incomplete ${name} label evidence`)
+      const items = check?.items
+      if (!Array.isArray(items) || items.length === 0) fail(`case ${entry.caseId} has incomplete ${name} item labels`)
+      if (!Number.isInteger(check.adjudicatedItemCount) || check.adjudicatedItemCount < 0) fail(`case ${entry.caseId} has missing ${name} adjudicated item count`)
+      const ids = new Set<string>()
+      for (const check of items) {
+        if (!check || !isSafeSegment(check.itemId) || ids.has(check.itemId) || !['pass', 'fail', 'unknown', 'not_applicable'].includes(check.verdict) || check.evidence !== 'adjudicated') fail(`case ${entry.caseId} has invalid ${name} item label`)
+        ids.add(check.itemId)
+      }
+      if (items.some((check) => check.verdict === 'not_applicable') && items.length !== 1) fail(`case ${entry.caseId} ${name} non-applicability must be a single adjudicated page label`)
+      if (items[0].verdict === 'not_applicable' ? check.adjudicatedItemCount !== 0 : check.adjudicatedItemCount !== items.length) fail(`case ${entry.caseId} ${name} item count does not match independent adjudication`)
     }
     if (!entry.quality || entry.quality.evidence !== 'adjudicated') fail(`case ${entry.caseId} has missing quality label evidence`)
     for (const [name, value] of Object.entries({ characterAccuracy: entry.quality.characterAccuracy, wordAccuracy: entry.quality.wordAccuracy })) {
@@ -186,27 +211,55 @@ export async function buildReport(manifest: BenchmarkManifest, outputDirectory: 
   }
   const routingPrecisionDenominator = routing.truePositive + routing.falsePositive
   const routingRecallDenominator = routing.truePositive + routing.falseNegative
-  const checkMetrics = Object.fromEntries((['gstin', 'reference', 'date', 'amount', 'table', 'anchor'] as const).map((name) => [name, metric(manifest.cases.map((entry) => entry.checks[name]))]))
+  const checkMetrics = Object.fromEntries((['gstin', 'reference', 'date', 'amount', 'table', 'anchor'] as const).map((name) => [name, metric(manifest.cases.flatMap((entry) => entry.checks[name].items))]))
   const criticalFailuresOrUnknown = Object.entries(checkMetrics).filter(([, value]) => value.failed > 0 || value.unknown > 0).map(([name]) => name)
-  const missingCriticalCoverage = Object.entries(checkMetrics).filter(([, value]) => value.denominator < 3).map(([name]) => name)
-  const character = manifest.cases.map((entry) => entry.quality.characterAccuracy).filter((value): value is number => value !== null)
-  const word = manifest.cases.map((entry) => entry.quality.wordAccuracy).filter((value): value is number => value !== null)
+  const missingCriticalCoverage = Object.entries(checkMetrics).filter(([, value]) => value.denominator === 0).map(([name]) => name)
   const totalBilledPages = [...linkage.evidence.values()].reduce((total, entry) => total + Number(entry.billedPages), 0)
   const totalLatencyMs = [...linkage.evidence.values()].reduce((total, entry) => total + Number(entry.elapsedMs), 0)
   const expectedNative = manifest.cases.filter((entry) => entry.routing.expectedAction === 'native').length
   const expectedOcr = manifest.cases.length - expectedNative
-  const qualityMissing = manifest.cases.filter((entry) => linkage.evidence.get(entry.caseId)?.observedRoute === 'ocr' && (entry.quality.characterAccuracy === null || entry.quality.wordAccuracy === null))
+  const ocrCases = manifest.cases.filter((entry) => linkage.evidence.get(entry.caseId)?.observedRoute === 'ocr')
+  const qualityMissing = ocrCases.filter((entry) => entry.quality.characterAccuracy === null || entry.quality.wordAccuracy === null)
+  const ocrCharacter = ocrCases.map((entry) => entry.quality.characterAccuracy).filter((value): value is number => value !== null)
+  const ocrWord = ocrCases.map((entry) => entry.quality.wordAccuracy).filter((value): value is number => value !== null)
+  const meanCharacter = ocrCharacter.length ? ocrCharacter.reduce((sum, value) => sum + value, 0) / ocrCharacter.length : null
+  const meanWord = ocrWord.length ? ocrWord.reduce((sum, value) => sum + value, 0) / ocrWord.length : null
+  const usdRate = manifest.billing.usdPerCurrencyUnit
+  const usdPerBilledPage = usdRate === null ? null : manifest.billing.costPerBilledPage * usdRate
+  const hundredPageMs = manifest.hundredPageAcquisition?.elapsedMs ?? null
+  const pages = manifest.cases.map((entry) => {
+    const observed = linkage.evidence.get(entry.caseId)?.observedRoute
+    const critical = Object.values(entry.checks).some((check) => check.items.some((item) => item.verdict === 'fail' || item.verdict === 'unknown'))
+    const poorOcr = observed === 'ocr' && (entry.quality.characterAccuracy === null || entry.quality.wordAccuracy === null || entry.quality.characterAccuracy < 0.98 || entry.quality.wordAccuracy < 0.95)
+    const disposition = entry.sourceDisposition === 'source_unreadable' ? 'source_unreadable' : observed !== entry.routing.expectedAction || poorOcr ? 'reacquire' : critical ? 'metadata_only' : 'body_eligible_after_search_gates'
+    return { caseId: entry.caseId, sourcePageKeySha256: createHash('sha256').update(`${entry.sourceSha256}:${entry.sourcePageNumber}`).digest('hex'), disposition }
+  })
+  const categoryBreakdown = Object.fromEntries(REQUIRED_CATEGORIES.map((category) => {
+    const entries = ocrCases.filter((entry) => entry.categories.includes(category))
+    const chars = entries.map((entry) => entry.quality.characterAccuracy).filter((value): value is number => value !== null)
+    const words = entries.map((entry) => entry.quality.wordAccuracy).filter((value): value is number => value !== null)
+    return [category, { pages: entries.length, characterMean: chars.length ? chars.reduce((a, b) => a + b, 0) / chars.length : null, wordMean: words.length ? words.reduce((a, b) => a + b, 0) / words.length : null, missingLabels: entries.length - Math.min(chars.length, words.length) }]
+  }))
+  const missingOcrCategories = REQUIRED_CATEGORIES.filter((category) => category !== 'native_english' && ocrCases.every((entry) => !entry.categories.includes(category)))
+  const failedThresholds = [
+    ...(criticalFailuresOrUnknown.length || missingCriticalCoverage.length ? ['critical_exactness'] : []),
+    ...(expectedNative === 0 || expectedOcr === 0 || routingRecallDenominator === 0 || routingPrecisionDenominator === 0 || routing.falseNegative > 0 || routing.truePositive / routingPrecisionDenominator < 0.9 ? ['routing'] : []),
+    ...(qualityMissing.length || missingOcrCategories.length || meanCharacter === null || meanCharacter + 1e-12 < 0.98 || meanWord === null || meanWord + 1e-12 < 0.95 ? ['ocr_quality_or_category_coverage'] : []),
+    ...(totalLatencyMs / manifest.cases.length > 10000 || hundredPageMs === null || hundredPageMs > 1200000 ? ['latency'] : []),
+    ...(usdPerBilledPage === null || usdPerBilledPage > 0.01 || usdPerBilledPage * 100 > 1 ? ['ocr_cost_usd'] : []),
+  ]
   return {
-    schemaVersion: 1, adjudicationManifestSha256, benchmarkRunId: manifest.benchmarkRunId, evaluatorRun: { generatedId: manifest.evaluatorRunId, provenance: 'matched_to_evaluator_run_manifest' },
+    schemaVersion: 2, adjudicationManifestSha256, benchmarkRunId: manifest.benchmarkRunId, adjudication: manifest.adjudication, evaluatorRun: { generatedId: manifest.evaluatorRunId, provenance: 'matched_to_evaluator_run_manifest' },
     processor: { version: manifest.processorVersion, location: manifest.location },
     evaluatedPages: manifest.cases.length, categories: Object.fromEntries(REQUIRED_CATEGORIES.map((category) => [category, manifest.cases.filter((entry) => entry.categories.includes(category)).length])),
-    routing: { ...routing, precision: routingPrecisionDenominator ? routing.truePositive / routingPrecisionDenominator : null, recall: routingRecallDenominator ? routing.truePositive / routingRecallDenominator : null },
+    routing: { ...routing, precisionDenominator: routingPrecisionDenominator, recallDenominator: routingRecallDenominator, precision: routingPrecisionDenominator ? routing.truePositive / routingPrecisionDenominator : null, recall: routingRecallDenominator ? routing.truePositive / routingRecallDenominator : null },
     checks: checkMetrics,
-    quality: { characterAccuracy: character.length ? character.reduce((sum, value) => sum + value, 0) / character.length : null, characterUnknown: manifest.cases.length - character.length, wordAccuracy: word.length ? word.reduce((sum, value) => sum + value, 0) / word.length : null, wordUnknown: manifest.cases.length - word.length },
-    latency: { totalMs: totalLatencyMs, averageMs: totalLatencyMs / manifest.cases.length },
-    billing: { currency: manifest.billing.currency, billedPages: totalBilledPages, costPerBilledPage: manifest.billing.costPerBilledPage, totalCost: totalBilledPages * manifest.billing.costPerBilledPage },
-    outputLinkage: linkage,
-    gate: { status: criticalFailuresOrUnknown.length === 0 && missingCriticalCoverage.length === 0 && qualityMissing.length === 0 && expectedNative > 0 && expectedOcr > 0 && routingPrecisionDenominator > 0 && routingRecallDenominator > 0 ? 'evidence_complete' : 'structurally_incomplete', qualityThresholdStatus: 'not_yet_approved', criticalFailuresOrUnknown, missingCriticalCoverage, qualityMissingCount: qualityMissing.length, missingExpectedRouting: { native: expectedNative === 0, ocr: expectedOcr === 0 } },
+    quality: { characterAccuracy: meanCharacter, characterUnknown: qualityMissing.length, wordAccuracy: meanWord, wordUnknown: qualityMissing.length, categoryBreakdown },
+    latency: { totalMs: totalLatencyMs, averageMs: totalLatencyMs / manifest.cases.length, hundredPageMs, hundredPageEvidenceSha256: manifest.hundredPageAcquisition?.evidenceSha256 ?? null },
+    billing: { currency: manifest.billing.currency, billedPages: totalBilledPages, costPerBilledPage: manifest.billing.costPerBilledPage, usdPerCurrencyUnit: usdRate, usdPerBilledPage, fullyOcrHundredPageUsd: usdPerBilledPage === null ? null : usdPerBilledPage * 100, evidenceSha256: manifest.billing.evidenceSha256 },
+    pages,
+    outputLinkage: { authoritativeEvaluatorRunManifestSha256: linkage.authoritativeEvaluatorRunManifestSha256, outputHashes: linkage.outputHashes },
+    gate: { status: failedThresholds.length ? 'failed' : 'thresholds_met_not_provider_approved', failedThresholds, criticalFailuresOrUnknown, missingCriticalCoverage, qualityMissingCount: qualityMissing.length, missingOcrCategories },
   }
 }
 
@@ -221,8 +274,13 @@ async function main(): Promise<void> {
   if (!input || !output || !report || args.length !== 6) fail('supply exactly --manifest, --evaluator-output, and --report')
   const manifestBytes = await readFile(resolve(input))
   const result = await buildReport(JSON.parse(manifestBytes.toString('utf8')) as BenchmarkManifest, resolve(output), createHash('sha256').update(manifestBytes).digest('hex'))
-  await writeFile(resolve(report), `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 })
+  const reportPath = resolve(report)
+  try { await chmod(reportPath, 0o600) } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  await writeFile(reportPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 })
   console.log(`OCR acquisition benchmark ${result.gate instanceof Object ? (result.gate as { status: string }).status : 'completed'}: ${resolve(report)}`)
+  if ((result.gate as { status: string }).status === 'failed') process.exitCode = 2
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) main().catch((error: unknown) => { console.error(error instanceof Error ? error.message : 'OCR acquisition benchmark failed'); process.exitCode = 1 })
