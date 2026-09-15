@@ -55,7 +55,7 @@ BEGIN
   IF cancelled.code<>'cancelled' THEN RAISE EXCEPTION 'No-call Copy source was not terminalized'; END IF;
   UPDATE public.matters SET work_state='active' WHERE id=source_matter;
   SELECT * INTO cancelled FROM public.finish_document_processing_work(no_call_processing,no_call_lease,'no_work');
-  IF cancelled.code<>'no_work' THEN RAISE EXCEPTION 'No-call outer run was not cancelled'; END IF;
+  IF cancelled.code<>'already_complete' THEN RAISE EXCEPTION 'No-call outer run was not cancelled'; END IF;
   IF (SELECT count(*) FROM public.document_version_analysis_bindings WHERE document_version_id=ver)<>2
     OR EXISTS(SELECT 1 FROM public.document_field_candidates candidate
       JOIN public.document_version_analysis_bindings binding ON binding.id=candidate.document_version_analysis_binding_id

@@ -117,17 +117,57 @@ BEGIN
     RAISE EXCEPTION 'provider-call marker was not durable'; END IF;
   SELECT * INTO result FROM public.mark_current_document_processing_ai_provider_call(marked_run,marked_lease,marked_source,marked_source_lease);
   IF result.code<>'unsafe_to_call' THEN RAISE EXCEPTION 'marker replay permitted duplicate provider call'; END IF;
+  denied:=false;
+  BEGIN
+    UPDATE public.source_analysis_attempts SET provider_call_started_at=NULL
+      WHERE source_analysis_run_id=marked_source AND attempt_number=1;
+  EXCEPTION WHEN raise_exception THEN denied:=true;
+  END;
+  IF NOT denied OR NOT EXISTS(SELECT 1 FROM public.source_analysis_attempts
+      WHERE source_analysis_run_id=marked_source AND attempt_number=1 AND provider_call_started_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'possibly-called marker could be erased'; END IF;
+  UPDATE public.source_analysis_runs SET lease_expires_at=now()-interval '1 second' WHERE id=marked_source;
+  denied:=false;
+  BEGIN
+    SELECT * INTO result FROM public.begin_current_document_processing_ai_extraction(marked_run,marked_lease,
+      'vertex-ai','gemini-2.5-flash','fixture-model','fixture-prompt','fixture-schema','fixture-catalogue','fixture-normalizer');
+  EXCEPTION WHEN raise_exception THEN denied:=true;
+  END;
+  IF NOT denied THEN RAISE EXCEPTION 'wrapper replayed expired possibly-called source'; END IF;
+  denied:=false;
+  BEGIN
+    SELECT * INTO result FROM public.begin_document_processing_ai_extraction(marked_run,marked_lease,
+      'vertex-ai','gemini-2.5-flash','fixture-model','fixture-prompt','fixture-schema','fixture-catalogue','fixture-normalizer',
+      doc,ver,matter,org,'documents','orgs/'||org::text||'/assets/'||asset::text||'/original.pdf',actor);
+  EXCEPTION WHEN raise_exception THEN denied:=true;
+  END;
+  IF NOT denied OR (SELECT count(*) FROM public.source_analysis_attempts WHERE source_analysis_run_id=marked_source)<>1
+    OR (SELECT analysis_state FROM public.source_analysis_runs WHERE id=marked_source)<>'running'
+    OR (SELECT state FROM public.source_analysis_attempts WHERE source_analysis_run_id=marked_source AND attempt_number=1)<>'running' THEN
+    RAISE EXCEPTION 'legacy begin replayed or altered possibly-called source'; END IF;
   INSERT INTO public.trash_operations(id,org_id,root_resource_type,root_resource_id,root_document_id)
     VALUES ('16600000-0000-4000-8000-000000000010',org,'document',doc,doc);
   INSERT INTO public.resource_trash_memberships(org_id,operation_id,resource_type,resource_id,document_id,cause)
     VALUES (org,'16600000-0000-4000-8000-000000000010','document',doc,doc,'direct');
   SELECT * INTO result FROM public.grant_current_document_processing_source(run_id,lease);
   IF result.code<>'source_unavailable' THEN RAISE EXCEPTION 'active Trash membership was granted'; END IF;
+  UPDATE public.document_processing_runs SET lease_expires_at=now()-interval '1 second' WHERE id=marked_run;
   SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(marked_run,marked_lease,marked_source,marked_source_lease);
   IF result.code<>'unsafe_to_cancel' OR (SELECT analysis_state FROM public.source_analysis_runs WHERE id=marked_source)<>'running' THEN
     RAISE EXCEPTION 'possibly called provider run was falsely cancelled'; END IF;
   SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(run_id,gen_random_uuid(),source_run,source_lease);
   IF result.code<>'stale_lease' THEN RAISE EXCEPTION 'forged processing lease cancelled source'; END IF;
+  UPDATE public.document_processing_runs SET lease_token=gen_random_uuid() WHERE id=run_id;
+  SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(run_id,lease,source_run,source_lease);
+  IF result.code<>'stale_lease' OR (SELECT analysis_state FROM public.source_analysis_runs WHERE id=source_run)<>'running' THEN
+    RAISE EXCEPTION 'newer outer lease allowed historical cleanup'; END IF;
+  UPDATE public.document_processing_runs SET lease_token=lease WHERE id=run_id;
+  UPDATE public.source_analysis_runs SET lease_token=gen_random_uuid() WHERE id=source_run;
+  SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(run_id,lease,source_run,source_lease);
+  IF result.code<>'identity_invalid' OR (SELECT analysis_state FROM public.source_analysis_runs WHERE id=source_run)<>'running' THEN
+    RAISE EXCEPTION 'newer nested lease allowed historical cleanup'; END IF;
+  UPDATE public.source_analysis_runs SET lease_token=source_lease,lease_expires_at=now()-interval '1 second' WHERE id=source_run;
+  UPDATE public.document_processing_runs SET lease_expires_at=now()-interval '1 second' WHERE id=run_id;
   SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(run_id,lease,source_run,source_lease);
   IF result.code<>'cancelled'
     OR (SELECT analysis_state FROM public.source_analysis_runs WHERE id=source_run)<>'provider_failed'
@@ -135,7 +175,8 @@ BEGIN
     OR (SELECT state FROM public.source_analysis_attempts WHERE source_analysis_run_id=source_run AND attempt_number=1)<>'provider_failed'
     OR EXISTS(SELECT 1 FROM public.source_analysis_attempts WHERE source_analysis_run_id=source_run
       AND (provider_call_started_at IS NOT NULL OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL OR usage_recorded_at IS NOT NULL))
-    OR EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=source_run) THEN
+    OR EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=source_run)
+    OR (SELECT state FROM public.document_processing_runs WHERE id=run_id)<>'cancelled' THEN
     RAISE EXCEPTION 'no-call cancellation did not terminalize both rows without provider usage/content'; END IF;
   IF NOT EXISTS(SELECT 1 FROM public.document_version_analysis_bindings binding
       WHERE binding.org_id=org AND binding.document_id=doc AND binding.document_version_id=ver
@@ -147,7 +188,7 @@ BEGIN
   SELECT * INTO result FROM public.cancel_uncalled_document_processing_ai_extraction(run_id,lease,source_run,source_lease);
   IF result.code<>'already_cancelled' THEN RAISE EXCEPTION 'no-call cancellation replay was not idempotent'; END IF;
   SELECT * INTO result FROM public.finish_document_processing_work(run_id,lease,'no_work');
-  IF result.code<>'no_work' OR (SELECT state FROM public.document_processing_runs WHERE id=run_id)<>'cancelled' THEN
+  IF result.code<>'already_complete' OR (SELECT state FROM public.document_processing_runs WHERE id=run_id)<>'cancelled' THEN
     RAISE EXCEPTION 'outer no-work terminalization failed after nested cancellation'; END IF;
 END $test$;
 ROLLBACK;

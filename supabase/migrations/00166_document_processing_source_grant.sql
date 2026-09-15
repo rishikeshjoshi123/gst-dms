@@ -81,6 +81,38 @@ END $$;
 -- for which a paid effect may have begun, even if the provider response is lost.
 ALTER TABLE public.source_analysis_attempts ADD COLUMN provider_call_started_at timestamptz;
 
+-- A marker is evidence that the external call may have started. Neither a
+-- service retry nor a direct table writer may erase it to manufacture no-call
+-- authority. The legacy begin RPC also passes through the replay guard below.
+CREATE FUNCTION public.processing_provider_call_marker_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.provider_call_started_at IS NOT NULL
+    AND NEW.provider_call_started_at IS DISTINCT FROM OLD.provider_call_started_at THEN
+    RAISE EXCEPTION 'processing provider-call marker is immutable';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER processing_provider_call_marker_immutable
+  BEFORE UPDATE ON public.source_analysis_attempts
+  FOR EACH ROW EXECUTE FUNCTION public.processing_provider_call_marker_guard();
+
+CREATE FUNCTION public.processing_marked_source_replay_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.analysis_kind='ai_extraction' AND OLD.analysis_state='running'
+    AND NEW.analysis_state='queued'
+    AND EXISTS (SELECT 1 FROM public.source_analysis_attempts attempt
+      WHERE attempt.source_analysis_run_id=OLD.id AND attempt.attempt_number=OLD.attempt_count
+        AND attempt.provider_call_started_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'possibly called processing source requires operator recovery';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER processing_marked_source_no_replay
+  BEFORE UPDATE ON public.source_analysis_runs
+  FOR EACH ROW EXECUTE FUNCTION public.processing_marked_source_replay_guard();
+
 CREATE FUNCTION public.mark_current_document_processing_ai_provider_call(
   p_processing_run_id uuid, p_processing_lease_token uuid,
   p_source_analysis_run_id uuid, p_source_analysis_lease_token uuid
@@ -128,8 +160,20 @@ BEGIN
     RETURN QUERY SELECT 'invalid_request'::text; RETURN;
   END IF;
   SELECT * INTO r FROM public.document_processing_runs WHERE id=p_processing_run_id FOR UPDATE;
+  IF r.id IS NOT NULL AND r.state='cancelled' AND r.lease_token=p_processing_lease_token
+    AND EXISTS (SELECT 1 FROM public.source_analysis_runs source
+      JOIN public.document_version_analysis_bindings binding ON binding.source_analysis_run_id=source.id
+      WHERE source.id=p_source_analysis_run_id AND source.org_id=r.org_id
+        AND source.lease_token=p_source_analysis_lease_token
+        AND source.analysis_state='provider_failed' AND source.safe_error_code='source_revoked_before_model'
+        AND binding.document_version_id=r.document_version_id
+        AND binding.binding_reason='no_call_processing_source') THEN
+    RETURN QUERY SELECT 'already_cancelled'::text; RETURN;
+  END IF;
+  -- Lease expiry is not a successor. An exact still-running historical claim
+  -- may clean up an attempt proved uncalled, but cannot reclaim live work.
   IF r.id IS NULL OR r.state<>'running' OR r.lease_token IS DISTINCT FROM p_processing_lease_token
-    OR r.lease_expires_at<=now() OR r.scope<>'full' THEN
+    OR r.scope<>'full' THEN
     RETURN QUERY SELECT 'stale_lease'::text; RETURN;
   END IF;
   SELECT * INTO s FROM public.source_analysis_runs WHERE id=p_source_analysis_run_id AND org_id=r.org_id FOR UPDATE;
@@ -145,15 +189,27 @@ BEGIN
   END IF;
   SELECT * INTO attempt FROM public.source_analysis_attempts
     WHERE source_analysis_run_id=s.id AND attempt_number=s.attempt_count FOR UPDATE;
-  IF s.analysis_state<>'running' OR s.state<>'running' OR s.lease_expires_at<=now()
+  IF s.analysis_state<>'running' OR s.state<>'running' OR s.lease_expires_at IS NULL
     OR attempt.id IS NULL OR attempt.state<>'running' OR attempt.provider_call_started_at IS NOT NULL
     OR attempt.provider_request_id IS NOT NULL OR attempt.provider_operation_id IS NOT NULL
     OR attempt.input_tokens IS NOT NULL OR attempt.output_tokens IS NOT NULL OR attempt.usage_recorded_at IS NOT NULL
     OR s.provider_request_id IS NOT NULL OR s.provider_operation_id IS NOT NULL
     OR s.input_tokens IS NOT NULL OR s.output_tokens IS NOT NULL OR s.usage_recorded_at IS NOT NULL
+    OR EXISTS(SELECT 1 FROM public.source_analysis_attempts prior
+      WHERE prior.source_analysis_run_id=s.id
+        AND (prior.provider_call_started_at IS NOT NULL OR prior.provider_request_id IS NOT NULL
+          OR prior.provider_operation_id IS NOT NULL OR prior.input_tokens IS NOT NULL
+          OR prior.output_tokens IS NOT NULL OR prior.usage_recorded_at IS NOT NULL))
     OR EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=s.id)
     OR EXISTS(SELECT 1 FROM public.document_version_analysis_bindings WHERE source_analysis_run_id=s.id) THEN
     RETURN QUERY SELECT 'unsafe_to_cancel'::text; RETURN;
+  END IF;
+  -- The 00099 terminal guard requires a live nested fence. Only after every
+  -- no-call predicate and both identity locks succeed may this same token be
+  -- renewed; any successor or marker fails above before this write.
+  IF s.lease_expires_at<=now() THEN
+    UPDATE public.source_analysis_runs SET lease_expires_at=now()+interval '1 minute',heartbeat_at=now()
+      WHERE id=s.id;
   END IF;
   UPDATE public.source_analysis_attempts SET state='provider_failed',failed_at=now(),
     safe_error_category='unknown',safe_error_code='source_revoked_before_model' WHERE id=attempt.id;
@@ -165,6 +221,11 @@ BEGIN
     org_id,document_id,document_version_id,source_analysis_run_id,binding_reason
   ) VALUES (r.org_id,r.document_id,r.document_version_id,s.id,'no_call_processing_source')
   ON CONFLICT (document_version_id,source_analysis_run_id) DO NOTHING;
+  -- Retain only the historical token as an idempotency fence on this terminal
+  -- no-call run. There is no live lease and the claim RPC will not reclaim it.
+  UPDATE public.document_processing_runs SET state='cancelled',started_at=NULL,
+    completed_at=NULL,failed_at=NULL,safe_error_code=NULL,
+    lease_expires_at=NULL,heartbeat_at=now() WHERE id=r.id;
   RETURN QUERY SELECT 'cancelled'::text;
 END $$;
 
@@ -201,6 +262,11 @@ BEGIN
       AND run_row.state='failed' AND run_row.safe_error_code='source_revoked_before_model'
       AND run_row.provider_request_id IS NULL AND run_row.provider_operation_id IS NULL
       AND run_row.input_tokens IS NULL AND run_row.output_tokens IS NULL AND run_row.usage_recorded_at IS NULL
+      AND NOT EXISTS(SELECT 1 FROM public.source_analysis_attempts prior
+        WHERE prior.source_analysis_run_id=run_row.id
+          AND (prior.provider_call_started_at IS NOT NULL OR prior.provider_request_id IS NOT NULL
+            OR prior.provider_operation_id IS NOT NULL OR prior.input_tokens IS NOT NULL
+            OR prior.output_tokens IS NOT NULL OR prior.usage_recorded_at IS NOT NULL))
       AND NOT EXISTS(SELECT 1 FROM public.source_field_candidates WHERE source_analysis_run_id=run_row.id)
       AND EXISTS(SELECT 1 FROM public.source_analysis_attempts attempt
         WHERE attempt.source_analysis_run_id=run_row.id AND attempt.attempt_number=run_row.attempt_count
@@ -339,4 +405,6 @@ GRANT EXECUTE ON FUNCTION public.grant_current_document_processing_source(uuid,u
   public.mark_current_document_processing_ai_provider_call(uuid,uuid,uuid,uuid),
   public.cancel_uncalled_document_processing_ai_extraction(uuid,uuid,uuid,uuid)
   TO service_role;
+REVOKE ALL ON FUNCTION public.processing_provider_call_marker_guard(),
+  public.processing_marked_source_replay_guard() FROM PUBLIC, anon, authenticated, service_role;
 COMMIT;
