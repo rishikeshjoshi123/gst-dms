@@ -63,18 +63,33 @@ CREATE FUNCTION public.transition_task(
   p_assignee_user_id uuid DEFAULT NULL,p_due_date date DEFAULT NULL
 ) RETURNS TABLE(code text,task_id uuid,revision bigint,status public.task_status,replayed boolean)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE v_actor uuid:=auth.uid(); v_org uuid; v_actor_membership uuid; v_assignee_membership uuid; v_command text:=nullif(btrim(p_command),'');
+DECLARE v_actor uuid:=auth.uid(); v_org uuid; v_actor_membership uuid; v_assignee_membership uuid; v_role public.org_member_role; v_is_owner boolean:=false; v_command text:=nullif(btrim(p_command),'');
 BEGIN
   IF v_actor IS NULL THEN
     RETURN QUERY SELECT 'not_allowed'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
   END IF;
-  SELECT current.membership_id,current.org_id INTO v_actor_membership,v_org
+  SELECT current.membership_id,current.org_id,current.role INTO v_actor_membership,v_org,v_role
     FROM public.current_active_tenant_membership() current;
   IF v_actor_membership IS NULL THEN
     RETURN QUERY SELECT 'not_allowed'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
   END IF;
   PERFORM 1 FROM public.organisation_memberships membership
     WHERE membership.id=v_actor_membership AND membership.state='active' FOR UPDATE;
+  SELECT organisation.owner_membership_id=v_actor_membership INTO v_is_owner
+    FROM public.organisations organisation WHERE organisation.id=v_org;
+  IF v_role='viewer' AND NOT v_is_owner THEN
+    RETURN QUERY SELECT 'not_allowed'::text,NULL::uuid,NULL::bigint,NULL::public.task_status,false; RETURN;
+  END IF;
+  -- Preserve the mature command's receipt-first semantics. Delegation does
+  -- not disclose the receipt: the private implementation repeats actor,
+  -- tenant and request-fingerprint checks before returning replay/conflict.
+  IF p_idempotency_key IS NOT NULL AND EXISTS(
+    SELECT 1 FROM public.task_transition_receipts receipt WHERE receipt.idempotency_key=p_idempotency_key
+  ) THEN
+    RETURN QUERY SELECT * FROM public.transition_task_pre_suspension_fence(
+      p_task_id,v_command,p_expected_revision,p_idempotency_key,p_assignee_user_id,p_due_date);
+    RETURN;
+  END IF;
   IF v_command='set_assignee' AND p_assignee_user_id IS NOT NULL THEN
     SELECT membership.id INTO v_assignee_membership
       FROM public.organisation_memberships membership

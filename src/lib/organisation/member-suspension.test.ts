@@ -22,6 +22,8 @@ test('suspension authority is exact-active, capability based, ordinary-member on
   assert.match(migration, /tasks_assignee_active_update_fence/)
   assert.match(migration, /Task assignee must be an active eligible organisation member/)
   assert.match(migration, /transition_task_pre_suspension_fence/)
+  assert.match(migration, /task_transition_receipts receipt WHERE receipt\.idempotency_key=p_idempotency_key/)
+  assert.ok(migration.indexOf('task_transition_receipts receipt WHERE') < migration.indexOf("IF v_command='set_assignee'"))
   assert.match(migration, /OLD\.assignee_user_id IS DISTINCT FROM NEW\.assignee_user_id/)
 })
 

@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from './lib/supabase/database.types'
 
+export function copySupabaseCookies(response: NextResponse, supabaseResponse: NextResponse) {
+  for (const cookie of supabaseResponse.cookies.getAll()) response.cookies.set(cookie)
+  return response
+}
+
 /**
  * Proxy (formerly Middleware): refreshes expired sessions and enforces auth on protected routes.
  * In Next.js 16+, this file is named proxy.ts and exports a named `proxy` function.
@@ -67,7 +72,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
-    return NextResponse.redirect(url)
+    return copySupabaseCookies(NextResponse.redirect(url), supabaseResponse)
   }
 
   const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
@@ -82,19 +87,19 @@ export async function proxy(request: NextRequest) {
     // existing non-disclosing onboarding state instead of the protected shell.
     const url = request.nextUrl.clone()
     url.pathname = hasExactActiveContext ? '/dashboard' : '/onboarding'
-    return NextResponse.redirect(url)
+    return copySupabaseCookies(NextResponse.redirect(url), supabaseResponse)
   }
 
   // Proxy is the Next 16 request boundary. Unlike a cached layout it runs for
   // RSC/client-navigation requests as well as full document requests.
   if (user && !isPublicRoute && !isOnboarding && !hasExactActiveContext) {
     if (pathname.startsWith('/api/')) {
-      return NextResponse.json({ error: 'Organisation access is unavailable.' }, { status: 403 })
+      return copySupabaseCookies(NextResponse.json({ error: 'Organisation access is unavailable.' }, { status: 403 }), supabaseResponse)
     }
     const url = request.nextUrl.clone()
     url.pathname = '/onboarding'
     url.search = ''
-    return NextResponse.redirect(url)
+    return copySupabaseCookies(NextResponse.redirect(url), supabaseResponse)
   }
 
   // IMPORTANT: must return supabaseResponse, not NextResponse.next()

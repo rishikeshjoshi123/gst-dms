@@ -5,8 +5,9 @@ export async function POST(request: Request) {
   try {
     const { paths, secret } = await request.json()
 
-    // Replace this with your actual app secret stored in environment variables
-    if (secret !== process.env.API_SECRET_KEY) {
+    const configuredSecret = process.env.API_SECRET_KEY
+    if (typeof configuredSecret !== 'string' || configuredSecret.trim().length === 0 ||
+        typeof secret !== 'string' || secret.length === 0 || secret !== configuredSecret) {
       return NextResponse.json({ message: 'Invalid token' }, { status: 401 })
     }
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ revalidated: true, now: Date.now() })
-  } catch (err) {
+  } catch {
     return NextResponse.json({ message: 'Error revalidating' }, { status: 500 })
   }
 }
