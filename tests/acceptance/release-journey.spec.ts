@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { validateCallbackLocation, validateVerificationUrl } from '../../scripts/acceptance/release-journey-boundary.mjs'
 
 const capturedMailUrl = process.env.RELEASE_JOURNEY_INBUCKET_URL
 const workdir = process.env.RELEASE_JOURNEY_SUPABASE_WORKDIR
@@ -12,16 +13,39 @@ if (!workdir || !readFileSync(join(workdir, 'supabase/config.toml'), 'utf8').inc
   throw new Error('Release-journey acceptance requires its exclusively owned disposable stack.')
 }
 
-const ownerEmail = 'release-owner@acceptance.test'
+const ownerEmail = process.env.RELEASE_JOURNEY_OWNER_EMAIL
+if (!ownerEmail || !/^release-owner-[0-9a-f]{12}@acceptance\.test$/.test(ownerEmail)) throw new Error('Release-journey acceptance requires its per-run Owner address.')
 const password = 'Release-journey-only-2026!'
 const sourcePdf = readFileSync(join(process.cwd(), 'tests/acceptance/fixtures/synthetic-multi-page.pdf'))
 
-function databaseOperation(operation: 'prepare' | 'activate-relationship' | 'verify') {
+function databaseOperation(operation: 'prepare' | 'activate-relationship' | 'verify' | 'signup-diagnostic') {
   const result = spawnSync(process.execPath, ['scripts/acceptance/release-journey-db.mjs', operation], {
     cwd: process.cwd(), env: process.env, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
   })
   if (result.error || result.status !== 0) throw new Error(result.error?.message ?? `${result.stderr}\n${result.stdout}`)
   return result.stdout.trim()
+}
+
+async function expectSignupAccepted(page: Page, request: APIRequestContext) {
+  const status = page.getByRole('status')
+  const failure = page.getByText('The account could not be created. Check the details and try again.')
+  let state = 'pending'
+  try {
+    await expect.poll(async () => {
+      if (await status.isVisible().catch(() => false)) return 'accepted'
+      if (await failure.isVisible().catch(() => false)) return 'rejected'
+      return 'pending'
+    }).toBe('accepted')
+    state = 'accepted'
+  } catch {
+    state = await failure.isVisible().catch(() => false) ? 'rejected' : 'timed_out'
+  }
+  if (state === 'accepted') return
+  const [authHealth, mailHealth] = await Promise.all([
+    request.get('http://127.0.0.1:56221/auth/v1/health'),
+    request.get(`${capturedMailUrl}/api/v1/mailbox`),
+  ])
+  throw new Error(`Confirmation-required signup ${state}; safe diagnostics: auth_health=${authHealth.status()}, mail_capture=${mailHealth.status()}, database=${databaseOperation('signup-diagnostic')}`)
 }
 
 function collectStrings(value: unknown): string[] {
@@ -58,7 +82,7 @@ async function verificationLink(request: APIRequestContext, email: string) {
     return found
   }, { timeout: 15_000 }).not.toBeNull()
   if (!found) throw new Error('Captured verification mail had no verification URL.')
-  return found
+  return validateVerificationUrl(found, { authOrigin: 'http://127.0.0.1:56221', appOrigin: 'http://127.0.0.1:3113' })
 }
 
 async function expectNoOverflow(page: Page) {
@@ -101,12 +125,14 @@ test('fresh Owner completes the coherent local mandatory first-release rehearsal
   await page.getByLabel(/^Password/).fill(password)
   await page.getByLabel('Confirm password').fill(password)
   await page.getByRole('button', { name: 'Create account' }).click()
+  await expectSignupAccepted(page, request)
   await expect(page.getByRole('status')).toContainText('check your email')
   const response = await request.get(await verificationLink(request, ownerEmail), { maxRedirects: 0 })
   expect([302, 303]).toContain(response.status())
-  const callback = new URL(response.headers().location, capturedMailUrl)
-  expect(callback.origin).toBe('http://127.0.0.1:3113')
-  await page.goto(callback.toString())
+  const location = response.headers().location
+  if (!location) throw new Error('Auth verification did not return a callback location.')
+  const callback = validateCallbackLocation(location, { authOrigin: 'http://127.0.0.1:56221', appOrigin: 'http://127.0.0.1:3113' })
+  await page.goto(callback)
   await expect(page).toHaveURL(/\/onboarding$/)
   await page.getByLabel('Organisation name').fill('Release Journey Organisation')
   await page.getByRole('button', { name: 'Create organisation' }).click()

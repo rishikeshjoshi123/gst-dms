@@ -11,6 +11,10 @@ if (!workdir || !readFileSync(join(workdir, 'supabase/config.toml'), 'utf8').inc
 }
 const container = `supabase_db_${project}`
 const operation = process.argv[2]
+const ownerEmail = process.env.RELEASE_JOURNEY_OWNER_EMAIL
+if (!ownerEmail || !/^release-owner-[0-9a-f]{12}@acceptance\.test$/.test(ownerEmail)) {
+  throw new Error('Release-journey database operations require the per-run Owner address.')
+}
 
 function sql(source, { tuples = false } = {}) {
   const args = ['exec', '-i', container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres']
@@ -32,7 +36,7 @@ DECLARE
 BEGIN
   SELECT users.id, organisations.id INTO STRICT v_owner_id, v_org_id
   FROM auth.users users JOIN public.organisations organisations ON organisations.created_by=users.id
-  WHERE users.email='release-owner@acceptance.test' AND organisations.name='Release Journey Organisation';
+  WHERE users.email='${ownerEmail}' AND organisations.name='Release Journey Organisation';
   SELECT matter.id INTO STRICT v_primary_matter FROM public.matters matter WHERE matter.org_id=v_org_id AND matter.title='Release Journey Primary';
   SELECT matter.id INTO STRICT v_alternate_matter FROM public.matters matter WHERE matter.org_id=v_org_id AND matter.title='Release Journey Alternate';
   SELECT intake.id INTO STRICT intended_intake FROM public.intake_items intake
@@ -135,7 +139,7 @@ DECLARE v_owner_id uuid; v_org_id uuid; v_matter_id uuid; v_source_id uuid; v_ta
 BEGIN
   SELECT users.id, organisations.id INTO STRICT v_owner_id,v_org_id
     FROM auth.users users JOIN public.organisations organisations ON organisations.created_by=users.id
-    WHERE users.email='release-owner@acceptance.test' AND organisations.name='Release Journey Organisation';
+    WHERE users.email='${ownerEmail}' AND organisations.name='Release Journey Organisation';
   SELECT matter.id INTO STRICT v_matter_id FROM public.matters matter WHERE matter.org_id=v_org_id AND matter.title='Release Journey Primary';
   SELECT document.id INTO STRICT v_source_id
     FROM public.documents document JOIN public.document_versions version ON version.id=document.current_version_id
@@ -173,7 +177,7 @@ DECLARE v_owner_id uuid; v_org_id uuid; v_client_id uuid; v_primary_matter uuid;
 BEGIN
   SELECT users.id,organisations.id INTO STRICT v_owner_id,v_org_id
     FROM auth.users users JOIN public.organisations organisations ON organisations.created_by=users.id
-    WHERE users.email='release-owner@acceptance.test' AND users.email_confirmed_at IS NOT NULL
+    WHERE users.email='${ownerEmail}' AND users.email_confirmed_at IS NOT NULL
       AND organisations.name='Release Journey Organisation';
   IF (SELECT count(*) FROM public.organisation_memberships membership JOIN public.organisations organisation ON organisation.owner_membership_id=membership.id
       WHERE membership.user_id=v_owner_id AND membership.org_id=v_org_id AND membership.state='active' AND membership.role='admin')<>1 THEN
@@ -237,7 +241,17 @@ END $journey$;
 SELECT 'Release journey cross-feature SQL assertions passed.';
 `
 
+const signupDiagnostic = String.raw`
+SELECT jsonb_build_object(
+  'matching_auth_users',(SELECT count(*) FROM auth.users WHERE email='${ownerEmail}'),
+  'matching_identities',(SELECT count(*) FROM auth.identities WHERE identity_data->>'email'='${ownerEmail}'),
+  'confirmed_users',(SELECT count(*) FROM auth.users WHERE email='${ownerEmail}' AND email_confirmed_at IS NOT NULL),
+  'matching_profiles',(SELECT count(*) FROM public.user_profiles profile JOIN auth.users users ON users.id=profile.user_id WHERE users.email='${ownerEmail}')
+);
+`
+
 if (operation === 'prepare') process.stdout.write(`${sql(prepare, { tuples: true })}\n`)
 else if (operation === 'activate-relationship') process.stdout.write(`${sql(activate)}\n`)
 else if (operation === 'verify') process.stdout.write(`${sql(verify)}\n`)
-else throw new Error('Use prepare, activate-relationship, or verify.')
+else if (operation === 'signup-diagnostic') process.stdout.write(`${sql(signupDiagnostic, { tuples: true })}\n`)
+else throw new Error('Use prepare, activate-relationship, verify, or signup-diagnostic.')
