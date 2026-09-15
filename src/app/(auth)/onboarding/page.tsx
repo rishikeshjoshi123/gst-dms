@@ -17,15 +17,16 @@ export default async function OnboardingPage({
   if (!user) redirect('/login')
 
   const { data: contexts } = await supabase.rpc('get_my_organisation_context')
-  const current = (contexts ?? [])[0]
+  const contextRows = contexts ?? []
+  const current = contextRows.length === 1 ? contextRows[0] : undefined
   if (current?.state === 'active') redirect('/dashboard')
-  if (current?.state === 'suspended') {
+  if (current?.state === 'suspended' || contextRows.length > 1) {
     return (
       <section aria-labelledby="suspended-heading" className="space-y-5">
         <div>
           <h1 id="suspended-heading" className="text-2xl font-bold text-[var(--text-primary)]">Access suspended</h1>
           <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-            Your organisation access is suspended. Contact an organisation administrator for help.
+            {current?.state === 'suspended' ? 'Your organisation access is suspended.' : 'Your organisation access is unavailable.'} Contact an organisation administrator for help.
           </p>
         </div>
         <form action={signOut}><Button type="submit" variant="outline" size="lg">Log out</Button></form>

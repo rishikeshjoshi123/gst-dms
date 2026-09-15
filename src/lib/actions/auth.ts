@@ -60,9 +60,11 @@ export async function signIn(_previousState: SignInState, formData: FormData): P
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
     const { data: contexts } = await supabase.rpc('get_my_organisation_context')
-    const context = (contexts ?? [])[0]
+    const contextRows = contexts ?? []
+    if (contextRows.length !== 1) redirect('/onboarding')
+    const context = contextRows[0]
     if (context?.state === 'suspended') {
-      return { error: 'Access suspended.' }
+      redirect('/onboarding')
     }
     if (context?.state === 'active') {
       // Save current org into cookie

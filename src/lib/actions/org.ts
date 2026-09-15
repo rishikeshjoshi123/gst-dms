@@ -30,17 +30,19 @@ export async function getCurrentOrgId(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  const { data } = await supabase.rpc('get_my_organisation_context')
+  const contexts = data ?? []
+  if (contexts.length !== 1 || contexts[0].state !== 'active') return null
+  const activeContext = contexts[0]
+
   if (orgId) {
-    const { data } = await supabase.rpc('get_my_organisation_context')
-    const membership = (data ?? []).find((row: { org_id: string; state: string }) => row.org_id === orgId && row.state === 'active')
-    if (membership) return membership.org_id
+    if (activeContext.org_id === orgId) return activeContext.org_id
   }
 
   // A preference can be absent or stale (for example, an older session). Use
   // a verified membership for this request; a later sign-in/org switch writes
   // the preference from a Server Action.
-  const { data } = await supabase.rpc('get_my_organisation_context')
-  return ((data ?? []).find((row: { state: string }) => row.state === 'active') as { org_id?: string } | undefined)?.org_id ?? null
+  return activeContext.org_id
 }
 
 const invitationError = (code?: string) => {
@@ -215,4 +217,71 @@ export async function resendInvite(inviteId: string, expectedRevision: number, i
   revalidatePath('/team')
   if (deliveryRecordError || !['ok','already_processed'].includes(deliveryRecordCode ?? '')) return { error: 'The invitation was renewed, but its delivery status could not be recorded. Refresh Team before trying again.' }
   return delivery.success ? { success: true, replayed: false } : { error: 'The invitation was renewed, but email delivery failed. Try resending again later.' }
+}
+
+export type StandardMemberSuspensionImpact = {
+  targetMembershipId: string
+  targetRevision: number
+  targetDisplayName: string
+  targetRole: 'associate' | 'viewer'
+  openTaskCount: number
+}
+
+export async function getStandardMemberSuspensionImpact(membershipId: string): Promise<
+  { impact: StandardMemberSuspensionImpact } | { error: string }
+> {
+  if (!z.string().uuid().safeParse(membershipId).success) return { error: 'This member is not available.' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_standard_member_suspension_impact', { p_target_membership_id: membershipId })
+  const impact = data?.[0]
+  if (error || !impact || impact.code !== 'ok' || !impact.target_membership_id || !impact.target_revision ||
+      !impact.target_display_name || !['associate', 'viewer'].includes(impact.target_role) ||
+      impact.task_disposition !== 'return_open_tasks_to_team') {
+    return { error: impact?.code === 'not_allowed' ? 'You do not have permission to suspend this member.' : 'This member is no longer available for suspension.' }
+  }
+  return { impact: {
+    targetMembershipId: impact.target_membership_id,
+    targetRevision: impact.target_revision,
+    targetDisplayName: impact.target_display_name,
+    targetRole: impact.target_role as 'associate' | 'viewer',
+    openTaskCount: impact.open_task_count,
+  } }
+}
+
+export async function suspendStandardMember(input: {
+  membershipId: string
+  expectedRevision: number
+  reason: string
+  idempotencyKey: string
+}) {
+  const parsed = z.object({
+    membershipId: z.string().uuid(),
+    expectedRevision: z.number().int().positive(),
+    reason: z.string().trim().min(3).max(500).refine((value) => !/[\u0000-\u001f\u007f]/.test(value)),
+    idempotencyKey: z.string().uuid(),
+  }).safeParse(input)
+  if (!parsed.success) return { error: 'Enter a reason between 3 and 500 characters.' }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('suspend_standard_organisation_member', {
+    p_target_membership_id: parsed.data.membershipId,
+    p_expected_revision: parsed.data.expectedRevision,
+    p_reason: parsed.data.reason,
+    p_task_disposition: 'return_open_tasks_to_team',
+    p_idempotency_key: parsed.data.idempotencyKey,
+  })
+  const result = data?.[0]
+  if (error || !result || !['suspended', 'already_processed'].includes(result.code)) {
+    const message = result?.code === 'conflict'
+      ? 'This member changed after the impact preview. Review the latest impact and try again.'
+      : result?.code === 'idempotency_subject_mismatch'
+        ? 'This request could not be retried safely. Close the dialog and try again.'
+        : result?.code === 'invalid_request'
+          ? 'Check the reason and task disposition, then try again.'
+          : result?.code === 'not_allowed'
+            ? 'You do not have permission to suspend this member.'
+            : 'This member is no longer available for suspension.'
+    return { error: message }
+  }
+  revalidatePath('/team')
+  return { success: true, returnedTaskCount: result.returned_task_count }
 }

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getStagedDocumentCount } from '@/lib/actions/inbox'
 import { getUnreadNotificationCount } from '@/lib/actions/notifications'
-import { getCurrentOrgId } from '@/lib/actions/org'
 import { SidebarNav } from '@/components/nav/SidebarNav'
 import { UserMenu } from '@/components/nav/UserMenu'
 import { ThemeToggle } from '@/components/nav/ThemeToggle'
@@ -25,25 +24,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  // The cookie only remembers a selection; this returns it only after the
-  // signed-in user's membership has been verified.
-  const currentOrgId = await getCurrentOrgId()
-
-  // Get all user's orgs
-  const { data: memberships } = await supabase
-    .from('org_members')
-    .select('role, organisations(id, name)')
-    .eq('user_id', user.id)
-
-  const orgs = (memberships ?? []).map((m) => ({
-    id: (m.organisations as { id: string; name: string }).id,
-    name: (m.organisations as { id: string; name: string }).name,
-    role: m.role,
-  }))
-
-  if (orgs.length === 0) redirect('/onboarding')
-
-  const activeOrg = orgs.find(o => o.id === currentOrgId) ?? orgs[0]
+  // One central shell gate rechecks the canonical lifecycle on every protected
+  // request. A still-valid Auth session is not organisation access.
+  const { data: contexts } = await supabase.rpc('get_my_organisation_context')
+  const activeContexts = (contexts ?? []).filter((context) => context.state === 'active')
+  if (activeContexts.length !== 1 || (contexts ?? []).length !== 1) redirect('/onboarding')
+  const context = activeContexts[0]
+  const { data: organisation } = await supabase.from('organisations').select('id,name').eq('id', context.org_id).maybeSingle()
+  if (!organisation) redirect('/onboarding')
+  const activeOrg = { id: organisation.id, name: organisation.name, role: context.role }
+  const orgs = [activeOrg]
 
   const [inboxCount, notifCount] = await Promise.all([
     getStagedDocumentCount(),

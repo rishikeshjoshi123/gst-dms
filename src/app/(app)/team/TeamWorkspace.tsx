@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Mail, Search, UserPlus, UserRound } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, Mail, Search, ShieldOff, UserPlus, UserRound } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Avatar } from '@/components/ui/avatar'
@@ -15,7 +15,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FormField } from '@/components/ui/label'
 import { cn, formatDate } from '@/lib/utils'
-import { inviteMember, resendInvite, revokeInvite } from '@/lib/actions/org'
+import { getStandardMemberSuspensionImpact, inviteMember, resendInvite, revokeInvite, suspendStandardMember, type StandardMemberSuspensionImpact } from '@/lib/actions/org'
 import type { TeamDirectoryEntry, TeamDirectoryParams, TeamDirectoryResult } from '@/lib/organisation/team-directory'
 import { toast } from 'sonner'
 
@@ -59,9 +59,44 @@ function InvitationStateBadge({ state }: { state: InvitationState }) {
   return <Badge fixedWidth="lg" variant={variant}>{state.charAt(0).toUpperCase()+state.slice(1)}</Badge>
 }
 
-function MemberInspector({ member, onBack }: { member: TeamDirectoryEntry; onBack: () => void }) {
+function MemberInspector({ member, onBack, canSuspend }: { member: TeamDirectoryEntry; onBack: () => void; canSuspend: boolean }) {
+  const router = useRouter()
+  const suspendButtonRef = useRef<HTMLButtonElement>(null)
+  const [impact, setImpact] = useState<StandardMemberSuspensionImpact | null>(null)
+  const [impactPending, startImpactTransition] = useTransition()
+  const [submitPending, startSubmitTransition] = useTransition()
+  const [reason, setReason] = useState('')
+  const [acceptTaskReturn, setAcceptTaskReturn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const idempotencyKey = useRef(crypto.randomUUID())
   const shownCapabilities = member.capabilities.slice(0, 4)
   const capabilitySummary = member.capabilities.length === 0 ? 'Unavailable' : member.capabilities.length > shownCapabilities.length ? `${shownCapabilities.map(capabilityLabel).join(', ')} and ${member.capabilities.length - shownCapabilities.length} more` : `${shownCapabilities.map(capabilityLabel).join(', ')} (complete)`
+  const suspensionAvailable = canSuspend && member.state === 'active' && !member.is_owner && (member.role === 'associate' || member.role === 'viewer')
+
+  function previewSuspension() {
+    setError(null)
+    startImpactTransition(async () => {
+      const result = await getStandardMemberSuspensionImpact(member.membership_id)
+      if ('error' in result) { setError(result.error ?? 'This member is no longer available for suspension.'); return }
+      setImpact(result.impact)
+    })
+  }
+  function closeSuspension() {
+    if (submitPending) return
+    setImpact(null); setReason(''); setAcceptTaskReturn(false); setError(null); idempotencyKey.current=crypto.randomUUID()
+    requestAnimationFrame(() => suspendButtonRef.current?.focus())
+  }
+  function confirmSuspension() {
+    if (!impact || !acceptTaskReturn) return
+    setError(null)
+    startSubmitTransition(async () => {
+      const result = await suspendStandardMember({ membershipId: impact.targetMembershipId, expectedRevision: impact.targetRevision, reason, idempotencyKey: idempotencyKey.current })
+      if ('error' in result) { setError(result.error ?? 'This member is no longer available for suspension.'); return }
+      toast.success(`${impact.targetDisplayName}'s access was suspended. ${result.returnedTaskCount} task${result.returnedTaskCount === 1 ? '' : 's'} returned to the team.`)
+      setImpact(null)
+      router.refresh()
+    })
+  }
   return (
     <aside className="flex min-h-0 flex-1 flex-col border-l border-[var(--border)] bg-[var(--surface)] lg:basis-2/5 lg:max-w-[42%]" aria-label="Member details">
       <header className="shrink-0 border-b border-[var(--border)] p-4">
@@ -82,7 +117,37 @@ function MemberInspector({ member, onBack }: { member: TeamDirectoryEntry; onBac
           <div><dt className="text-caption text-[var(--text-muted)]">Status</dt><dd className="mt-1"><StateBadge state={member.state} /></dd></div>
           <div><dt className="text-caption text-[var(--text-muted)]">Access summary</dt><dd className="mt-1 break-words text-[var(--text-primary)]">{capabilitySummary}</dd></div>
         </dl>
+        {suspensionAvailable && <div className="mt-6 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Access administration</h3>
+          <p className="mt-1 text-caption leading-5 text-[var(--text-muted)]">Preview affected work before immediately blocking this member’s organisation access.</p>
+          <Button ref={suspendButtonRef} type="button" variant="destructive" className="mt-3 min-h-11" loading={impactPending} onClick={previewSuspension}><ShieldOff aria-hidden="true" size={16}/>Preview suspension</Button>
+          {error && !impact && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{error}</p>}
+        </div>}
       </div>
+      <Dialog open={Boolean(impact)} onOpenChange={(open) => { if (!open) closeSuspension() }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-xl">
+          <DialogHeader><DialogTitle>Suspend {impact?.targetDisplayName}&apos;s access?</DialogTitle><DialogDescription>This takes effect immediately. Their authored content and organisation history remain attributed and available to authorised teammates.</DialogDescription></DialogHeader>
+          {impact && <div className="custom-scrollbar min-h-0 space-y-4 overflow-y-auto pr-1">
+            <div className="rounded-[var(--radius-sm)] border border-[var(--warning)] bg-[var(--warning-muted)] p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><AlertTriangle aria-hidden="true" size={16}/>{impact.openTaskCount} open or in-progress task{impact.openTaskCount === 1 ? '' : 's'}</p>
+              <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">Every affected Task will be unassigned and returned to the team queue. Its status, due date, history, and Matter context stay unchanged.</p>
+            </div>
+            <div className="text-sm leading-6 text-[var(--text-secondary)]">
+              <p>Verified deadlines do not currently name an accountable member, Review has no temporary claim, and this role cannot govern invitations.</p>
+              <p className="mt-2">No enabled digest or internal-expense grant lifecycle applies to this suspension. Matter ownership is not inferred.</p>
+            </div>
+            <FormField label="Reason for suspension" htmlFor="suspension-reason" required error={error ?? undefined}>
+              <div><textarea id="suspension-reason" autoFocus required minLength={3} maxLength={500} value={reason} onChange={(event)=>setReason(event.target.value)} disabled={submitPending} className="min-h-28 w-full resize-y rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]" aria-describedby="suspension-reason-help"/>
+              <span id="suspension-reason-help" className="mt-1 block text-caption text-[var(--text-muted)]">Visible only in authorised administration records. 3–500 characters.</span></div>
+            </FormField>
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--border-strong)] p-3 text-sm text-[var(--text-primary)]">
+              <input type="checkbox" className="mt-0.5 size-5 accent-[var(--accent)]" checked={acceptTaskReturn} onChange={(event)=>setAcceptTaskReturn(event.target.checked)} disabled={submitPending}/>
+              <span>I accept returning all {impact.openTaskCount} affected task{impact.openTaskCount === 1 ? '' : 's'} to the team queue.</span>
+            </label>
+          </div>}
+          <DialogFooter><Button type="button" variant="outline" onClick={closeSuspension} disabled={submitPending}>Cancel</Button><Button type="button" variant="destructive" loading={submitPending} disabled={!impact || reason.trim().length<3 || !acceptTaskReturn} onClick={confirmSuspension}>Suspend access and return tasks</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }
@@ -248,7 +313,7 @@ export function TeamWorkspace({ result, initialQuery, selectedMembershipId, view
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Link href="/settings" className="touch-target inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">Organisation settings</Link>{canInvite&&<Button ref={inviteButtonRef} type="button" size="sm" onClick={()=>setInviteDialogOpen(true)}><UserPlus aria-hidden="true" size={16}/>Invite member</Button>}</div>
       </div>
     </header>
-    <div className={cn('flex min-h-0 flex-1 flex-col', selected&&view==='members'&&'lg:flex-row')}><section className={cn('flex min-h-0 flex-1 flex-col',selected&&view==='members'&&'hidden lg:flex lg:basis-3/5')}>{view==='invitations'&&canInvite?<InvitationCollection invitations={invitations} stateFilter={invitationState} onStateChange={changeInvitationState}/>:collection}</section>{selected&&view==='members'&&<MemberInspector member={selected} onBack={clearSelection}/>}</div>
+    <div className={cn('flex min-h-0 flex-1 flex-col', selected&&view==='members'&&'lg:flex-row')}><section className={cn('flex min-h-0 flex-1 flex-col',selected&&view==='members'&&'hidden lg:flex lg:basis-3/5')}>{view==='invitations'&&canInvite?<InvitationCollection invitations={invitations} stateFilter={invitationState} onStateChange={changeInvitationState}/>:collection}</section>{selected&&view==='members'&&<MemberInspector member={selected} onBack={clearSelection} canSuspend={capabilities.includes('team.membership.suspend_standard')}/>}</div>
     {canInvite&&<InviteMemberDialog open={inviteOpen} onOpenChange={setInviteDialogOpen} canInviteAdmin={capabilities.includes('team.invite.admin')}/>}
   </div>
 }

@@ -4914,6 +4914,57 @@ export type Database = {
           },
         ]
       }
+      organisation_membership_suspension_receipts: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+          returned_task_count: number
+          target_membership_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          idempotency_key: string
+          org_id: string
+          request_fingerprint: string
+          result_code: string
+          result_revision: number
+          returned_task_count: number
+          target_membership_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          idempotency_key?: string
+          org_id?: string
+          request_fingerprint?: string
+          result_code?: string
+          result_revision?: number
+          returned_task_count?: number
+          target_membership_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organisation_membership_suspension_re_target_membership_id_fkey"
+            columns: ["target_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisation_membership_suspension_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisation_memberships: {
         Row: {
           created_at: string
@@ -11503,6 +11554,24 @@ export type Database = {
           source_object_key: string
         }[]
       }
+      get_standard_member_suspension_impact: {
+        Args: { p_target_membership_id: string }
+        Returns: {
+          code: string
+          digest_grants_applicable: boolean
+          internal_expense_grants_applicable: boolean
+          invitation_governance_applicable: boolean
+          open_task_count: number
+          review_claims_applicable: boolean
+          target_display_name: string
+          target_membership_id: string
+          target_revision: number
+          target_role: Database["public"]["Enums"]["org_member_role"]
+          target_user_id: string
+          task_disposition: string
+          verified_deadlines_applicable: boolean
+        }[]
+      }
       get_task_comment_thread: {
         Args: { p_task_id: string }
         Returns: {
@@ -13145,6 +13214,22 @@ export type Database = {
           code: string
           replayed: boolean
           revision: number
+        }[]
+      }
+      suspend_standard_organisation_member: {
+        Args: {
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_target_membership_id: string
+          p_task_disposition: string
+        }
+        Returns: {
+          code: string
+          replayed: boolean
+          returned_task_count: number
+          target_membership_id: string
+          target_revision: number
         }[]
       }
       task_comment_context_is_available: {
