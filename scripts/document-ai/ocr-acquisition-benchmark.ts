@@ -3,7 +3,7 @@
  * benchmark. The input manifest is deliberately supplied outside the repo.
  */
 import { createHash } from 'node:crypto'
-import { chmod, readFile, stat, writeFile } from 'node:fs/promises'
+import { chmod, lstat, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
 
 export const APPROVED_PROCESSOR_VERSION = 'pretrained-ocr-v2.1.1-2025-01-31'
@@ -36,7 +36,7 @@ export type BenchmarkManifest = {
   evaluatorRunId: string
   processorVersion: string
   location: string
-  adjudication: { reviewerId: string; method: 'independent_source_comparison' }
+  adjudication: { reviewerId: string; method: 'independent_source_comparison'; receiptSha256: string }
   billing: { currency: string; costPerBilledPage: number; usdPerCurrencyUnit: number | null; evidenceSha256: string; billedFeature: 'enterprise_ocr_page' }
   hundredPageAcquisition: { measuredPages: 100; elapsedMs: number; evidenceSha256: string } | null
   cases: BenchmarkCase[]
@@ -67,6 +67,7 @@ export function validateManifest(manifest: BenchmarkManifest): void {
   if (manifest.processorVersion !== APPROVED_PROCESSOR_VERSION) fail(`processorVersion must equal approved pin ${APPROVED_PROCESSOR_VERSION}`)
   if (manifest.location !== 'asia-south1') fail('location must be asia-south1')
   if (!isSafeSegment(manifest.adjudication?.reviewerId) || manifest.adjudication.method !== 'independent_source_comparison' || manifest.adjudication.reviewerId === manifest.evaluatorRunId) fail('independent adjudicator provenance is required')
+  if (!isSha256(manifest.adjudication.receiptSha256)) fail('adjudication receipt hash is required')
   if (!manifest.billing || !/^[A-Z]{3}$/.test(manifest.billing.currency)) fail('billing.currency must be an ISO-like uppercase code')
   assertFiniteNonNegative(manifest.billing.costPerBilledPage, 'billing.costPerBilledPage')
   if (manifest.billing.costPerBilledPage === 0) fail('billing.costPerBilledPage must be positive')
@@ -133,6 +134,24 @@ function metric(labels: Label[]): Metric {
 
 async function sha256(filePath: string): Promise<string> { return createHash('sha256').update(await readFile(filePath)).digest('hex') }
 async function existsFile(filePath: string): Promise<void> { if (!(await stat(filePath)).isFile()) fail(`missing evaluator output linkage ${basename(filePath)}`) }
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+  if (value && typeof value === 'object') return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(',')}}`
+  return JSON.stringify(value) ?? 'null'
+}
+function selectionSha256(manifest: BenchmarkManifest): string {
+  return createHash('sha256').update(manifest.cases.map((entry) => `${entry.sourceSha256}:${entry.sourcePageNumber}`).sort().join('\n')).digest('hex')
+}
+async function readHashedJson(directory: string, file: string, expectedSha256: string): Promise<Record<string, unknown>> {
+  if (!isSha256(expectedSha256)) fail(`${file} hash is missing`)
+  const path = join(directory, 'acceptance-evidence', file)
+  const details = await lstat(path)
+  if (!details.isFile() || details.isSymbolicLink() || (details.mode & 0o077) !== 0) fail(`${file} must be a private regular local evidence file`)
+  if (await sha256(path) !== expectedSha256) fail(`${file} evidence hash mismatch`)
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) fail(`${file} must be a JSON object`)
+  return parsed as Record<string, unknown>
+}
 
 export async function verifyEvaluatorLinkage(manifest: BenchmarkManifest, outputDirectory: string): Promise<{ authoritativeEvaluatorRunManifestSha256: string; outputHashes: { count: number; sha256: string }; evidence: Map<string, EvaluatorPage> }> {
   const manifestPath = join(outputDirectory, 'run-manifest.json')
@@ -197,10 +216,40 @@ export async function verifyEvaluatorLinkage(manifest: BenchmarkManifest, output
   return { authoritativeEvaluatorRunManifestSha256: await sha256(manifestPath), outputHashes: { count: outputHashes.length, sha256: createHash('sha256').update(outputHashes.sort().join('\n')).digest('hex') }, evidence }
 }
 
+async function verifyAcceptanceEvidence(manifest: BenchmarkManifest, outputDirectory: string, linkage: Awaited<ReturnType<typeof verifyEvaluatorLinkage>>): Promise<{ adjudicationReceiptSha256: string; comparisonSha256: string; billingReceiptSha256: string; pricingSha256: string; hundredRunManifestSha256: string | null; hundredEventsSha256: string | null }> {
+  const selection = selectionSha256(manifest)
+  const adjudication = await readHashedJson(outputDirectory, 'adjudication-receipt.json', manifest.adjudication.receiptSha256)
+  if (adjudication.kind !== 'independent_adjudication_receipt' || adjudication.reviewerId !== manifest.adjudication.reviewerId || adjudication.method !== manifest.adjudication.method || adjudication.evaluatorRunId !== manifest.evaluatorRunId || adjudication.evaluatorRunManifestSha256 !== linkage.authoritativeEvaluatorRunManifestSha256 || adjudication.selectionSha256 !== selection || !isSha256(adjudication.comparisonSha256)) fail('adjudication receipt does not bind evaluator run and selection')
+  const comparison = await readHashedJson(outputDirectory, 'source-comparison.json', adjudication.comparisonSha256)
+  const expectedCases = manifest.cases.map((entry) => ({ caseId: entry.caseId, sourceSha256: entry.sourceSha256, sourcePageNumber: entry.sourcePageNumber, categories: entry.categories, routing: entry.routing, checks: entry.checks, quality: entry.quality, sourceDisposition: entry.sourceDisposition }))
+  if (comparison.kind !== 'source_comparison_labels' || comparison.reviewerId !== manifest.adjudication.reviewerId || canonical(comparison.cases) !== canonical(expectedCases)) fail('independent source-comparison artifact does not match every selected label')
+  const billedPages = [...linkage.evidence.values()].reduce((sum, page) => sum + Number(page.billedPages), 0)
+  const billing = await readHashedJson(outputDirectory, 'billing-receipt.json', manifest.billing.evidenceSha256)
+  if (billing.kind !== 'ocr_billing_receipt' || billing.evaluatorRunManifestSha256 !== linkage.authoritativeEvaluatorRunManifestSha256 || billing.selectionSha256 !== selection || billing.billedPages !== billedPages || billing.currency !== manifest.billing.currency || billing.costPerBilledPage !== manifest.billing.costPerBilledPage || billing.usdPerCurrencyUnit !== manifest.billing.usdPerCurrencyUnit || billing.billedFeature !== manifest.billing.billedFeature || !isSha256(billing.pricingSha256)) fail('billing receipt does not match actual linked pages and declared pricing')
+  const pricing = await readHashedJson(outputDirectory, 'pricing-source.json', billing.pricingSha256)
+  if (pricing.kind !== 'pricing_source_capture' || pricing.processorVersion !== manifest.processorVersion || pricing.location !== manifest.location || pricing.currency !== manifest.billing.currency || pricing.costPerBilledPage !== manifest.billing.costPerBilledPage || pricing.usdPerCurrencyUnit !== manifest.billing.usdPerCurrencyUnit || pricing.billedFeature !== manifest.billing.billedFeature) fail('opened pricing source does not match billing declaration')
+  let hundredEventsSha256: string | null = null
+  if (manifest.hundredPageAcquisition !== null) {
+    const run = await readHashedJson(outputDirectory, 'hundred-run-manifest.json', manifest.hundredPageAcquisition.evidenceSha256)
+    if (run.kind !== 'bounded_hundred_page_run' || run.evaluatorRunManifestSha256 !== linkage.authoritativeEvaluatorRunManifestSha256 || run.selectionSha256 !== selection || run.processorVersion !== manifest.processorVersion || run.location !== manifest.location || !isSafeSegment(run.runId) || run.measuredPages !== 100 || !isSha256(run.sourceSha256) || !isSha256(run.eventsSha256)) fail('100-page run manifest does not bind evaluator, pin and source')
+    const events = await readHashedJson(outputDirectory, 'hundred-page-events.json', run.eventsSha256)
+    if (events.kind !== 'bounded_page_events' || events.runId !== run.runId || events.sourceSha256 !== run.sourceSha256 || !Array.isArray(events.pages) || events.pages.length !== 100) fail('100-page events do not match run')
+    const pageNumbers = new Set<number>(); let first = Number.POSITIVE_INFINITY; let last = 0
+    for (const event of events.pages as Array<Record<string, unknown>>) {
+      if (!event || !Number.isInteger(event.sourcePageNumber) || Number(event.sourcePageNumber) < 1 || Number(event.sourcePageNumber) > 100 || pageNumbers.has(Number(event.sourcePageNumber)) || typeof event.startedAtMs !== 'number' || !Number.isFinite(event.startedAtMs) || event.startedAtMs < 0 || typeof event.endedAtMs !== 'number' || !Number.isFinite(event.endedAtMs) || event.endedAtMs < event.startedAtMs) fail('100-page events have missing, duplicate or malformed measurements')
+      pageNumbers.add(Number(event.sourcePageNumber)); first = Math.min(first, event.startedAtMs); last = Math.max(last, event.endedAtMs)
+    }
+    if (last - first !== manifest.hundredPageAcquisition.elapsedMs) fail('100-page elapsed time does not match measured event span')
+    hundredEventsSha256 = run.eventsSha256
+  }
+  return { adjudicationReceiptSha256: manifest.adjudication.receiptSha256, comparisonSha256: adjudication.comparisonSha256 as string, billingReceiptSha256: manifest.billing.evidenceSha256, pricingSha256: billing.pricingSha256 as string, hundredRunManifestSha256: manifest.hundredPageAcquisition?.evidenceSha256 ?? null, hundredEventsSha256 }
+}
+
 export async function buildReport(manifest: BenchmarkManifest, outputDirectory: string, adjudicationManifestSha256: string): Promise<Record<string, unknown>> {
   if (!isSha256(adjudicationManifestSha256)) fail('adjudicationManifestSha256 must be a SHA-256')
   validateManifest(manifest)
   const linkage = await verifyEvaluatorLinkage(manifest, outputDirectory)
+  const acceptanceEvidence = await verifyAcceptanceEvidence(manifest, outputDirectory, linkage)
   const routing = { truePositive: 0, falsePositive: 0, falseNegative: 0, trueNegative: 0 }
   for (const entry of manifest.cases) {
     const observed = linkage.evidence.get(entry.caseId)?.observedRoute
@@ -232,13 +281,14 @@ export async function buildReport(manifest: BenchmarkManifest, outputDirectory: 
     const critical = Object.values(entry.checks).some((check) => check.items.some((item) => item.verdict === 'fail' || item.verdict === 'unknown'))
     const poorOcr = observed === 'ocr' && (entry.quality.characterAccuracy === null || entry.quality.wordAccuracy === null || entry.quality.characterAccuracy < 0.98 || entry.quality.wordAccuracy < 0.95)
     const disposition = entry.sourceDisposition === 'source_unreadable' ? 'source_unreadable' : observed !== entry.routing.expectedAction || poorOcr ? 'reacquire' : critical ? 'metadata_only' : 'body_eligible_after_search_gates'
-    return { caseId: entry.caseId, sourcePageKeySha256: createHash('sha256').update(`${entry.sourceSha256}:${entry.sourcePageNumber}`).digest('hex'), disposition }
+    const fieldReviewClasses = (['gstin', 'reference', 'date', 'amount'] as const).filter((name) => entry.checks[name].items.some((item) => item.verdict === 'fail' || item.verdict === 'unknown'))
+    return { caseId: entry.caseId, sourcePageKeySha256: createHash('sha256').update(`${entry.sourceSha256}:${entry.sourcePageNumber}`).digest('hex'), disposition, fieldReviewClasses }
   })
   const categoryBreakdown = Object.fromEntries(REQUIRED_CATEGORIES.map((category) => {
     const entries = ocrCases.filter((entry) => entry.categories.includes(category))
     const chars = entries.map((entry) => entry.quality.characterAccuracy).filter((value): value is number => value !== null)
     const words = entries.map((entry) => entry.quality.wordAccuracy).filter((value): value is number => value !== null)
-    return [category, { pages: entries.length, characterMean: chars.length ? chars.reduce((a, b) => a + b, 0) / chars.length : null, wordMean: words.length ? words.reduce((a, b) => a + b, 0) / words.length : null, missingLabels: entries.length - Math.min(chars.length, words.length) }]
+    return [category, { pages: entries.length, characterMean: chars.length ? chars.reduce((a, b) => a + b, 0) / chars.length : null, wordMean: words.length ? words.reduce((a, b) => a + b, 0) / words.length : null, missingCharacterLabels: entries.length - chars.length, missingWordLabels: entries.length - words.length, missingLabels: entries.filter((entry) => entry.quality.characterAccuracy === null || entry.quality.wordAccuracy === null).length }]
   }))
   const missingOcrCategories = REQUIRED_CATEGORIES.filter((category) => category !== 'native_english' && ocrCases.every((entry) => !entry.categories.includes(category)))
   const failedThresholds = [
@@ -249,7 +299,7 @@ export async function buildReport(manifest: BenchmarkManifest, outputDirectory: 
     ...(usdPerBilledPage === null || usdPerBilledPage > 0.01 || usdPerBilledPage * 100 > 1 ? ['ocr_cost_usd'] : []),
   ]
   return {
-    schemaVersion: 2, adjudicationManifestSha256, benchmarkRunId: manifest.benchmarkRunId, adjudication: manifest.adjudication, evaluatorRun: { generatedId: manifest.evaluatorRunId, provenance: 'matched_to_evaluator_run_manifest' },
+    schemaVersion: 2, adjudicationManifestSha256, benchmarkRunId: manifest.benchmarkRunId, adjudication: { reviewerId: manifest.adjudication.reviewerId, method: manifest.adjudication.method }, evaluatorRun: { generatedId: manifest.evaluatorRunId, provenance: 'matched_to_evaluator_run_manifest' },
     processor: { version: manifest.processorVersion, location: manifest.location },
     evaluatedPages: manifest.cases.length, categories: Object.fromEntries(REQUIRED_CATEGORIES.map((category) => [category, manifest.cases.filter((entry) => entry.categories.includes(category)).length])),
     routing: { ...routing, precisionDenominator: routingPrecisionDenominator, recallDenominator: routingRecallDenominator, precision: routingPrecisionDenominator ? routing.truePositive / routingPrecisionDenominator : null, recall: routingRecallDenominator ? routing.truePositive / routingRecallDenominator : null },
@@ -257,9 +307,10 @@ export async function buildReport(manifest: BenchmarkManifest, outputDirectory: 
     quality: { characterAccuracy: meanCharacter, characterUnknown: qualityMissing.length, wordAccuracy: meanWord, wordUnknown: qualityMissing.length, categoryBreakdown },
     latency: { totalMs: totalLatencyMs, averageMs: totalLatencyMs / manifest.cases.length, hundredPageMs, hundredPageEvidenceSha256: manifest.hundredPageAcquisition?.evidenceSha256 ?? null },
     billing: { currency: manifest.billing.currency, billedPages: totalBilledPages, costPerBilledPage: manifest.billing.costPerBilledPage, usdPerCurrencyUnit: usdRate, usdPerBilledPage, fullyOcrHundredPageUsd: usdPerBilledPage === null ? null : usdPerBilledPage * 100, evidenceSha256: manifest.billing.evidenceSha256 },
-    pages,
+    pages: pages.map((page) => ({ ...page, indexingBlockedByBenchmarkGate: failedThresholds.length > 0, bodyIndexingEligibility: failedThresholds.length > 0 ? 'not_indexable_pending_global_gate' : page.disposition === 'body_eligible_after_search_gates' ? 'not_indexable_pending_external_acceptance_and_search_gates' : 'not_indexable_page_disposition' })),
     outputLinkage: { authoritativeEvaluatorRunManifestSha256: linkage.authoritativeEvaluatorRunManifestSha256, outputHashes: linkage.outputHashes },
-    gate: { status: failedThresholds.length ? 'failed' : 'thresholds_met_not_provider_approved', failedThresholds, criticalFailuresOrUnknown, missingCriticalCoverage, qualityMissingCount: qualityMissing.length, missingOcrCategories },
+    acceptanceEvidence,
+    gate: { status: failedThresholds.length ? 'failed' : 'local_evidence_linked_not_provider_approved', providerApproval: 'not_evaluated', externalEvidenceAuthenticity: 'not_verified', failedThresholds, criticalFailuresOrUnknown, missingCriticalCoverage, qualityMissingCount: qualityMissing.length, missingOcrCategories },
   }
 }
 
@@ -268,6 +319,7 @@ async function main(): Promise<void> {
   if (args.includes('--help')) {
     if (args.length !== 1) fail('--help cannot be combined with other options')
     console.log('Usage: npx tsx scripts/document-ai/ocr-acquisition-benchmark.ts --manifest <local-labelled-manifest.json> --evaluator-output <existing-evaluator-output-dir> --report <content-safe-report.json>')
+    console.log('Requires private regular acceptance-evidence/{adjudication-receipt,source-comparison,billing-receipt,pricing-source,hundred-run-manifest,hundred-page-events}.json files under evaluator output; local linkage is not provider approval.')
     return
   }
   const input = args[manifestIndex + 1]; const output = args[outputIndex + 1]; const report = args[reportIndex + 1]
