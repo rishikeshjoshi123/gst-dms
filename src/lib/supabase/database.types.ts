@@ -7511,6 +7511,7 @@ export type Database = {
           output_tokens: number | null
           prompt_version: string
           provider: string
+          provider_call_started_at: string | null
           provider_operation_id: string | null
           provider_request_id: string | null
           provider_status_code: number | null
@@ -7544,6 +7545,7 @@ export type Database = {
           output_tokens?: number | null
           prompt_version: string
           provider: string
+          provider_call_started_at?: string | null
           provider_operation_id?: string | null
           provider_request_id?: string | null
           provider_status_code?: number | null
@@ -7577,6 +7579,7 @@ export type Database = {
           output_tokens?: number | null
           prompt_version?: string
           provider?: string
+          provider_call_started_at?: string | null
           provider_operation_id?: string | null
           provider_request_id?: string | null
           provider_status_code?: number | null
@@ -10453,6 +10456,25 @@ export type Database = {
           result_count: number
         }[]
       }
+      begin_current_document_processing_ai_extraction: {
+        Args: {
+          p_catalogue_version: string
+          p_model_config_version: string
+          p_model_identifier: string
+          p_normalizer_version: string
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_prompt_version: string
+          p_provider: string
+          p_schema_version: string
+        }
+        Returns: {
+          code: string
+          page_count: number
+          source_analysis_lease_token: string
+          source_analysis_run_id: string
+        }[]
+      }
       begin_document_processing_ai_extraction: {
         Args: {
           p_catalogue_version: string
@@ -10508,6 +10530,17 @@ export type Database = {
           code: string
           completion_code: string
           intake_item_id: string
+        }[]
+      }
+      cancel_uncalled_document_processing_ai_extraction: {
+        Args: {
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          code: string
         }[]
       }
       change_document_supporting_category: {
@@ -12346,6 +12379,17 @@ export type Database = {
           object_key: string
         }[]
       }
+      grant_current_document_processing_source: {
+        Args: { p_lease_token: string; p_processing_run_id: string }
+        Returns: {
+          bucket_id: string
+          code: string
+          document_version_id: string
+          expected_bytes: number
+          expected_sha256: string
+          object_key: string
+        }[]
+      }
       handle_trash_operation_created_effect: {
         Args: {
           p_delivery_lease_token: string
@@ -12483,6 +12527,17 @@ export type Database = {
         }[]
       }
       maintain_organisation_invitations: { Args: never; Returns: undefined }
+      mark_current_document_processing_ai_provider_call: {
+        Args: {
+          p_processing_lease_token: string
+          p_processing_run_id: string
+          p_source_analysis_lease_token: string
+          p_source_analysis_run_id: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       match_all_documents: {
         Args: {
           match_count: number

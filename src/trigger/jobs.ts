@@ -23,21 +23,21 @@ import {
 } from '@/lib/ai/vertex'
 import { acquireDocumentPageText } from '@/lib/documents/page-acquisition'
 import { isCaseBriefGenerationEnabled } from '@/lib/pilot-release-policy'
+import { cancelUncalledExtraction, loadCurrentProcessingSource, processingSourceFailureOutcome, runClaimedModelWithFence, runWithCurrentProcessingSource } from '@/lib/documents/processing-source'
 
 const EXTRACTION_MODEL_CONFIG_VERSION = 'vertex-gemini-2-5-flash-v1'
 
-type BeginProvenanceArgs = Database['public']['Functions']['begin_document_processing_ai_extraction']['Args']
-type BeginProvenanceRow = Database['public']['Functions']['begin_document_processing_ai_extraction']['Returns'][number]
+type BeginProvenanceArgs = Database['public']['Functions']['begin_current_document_processing_ai_extraction']['Args']
+type BeginProvenanceRow = Database['public']['Functions']['begin_current_document_processing_ai_extraction']['Returns'][number]
 type FinishProvenanceArgs = Database['public']['Functions']['finish_document_processing_ai_extraction']['Args']
 type FinishProvenanceRow = Database['public']['Functions']['finish_document_processing_ai_extraction']['Returns'][number]
 
 type PageTextArtifactRow = { code: string }
-
 async function beginProvenanceExtraction(
   supabase: SupabaseClient<Database>,
   args: BeginProvenanceArgs,
 ): Promise<BeginProvenanceRow | null> {
-  const { data, error } = await supabase.rpc('begin_document_processing_ai_extraction', args)
+  const { data, error } = await supabase.rpc('begin_current_document_processing_ai_extraction', args)
   if (error) throw new Error('Document provenance RPC unavailable')
   return data?.[0] ?? null
 }
@@ -93,15 +93,8 @@ async function writeCurrentDocumentPageTextArtifact(
 }
 
 export interface ProcessDocumentPayload {
-  docId: string
-  matterId: string
-  orgId: string
-  storagePath: string
-  uploadedBy: string
-  processingRunId?: string
-  processingLeaseToken?: string
-  documentVersionId?: string
-  skipDuplicateCheck?: boolean
+  processingRunId: string
+  processingLeaseToken: string
 }
 
 export const processDocument = task({
@@ -115,83 +108,22 @@ export const processDocument = task({
     randomize: true,
   },
   run: async (payload: ProcessDocumentPayload) => {
-    const {
-      docId,
-      matterId,
-      orgId,
-      storagePath,
-      uploadedBy,
-      skipDuplicateCheck = false,
-    } = payload
-
     // Lazy-load service client (avoids bundling issues)
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient() as SupabaseClient<Database>
 
-    // ── Step 0: Matter Liveness Guard ────────────────────────────
-    console.log(`[Step 0] Checking matter liveness for ${matterId}`)
-    const { data: matterCheck } = await supabase
-      .from('matters')
-      .select('deleted_at, clients!inner(deleted_at)')
-      .eq('id', matterId)
-      .single()
-
-    const linkedClients = matterCheck?.clients
-    const linkedClientDeleted = Array.isArray(linkedClients)
-      ? linkedClients.some((client) => client.deleted_at !== null)
-      : linkedClients ? linkedClients.deleted_at !== null : false
-    if (matterCheck?.deleted_at || linkedClientDeleted) {
-      return { status: 'aborted', reason: 'matter_or_client_deleted' }
-    }
-
-    if (!payload.processingRunId || !payload.processingLeaseToken || !payload.documentVersionId) {
+    if (!payload.processingRunId || !payload.processingLeaseToken) {
       // The outbox claim is the only canonical authority for processing. A
       // direct task invocation must not bypass its lease or manufacture a
       // second model call.
       return { status: 'failed', reason: 'processing_lease_required' }
     }
 
-    // ── Step 1: Download from storage ─────────────────────────────
-    console.log(`[Step 1] Downloading ${storagePath}`)
-
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('documents')
-      .download(storagePath)
-
-    if (downloadError || !fileData) {
-      throw new Error(`[Step 1] Download failed: ${downloadError?.message}`)
-    }
-
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer())
-
-    // ── Step 2: Exact duplicate check (SHA-256) ────────────────────
-    const { createHash } = await import('crypto')
-    const sha256 = createHash('sha256').update(fileBuffer).digest('hex')
-
-    if (!skipDuplicateCheck) {
-        console.log('[Step 2] SHA-256 duplicate check')
-
-        const { data: exactDupRaw } = await supabase
-          .from('documents')
-          .select('id, reference_number')
-          .eq('org_id', orgId)
-          .eq('file_hash_sha256', sha256)
-          .neq('id', docId)
-          .is('deleted_at', null)
-          .maybeSingle()
-
-        const exactDup = exactDupRaw as { id: string; reference_number: string | null } | null
-
-        if (exactDup) {
-          console.warn(`[Step 2] Exact duplicate — matches doc ${exactDup.id}`)
-          return { status: 'needs_review', reason: 'exact_duplicate' }
-        }
-    } else {
-      console.log('[Step 2] Skipped exact duplicate check')
-    }
+    const loaded = await loadCurrentProcessingSource(supabase, payload.processingRunId, payload.processingLeaseToken)
+    if (loaded.code !== 'ready') return { status: processingSourceFailureOutcome(loaded.code) }
+    const fileBuffer = loaded.source.bytes
 
     // ── Steps 3–4: provenance run, strict validation, candidates ─────
-    console.log('[Step 3] Claiming provenance-bound Vertex analysis')
     const started = await beginProvenanceExtraction(supabase, {
       p_processing_run_id: payload.processingRunId,
       p_processing_lease_token: payload.processingLeaseToken,
@@ -202,40 +134,50 @@ export const processDocument = task({
       p_schema_version: EXTRACTION_SCHEMA_VERSION,
       p_catalogue_version: EXTRACTION_CATALOGUE_VERSION,
       p_normalizer_version: EXTRACTION_NORMALIZER_VERSION,
-      p_declared_document_id: docId,
-      p_declared_document_version_id: payload.documentVersionId,
-      p_declared_matter_id: matterId,
-      p_declared_org_id: orgId,
-      p_declared_bucket_id: 'documents',
-      p_declared_object_key: storagePath,
-      p_declared_uploaded_by: uploadedBy,
     })
 
     if (started?.code === 'already_validated' && typeof started.source_analysis_run_id === 'string') {
       await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
       // D09-T03 observations are deliberately inert. Exact resolution and
       // relationship effects belong to the separately gated matching tranche.
-      return { status: 'placed', docId }
+      return { status: 'placed' }
     } else if (started?.code === 'claimed'
       && typeof started.source_analysis_run_id === 'string'
       && typeof started.source_analysis_lease_token === 'string') {
+      const nestedLease = {
+        processingRunId: payload.processingRunId,
+        processingLeaseToken: payload.processingLeaseToken,
+        sourceAnalysisRunId: started.source_analysis_run_id,
+        sourceAnalysisLeaseToken: started.source_analysis_lease_token,
+      }
       // Page content is a separate acquisition boundary. Native PDF text and
       // geometry are attempted first for every page; Document AI runs only for
       // native pages rejected by the deterministic quality policy. An
       // unavailable OCR environment deliberately yields a not-indexable
       // artifact rather than fabricated text or a Gemini transcript.
-      const pageAcquisition = await acquireDocumentPageText(fileBuffer, Number(started.page_count))
+      const acquisition = await runWithCurrentProcessingSource(
+        supabase, payload.processingRunId, payload.processingLeaseToken, loaded.source,
+        () => acquireDocumentPageText(fileBuffer, Number(started.page_count)),
+      )
+      if (acquisition.code !== 'ready') return { status: await cancelUncalledExtraction(supabase, nestedLease) }
+      const pageAcquisition = acquisition.value
       if (pageAcquisition.kind === 'not_indexable') {
         console.warn(`[Document page acquisition] ${pageAcquisition.reason}`)
       }
 
+      // Trash, version, availability or lease can change after download/begin.
+      // Never enter a paid model call without a fresh current-source grant.
       const startedAt = Date.now()
-      const modelOutcome = await analyzeDocumentWithOutcome(fileBuffer)
+      const modelCall = await runClaimedModelWithFence(
+        supabase, nestedLease, loaded.source, () => analyzeDocumentWithOutcome(fileBuffer),
+      )
+      if (modelCall.code !== 'ready') return { status: modelCall.code }
+      const modelOutcome = modelCall.value
       const latencyMs = Date.now() - startedAt
       const usage = modelOutcome.kind === 'validated' ? modelOutcome.result.usage : undefined
 
       if (modelOutcome.kind !== 'validated') {
-        await finishProvenanceExtraction(supabase, {
+        const terminal = await finishProvenanceExtraction(supabase, {
           p_processing_run_id: payload.processingRunId,
           p_processing_lease_token: payload.processingLeaseToken,
           p_source_analysis_run_id: started.source_analysis_run_id,
@@ -248,7 +190,11 @@ export const processDocument = task({
           p_review_required: true,
           p_legacy_metadata: null,
         })
-        return { status: 'needs_review', docId }
+        if (terminal?.code === 'target_lifecycle_invalid' || terminal?.code === 'processing_lease_invalid') {
+          return { status: 'no_work' }
+        }
+        if (terminal?.code !== modelOutcome.kind) return { status: 'failed' }
+        return { status: 'needs_review' }
       }
 
       const canonicalPages = pageAcquisition.kind === 'complete' ? pageAcquisition.pages : []
@@ -261,7 +207,7 @@ export const processDocument = task({
           processingLeaseToken: payload.processingLeaseToken,
           sourceAnalysisRunId: started.source_analysis_run_id,
           sourceAnalysisLeaseToken: started.source_analysis_lease_token,
-          documentVersionId: payload.documentVersionId,
+          documentVersionId: loaded.source.versionId,
           pageText: canonicalPages as unknown as Json,
         })
         if (pageText?.code !== 'written' && pageText?.code !== 'not_indexable') {
@@ -289,17 +235,20 @@ export const processDocument = task({
       // idempotency from the durable source run; accounting failure can never
       // alter the already-accepted legal-domain outcome.
       await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
-      if (completed.code === 'review_required') return { status: 'needs_review', docId }
-      return { status: 'placed', docId }
+      if (completed.code === 'review_required') return { status: 'needs_review' }
+      return { status: 'placed' }
     } else if (started?.code === 'already_terminal' && typeof started.source_analysis_run_id === 'string') {
       // A replay of a review-required terminal run must reconcile its durable
       // accounting entry without invoking Vertex or changing the Review state.
       await reconcileDocumentExtractionProviderUsage(supabase, started.source_analysis_run_id)
-      return { status: 'needs_review', docId }
+      return { status: 'needs_review' }
+    } else if (started?.code === 'stale_lease' || started?.code === 'source_unavailable'
+      || started?.code === 'processing_lease_invalid' || started?.code === 'already_running') {
+      return { status: 'no_work' }
     } else {
-      // Any existing in-flight or terminal run is intentionally not retried
-      // here: a new task must never create a second model invocation.
-      return { status: 'needs_review', docId }
+      // An unexpected begin denial has not created a typed Review producer.
+      // Leave bounded failed/recovery evidence rather than completing Review.
+      return { status: 'failed' }
     }
   },
 })
