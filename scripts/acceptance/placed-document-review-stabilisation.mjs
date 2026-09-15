@@ -112,6 +112,14 @@ async function compete({ name, doc, itemId, first, second, type, target }) {
     assert.equal(sql(`SELECT count(*) FROM public.document_boundary_repair_receipts WHERE source_document_id='${doc}' AND mode='move';`), '1')
     assert.equal(sql(`SELECT count(*) FROM public.activity_events WHERE subject_id='${doc}' AND event_type='document.boundary_repaired';`), '1')
     assert.equal(sql(`SELECT count(*) FROM public.activity_events WHERE subject_id='${doc}' AND event_type='review.${type}_decided';`), '1')
+    assert.equal(sql(`SELECT actor_kind||':'||actor_id||':'||matter_id||':'||
+      (metadata->>'action')||':'||(metadata->>'revision')||':'||subject_id||':'||target_id||':'||target_version_id
+      FROM public.activity_events WHERE subject_id='${doc}' AND event_type='review.${type}_decided';`),
+      `user:${owner}:${target}:move:2:${doc}:${doc}:${expectedVersions.get(doc)}`)
+    assert.equal(sql(`SELECT actor_kind||':'||actor_id||':'||matter_id||':'||
+      (metadata->>'mode')||':'||subject_id||':'||target_id||':'||target_version_id
+      FROM public.activity_events WHERE subject_id='${doc}' AND event_type='document.boundary_repaired';`),
+      `user:${owner}:${target}:move:${doc}:${doc}:${expectedVersions.get(doc)}`)
     assertExactSource(doc)
     console.log(`${name}: observed two-session resolver blocking; one Move, one Review decision and exact source; competing command stale.`)
   } finally {
