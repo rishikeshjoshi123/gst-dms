@@ -57,6 +57,7 @@ async function TimelineSection({
       returnTo={route.relationshipReview.returnTo}
     />
   ) : null
+  const relationshipAuthoringContext = route.relationshipReview ? null : authoringContext
   const trashMetadataByDocumentId = isTrash
     ? shapeMatterTimelineSnapshotMetadata(
         exactMatter.data.documents
@@ -90,7 +91,7 @@ async function TimelineSection({
       inspector={route.inspector}
       notePreview={notePreview}
       relationshipProjection={relationshipProjection}
-      authoringContext={authoringContext}
+      authoringContext={relationshipAuthoringContext}
       graphAvailable={!isTrash && page.total > 0}
     />
   )
@@ -120,14 +121,14 @@ async function TimelineSection({
         matterId={matterId}
         loadGraph={loadTimelineGraph}
         graphContextKey={matterTimelineGraphRequestKey(matterId, null, route.timelinePage.filters)}
-        graphRequestKey={matterTimelineGraphRequestKey(matterId, page.sourceRevision, route.timelinePage.filters, authoringContext?.relationship_source_revision)}
+        graphRequestKey={matterTimelineGraphRequestKey(matterId, page.sourceRevision, route.timelinePage.filters, relationshipAuthoringContext?.relationship_source_revision)}
         selectedDocumentId={page.selected?.id ?? null}
         queryEntries={queryEntries}
         chronologyHref={buildMatterTimelineViewHref(matterId, queryEntries, 'chronology')}
         inspector={inspectorPanel}
         chronology={chronology}
         filters={route.timelinePage.filters}
-        authoringContext={authoringContext}
+        authoringContext={relationshipAuthoringContext}
         relationshipReviewCandidate={timelineRelationshipReviewCandidate(relationshipReview)}
       />
     </div>
