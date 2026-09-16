@@ -9,6 +9,7 @@ const reviewQueueBase = z.object({
   status: z.enum(['needs_review', 'closed']), closure_reason: z.enum(['decision_recorded', 'source_replaced', 'source_unavailable']).nullable(),
   revision: z.number().int().positive(), created_at: z.string(),
   document_title: z.string().nullable(), matter_title: z.string(), client_name: z.string(),
+  source_count:z.number().int().min(2).max(8).nullable().optional(),
 })
 const documentReviewQueueBase = reviewQueueBase.extend({ document_id: z.string().uuid(), document_version_id: z.string().uuid(), intake_id: z.null().optional() })
 export const reviewQueueItem = z.discriminatedUnion('type', [
@@ -29,7 +30,7 @@ const reviewDetailBase = z.object({
     page_number: z.number().int().positive(), quotation: z.string(), value: z.unknown(),
     validation_state: z.enum(['eligible', 'provisional', 'conflicting', 'invalid']),
   })),
-  last_decision: z.object({ action: reviewAction, selected_candidate_id: z.string().uuid().nullable(), placement_candidate_id: z.string().uuid().nullable().optional(), result_matter_id: z.string().uuid().nullable().optional(), result_document_id: z.string().uuid().nullable().optional(), result_document_version_id: z.string().uuid().nullable().optional(), result_lifecycle_revision: z.number().int().positive().nullable().optional(), manual_metadata: z.unknown().nullable().optional(), reason: z.string(), created_at: z.string() }).nullable(),
+  last_decision: z.object({ action: reviewAction, selected_candidate_id: z.string().uuid().nullable(), selected_document_ids:z.array(z.string().uuid()).optional(), placement_candidate_id: z.string().uuid().nullable().optional(), result_matter_id: z.string().uuid().nullable().optional(), result_document_id: z.string().uuid().nullable().optional(), result_document_version_id: z.string().uuid().nullable().optional(), result_lifecycle_revision: z.number().int().positive().nullable().optional(), manual_metadata: z.unknown().nullable().optional(), reason: z.string(), created_at: z.string() }).nullable(),
   deadline_id:z.string().uuid().optional(), deadline_revision:z.number().int().positive().optional(),
   candidate_due_date:z.string().optional(), decision_history:z.array(z.object({
     action:z.enum(['verify','correct','reject','clear']),due_date:z.string().nullable(),
@@ -53,9 +54,14 @@ export type ReviewDetail = z.infer<typeof reviewDetail>
 export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'deadline_verification' | 'placement_conflict' | 'multi_placement_conflict' | 'possible_duplicate' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
 export const possibleDuplicateResolution=z.object({
   itemId:z.string().uuid(),revision:z.number().int().positive(),action:z.enum(['distinct_documents','possible_same_document']),
+  selectedDocumentIds:z.array(z.string().uuid()).max(8),
   reason:z.string().trim().min(2).max(500).refine(value=>!/[\u0000-\u001f\u007f]/.test(value)),
   idempotencyKey:z.string().uuid(),
-}).strict()
+}).strict().superRefine((value,context)=>{
+  const count=value.selectedDocumentIds.length
+  if(new Set(value.selectedDocumentIds).size!==count || (value.action==='distinct_documents'&&count!==0) || (value.action==='possible_same_document'&&count<2))
+    context.addIssue({code:'custom',path:['selectedDocumentIds'],message:'Name at least two distinct current documents only for a possible-same finding.'})
+})
 export type PossibleDuplicateResolution=z.infer<typeof possibleDuplicateResolution>
 export const placementConflictResolution=z.object({
   itemId:z.string().uuid(),revision:z.number().int().positive(),action:z.enum(['keep','move']),

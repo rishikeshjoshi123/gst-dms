@@ -10,19 +10,21 @@ export async function resolvePossibleDuplicate(input:PossibleDuplicateResolution
   const supabase=await createClient()
   const {data,error}=await supabase.rpc('resolve_possible_duplicate',{
     p_review_item_id:request.data.itemId,p_expected_revision:request.data.revision,
-    p_action:request.data.action,p_reason:request.data.reason,p_idempotency_key:request.data.idempotencyKey,
-  })
+    p_action:request.data.action,p_reason:request.data.reason,
+    p_selected_document_ids:request.data.selectedDocumentIds,p_idempotency_key:request.data.idempotencyKey,
+  } as never)
   if(error||!Array.isArray(data)||!data[0]) return {code:'failed',message:'The document comparison decision could not be confirmed.',item:null}
   const row=data[0] as {code:string;current_item:unknown;replayed:boolean}
   const item=row.current_item?reviewDetail.parse(row.current_item):null
   if(row.code==='ok'){revalidatePath('/review');if(item?.document_id)revalidatePath(`/documents/${item.document_id}`)}
   const messages:Record<string,string>={
     ok:request.data.action==='distinct_documents'
-      ?'Distinct documents recorded. The unchanged pair will not raise this Review again.'
-      :'Possible same document recorded for follow-up. Neither PDF or document was changed.',
+      ?'All cited documents recorded as distinct. The unchanged full source set will not raise this Review again.'
+      :`Possible-same finding recorded for ${request.data.selectedDocumentIds.length} selected documents only. No PDF or document was changed.`,
     stale:'The sources, official key or Review changed. Compare the current sources before deciding.',
     forbidden:'Your current access cannot resolve this Review.',unavailable:'This Review item is unavailable.',
     idempotency_conflict:'This submission key was already used for another decision.',
+    invalid_selection:'Select only current documents in this comparison.',
     busy:'Another source change is in progress. Refresh and retry.',
   }
   return {code:row.code,message:messages[row.code]??'The comparison decision was not completed.',item}

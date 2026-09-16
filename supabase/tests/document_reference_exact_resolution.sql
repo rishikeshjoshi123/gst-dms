@@ -132,21 +132,70 @@ BEGIN
     OR NOT public.possible_duplicate_current(duplicate_item)
     OR jsonb_array_length(public.read_review_detail(duplicate_item)->'evidence')<>2
     OR EXISTS(SELECT 1 FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item GROUP BY review_item_id HAVING count(DISTINCT asset_id)<>2)
-    THEN RAISE EXCEPTION 'two source-grounded distinct assets did not make exactly one current Review'; END IF;
-  -- Three current sources close the formerly active pair and abstain, never presenting a misleading two-source item.
+    THEN RAISE EXCEPTION 'two source-grounded distinct assets did not make exactly one current Review: item %, current %, sources %, eligible %, detail %',
+      duplicate_item,public.possible_duplicate_current(duplicate_item),
+      (SELECT jsonb_agg(jsonb_build_object('doc',s.document_id,'revision',s.document_lifecycle_revision,'sha',s.sha256)) FROM public.possible_duplicate_sources s WHERE s.review_item_id=duplicate_item),
+      (SELECT jsonb_agg(jsonb_build_object('doc',e.document_id,'revision',e.lifecycle_revision,'sha',e.sha256)) FROM public.possible_duplicate_eligible e WHERE e.org_id=org AND e.normalized_value='GST/555/2026'),
+      public.read_review_detail(duplicate_item); END IF;
+  -- Three current sources close the formerly active pair and present one complete group, not pairwise items.
   SELECT id INTO source_candidate FROM public.document_field_candidates WHERE document_id=docs[1] AND field_path='document.official_reference.self_identifier';
   SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[1];
   SELECT * INTO activated FROM public.activate_document_self_identifier(source_candidate,v_revision,NULL,'15160000-0000-0000-0000-000000000016');
   third_identifier:=activated.identifier_id;
   IF activated.code<>'ok' OR (SELECT count(*) FROM public.document_self_identifiers WHERE org_id=org AND lifecycle_state='active'
       AND normalized_value='GST/555/2026')<>3
-    OR EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')
+    OR (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>1
     OR (SELECT closure_reason FROM public.review_items WHERE id=duplicate_item)<>'source_replaced'
-    THEN RAISE EXCEPTION 'three-way collision did not abstain without pairwise proliferation'; END IF;
+    THEN RAISE EXCEPTION 'three-way collision did not replace the old pair with one group'; END IF;
+  SELECT id,revision INTO duplicate_item,duplicate_revision FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review';
+  IF NOT public.possible_duplicate_current(duplicate_item) OR jsonb_array_length(public.read_review_detail(duplicate_item)->'evidence')<>3
+    OR (SELECT count(DISTINCT document_id) FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item)<>3
+    OR (SELECT count(DISTINCT asset_id) FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item)<>3
+    THEN RAISE EXCEPTION 'group detail omitted an exact current source'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+    'One selected source is not a subset',ARRAY[docs[1]],gen_random_uuid());
+  IF duplicate_resolution.code<>'invalid_request' THEN RAISE EXCEPTION 'single-member finding was accepted'; END IF;
+  SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+    'Unlisted source is not a member',ARRAY[docs[1],docs[4]],gen_random_uuid());
+  IF duplicate_resolution.code<>'invalid_selection' THEN RAISE EXCEPTION 'foreign member was accepted'; END IF;
+  BEGIN
+    SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+      'These two may be the same, with no claim about the third',ARRAY[docs[2],docs[3]],gen_random_uuid());
+    IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed
+      OR (SELECT selected_document_ids FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)<>ARRAY[docs[2],docs[3]]
+      OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>1
+      OR jsonb_array_length(public.read_review_detail(duplicate_item)->'last_decision'->'selected_document_ids')<>2
+      THEN RAISE EXCEPTION 'subset finding was not exact, immutable and single-Activity'; END IF;
+    PERFORM public.reconcile_possible_duplicate_key(org,'order_reference','GST TRIBUNAL','GST/555/2026');
+    IF (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>0
+      OR (SELECT count(*) FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)<>1
+      THEN RAISE EXCEPTION 'unchanged possible-same subset flooded Review'; END IF;
+    SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[1];
+    SELECT * INTO activated FROM public.revoke_document_self_identifier(third_identifier,1,v_revision,
+      'Changed full source set after subset decision',gen_random_uuid());
+    IF activated.code<>'ok' OR (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>1
+      OR EXISTS(SELECT 1 FROM public.review_items item JOIN public.possible_duplicate_sources source ON source.review_item_id=item.id
+        WHERE item.org_id=org AND item.type='possible_duplicate' AND item.status='needs_review'
+        GROUP BY item.id HAVING count(*)<>2)
+      THEN RAISE EXCEPTION 'materially changed source set did not reevaluate'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0171',MESSAGE='rollback group finding for lifecycle assertions';
+  EXCEPTION WHEN SQLSTATE 'Z0171' THEN NULL; END;
+  BEGIN
+    SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+      'All three exact sources are separate current documents','{}'::uuid[],gen_random_uuid());
+    IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed
+      OR (SELECT cardinality(selected_document_ids) FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)<>0
+      OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>1
+      THEN RAISE EXCEPTION 'all-distinct group decision was not exact and single-Activity'; END IF;
+    PERFORM public.reconcile_possible_duplicate_key(org,'order_reference','GST TRIBUNAL','GST/555/2026');
+    IF (SELECT count(*) FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')<>0
+      THEN RAISE EXCEPTION 'unchanged all-distinct full set reopened'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0171',MESSAGE='rollback all-distinct for lifecycle assertions';
+  EXCEPTION WHEN SQLSTATE 'Z0171' THEN NULL; END;
   SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
     'Stale former pair','15170000-0000-0000-0000-000000000010');
-  IF duplicate_resolution.code<>'stale' OR EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)
-    THEN RAISE EXCEPTION 'third-source closure remained actionable'; END IF;
+  IF duplicate_resolution.code<>'invalid_request' OR EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)
+    THEN RAISE EXCEPTION 'legacy pair-only resolver accepted a group'; END IF;
   UPDATE public.documents SET record_state='trashed',deleted_at=now(),trashed_at=now(),trashed_by=actor,lifecycle_revision=lifecycle_revision+1 WHERE id=docs[1];
   IF (SELECT count(*) FROM public.possible_duplicate_eligible WHERE org_id=org AND normalized_value='GST/555/2026')<>2
     OR EXISTS(SELECT 1 FROM public.review_items WHERE org_id=org AND type='possible_duplicate' AND status='needs_review')

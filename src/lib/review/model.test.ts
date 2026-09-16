@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, processingRecoveryResolution, reviewAction, reviewValueLabel, taxPeriodComparison } from './model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, possibleDuplicateResolution, processingRecoveryResolution, reviewAction, reviewValueLabel, taxPeriodComparison } from './model'
+
+test('possible duplicate names an exact subset or all-distinct, never an implicit group equivalence',()=>{
+  const ids=['153e0000-0000-0000-0000-000000000001','153e0000-0000-0000-0000-000000000002']
+  const base={itemId:ids[0],revision:1,action:'possible_same_document',selectedDocumentIds:ids,
+    reason:'Both exact sources need a further governed identity investigation',idempotencyKey:'15390000-0000-0000-0000-000000000001'}
+  assert.equal(possibleDuplicateResolution.safeParse(base).success,true)
+  assert.equal(possibleDuplicateResolution.safeParse({...base,action:'distinct_documents',selectedDocumentIds:[]}).success,true)
+  for(const invalid of [{...base,selectedDocumentIds:[]},{...base,selectedDocumentIds:[ids[0]]},
+    {...base,selectedDocumentIds:[ids[0],ids[0]]},{...base,action:'distinct_documents'},
+    {...base,selectedDocumentIds:[...ids,...ids,...ids,...ids,...ids]},{...base,reason:'line\nbreak'}])
+    assert.equal(possibleDuplicateResolution.safeParse(invalid).success,false)
+})
 
 test('Review URL parsing allowlists filters, bounds search/page and rejects repeated authority', () => {
   assert.deepEqual(parseReviewFilters({ status: ['closed', 'all'], type: 'deadline', priority: 'critical', page: '-1', item: 'not-an-id', tab: 'history' }), {

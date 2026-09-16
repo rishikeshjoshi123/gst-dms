@@ -6627,6 +6627,7 @@ export type Database = {
           request_fingerprint: string
           result_revision: number
           review_item_id: string
+          selected_document_ids: string[] | null
         }
         Insert: {
           action: string
@@ -6641,6 +6642,7 @@ export type Database = {
           request_fingerprint: string
           result_revision: number
           review_item_id: string
+          selected_document_ids?: string[] | null
         }
         Update: {
           action?: string
@@ -6655,6 +6657,7 @@ export type Database = {
           request_fingerprint?: string
           result_revision?: number
           review_item_id?: string
+          selected_document_ids?: string[] | null
         }
         Relationships: [
           {
@@ -6672,6 +6675,7 @@ export type Database = {
           created_at: string
           display_value: string
           document_id: string
+          document_lifecycle_revision: number | null
           document_version_id: string
           evidence_page_number: number
           evidence_quote: string
@@ -6683,6 +6687,7 @@ export type Database = {
           ordinal: number
           org_id: string
           review_item_id: string
+          sha256: string | null
           verified_at: string
         }
         Insert: {
@@ -6690,6 +6695,7 @@ export type Database = {
           created_at?: string
           display_value: string
           document_id: string
+          document_lifecycle_revision?: number | null
           document_version_id: string
           evidence_page_number: number
           evidence_quote: string
@@ -6701,6 +6707,7 @@ export type Database = {
           ordinal: number
           org_id: string
           review_item_id: string
+          sha256?: string | null
           verified_at: string
         }
         Update: {
@@ -6708,6 +6715,7 @@ export type Database = {
           created_at?: string
           display_value?: string
           document_id?: string
+          document_lifecycle_revision?: number | null
           document_version_id?: string
           evidence_page_number?: number
           evidence_quote?: string
@@ -6719,6 +6727,7 @@ export type Database = {
           ordinal?: number
           org_id?: string
           review_item_id?: string
+          sha256?: string | null
           verified_at?: string
         }
         Relationships: [
@@ -14312,20 +14321,36 @@ export type Database = {
           replayed: boolean
         }[]
       }
-      resolve_possible_duplicate: {
-        Args: {
-          p_action: string
-          p_expected_revision: number
-          p_idempotency_key: string
-          p_reason: string
-          p_review_item_id: string
-        }
-        Returns: {
-          code: string
-          current_item: Json
-          replayed: boolean
-        }[]
-      }
+      resolve_possible_duplicate:
+        | {
+            Args: {
+              p_action: string
+              p_expected_revision: number
+              p_idempotency_key: string
+              p_reason: string
+              p_review_item_id: string
+            }
+            Returns: {
+              code: string
+              current_item: Json
+              replayed: boolean
+            }[]
+          }
+        | {
+            Args: {
+              p_action: string
+              p_expected_revision: number
+              p_idempotency_key: string
+              p_reason: string
+              p_review_item_id: string
+              p_selected_document_ids: string[]
+            }
+            Returns: {
+              code: string
+              current_item: Json
+              replayed: boolean
+            }[]
+          }
       resolve_processing_recovery: {
         Args: {
           p_action: Database["public"]["Enums"]["review_extraction_action"]

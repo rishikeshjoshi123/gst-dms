@@ -19,9 +19,12 @@ const pdf = readFileSync('tests/acceptance/fixtures/synthetic-multi-page.pdf')
 const conflictOnly=process.env.REVIEW_ACCEPTANCE_CONFLICT_ONLY==='1'
 const placementPdf=conflictOnly?readFileSync('tests/acceptance/fixtures/synthetic-placement-conflict.pdf'):null
 const secondPlacementPdf=conflictOnly?readFileSync('tests/acceptance/fixtures/synthetic-placement-conflict-second.pdf'):null
+const group=process.env.REVIEW_ACCEPTANCE_GROUP==='1'
 const sources = conflictOnly ? [
   {orgId:'152b0000-0000-0000-0000-000000000001',assetId:'152f0000-0000-0000-0000-000000000001',bytes:placementPdf},
   {orgId:'152b0000-0000-0000-0000-000000000001',assetId:'152f0000-0000-0000-0000-000000000002',bytes:secondPlacementPdf},
+  ...(group?[{orgId:'152b0000-0000-0000-0000-000000000001',assetId:'152f0000-0000-0000-0000-000000000003',
+    bytes:Buffer.concat([placementPdf,Buffer.from('\n% grouped-third-source\n')])}]:[]),
 ] : [
   {orgId:'153b0000-0000-0000-0000-000000000001',assetId: '153f0000-0000-0000-0000-000000000001', bytes: pdf },
   ...(process.env.REVIEW_ACCEPTANCE_DATE_ONLY === '1' ? [] :

@@ -61,6 +61,7 @@ port = 55327
   const sqlMulti=process.argv.includes('--sql-multi')
   const sqlDuplicate=process.argv.includes('--sql-duplicate')
   const browserDuplicate=process.argv.includes('--browser-duplicate')
+  const browserGroup=process.argv.includes('--browser-group')
   const probeDuplicate=process.argv.includes('--probe-duplicate')
   const stabilisation=process.argv.includes('--stabilisation')
   if(browserConflict||browserMulti){
@@ -86,11 +87,11 @@ port = 55327
     console.log(`document_boundary_repair_setup.sql: ${output.trim()}`)
     console.log(run(node,['scripts/acceptance/placed-document-review-stabilisation.mjs'],
       {env:{...process.env,SUPABASE_DB_CONTAINER:container}}))
-  } else if(browserDuplicate||probeDuplicate){
+  } else if(browserDuplicate||browserGroup||probeDuplicate){
     let input=readFileSync(join(root,'supabase/tests/document_boundary_repair_setup.sql'),'utf8')
     const old='lpad(i::text,64,i::text),100'
     if(!input.includes(old)) throw new Error('Source fixture asset INSERT changed; reconcile exact browser bytes.')
-    input=input.replace(old,`CASE i WHEN 1 THEN 'f469b1e2a159150fa5e152951b804e34d0255930f582a22f041d435cddcabe24' WHEN 2 THEN '5c5f5fc27a7f710c694ca9aa9e3afe54cf7b0254a2465d440d62fb13a154fdbd' ELSE lpad(i::text,64,i::text) END,CASE i WHEN 1 THEN 1967 WHEN 2 THEN 1977 ELSE 100 END`)
+    input=input.replace(old,`CASE i WHEN 1 THEN 'f469b1e2a159150fa5e152951b804e34d0255930f582a22f041d435cddcabe24' WHEN 2 THEN '5c5f5fc27a7f710c694ca9aa9e3afe54cf7b0254a2465d440d62fb13a154fdbd' ${browserGroup?"WHEN 3 THEN '98f3adb999f6ebe3cafa007bc8afa65454f245ad269178e2d1d4e9c47ef92307'":''} ELSE lpad(i::text,64,i::text) END,CASE i WHEN 1 THEN 1967 WHEN 2 THEN 1977 ${browserGroup?'WHEN 3 THEN 1991':''} ELSE 100 END`)
     console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input}))
     const browserSetup=`DO $$ DECLARE actor uuid:='152a0000-0000-0000-0000-000000000001'; candidate_id uuid; rev bigint; result record; BEGIN
       UPDATE auth.users SET encrypted_password=crypt('PlacementFixture167!',gen_salt('bf')),
@@ -102,18 +103,20 @@ port = 55327
       PERFORM set_config('request.jwt.claim.role','authenticated',true);
       PERFORM set_config('request.jwt.claim.sub',actor::text,true);
       PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor,'iat',extract(epoch FROM now())::bigint)::text,true);
-      FOR candidate_id IN SELECT id FROM public.document_field_candidates WHERE document_id IN ('152e0000-0000-0000-0000-000000000001'::uuid,'152e0000-0000-0000-0000-000000000002'::uuid)
+      FOR candidate_id IN SELECT id FROM public.document_field_candidates WHERE document_id IN ('152e0000-0000-0000-0000-000000000001'::uuid,'152e0000-0000-0000-0000-000000000002'::uuid${browserGroup?",'152e0000-0000-0000-0000-000000000003'::uuid":''})
         AND field_path='document.official_reference.self_identifier' AND normalized_value->>'normalized_value'='GST/555/2026'
         ORDER BY document_id LOOP
         SELECT lifecycle_revision INTO rev FROM public.documents WHERE id=(SELECT document_id FROM public.document_field_candidates WHERE id=candidate_id);
         SELECT * INTO result FROM public.activate_document_self_identifier(candidate_id,rev,NULL,gen_random_uuid());
         IF result.code<>'ok' THEN RAISE EXCEPTION 'duplicate browser activation failed: %',result.code; END IF;
       END LOOP;
-      IF (SELECT count(*) FROM public.review_items WHERE type='possible_duplicate' AND status='needs_review')<>1 THEN RAISE EXCEPTION 'browser pair was not produced'; END IF;
+      IF (SELECT count(*) FROM public.review_items WHERE type='possible_duplicate' AND status='needs_review')<>1
+        OR (SELECT count(*) FROM public.possible_duplicate_sources WHERE review_item_id=(SELECT id FROM public.review_items WHERE type='possible_duplicate' AND status='needs_review'))<>${browserGroup?3:2}
+        THEN RAISE EXCEPTION 'browser ${browserGroup?'group':'pair'} was not produced'; END IF;
     END $$;`
     console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:browserSetup}))
     console.log(run(node,['scripts/acceptance/seed-review-storage.mjs'],
-      {env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir,REVIEW_ACCEPTANCE_CONFLICT_ONLY:'1'}}))
+      {env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir,REVIEW_ACCEPTANCE_CONFLICT_ONLY:'1',REVIEW_ACCEPTANCE_GROUP:browserGroup?'1':'0'}}))
     if(probeDuplicate){
       const probe=`BEGIN;SET LOCAL request.jwt.claim.role='authenticated';SET LOCAL request.jwt.claim.sub='152a0000-0000-0000-0000-000000000002';
         SET LOCAL request.jwt.claims='{"role":"authenticated","sub":"152a0000-0000-0000-0000-000000000002"}';
@@ -122,7 +125,7 @@ port = 55327
       console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:probe}))
       console.log(run(node,['scripts/acceptance/probe-possible-duplicate.mjs'],{env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}}))
     }else
-    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep','possible duplicate exact PDF comparison'],
+    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep',browserGroup?'grouped possible duplicate exact PDF comparison':'possible duplicate exact PDF comparison records both interpretations'],
       {env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}}))
   } else if(sqlDuplicate){
     const file='document_reference_exact_resolution.sql'
