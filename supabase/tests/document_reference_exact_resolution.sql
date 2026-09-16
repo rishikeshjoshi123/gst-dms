@@ -8,19 +8,20 @@ DECLARE
   actor uuid:='151a0000-0000-0000-0000-000000000001'; viewer uuid:='151a0000-0000-0000-0000-000000000002'; suspended uuid:='151a0000-0000-0000-0000-000000000003'; foreign_actor uuid:='151a0000-0000-0000-0000-000000000004'; ambiguous_actor uuid:='151a0000-0000-0000-0000-000000000005'; admin_actor uuid:='151a0000-0000-0000-0000-000000000006'; associate_actor uuid:='151a0000-0000-0000-0000-000000000007';
   org uuid:='151b0000-0000-0000-0000-000000000001'; foreign_org uuid:='151b0000-0000-0000-0000-000000000002'; client uuid:='151c0000-0000-0000-0000-000000000001';
   matter_a uuid:='151d0000-0000-0000-0000-000000000001'; matter_b uuid:='151d0000-0000-0000-0000-000000000002';
-  docs uuid[]:=ARRAY['151e0000-0000-0000-0000-000000000001','151e0000-0000-0000-0000-000000000002','151e0000-0000-0000-0000-000000000003','151e0000-0000-0000-0000-000000000004']::uuid[];
-  assets uuid[]:=ARRAY['151f0000-0000-0000-0000-000000000001','151f0000-0000-0000-0000-000000000002','151f0000-0000-0000-0000-000000000003','151f0000-0000-0000-0000-000000000004']::uuid[];
-  versions uuid[]:=ARRAY['15100000-0000-0000-0000-000000000001','15100000-0000-0000-0000-000000000002','15100000-0000-0000-0000-000000000003','15100000-0000-0000-0000-000000000004']::uuid[];
-  processes uuid[]:=ARRAY['15110000-0000-0000-0000-000000000001','15110000-0000-0000-0000-000000000002','15110000-0000-0000-0000-000000000003','15110000-0000-0000-0000-000000000004']::uuid[];
-  process_leases uuid[]:=ARRAY['15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-000000000003','15120000-0000-0000-0000-000000000004']::uuid[];
-  runs uuid[]:=ARRAY['15130000-0000-0000-0000-000000000001','15130000-0000-0000-0000-000000000002','15130000-0000-0000-0000-000000000003','15130000-0000-0000-0000-000000000004']::uuid[];
-  run_leases uuid[]:=ARRAY['15140000-0000-0000-0000-000000000001','15140000-0000-0000-0000-000000000002','15140000-0000-0000-0000-000000000003','15140000-0000-0000-0000-000000000004']::uuid[];
+  docs uuid[]:=ARRAY['151e0000-0000-0000-0000-000000000001','151e0000-0000-0000-0000-000000000002','151e0000-0000-0000-0000-000000000003','151e0000-0000-0000-0000-000000000004','151e0000-0000-0000-0000-000000000005','151e0000-0000-0000-0000-000000000006','151e0000-0000-0000-0000-000000000007','151e0000-0000-0000-0000-000000000008','151e0000-0000-0000-0000-000000000009','151e0000-0000-0000-0000-000000000010']::uuid[];
+  assets uuid[]:=ARRAY['151f0000-0000-0000-0000-000000000001','151f0000-0000-0000-0000-000000000002','151f0000-0000-0000-0000-000000000003','151f0000-0000-0000-0000-000000000004','151f0000-0000-0000-0000-000000000005','151f0000-0000-0000-0000-000000000006','151f0000-0000-0000-0000-000000000007','151f0000-0000-0000-0000-000000000008','151f0000-0000-0000-0000-000000000009','151f0000-0000-0000-0000-000000000010']::uuid[];
+  versions uuid[]:=ARRAY['15100000-0000-0000-0000-000000000001','15100000-0000-0000-0000-000000000002','15100000-0000-0000-0000-000000000003','15100000-0000-0000-0000-000000000004','15100000-0000-0000-0000-000000000005','15100000-0000-0000-0000-000000000006','15100000-0000-0000-0000-000000000007','15100000-0000-0000-0000-000000000008','15100000-0000-0000-0000-000000000009','15100000-0000-0000-0000-000000000010']::uuid[];
+  processes uuid[]:=ARRAY['15110000-0000-0000-0000-000000000001','15110000-0000-0000-0000-000000000002','15110000-0000-0000-0000-000000000003','15110000-0000-0000-0000-000000000004','15110000-0000-0000-0000-000000000005','15110000-0000-0000-0000-000000000006','15110000-0000-0000-0000-000000000007','15110000-0000-0000-0000-000000000008','15110000-0000-0000-0000-000000000009','15110000-0000-0000-0000-000000000010']::uuid[];
+  process_leases uuid[]:=ARRAY['15120000-0000-0000-0000-000000000001','15120000-0000-0000-0000-000000000002','15120000-0000-0000-0000-000000000003','15120000-0000-0000-0000-000000000004','15120000-0000-0000-0000-000000000005','15120000-0000-0000-0000-000000000006','15120000-0000-0000-0000-000000000007','15120000-0000-0000-0000-000000000008','15120000-0000-0000-0000-000000000009','15120000-0000-0000-0000-000000000010']::uuid[];
+  runs uuid[]:=ARRAY['15130000-0000-0000-0000-000000000001','15130000-0000-0000-0000-000000000002','15130000-0000-0000-0000-000000000003','15130000-0000-0000-0000-000000000004','15130000-0000-0000-0000-000000000005','15130000-0000-0000-0000-000000000006','15130000-0000-0000-0000-000000000007','15130000-0000-0000-0000-000000000008','15130000-0000-0000-0000-000000000009','15130000-0000-0000-0000-000000000010']::uuid[];
+  run_leases uuid[]:=ARRAY['15140000-0000-0000-0000-000000000001','15140000-0000-0000-0000-000000000002','15140000-0000-0000-0000-000000000003','15140000-0000-0000-0000-000000000004','15140000-0000-0000-0000-000000000005','15140000-0000-0000-0000-000000000006','15140000-0000-0000-0000-000000000007','15140000-0000-0000-0000-000000000008','15140000-0000-0000-0000-000000000009','15140000-0000-0000-0000-000000000010']::uuid[];
   catalogue text:='gst-legal-material-observation-catalogue-v3'; normalizer text:='typed-material-observation-normalizer-v3';
   ref jsonb; candidates jsonb; finished record; i integer; page_text text; source_candidate uuid; target_a_candidate uuid; target_b_candidate uuid;
   activated record; target_a_identifier uuid; target_b_identifier uuid; source_identifier uuid; corrected_identifier uuid; correction_candidate uuid; outbound_candidate uuid; mention_one uuid; mention_two uuid;
   matter_identifier uuid; v_revision bigint; rejected boolean; links_before bigint; relationships_before bigint; outbox_before bigint; effective_before bigint; decisions_before bigint; activity_before bigint; identifiers_before bigint; query_plan json;
   purged_identifier uuid; trashed record; purge_impact record; purge_queue record; purge_job record; purge_step record; storage_step record;
-  duplicate_item uuid; duplicate_revision bigint; duplicate_resolution record; third_identifier uuid;
+  duplicate_item uuid; duplicate_revision bigint; duplicate_resolution record; third_identifier uuid; eight_source_item uuid;
+  entity_snapshot jsonb;
 BEGIN
   INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES
     ('00000000-0000-0000-0000-000000000000',actor,'authenticated','authenticated','reference-owner@example.test','x',now(),'{}','{}',now(),now()),
@@ -38,11 +39,11 @@ BEGIN
   INSERT INTO public.org_members(org_id,user_id,role) VALUES(org,ambiguous_actor,'associate'),(foreign_org,ambiguous_actor,'associate');
   INSERT INTO public.clients(id,org_id,name) VALUES(client,org,'Reference client');
   INSERT INTO public.matters(id,org_id,client_id,title,matter_code) VALUES(matter_a,org,client,'Reference A','REF-151-A'),(matter_b,org,client,'Reference B','REF-151-B');
-  FOR i IN 1..4 LOOP
+  FOR i IN 1..10 LOOP
     INSERT INTO public.documents(id,org_id,matter_id,storage_path,display_title,document_class,origin_kind,content_availability,status,created_by)
       VALUES(docs[i],org,CASE WHEN i=3 THEN matter_b ELSE matter_a END,'fixture/reference-'||i||'.pdf','Reference '||i,'proceeding','upload','source_attached','placed',actor);
     INSERT INTO public.file_assets(id,org_id,bucket_id,object_key,sha256,byte_size,detected_mime_type,availability,validated_at,validated_page_count,created_by)
-      VALUES(assets[i],org,'documents','orgs/'||org||'/assets/'||assets[i]||'/original.pdf',lpad(i::text,64,i::text),100,'application/pdf','available',now(),1,actor);
+      VALUES(assets[i],org,'documents','orgs/'||org||'/assets/'||assets[i]||'/original.pdf',lpad((i+20)::text,64,(i+20)::text),100,'application/pdf','available',now(),1,actor);
     INSERT INTO public.document_versions(id,org_id,document_id,asset_id,version_number,original_filename,page_count,validation_state,state,validated_at,promoted_at,created_by)
       VALUES(versions[i],org,docs[i],assets[i],1,'reference-'||i||'.pdf',1,'valid','current',now(),now(),actor);
     UPDATE public.documents SET current_version_id=versions[i] WHERE id=docs[i];
@@ -54,9 +55,9 @@ BEGIN
       VALUES(org,runs[i],1,'running','initial','vertex-ai','gemini-2.5-flash','fixture-model','v4.0','document-extraction-v4',catalogue,normalizer,now());
     page_text:=CASE WHEN i IN (1,4) THEN 'References GST/555/2026 in this proceeding.' WHEN i=2 THEN 'Order identifiers GST/555/2026 and GST/556/2026.' ELSE 'Order identifier GST/555/2026.' END;
     INSERT INTO public.document_page_text_artifacts(org_id,document_id,document_version_id,processing_run_id,source_analysis_run_id,state,page_count,content_fingerprint)
-      VALUES(org,docs[i],versions[i],processes[i],runs[i],'ready',1,repeat(i::text,64));
+      VALUES(org,docs[i],versions[i],processes[i],runs[i],'ready',1,lpad((i+20)::text,64,(i+20)::text));
     INSERT INTO public.document_page_text_pages(org_id,artifact_id,page_number,page_text,ocr_words,table_cells,page_content_hash,acquisition_method,quality_policy_version,quality_reasons,detected_languages)
-      SELECT org,id,1,page_text,'[]','[]',repeat(i::text,64),'native_pdf','native-pdf-quality-v1','{}','{}' FROM public.document_page_text_artifacts WHERE source_analysis_run_id=runs[i];
+      SELECT org,id,1,page_text,'[]','[]',lpad((i+20)::text,64,(i+20)::text),'native_pdf','native-pdf-quality-v1','{}','{}' FROM public.document_page_text_artifacts WHERE source_analysis_run_id=runs[i];
 
     ref:=jsonb_build_object('role',CASE WHEN i IN (1,4) THEN 'outbound_mention' ELSE 'self_identifier' END,'kind','order_reference','namespace','GST Tribunal','namespace_normalized','GST TRIBUNAL','raw','GST/555/2026','display','GST/555/2026','normalized_value','GST/555/2026','components',jsonb_build_object('kind','order_reference','segments',jsonb_build_array('GST','555','2026'),'prefix','GST','numericCore','555','year','2026'),'completeness','complete','match_eligible',true,'catalogue_version',catalogue,'normalizer_version',normalizer);
     candidates:=jsonb_build_array(jsonb_build_object('semantic_candidate_key','official_reference:'||lpad(i::text,32,i::text),'field_path','document.official_reference.'||(ref->>'role'),'value_type','structured','normalized_value',ref,'page_number',1,'quotation','GST/555/2026','evidence_regions',NULL,'confidence',0.99,'validation_state','provisional','validation_error_codes',NULL,'verified_source_anchor',jsonb_build_object('char_start',strpos(page_text,'GST/555/2026')-1,'char_end',strpos(page_text,'GST/555/2026')-1+char_length('GST/555/2026'),'token_start',NULL,'token_end',NULL,'table_cell',NULL)));
@@ -152,6 +153,106 @@ BEGIN
     OR (SELECT count(DISTINCT document_id) FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item)<>3
     OR (SELECT count(DISTINCT asset_id) FROM public.possible_duplicate_sources WHERE review_item_id=duplicate_item)<>3
     THEN RAISE EXCEPTION 'group detail omitted an exact current source'; END IF;
+
+  -- Every resolving role executes a real grouped decision. Each probe rolls
+  -- back its Review/Activity effects so the shared lifecycle fixture remains
+  -- current for the subsequent assertions.
+  SELECT jsonb_build_object(
+    'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.documents d WHERE d.id=ANY(docs[1:3])),
+    'versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id) FROM public.document_versions v WHERE v.id=ANY(versions[1:3])),
+    'assets',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.file_assets a WHERE a.id=ANY(assets[1:3])),
+    'matters',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM public.matters m WHERE m.id IN (matter_a,matter_b)))
+    INTO entity_snapshot;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub',admin_actor::text,true);
+    PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',admin_actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+    SELECT count(*) INTO decisions_before FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item;
+    SELECT count(*) INTO activity_before FROM public.activity_events WHERE event_type='review.possible_duplicate_decided';
+    SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
+      'Admin confirms only this exact subset may represent one source',ARRAY[docs[2],docs[3]],gen_random_uuid());
+    IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed
+      OR (SELECT count(*) FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)<>decisions_before+1
+      OR NOT EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item
+        AND actor_user_id=admin_actor AND action='possible_same_document' AND selected_document_ids=ARRAY[docs[2],docs[3]])
+      OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>activity_before+1
+      OR NOT EXISTS(SELECT 1 FROM public.activity_events WHERE event_type='review.possible_duplicate_decided' AND actor_id=admin_actor)
+      OR (SELECT status FROM public.review_items WHERE id=duplicate_item)<>'closed'
+      OR (SELECT jsonb_build_object(
+          'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.documents d WHERE d.id=ANY(docs[1:3])),
+          'versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id) FROM public.document_versions v WHERE v.id=ANY(versions[1:3])),
+          'assets',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.file_assets a WHERE a.id=ANY(assets[1:3])),
+          'matters',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM public.matters m WHERE m.id IN (matter_a,matter_b)))) IS DISTINCT FROM entity_snapshot
+      THEN RAISE EXCEPTION 'Admin grouped subset decision changed source entities or lacked exact single decision/Activity semantics'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0171',MESSAGE='rollback Admin grouped-resolution probe';
+  EXCEPTION WHEN SQLSTATE 'Z0171' THEN NULL; END;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub',associate_actor::text,true);
+    PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',associate_actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+    SELECT count(*) INTO decisions_before FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item;
+    SELECT count(*) INTO activity_before FROM public.activity_events WHERE event_type='review.possible_duplicate_decided';
+    SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'distinct_documents',
+      'Associate confirms all three current sources are distinct','{}'::uuid[],gen_random_uuid());
+    IF duplicate_resolution.code<>'ok' OR duplicate_resolution.replayed
+      OR (SELECT count(*) FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item)<>decisions_before+1
+      OR NOT EXISTS(SELECT 1 FROM public.possible_duplicate_decisions WHERE review_item_id=duplicate_item
+        AND actor_user_id=associate_actor AND action='distinct_documents' AND cardinality(selected_document_ids)=0)
+      OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.possible_duplicate_decided')<>activity_before+1
+      OR NOT EXISTS(SELECT 1 FROM public.activity_events WHERE event_type='review.possible_duplicate_decided' AND actor_id=associate_actor)
+      OR (SELECT status FROM public.review_items WHERE id=duplicate_item)<>'closed'
+      OR (SELECT jsonb_build_object(
+          'documents',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM public.documents d WHERE d.id=ANY(docs[1:3])),
+          'versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY v.id) FROM public.document_versions v WHERE v.id=ANY(versions[1:3])),
+          'assets',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM public.file_assets a WHERE a.id=ANY(assets[1:3])),
+          'matters',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM public.matters m WHERE m.id IN (matter_a,matter_b)))) IS DISTINCT FROM entity_snapshot
+      THEN RAISE EXCEPTION 'Associate all-distinct decision changed source entities or lacked exact single decision/Activity semantics'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0171',MESSAGE='rollback Associate grouped-resolution probe';
+  EXCEPTION WHEN SQLSTATE 'Z0171' THEN NULL; END;
+  PERFORM set_config('request.jwt.claim.sub',actor::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+
+  -- Activate six additional finished candidates through the governed command.
+  -- The eighth source is still representable; the ninth must close that item
+  -- and abstain instead of exposing an incomplete bounded subset.
+  BEGIN
+    FOR i IN 5..10 LOOP
+      SELECT id INTO source_candidate FROM public.document_field_candidates WHERE document_id=docs[i]
+        AND field_path='document.official_reference.self_identifier';
+      SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[i];
+      IF i=10 THEN
+        SELECT item.id INTO eight_source_item FROM public.review_items item
+          JOIN public.possible_duplicate_sources source ON source.review_item_id=item.id AND source.ordinal=1
+          WHERE item.org_id=org AND item.type='possible_duplicate' AND item.status='needs_review'
+            AND source.identifier_kind='order_reference' AND source.issuer_namespace_normalized='GST TRIBUNAL'
+            AND source.normalized_value='GST/555/2026';
+        IF eight_source_item IS NULL OR NOT public.possible_duplicate_current(eight_source_item)
+          OR (SELECT count(*) FROM public.possible_duplicate_sources WHERE review_item_id=eight_source_item)<>8
+          THEN RAISE EXCEPTION 'eight-source boundary was not current before the ninth activation'; END IF;
+      END IF;
+      SELECT * INTO activated FROM public.activate_document_self_identifier(source_candidate,v_revision,NULL,gen_random_uuid());
+      IF activated.code<>'ok' OR activated.replayed THEN RAISE EXCEPTION 'governed activation failed for nine-source probe row %: %',i,activated.code; END IF;
+    END LOOP;
+    IF (SELECT count(*) FROM public.possible_duplicate_eligible WHERE org_id=org AND identifier_kind='order_reference'
+        AND issuer_namespace_normalized='GST TRIBUNAL' AND normalized_value='GST/555/2026')<>9
+      OR (SELECT count(DISTINCT document_id) FROM public.possible_duplicate_eligible WHERE org_id=org AND identifier_kind='order_reference'
+        AND issuer_namespace_normalized='GST TRIBUNAL' AND normalized_value='GST/555/2026')<>9
+      OR (SELECT count(DISTINCT asset_id) FROM public.possible_duplicate_eligible WHERE org_id=org AND identifier_kind='order_reference'
+        AND issuer_namespace_normalized='GST TRIBUNAL' AND normalized_value='GST/555/2026')<>9
+      OR (SELECT count(DISTINCT sha256) FROM public.possible_duplicate_eligible WHERE org_id=org AND identifier_kind='order_reference'
+        AND issuer_namespace_normalized='GST TRIBUNAL' AND normalized_value='GST/555/2026')<>9
+      OR EXISTS(SELECT 1 FROM public.review_items item JOIN public.possible_duplicate_sources source
+        ON source.review_item_id=item.id AND source.ordinal=1 WHERE item.org_id=org AND item.type='possible_duplicate'
+        AND item.status='needs_review' AND source.identifier_kind='order_reference'
+        AND source.issuer_namespace_normalized='GST TRIBUNAL' AND source.normalized_value='GST/555/2026')
+      OR (SELECT status FROM public.review_items WHERE id=eight_source_item)<>'closed'
+      OR (SELECT closure_reason FROM public.review_items WHERE id=eight_source_item)<>'source_replaced'
+      OR EXISTS(SELECT 1 FROM public.review_items item JOIN public.possible_duplicate_sources source
+        ON source.review_item_id=item.id AND source.ordinal=1 WHERE item.org_id=org AND item.type='possible_duplicate'
+        AND source.identifier_kind='order_reference' AND source.issuer_namespace_normalized='GST TRIBUNAL'
+        AND source.normalized_value='GST/555/2026' AND (item.status<>'closed' OR item.closure_reason<>'source_replaced'))
+      OR EXISTS(SELECT 1 FROM public.read_review_queue('needs_review','possible_duplicate','all','',1,25) WHERE total_count>0)
+      THEN RAISE EXCEPTION 'nine exact eligible sources exposed a bounded subset or failed to source-replace the smaller item'; END IF;
+    RAISE EXCEPTION USING ERRCODE='Z0171',MESSAGE='rollback nine-source maximum-boundary probe';
+  EXCEPTION WHEN SQLSTATE 'Z0171' THEN NULL; END;
   SELECT * INTO duplicate_resolution FROM public.resolve_possible_duplicate(duplicate_item,duplicate_revision,'possible_same_document',
     'One selected source is not a subset',ARRAY[docs[1]],gen_random_uuid());
   IF duplicate_resolution.code<>'invalid_request' THEN RAISE EXCEPTION 'single-member finding was accepted'; END IF;
