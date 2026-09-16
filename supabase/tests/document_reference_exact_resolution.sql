@@ -21,6 +21,7 @@ DECLARE
   matter_identifier uuid; v_revision bigint; rejected boolean; links_before bigint; relationships_before bigint; outbox_before bigint; effective_before bigint; decisions_before bigint; activity_before bigint; identifiers_before bigint; query_plan json;
   purged_identifier uuid; trashed record; purge_impact record; purge_queue record; purge_job record; purge_step record; storage_step record;
   duplicate_item uuid; duplicate_revision bigint; duplicate_resolution record; third_identifier uuid; eight_source_item uuid;
+  relationship_item uuid; relationship_revision bigint; relationship_resolution record; relationship_catalogue_version integer;
   entity_snapshot jsonb;
 BEGIN
   INSERT INTO auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES
@@ -108,6 +109,58 @@ BEGIN
   target_a_identifier:=activated.identifier_id;
   IF (SELECT outcome FROM public.current_document_reference_resolutions WHERE mention_id=mention_one)<>'unique_exact'
     OR (SELECT target_document_id FROM public.current_document_reference_resolutions WHERE mention_id=mention_one)<>docs[2] THEN RAISE EXCEPTION 'later target did not resolve the pending mention'; END IF;
+  SELECT item.id,item.revision INTO relationship_item,relationship_revision FROM public.review_items item
+    JOIN public.relationship_suggestion_sources source ON source.review_item_id=item.id
+    WHERE source.mention_id=mention_one AND item.status='needs_review';
+  SELECT max(catalogue_version) INTO relationship_catalogue_version FROM public.document_relationship_catalogue WHERE relationship_type='refers_to';
+  IF relationship_item IS NULL OR (SELECT count(*) FROM public.review_items item JOIN public.relationship_suggestion_sources source ON source.review_item_id=item.id
+      WHERE source.mention_id=mention_one AND item.status='needs_review')<>1
+    OR NOT public.relationship_suggestion_current(relationship_item)
+    OR (public.read_review_detail(relationship_item)->>'suggested_relationship_type')<>'refers_to'
+    OR coalesce((public.read_review_detail(relationship_item)->>'conflict_current')::boolean,false) IS NOT TRUE
+    OR EXISTS(SELECT 1 FROM public.document_relationships WHERE org_id=org AND source_document_id=docs[1] AND target_document_id=docs[2])
+    THEN RAISE EXCEPTION 'unique exact reference did not create exactly one non-effective current candidate: item %, open %, eligible %, source %, detail %',
+      relationship_item,
+      (SELECT count(*) FROM public.review_items item JOIN public.relationship_suggestion_sources source ON source.review_item_id=item.id
+        WHERE source.mention_id=mention_one AND item.status='needs_review'),
+      (SELECT count(*) FROM public.relationship_suggestion_eligible WHERE mention_id=mention_one),
+      (SELECT jsonb_agg(to_jsonb(s)) FROM public.relationship_suggestion_sources s WHERE s.mention_id=mention_one),
+      CASE WHEN relationship_item IS NULL THEN NULL ELSE public.read_review_detail(relationship_item) END; END IF;
+  FOREACH source_candidate IN ARRAY ARRAY[viewer,suspended,foreign_actor,ambiguous_actor] LOOP
+    PERFORM set_config('request.jwt.claim.sub',source_candidate::text,true);
+    PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',source_candidate,'iat',extract(epoch FROM now())::bigint)::text,true);
+    SELECT * INTO relationship_resolution FROM public.resolve_relationship_suggestion(relationship_item,relationship_revision,'reject_relationship',
+      NULL,NULL,NULL,NULL,'Unauthorised exact item attempt',gen_random_uuid());
+    IF (source_candidate=foreign_actor AND relationship_resolution.code<>'unavailable')
+      OR (source_candidate<>foreign_actor AND relationship_resolution.code<>'forbidden')
+      OR EXISTS(SELECT 1 FROM public.relationship_suggestion_decisions WHERE review_item_id=relationship_item)
+      THEN RAISE EXCEPTION 'relationship resolver authority leaked to %: %',source_candidate,relationship_resolution.code; END IF;
+  END LOOP;
+  PERFORM set_config('request.jwt.claim.sub',actor::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor,'iat',extract(epoch FROM now())::bigint)::text,true);
+  SELECT * INTO relationship_resolution FROM public.resolve_relationship_suggestion(relationship_item,relationship_revision,'accept_relationship',
+    'refers_to',relationship_catalogue_version,docs[1],docs[2],'Exact current PDF reference supports only refers to','15180000-0000-0000-0000-000000000001');
+  IF relationship_resolution.code<>'ok' OR relationship_resolution.replayed
+    OR (SELECT revision FROM public.review_items WHERE id=relationship_item)<>relationship_revision+1
+    OR (SELECT status FROM public.review_items WHERE id=relationship_item)<>'closed'
+    OR (SELECT count(*) FROM public.relationship_suggestion_decisions WHERE review_item_id=relationship_item)<>1
+    OR (SELECT count(*) FROM public.document_relationships WHERE org_id=org AND source_document_id=docs[1] AND target_document_id=docs[2]
+      AND relationship_type='refers_to' AND provenance='candidate' AND verification='human' AND lifecycle_state='active')<>1
+    OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.relationship_suggestion_decided')<>1
+    OR (SELECT timeline_visible FROM public.document_relationship_catalogue WHERE relationship_type='refers_to' AND catalogue_version=relationship_catalogue_version)
+    THEN RAISE EXCEPTION 'accepted exact reference did not apply one decision, one non-progression edge and one Activity effect: code %, replay %, item %, decisions %, relationships %, activities %',
+      relationship_resolution.code,relationship_resolution.replayed,
+      (SELECT jsonb_build_object('status',status,'revision',revision,'closure',closure_reason) FROM public.review_items WHERE id=relationship_item),
+      (SELECT count(*) FROM public.relationship_suggestion_decisions WHERE review_item_id=relationship_item),
+      (SELECT jsonb_agg(to_jsonb(r)) FROM public.document_relationships r WHERE r.org_id=org AND r.source_document_id=docs[1] AND r.target_document_id=docs[2]),
+      (SELECT count(*) FROM public.activity_events WHERE event_type='review.relationship_suggestion_decided'); END IF;
+  SELECT * INTO relationship_resolution FROM public.resolve_relationship_suggestion(relationship_item,relationship_revision,'accept_relationship',
+    'refers_to',relationship_catalogue_version,docs[1],docs[2],'Exact current PDF reference supports only refers to','15180000-0000-0000-0000-000000000001');
+  IF relationship_resolution.code<>'ok' OR NOT relationship_resolution.replayed THEN RAISE EXCEPTION 'relationship decision exact replay diverged'; END IF;
+  SELECT * INTO relationship_resolution FROM public.resolve_relationship_suggestion(relationship_item,relationship_revision,'reject_relationship',
+    NULL,NULL,NULL,NULL,'Mismatched replay must not apply','15180000-0000-0000-0000-000000000001');
+  IF relationship_resolution.code<>'idempotency_conflict' OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.relationship_suggestion_decided')<>1
+    THEN RAISE EXCEPTION 'relationship decision mismatched replay wrote an effect'; END IF;
   SELECT * INTO activated FROM public.activate_document_self_identifier(target_a_candidate,v_revision,matter_identifier,'15160000-0000-0000-0000-000000000001');
   IF activated.code<>'ok' OR NOT activated.replayed OR activated.identifier_id<>target_a_identifier THEN RAISE EXCEPTION 'activation replay did not converge'; END IF;
   SELECT count(*) INTO decisions_before FROM public.document_identifier_decisions;
@@ -123,6 +176,17 @@ BEGIN
 
   SELECT id INTO mention_two FROM public.document_reference_mentions WHERE source_document_id=docs[4];
   IF mention_two IS NULL OR (SELECT outcome FROM public.current_document_reference_resolutions WHERE mention_id=mention_two)<>'unique_exact' THEN RAISE EXCEPTION 'target-first arrival did not resolve immediately'; END IF;
+  SELECT item.id,item.revision INTO relationship_item,relationship_revision FROM public.review_items item
+    JOIN public.relationship_suggestion_sources source ON source.review_item_id=item.id
+    WHERE source.mention_id=mention_two AND item.status='needs_review';
+  SELECT max(catalogue_version) INTO relationship_catalogue_version FROM public.document_relationship_catalogue WHERE relationship_type='responds_to';
+  SELECT * INTO relationship_resolution FROM public.resolve_relationship_suggestion(relationship_item,relationship_revision,'correct_relationship',
+    'responds_to',relationship_catalogue_version,docs[2],docs[4],'Human review established the corrected type and reverse direction','15180000-0000-0000-0000-000000000002');
+  IF relationship_resolution.code<>'ok' OR relationship_resolution.replayed
+    OR NOT EXISTS(SELECT 1 FROM public.document_relationships WHERE org_id=org AND source_document_id=docs[2] AND target_document_id=docs[4]
+      AND relationship_type='responds_to' AND provenance='candidate' AND verification='human' AND lifecycle_state='active')
+    OR (SELECT count(*) FROM public.activity_events WHERE event_type='review.relationship_suggestion_decided')<>2
+    THEN RAISE EXCEPTION 'human-corrected current type and reverse direction did not apply once'; END IF;
 
   SELECT lifecycle_revision INTO v_revision FROM public.documents WHERE id=docs[3];
   SELECT * INTO activated FROM public.activate_document_self_identifier(target_b_candidate,v_revision,NULL,'15160000-0000-0000-0000-000000000002');
@@ -527,22 +591,26 @@ BEGIN
 END $fixture$;
 
 SET LOCAL ROLE authenticated;
-DO $direct_dml$ DECLARE denied boolean:=false; BEGIN
+DO $direct_dml$ DECLARE denied boolean:=false; relationship_source_denied boolean:=false; relationship_decision_denied boolean:=false; BEGIN
   BEGIN DELETE FROM public.document_reference_mentions; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
-  IF NOT denied THEN RAISE EXCEPTION 'authenticated direct mention DML was accepted'; END IF;
+  BEGIN DELETE FROM public.relationship_suggestion_sources; EXCEPTION WHEN insufficient_privilege THEN relationship_source_denied:=true; END;
+  BEGIN DELETE FROM public.relationship_suggestion_decisions; EXCEPTION WHEN insufficient_privilege THEN relationship_decision_denied:=true; END;
+  IF NOT denied OR NOT relationship_source_denied OR NOT relationship_decision_denied THEN RAISE EXCEPTION 'authenticated direct reference/relationship Review DML was accepted'; END IF;
 END $direct_dml$;
 RESET ROLE;
 SET LOCAL ROLE anon;
-DO $anonymous_surface$ DECLARE denied_mutation boolean:=false; denied_reader boolean:=false; BEGIN
+DO $anonymous_surface$ DECLARE denied_mutation boolean:=false; denied_reader boolean:=false; denied_relationship boolean:=false; BEGIN
   BEGIN PERFORM public.activate_document_self_identifier('15170000-0000-0000-0000-000000000001',1,NULL,'15170000-0000-0000-0000-000000000002'); EXCEPTION WHEN insufficient_privilege THEN denied_mutation:=true; END;
   BEGIN PERFORM public.read_current_document_reference_resolutions(ARRAY['15170000-0000-0000-0000-000000000003'::uuid]); EXCEPTION WHEN insufficient_privilege THEN denied_reader:=true; END;
-  IF NOT denied_mutation OR NOT denied_reader THEN RAISE EXCEPTION 'anonymous document reference surface was executable'; END IF;
+  BEGIN PERFORM public.resolve_relationship_suggestion('15170000-0000-0000-0000-000000000003',1,'reject_relationship',NULL,NULL,NULL,NULL,'Anonymous attempt','15170000-0000-0000-0000-000000000004'); EXCEPTION WHEN insufficient_privilege THEN denied_relationship:=true; END;
+  IF NOT denied_mutation OR NOT denied_reader OR NOT denied_relationship THEN RAISE EXCEPTION 'anonymous document reference surface was executable'; END IF;
 END $anonymous_surface$;
 RESET ROLE;
 SET LOCAL ROLE service_role;
-DO $service_dml$ DECLARE denied boolean:=false; BEGIN
+DO $service_dml$ DECLARE denied boolean:=false; relationship_denied boolean:=false; BEGIN
   BEGIN UPDATE public.document_self_identifiers SET revision=revision+1; EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
-  IF NOT denied THEN RAISE EXCEPTION 'service-role direct identifier DML was accepted'; END IF;
+  BEGIN INSERT INTO public.relationship_suggestion_decisions DEFAULT VALUES; EXCEPTION WHEN insufficient_privilege THEN relationship_denied:=true; END;
+  IF NOT denied OR NOT relationship_denied THEN RAISE EXCEPTION 'service-role direct identifier/relationship Review DML was accepted'; END IF;
 END $service_dml$;
 RESET ROLE;
 
@@ -550,7 +618,11 @@ DO $surface$
 BEGIN
   IF has_table_privilege('authenticated','public.document_self_identifiers','SELECT')
     OR has_table_privilege('service_role','public.document_reference_mentions','INSERT')
+    OR has_table_privilege('authenticated','public.relationship_suggestion_sources','SELECT')
+    OR has_table_privilege('service_role','public.relationship_suggestion_decisions','INSERT')
     OR has_function_privilege('service_role','public.activate_document_self_identifier(uuid,bigint,uuid,uuid)','EXECUTE')
+    OR has_function_privilege('anon','public.resolve_relationship_suggestion(uuid,bigint,text,public.document_relationship_type,integer,uuid,uuid,text,uuid)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.resolve_relationship_suggestion(uuid,bigint,text,public.document_relationship_type,integer,uuid,uuid,text,uuid)','EXECUTE')
     OR NOT has_function_privilege('authenticated','public.read_current_document_reference_resolutions(uuid[])','EXECUTE') THEN
     RAISE EXCEPTION 'document reference authority surface is unsafe';
   END IF;

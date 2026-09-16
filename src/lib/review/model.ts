@@ -2,7 +2,9 @@ import { z } from 'zod'
 
 export const reviewAction = z.enum(['select_candidate', 'request_clarification', 'continue_manual', 'select_destination',
   'verify_deadline','correct_deadline','reject_deadline','clear_deadline','verify','correct','reject','clear',
-  'keep_placement','move_placement','keep','move','distinct_documents','possible_same_document'])
+  'keep_placement','move_placement','keep','move','distinct_documents','possible_same_document',
+  'accept_relationship','correct_relationship','reject_relationship'])
+export const documentRelationshipType=z.enum(['responds_to','issued_pursuant_to','arises_from','challenges','decides','modifies','supersedes','remands','gives_effect_to','refers_to','other'])
 const reviewQueueBase = z.object({
   id: z.string().uuid(),
   priority: z.enum(['normal', 'high', 'urgent']), priority_reason: z.string(),
@@ -19,6 +21,7 @@ export const reviewQueueItem = z.discriminatedUnion('type', [
   documentReviewQueueBase.extend({ type: z.literal('placement_conflict'), field_path: z.literal('document.official_reference.self_identifier'), reason_code: z.literal('verified_matter_identity_mismatch'), impact: z.string(), source_page_number: z.number().int().positive() }),
   documentReviewQueueBase.extend({ type: z.literal('multi_placement_conflict'), field_path: z.literal('document.official_reference.self_identifier'), reason_code: z.literal('multiple_verified_matter_identity_mismatches'), impact: z.string(), source_page_number: z.number().int().positive() }),
   documentReviewQueueBase.extend({ type: z.literal('possible_duplicate'), field_path: z.literal('document.official_reference.self_identifier'), reason_code: z.literal('shared_verified_document_identifier'), impact: z.string(), source_page_number: z.number().int().positive() }),
+  documentReviewQueueBase.extend({ type: z.literal('relationship_suggestion'), field_path: z.literal('document.official_reference.outbound_mention'), reason_code: z.literal('unique_exact_reference'), impact: z.string(), source_page_number: z.number().int().positive() }),
   reviewQueueBase.extend({ type: z.literal('ambiguous_placement'), field_path: z.null(), reason_code: z.literal('multiple_eligible_matters'), impact: z.string(), source_page_number: z.literal(1), intake_id: z.string().uuid(), document_id: z.null(), document_version_id: z.null() }),
 ])
 const reviewDetailBase = z.object({
@@ -47,11 +50,25 @@ const reviewDetailBase = z.object({
   source_analysis_run_id:z.string().uuid().optional(),source_candidate_id:z.string().uuid().optional(),
   source_quote:z.string().optional(),
   conflict_current:z.boolean().optional(),
+  suggested_relationship_type:documentRelationshipType.optional(), suggested_catalogue_version:z.number().int().positive().optional(), target_document_id:z.string().uuid().optional(),
+  target_document_version_id:z.string().uuid().optional(), target_document_title:z.string().optional(),
+  target_lifecycle_revision:z.number().int().positive().optional(), source_lifecycle_revision:z.number().int().positive().optional(),
+  relationship_catalogue:z.array(z.object({relationship_type:documentRelationshipType,catalogue_version:z.number().int().positive(),canonical_phrase:z.string(),progression_phrase:z.string(),timeline_visible:z.boolean()})).optional(),
 })
 export const reviewDetail = z.intersection(reviewQueueItem, reviewDetailBase)
 export type ReviewQueueItem = z.infer<typeof reviewQueueItem>
 export type ReviewDetail = z.infer<typeof reviewDetail>
-export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'deadline_verification' | 'placement_conflict' | 'multi_placement_conflict' | 'possible_duplicate' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
+export type ReviewFilters = { status: 'needs_review' | 'closed' | 'all'; type: 'extraction_conflict' | 'processing_recovery' | 'ambiguous_placement' | 'deadline_verification' | 'placement_conflict' | 'multi_placement_conflict' | 'possible_duplicate' | 'relationship_suggestion' | 'all'; priority: 'normal' | 'high' | 'urgent' | 'all'; search: string; page: number; item?: string; tab: 'evidence' | 'decision' }
+export const relationshipSuggestionResolution=z.object({
+  itemId:z.string().uuid(),revision:z.number().int().positive(),action:z.enum(['accept_relationship','correct_relationship','reject_relationship']),
+  relationshipType:documentRelationshipType.nullable(),catalogueVersion:z.number().int().positive().nullable(),sourceDocumentId:z.string().uuid().nullable(),targetDocumentId:z.string().uuid().nullable(),
+  reason:z.string().trim().min(2).max(500).refine(value=>!/[\u0000-\u001f\u007f]/.test(value)),idempotencyKey:z.string().uuid(),
+}).strict().superRefine((value,context)=>{
+  const endpoints=value.sourceDocumentId!==null&&value.targetDocumentId!==null&&value.sourceDocumentId!==value.targetDocumentId
+  if(value.action==='reject_relationship' ? value.relationshipType!==null||value.catalogueVersion!==null||value.sourceDocumentId!==null||value.targetDocumentId!==null : !endpoints||value.relationshipType===null||value.catalogueVersion===null)
+    context.addIssue({code:'custom',message:'Choose one allowed relationship and direction, or reject without endpoints.',path:['relationshipType']})
+})
+export type RelationshipSuggestionResolution=z.infer<typeof relationshipSuggestionResolution>
 export const possibleDuplicateResolution=z.object({
   itemId:z.string().uuid(),revision:z.number().int().positive(),action:z.enum(['distinct_documents','possible_same_document']),
   selectedDocumentIds:z.array(z.string().uuid()).max(8),
@@ -122,7 +139,7 @@ export function parseReviewFilters(params: Record<string, string | string[] | un
   const page = typeof params.page === 'string' && /^[1-9]\d{0,5}$/.test(params.page) ? Number(params.page) : 1
   return {
     status: params.status === 'closed' || params.status === 'all' ? params.status : 'needs_review',
-    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' || params.type === 'ambiguous_placement' || params.type === 'deadline_verification' || params.type === 'placement_conflict' || params.type === 'multi_placement_conflict' || params.type === 'possible_duplicate' ? params.type : 'all',
+    type: params.type === 'extraction_conflict' || params.type === 'processing_recovery' || params.type === 'ambiguous_placement' || params.type === 'deadline_verification' || params.type === 'placement_conflict' || params.type === 'multi_placement_conflict' || params.type === 'possible_duplicate' || params.type === 'relationship_suggestion' ? params.type : 'all',
     priority: params.priority === 'normal' || params.priority === 'high' || params.priority === 'urgent' ? params.priority : 'all',
     search: typeof params.search === 'string' ? params.search.slice(0, 200) : '', page: Math.min(page, 100000),
     item: typeof params.item === 'string' && z.string().uuid().safeParse(params.item).success ? params.item : undefined,

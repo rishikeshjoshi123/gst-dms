@@ -61,6 +61,11 @@ export type MatterWorkspaceRouteState = {
     limit: number
   }
   timelinePage: { offset: number; limit: number; filters: string[] }
+  relationshipReview: {
+    itemId: string
+    requestedRevision: number
+    returnTo: string
+  } | null
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -97,6 +102,15 @@ export function parseMatterWorkspaceRoute(
   const selectionRequested = query.document !== undefined && (section === 'timeline' || section === 'files')
   const document = selectionRequested ? scalar(query.document) : undefined
   const inspectorValue = selectionRequested ? scalar(query.inspector) : undefined
+  const reviewItem = section === 'timeline' ? scalar(query.reviewItem) : undefined
+  const reviewRevision = section === 'timeline' ? scalar(query.reviewRevision) : undefined
+  const requestedRevision = reviewRevision && /^[1-9]\d{0,8}$/.test(reviewRevision)
+    ? Number(reviewRevision)
+    : null
+  const requestedReturn = section === 'timeline' ? scalar(query.returnTo) : undefined
+  const returnTo = (requestedReturn === '/review' || requestedReturn?.startsWith('/review?')) && requestedReturn.length <= 1_000
+    ? requestedReturn
+    : '/review'
 
   return {
     section,
@@ -117,6 +131,9 @@ export function parseMatterWorkspaceRoute(
       limit: scalar(query.timelineLimit),
       filters: Array.isArray(query.filter) ? query.filter : typeof query.filter === 'string' ? [query.filter] : [],
     }),
+    relationshipReview: reviewItem && UUID_PATTERN.test(reviewItem) && requestedRevision
+      ? { itemId: reviewItem, requestedRevision, returnTo }
+      : null,
   }
 }
 
@@ -209,6 +226,11 @@ export function buildMatterSectionHref(
     search.delete('inspector')
   }
   if (targetSection !== 'timeline') search.delete('view')
+  if (targetSection !== 'timeline') {
+    search.delete('reviewItem')
+    search.delete('reviewRevision')
+    search.delete('returnTo')
+  }
   if (currentSection !== targetSection || targetSection !== 'files') {
     search.delete('filesOffset')
     search.delete('filesLimit')

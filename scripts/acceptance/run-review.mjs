@@ -64,7 +64,36 @@ port = 55327
   const browserGroup=process.argv.includes('--browser-group')
   const probeDuplicate=process.argv.includes('--probe-duplicate')
   const stabilisation=process.argv.includes('--stabilisation')
-  if(browserConflict||browserMulti){
+  const relationship=process.argv.includes('--relationship')
+  const browserRelationship=process.argv.includes('--browser-relationship')
+  if(browserRelationship){
+    let input=readFileSync(join(root,'supabase/tests/document_reference_exact_resolution_concurrency_setup.sql'),'utf8')
+    const old="repeat(i::text,64),100"
+    if(!input.includes(old)) throw new Error('Relationship browser source assets changed; reconcile exact synthetic bytes.')
+    input=input.replace(old,`CASE i WHEN 1 THEN 'f469b1e2a159150fa5e152951b804e34d0255930f582a22f041d435cddcabe24' ELSE '5c5f5fc27a7f710c694ca9aa9e3afe54cf7b0254a2465d440d62fb13a154fdbd' END,CASE i WHEN 1 THEN 1967 ELSE 1977 END`)
+    console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input}))
+    const browserSetup=`DO $$ BEGIN
+      UPDATE auth.users SET encrypted_password=crypt('RelationshipFixture173!',gen_salt('bf')),
+        raw_app_meta_data='{"provider":"email","providers":["email"]}',confirmation_token='',recovery_token='',email_change_token_new='',email_change=''
+        WHERE id='151a0000-0000-0000-0000-000000000099';
+      INSERT INTO auth.identities(provider_id,user_id,identity_data,provider,id,created_at,updated_at,last_sign_in_at)
+        SELECT u.id::text,u.id,jsonb_build_object('sub',u.id,'email',u.email),'email',gen_random_uuid(),now(),now(),now()
+        FROM auth.users u WHERE u.id='151a0000-0000-0000-0000-000000000099';
+      IF (SELECT count(*) FROM public.review_items WHERE type='relationship_suggestion' AND status='needs_review')<>1 THEN
+        RAISE EXCEPTION 'relationship browser candidate was not produced';
+      END IF;
+    END $$;`
+    console.log(run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:browserSetup}))
+    console.log(run(node,['scripts/acceptance/seed-review-storage.mjs'],{env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir,REVIEW_ACCEPTANCE_RELATIONSHIP_ONLY:'1'}}))
+    console.log(run(node,['node_modules/@playwright/test/cli.js','test','--config','playwright.review.config.ts','--grep','exact reference relationship'],{env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}}))
+    if(process.argv.includes('--build')) console.log(run(node,['scripts/acceptance/start-review-server.mjs','--build'],{env:{...process.env,REVIEW_ACCEPTANCE_WORKDIR:workdir}}))
+  } else if(relationship){
+    const exact=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/document_reference_exact_resolution.sql'),'utf8')})
+    console.log(`document_reference_exact_resolution.sql: ${exact.trim()}`)
+    const setup=run('docker',['exec','-i',container,'psql','-X','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:readFileSync(join(root,'supabase/tests/document_reference_exact_resolution_concurrency_setup.sql'),'utf8')})
+    console.log(`document_reference_exact_resolution_concurrency_setup.sql: ${setup.trim()}`)
+    console.log(run('bash',['supabase/tests/relationship_suggestion_review_concurrency.sh'],{env:{...process.env,SUPABASE_DB_CONTAINER:container}}))
+  } else if(browserConflict||browserMulti){
     for(const file of ['document_boundary_repair_setup.sql',browserMulti?'multi_placed_document_identity_conflict_browser_setup.sql':'placed_document_identity_conflict_browser_setup.sql']){
       let input=readFileSync(join(root,'supabase/tests',file),'utf8')
       if(file==='document_boundary_repair_setup.sql'){

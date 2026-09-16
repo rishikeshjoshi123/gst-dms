@@ -64,13 +64,28 @@ test('uses the fixed canonical order and defaults invalid or omitted sections to
 
 test('parses selection only for Timeline or Files and rejects malformed or repeated ids', () => {
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'timeline', document: documentId, inspector: 'notes' }), {
-    section: 'timeline', timelineView: 'graph', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage,
+    section: 'timeline', timelineView: 'graph', selectionRequested: true, selectedDocumentId: documentId, inspector: 'notes', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage, relationshipReview: null,
   })
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: 'malformed' }).selectedDocumentId, null)
   assert.equal(parseMatterWorkspaceRoute({ section: 'files', document: [documentId, documentId] }).selectedDocumentId, null)
   assert.deepEqual(parseMatterWorkspaceRoute({ section: 'details', document: documentId, inspector: 'notes' }), {
-    section: 'details', timelineView: 'graph', selectionRequested: false, selectedDocumentId: null, inspector: 'overview', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage,
+    section: 'details', timelineView: 'graph', selectionRequested: false, selectedDocumentId: null, inspector: 'overview', filesPage: defaultFilesPage, timelinePage: defaultTimelinePage, relationshipReview: null,
   })
+})
+
+test('Timeline relationship Review route is revision-fenced and return-locator constrained', () => {
+  const itemId = '00000000-0000-4000-8000-000000000019'
+  assert.deepEqual(parseMatterWorkspaceRoute({
+    section: 'timeline', reviewItem: itemId, reviewRevision: '7', returnTo: '/review?item=current&tab=evidence',
+  }).relationshipReview, { itemId, requestedRevision: 7, returnTo: '/review?item=current&tab=evidence' })
+  for (const query of [
+    { reviewItem: 'forged', reviewRevision: '7' },
+    { reviewItem: itemId, reviewRevision: '0' },
+    { reviewItem: itemId, reviewRevision: ['7', '8'] },
+    { section: 'files', reviewItem: itemId, reviewRevision: '7' },
+  ]) assert.equal(parseMatterWorkspaceRoute(query).relationshipReview, null)
+  assert.equal(parseMatterWorkspaceRoute({ reviewItem: itemId, reviewRevision: '7', returnTo: 'https://attacker.invalid' }).relationshipReview?.returnTo, '/review')
+  assert.equal(parseMatterWorkspaceRoute({ reviewItem: itemId, reviewRevision: '7', returnTo: '/reviewevil' }).relationshipReview?.returnTo, '/review')
 })
 
 test('parses bounded Timeline paging and repeated filters for the secured chronology reader', () => {

@@ -2,7 +2,30 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, multiPlacementConflictResolution, placementConflictResolution, possibleDuplicateResolution, processingRecoveryResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type MultiPlacementConflictResolution, type PlacementConflictResolution, type PossibleDuplicateResolution, type ProcessingRecoveryResolution } from '@/lib/review/model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, multiPlacementConflictResolution, placementConflictResolution, possibleDuplicateResolution, processingRecoveryResolution, relationshipSuggestionResolution, reviewDetail, type AmbiguousPlacementResolution, type DeadlineReviewResolution, type ExtractionReviewResolution, type MultiPlacementConflictResolution, type PlacementConflictResolution, type PossibleDuplicateResolution, type ProcessingRecoveryResolution, type RelationshipSuggestionResolution } from '@/lib/review/model'
+
+export async function resolveRelationshipSuggestion(input: RelationshipSuggestionResolution) {
+  const request=relationshipSuggestionResolution.safeParse(input)
+  if(!request.success) return {code:'invalid_request',message:'Choose an allowed relationship and direction, or reject it, then give a reason.',item:null}
+  const supabase=await createClient()
+  const {data,error}=await supabase.rpc('resolve_relationship_suggestion' as never,{
+    p_review_item_id:request.data.itemId,p_expected_revision:request.data.revision,p_action:request.data.action,
+    p_relationship_type:request.data.relationshipType,p_catalogue_version:request.data.catalogueVersion,p_source_document_id:request.data.sourceDocumentId,
+    p_target_document_id:request.data.targetDocumentId,p_reason:request.data.reason,p_idempotency_key:request.data.idempotencyKey,
+  } as never) as {data: unknown;error: unknown}
+  if(error||!Array.isArray(data)||!data[0]) return {code:'failed',message:'The relationship decision could not be confirmed.',item:null}
+  const row=data[0] as unknown as {code:string;current_item:unknown;replayed:boolean}
+  const item=row.current_item?reviewDetail.parse(row.current_item):null
+  if(row.code==='ok'){revalidatePath('/review');if(item?.document_id) { revalidatePath(`/matters/${item.current_matter_id ?? ''}`);revalidatePath(`/documents/${item.document_id}`) }}
+  const messages:Record<string,string>={
+    ok:request.data.action==='reject_relationship'?'Relationship suggestion rejected. No relationship was created.':'Relationship decision recorded with exact source evidence.',
+    stale:'The reference, document version, lifecycle, or relationship state changed. Inspect the current item.',
+    forbidden:'Your current access cannot resolve this relationship Review.',unavailable:'This relationship Review is unavailable.',
+    idempotency_conflict:'This submission key was already used for another decision.',invalid_relationship_type:'Choose a current relationship type allowed for these documents.',
+    conflict:'A current relationship already determines this result. The current item is shown.',cycle_detected:'That correction would create a Timeline progression cycle. No relationship was created.',busy:'Another decision or source change is in progress. Refresh and retry.',
+  }
+  return {code:row.code,message:messages[row.code]??'The relationship decision was not completed.',item}
+}
 
 export async function resolvePossibleDuplicate(input:PossibleDuplicateResolution){
   const request=possibleDuplicateResolution.safeParse(input)

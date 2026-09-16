@@ -6,6 +6,7 @@ import { startTransition, useEffect, useRef, useState, type ReactNode } from 're
 import type { MatterTimelineGraphProjection } from '@/lib/matters/workspace-read'
 import { shouldRequestMatterTimelineGraph } from '@/lib/matters/workspace-route'
 import type { RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
+import type { TimelineRelationshipReviewCandidate } from '@/lib/review/relationship-suggestion'
 
 const MatterTimelineGraphCanvas = dynamic(() => import('./MatterTimelineGraphCanvas'), {
   ssr: false,
@@ -14,6 +15,7 @@ const MatterTimelineGraphCanvas = dynamic(() => import('./MatterTimelineGraphCan
 
 export function MatterTimelineAdaptiveGraph(props: {
   authoringContext?: RelationshipAuthoringContext | null
+  relationshipReviewCandidate?: TimelineRelationshipReviewCandidate | null
   matterId: string
   loadGraph: () => Promise<MatterTimelineGraphProjection>
   graphRequestKey: string

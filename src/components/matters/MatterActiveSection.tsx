@@ -20,6 +20,8 @@ import { buildMatterTimelineViewHref, matterTimelineGraphRequestKey } from '@/li
 import { getOperationalMemberOptions } from '@/lib/organisation/member-directory'
 import { getExactMatter } from '@/lib/trash/exact-resource'
 import { readMatterManualDeadlineAgenda } from '@/lib/deadlines/workspace-read'
+import { readReviewDetail } from '@/lib/review/reader'
+import { timelineRelationshipReviewCandidate } from '@/lib/review/relationship-suggestion'
 import { CaseWikiTab } from './CaseWikiTab'
 import { MatterDetailsTab } from './MatterDetailsTab'
 import { MatterFilesSection } from './MatterFilesSection'
@@ -29,6 +31,7 @@ import { MatterTimelineAdaptiveGraph } from './MatterTimelineAdaptiveGraph'
 import { MatterTimelineInspector } from './MatterTimelineInspector'
 import { MatterUnavailableSection } from './MatterUnavailableSection'
 import { MatterDeadlineAgenda } from './MatterDeadlineAgenda'
+import { MatterRelationshipSuggestionReview } from './MatterRelationshipSuggestionReview'
 
 type ExactMatter = NonNullable<Awaited<ReturnType<typeof getExactMatter>>>
 
@@ -40,6 +43,20 @@ async function TimelineSection({
 }: ActiveSectionProps) {
   const isTrash = exactMatter.state === 'trash'
   const authoringContext = isTrash ? null : await readMatterRelationshipAuthoringContext(matterId)
+  const requestedRelationshipReview = !isTrash && route.relationshipReview
+    ? await readReviewDetail(route.relationshipReview.itemId)
+    : null
+  const relationshipReview = requestedRelationshipReview?.type === 'relationship_suggestion'
+    && requestedRelationshipReview.current_matter_id === matterId
+    ? requestedRelationshipReview
+    : null
+  const relationshipReviewPanel = route.relationshipReview ? (
+    <MatterRelationshipSuggestionReview
+      initialItem={relationshipReview}
+      requestedRevision={route.relationshipReview.requestedRevision}
+      returnTo={route.relationshipReview.returnTo}
+    />
+  ) : null
   const trashMetadataByDocumentId = isTrash
     ? shapeMatterTimelineSnapshotMetadata(
         exactMatter.data.documents
@@ -63,7 +80,7 @@ async function TimelineSection({
     ? await readMatterTimelineRelationships(matterId, page.selected.id)
     : { outcome: 'ok' as const, relationships: [], sourceRevision: null, fetchedAt: page.fetchedAt }
 
-  const chronology = (
+  const chronologyContent = (
     <MatterTimelineChronology
       matterId={matterId}
       page={page}
@@ -77,6 +94,12 @@ async function TimelineSection({
       graphAvailable={!isTrash && page.total > 0}
     />
   )
+  const chronology = relationshipReviewPanel ? (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:flex-row">
+      <div className="min-h-0 shrink-0 lg:w-96">{relationshipReviewPanel}</div>
+      <div className="min-h-0 flex-1">{chronologyContent}</div>
+    </div>
+  ) : chronologyContent
 
   if (route.timelineView === 'chronology' || isTrash || page.outcome !== 'ok' || page.total === 0) {
     return <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">{chronology}</div>
@@ -87,9 +110,9 @@ async function TimelineSection({
     return readMatterTimelineGraph(matterId, route.timelinePage)
   }
 
-  const inspectorPanel = page.selected ? (
+  const inspectorPanel = relationshipReviewPanel ?? (page.selected ? (
     <MatterTimelineInspector matterId={matterId} selected={page.selected} queryEntries={queryEntries} inspector={route.inspector} notePreview={notePreview} relationshipProjection={relationshipProjection} authoringContext={authoringContext} />
-  ) : null
+  ) : null)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2 md:pt-3">
@@ -105,6 +128,7 @@ async function TimelineSection({
         chronology={chronology}
         filters={route.timelinePage.filters}
         authoringContext={authoringContext}
+        relationshipReviewCandidate={timelineRelationshipReviewCandidate(relationshipReview)}
       />
     </div>
   )

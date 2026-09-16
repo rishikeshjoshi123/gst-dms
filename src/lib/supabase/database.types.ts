@@ -438,6 +438,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_usage_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
+          },
+          {
             foreignKeyName: "ai_usage_logs_model_name_fkey"
             columns: ["model_name"]
             isOneToOne: false
@@ -533,6 +547,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_notes_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "case_notes_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
           },
           {
             foreignKeyName: "case_notes_matter_id_fkey"
@@ -708,6 +736,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "document_reference_mentions"
             referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "current_document_reference_resolutions_mention_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: true
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["org_id", "mention_id"]
           },
           {
             foreignKeyName: "current_document_reference_resolutions_org_id_fkey"
@@ -1147,6 +1182,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "deadlines_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "deadlines_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
+          },
+          {
             foreignKeyName: "deadlines_matter_id_fkey"
             columns: ["matter_id"]
             isOneToOne: false
@@ -1418,6 +1467,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "document_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
           },
           {
             foreignKeyName: "document_command_receipts_document_version_id_fkey"
@@ -2172,11 +2235,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "document_links_from_doc_id_fkey"
+            columns: ["from_doc_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "document_links_from_doc_id_fkey"
+            columns: ["from_doc_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
+          },
+          {
             foreignKeyName: "document_links_to_doc_id_fkey"
             columns: ["to_doc_id"]
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_links_to_doc_id_fkey"
+            columns: ["to_doc_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "document_links_to_doc_id_fkey"
+            columns: ["to_doc_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
           },
         ]
       }
@@ -2679,6 +2770,13 @@ export type Database = {
             referencedColumns: ["org_id", "id"]
           },
           {
+            foreignKeyName: "document_reference_resolution_results_mention_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["org_id", "mention_id"]
+          },
+          {
             foreignKeyName: "document_reference_resolution_results_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -3002,6 +3100,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "document_relationship_placement_effects_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "document_relationship_placement_effects_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
+          },
+          {
             foreignKeyName: "document_relationship_placement_effects_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -3075,6 +3187,16 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_relationship_catalogue"
             referencedColumns: ["relationship_type", "catalogue_version"]
+          },
+          {
+            foreignKeyName: "document_relationships_catalogue_fkey"
+            columns: ["relationship_type", "catalogue_version"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: [
+              "proposed_relationship_type",
+              "proposed_catalogue_version",
+            ]
           },
           {
             foreignKeyName: "document_relationships_matter_org_fkey"
@@ -3329,6 +3451,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "document_supporting_category_command_receipts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
           },
           {
             foreignKeyName: "document_supporting_category_command_receipts_org_id_fkey"
@@ -7094,6 +7230,386 @@ export type Database = {
           },
         ]
       }
+      relationship_suggestion_decisions: {
+        Row: {
+          action: string
+          actor_user_id: string
+          catalogue_version: number | null
+          created_at: string
+          expected_revision: number
+          id: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          relationship_id: string | null
+          relationship_type:
+            | Database["public"]["Enums"]["document_relationship_type"]
+            | null
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          source_document_id: string | null
+          source_fingerprint: string
+          target_document_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          catalogue_version?: number | null
+          created_at?: string
+          expected_revision: number
+          id?: string
+          idempotency_key: string
+          org_id: string
+          reason: string
+          relationship_id?: string | null
+          relationship_type?:
+            | Database["public"]["Enums"]["document_relationship_type"]
+            | null
+          request_fingerprint: string
+          result_revision: number
+          review_item_id: string
+          source_document_id?: string | null
+          source_fingerprint: string
+          target_document_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          catalogue_version?: number | null
+          created_at?: string
+          expected_revision?: number
+          id?: string
+          idempotency_key?: string
+          org_id?: string
+          reason?: string
+          relationship_id?: string | null
+          relationship_type?:
+            | Database["public"]["Enums"]["document_relationship_type"]
+            | null
+          request_fingerprint?: string
+          result_revision?: number
+          review_item_id?: string
+          source_document_id?: string | null
+          source_fingerprint?: string
+          target_document_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationship_suggestion_decis_relationship_type_catalogue__fkey"
+            columns: ["relationship_type", "catalogue_version"]
+            isOneToOne: false
+            referencedRelation: "document_relationship_catalogue"
+            referencedColumns: ["relationship_type", "catalogue_version"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_decis_relationship_type_catalogue__fkey"
+            columns: ["relationship_type", "catalogue_version"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: [
+              "proposed_relationship_type",
+              "proposed_catalogue_version",
+            ]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_decisions_org_id_relationship_id_fkey"
+            columns: ["org_id", "relationship_id"]
+            isOneToOne: false
+            referencedRelation: "document_relationships"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_decisions_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      relationship_suggestion_sources: {
+        Row: {
+          client_id: string
+          client_revision: number
+          created_at: string
+          evidence_page_number: number
+          evidence_quote: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          matter_id: string
+          matter_revision: number
+          mention_catalogue_version: string
+          mention_id: string
+          mention_normalizer_version: string
+          normalized_value: string
+          org_id: string
+          proposed_catalogue_version: number
+          proposed_relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          resolution_result_id: string
+          resolution_run_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_asset_id: string
+          source_asset_sha256: string
+          source_binding_id: string
+          source_document_id: string
+          source_document_version_id: string
+          source_field_candidate_id: string
+          source_fingerprint: string
+          source_lifecycle_revision: number
+          target_asset_id: string
+          target_asset_sha256: string
+          target_document_id: string
+          target_document_version_id: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_lifecycle_revision: number
+          verified_source_anchor: Json
+        }
+        Insert: {
+          client_id: string
+          client_revision: number
+          created_at?: string
+          evidence_page_number: number
+          evidence_quote: string
+          identifier_kind: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized: string
+          matter_id: string
+          matter_revision: number
+          mention_catalogue_version: string
+          mention_id: string
+          mention_normalizer_version: string
+          normalized_value: string
+          org_id: string
+          proposed_catalogue_version: number
+          proposed_relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          resolution_result_id: string
+          resolution_run_id: string
+          review_item_id: string
+          source_analysis_run_id: string
+          source_asset_id: string
+          source_asset_sha256: string
+          source_binding_id: string
+          source_document_id: string
+          source_document_version_id: string
+          source_field_candidate_id: string
+          source_fingerprint: string
+          source_lifecycle_revision: number
+          target_asset_id: string
+          target_asset_sha256: string
+          target_document_id: string
+          target_document_version_id: string
+          target_identifier_id: string
+          target_identifier_revision: number
+          target_lifecycle_revision: number
+          verified_source_anchor: Json
+        }
+        Update: {
+          client_id?: string
+          client_revision?: number
+          created_at?: string
+          evidence_page_number?: number
+          evidence_quote?: string
+          identifier_kind?: Database["public"]["Enums"]["matter_identifier_kind"]
+          issuer_namespace_normalized?: string
+          matter_id?: string
+          matter_revision?: number
+          mention_catalogue_version?: string
+          mention_id?: string
+          mention_normalizer_version?: string
+          normalized_value?: string
+          org_id?: string
+          proposed_catalogue_version?: number
+          proposed_relationship_type?: Database["public"]["Enums"]["document_relationship_type"]
+          resolution_result_id?: string
+          resolution_run_id?: string
+          review_item_id?: string
+          source_analysis_run_id?: string
+          source_asset_id?: string
+          source_asset_sha256?: string
+          source_binding_id?: string
+          source_document_id?: string
+          source_document_version_id?: string
+          source_field_candidate_id?: string
+          source_fingerprint?: string
+          source_lifecycle_revision?: number
+          target_asset_id?: string
+          target_asset_sha256?: string
+          target_document_id?: string
+          target_document_version_id?: string
+          target_identifier_id?: string
+          target_identifier_revision?: number
+          target_lifecycle_revision?: number
+          verified_source_anchor?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationship_suggestion_sourc_org_id_source_analysis_run_i_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_org_id_source_document_id_so_fkey"
+            columns: [
+              "org_id",
+              "source_document_id",
+              "source_document_version_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_org_id_source_field_candidat_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_org_id_source_field_candidat_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_org_id_target_document_id_ta_fkey"
+            columns: [
+              "org_id",
+              "target_document_id",
+              "target_document_version_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["org_id", "document_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_proposed_relationship_type_p_fkey"
+            columns: [
+              "proposed_relationship_type",
+              "proposed_catalogue_version",
+            ]
+            isOneToOne: false
+            referencedRelation: "document_relationship_catalogue"
+            referencedColumns: ["relationship_type", "catalogue_version"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sourc_proposed_relationship_type_p_fkey"
+            columns: [
+              "proposed_relationship_type",
+              "proposed_catalogue_version",
+            ]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: [
+              "proposed_relationship_type",
+              "proposed_catalogue_version",
+            ]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_source_org_id_resolution_result_id_fkey"
+            columns: ["org_id", "resolution_result_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_results"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_source_org_id_target_identifier_id_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "document_self_identifiers"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_source_org_id_target_identifier_id_fkey"
+            columns: ["org_id", "target_identifier_id"]
+            isOneToOne: false
+            referencedRelation: "possible_duplicate_eligible"
+            referencedColumns: ["org_id", "identifier_id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_client_id_fkey"
+            columns: ["org_id", "client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_matter_id_fkey"
+            columns: ["org_id", "matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_mention_id_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_mentions"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_mention_id_fkey"
+            columns: ["org_id", "mention_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["org_id", "mention_id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_resolution_run_id_fkey"
+            columns: ["org_id", "resolution_run_id"]
+            isOneToOne: false
+            referencedRelation: "document_reference_resolution_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_review_item_id_fkey"
+            columns: ["org_id", "review_item_id"]
+            isOneToOne: false
+            referencedRelation: "review_items"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_source_asset_id_fkey"
+            columns: ["org_id", "source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_source_binding_id_fkey"
+            columns: ["org_id", "source_binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_source_document_id_fkey"
+            columns: ["org_id", "source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_target_asset_id_fkey"
+            columns: ["org_id", "target_asset_id"]
+            isOneToOne: false
+            referencedRelation: "file_assets"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "relationship_suggestion_sources_org_id_target_document_id_fkey"
+            columns: ["org_id", "target_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       resource_holds: {
         Row: {
           authority_reference: string | null
@@ -8928,6 +9444,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "supporting_doc_links_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["source_document_id"]
+          },
+          {
+            foreignKeyName: "supporting_doc_links_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "relationship_suggestion_eligible"
+            referencedColumns: ["target_document_id"]
+          },
+          {
             foreignKeyName: "supporting_doc_links_supporting_doc_id_fkey"
             columns: ["supporting_doc_id"]
             isOneToOne: false
@@ -10679,6 +11209,101 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_versions"
             referencedColumns: ["org_id", "document_id", "id"]
+          },
+        ]
+      }
+      relationship_suggestion_eligible: {
+        Row: {
+          client_id: string | null
+          client_revision: number | null
+          evidence_page_number: number | null
+          evidence_quote: string | null
+          identifier_kind:
+            | Database["public"]["Enums"]["matter_identifier_kind"]
+            | null
+          issuer_namespace_normalized: string | null
+          materialization_sequence: number | null
+          matter_id: string | null
+          matter_revision: number | null
+          mention_catalogue_version: string | null
+          mention_id: string | null
+          mention_normalizer_version: string | null
+          normalized_value: string | null
+          org_id: string | null
+          proposed_catalogue_version: number | null
+          proposed_relationship_type:
+            | Database["public"]["Enums"]["document_relationship_type"]
+            | null
+          resolution_result_id: string | null
+          resolution_run_id: string | null
+          semantic_candidate_key: string | null
+          source_analysis_run_id: string | null
+          source_asset_id: string | null
+          source_asset_sha256: string | null
+          source_binding_id: string | null
+          source_document_id: string | null
+          source_document_version_id: string | null
+          source_field_candidate_id: string | null
+          source_fingerprint: string | null
+          source_lifecycle_revision: number | null
+          target_asset_id: string | null
+          target_asset_sha256: string | null
+          target_document_id: string | null
+          target_document_version_id: string | null
+          target_identifier_id: string | null
+          target_identifier_revision: number | null
+          target_lifecycle_revision: number | null
+          verified_source_anchor: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_reference_mentions_binding_fkey"
+            columns: ["org_id", "source_binding_id"]
+            isOneToOne: false
+            referencedRelation: "document_version_analysis_bindings"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_candidate_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "document_field_candidates"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_candidate_fkey"
+            columns: ["org_id", "source_field_candidate_id"]
+            isOneToOne: false
+            referencedRelation: "multi_placement_current_candidates"
+            referencedColumns: ["org_id", "source_candidate_id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_reference_mentions_source_run_fkey"
+            columns: ["org_id", "source_analysis_run_id"]
+            isOneToOne: false
+            referencedRelation: "source_analysis_runs"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "documents_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -13841,6 +14466,10 @@ export type Database = {
         Args: { p_review_item_id: string }
         Returns: Json
       }
+      read_review_detail_before_relationship_suggestion: {
+        Args: { p_review_item_id: string }
+        Returns: Json
+      }
       read_review_queue: {
         Args: {
           p_page?: number
@@ -13877,6 +14506,10 @@ export type Database = {
           processing_requeued: number
           validation_requeued: number
         }[]
+      }
+      reconcile_exact_reference_relationship: {
+        Args: { p_mention_id: string }
+        Returns: undefined
       }
       reconcile_extraction_conflict_review: {
         Args: { p_binding_id: string; p_create: boolean }
@@ -14092,6 +14725,10 @@ export type Database = {
         Returns: {
           code: string
         }[]
+      }
+      relationship_suggestion_current: {
+        Args: { p_review_item_id: string }
+        Returns: boolean
       }
       release_legacy_staged_document_action: {
         Args: {
@@ -14359,6 +14996,24 @@ export type Database = {
           p_metadata: Json
           p_reason: string
           p_review_item_id: string
+        }
+        Returns: {
+          code: string
+          current_item: Json
+          replayed: boolean
+        }[]
+      }
+      resolve_relationship_suggestion: {
+        Args: {
+          p_action: string
+          p_catalogue_version: number
+          p_expected_revision: number
+          p_idempotency_key: string
+          p_reason: string
+          p_relationship_type: Database["public"]["Enums"]["document_relationship_type"]
+          p_review_item_id: string
+          p_source_document_id: string
+          p_target_document_id: string
         }
         Returns: {
           code: string
@@ -15347,6 +16002,7 @@ export type Database = {
         | "placement_conflict"
         | "multi_placement_conflict"
         | "possible_duplicate"
+        | "relationship_suggestion"
       source_analysis_attempt_state:
         | "queued"
         | "running"
@@ -15992,6 +16648,7 @@ export const Constants = {
         "placement_conflict",
         "multi_placement_conflict",
         "possible_duplicate",
+        "relationship_suggestion",
       ],
       source_analysis_attempt_state: [
         "queued",

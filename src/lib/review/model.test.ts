@@ -1,6 +1,29 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, possibleDuplicateResolution, processingRecoveryResolution, reviewAction, reviewDetail, reviewValueLabel, taxPeriodComparison } from './model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, possibleDuplicateResolution, processingRecoveryResolution, relationshipSuggestionResolution, reviewAction, reviewDetail, reviewValueLabel, taxPeriodComparison } from './model'
+
+test('relationship suggestion resolution binds one current type, catalogue version and explicit direction', () => {
+  const ids = {
+    itemId: '153e0000-0000-0000-0000-000000000001',
+    sourceDocumentId: '153e0000-0000-0000-0000-000000000002',
+    targetDocumentId: '153e0000-0000-0000-0000-000000000003',
+    idempotencyKey: '153e0000-0000-0000-0000-000000000004',
+  }
+  const base = { ...ids, revision: 3, action: 'accept_relationship', relationshipType: 'refers_to', catalogueVersion: 1, reason: 'The exact citation supports this limited relationship' }
+  assert.equal(relationshipSuggestionResolution.safeParse(base).success, true)
+  assert.equal(relationshipSuggestionResolution.safeParse({ ...base, action: 'correct_relationship', relationshipType: 'challenges', catalogueVersion: 2, sourceDocumentId: ids.targetDocumentId, targetDocumentId: ids.sourceDocumentId }).success, true)
+  assert.equal(relationshipSuggestionResolution.safeParse({ ...base, action: 'reject_relationship', relationshipType: null, catalogueVersion: null, sourceDocumentId: null, targetDocumentId: null }).success, true)
+  for (const invalid of [
+    { ...base, relationshipType: 'invented' },
+    { ...base, catalogueVersion: null },
+    { ...base, targetDocumentId: ids.sourceDocumentId },
+    { ...base, action: 'reject_relationship' },
+    { ...base, action: 'reject_relationship', relationshipType: null, catalogueVersion: null, sourceDocumentId: null, targetDocumentId: null, providerPayload: {} },
+    { ...base, reason: 'x' },
+    { ...base, reason: 'line\nbreak' },
+  ]) assert.equal(relationshipSuggestionResolution.safeParse(invalid).success, false)
+  assert.equal(parseReviewFilters({ type: 'relationship_suggestion' }).type, 'relationship_suggestion')
+})
 
 test('possible duplicate names an exact subset or all-distinct, never an implicit group equivalence',()=>{
   const ids=['153e0000-0000-0000-0000-000000000001','153e0000-0000-0000-0000-000000000002']

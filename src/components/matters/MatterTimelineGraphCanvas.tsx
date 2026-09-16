@@ -26,11 +26,12 @@ import { MatterTimelineGraphNode, type MatterTimelineFlowNode } from './MatterTi
 import { MatterTimelineFilters } from './MatterTimelineFilters'
 import { MatterRelationshipAuthoring } from './MatterRelationshipAuthoring'
 import { canAddTimelineRelationship, type RelationshipAuthoringContext } from '@/lib/matters/relationship-authoring'
+import type { TimelineRelationshipReviewCandidate } from '@/lib/review/relationship-suggestion'
 
 const nodeTypes = { matterTimelineDocument: MatterTimelineGraphNode }
 
 type TimelineFlowEdgeData = Record<string, unknown> & {
-  canonicalSourceDocumentId: string
+  canonicalSourceDocumentId?: string
   relationshipLabels: string[]
 }
 
@@ -46,6 +47,7 @@ export type MatterTimelineGraphCanvasProps = {
   inspector: ReactNode
   filteredCountLabel: string
   filters: string[]
+  relationshipReviewCandidate?: TimelineRelationshipReviewCandidate | null
 }
 
 function createNodes(
@@ -53,6 +55,7 @@ function createNodes(
   matterId: string,
   entries: Array<[string, string]>,
   selectedDocumentId: string | null,
+  reviewCandidate?: TimelineRelationshipReviewCandidate | null,
 ): MatterTimelineFlowNode[] {
   return layout.nodes.map((node) => ({
     id: node.id,
@@ -60,7 +63,11 @@ function createNodes(
     position: node.position,
     width: node.width,
     height: node.height,
-    style: { width: node.width, height: node.height },
+    style: {
+      width: node.width,
+      height: node.height,
+      opacity: reviewCandidate && node.id !== reviewCandidate.sourceDocumentId && node.id !== reviewCandidate.targetDocumentId ? 0.32 : 1,
+    },
     data: {
       layout: node,
       href: buildMatterDocumentSelectionHref(matterId, entries, node.id),
@@ -69,15 +76,15 @@ function createNodes(
   }))
 }
 
-function createEdges(layout: MatterTimelineGraphLayout, zoom: number): MatterTimelineFlowEdge[] {
-  return layout.edges.map((edge) => ({
+function createEdges(layout: MatterTimelineGraphLayout, zoom: number, reviewCandidate?: TimelineRelationshipReviewCandidate | null): MatterTimelineFlowEdge[] {
+  const effectiveEdges: MatterTimelineFlowEdge[] = layout.edges.map((edge) => ({
     id: edge.id,
     source: edge.displayFromDocumentId,
     target: edge.displayToDocumentId,
     type: 'smoothstep',
     label: zoom >= 0.65 ? edge.label : undefined,
     markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-muted)', width: 18, height: 18 },
-    style: { stroke: 'var(--text-muted)', strokeWidth: 1.5 } as CSSProperties,
+    style: { stroke: 'var(--text-muted)', strokeWidth: 1.5, opacity: reviewCandidate ? 0.22 : 1 } as CSSProperties,
     labelStyle: { fill: 'var(--text-secondary)', fontSize: 11, fontWeight: 500 },
     labelBgStyle: { fill: 'var(--surface)', stroke: 'var(--border)' },
     labelBgPadding: [6, 4],
@@ -89,6 +96,21 @@ function createEdges(layout: MatterTimelineGraphLayout, zoom: number): MatterTim
       )),
     },
   }))
+  if (!reviewCandidate || !layout.nodes.some((node) => node.id === reviewCandidate.sourceDocumentId) || !layout.nodes.some((node) => node.id === reviewCandidate.targetDocumentId)) return effectiveEdges
+  return [...effectiveEdges, {
+    id: `review-candidate:${reviewCandidate.sourceDocumentId}:${reviewCandidate.targetDocumentId}`,
+    source: reviewCandidate.sourceDocumentId,
+    target: reviewCandidate.targetDocumentId,
+    type: 'smoothstep',
+    label: 'Candidate · refers to',
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--warning)', width: 18, height: 18 },
+    style: { stroke: 'var(--warning)', strokeWidth: 2, strokeDasharray: '7 5' } as CSSProperties,
+    labelStyle: { fill: 'var(--text-primary)', fontSize: 11, fontWeight: 600 },
+    labelBgStyle: { fill: 'var(--surface)', stroke: 'var(--warning)' },
+    labelBgPadding: [6, 4],
+    labelBgBorderRadius: 6,
+    data: { relationshipLabels: ['Non-authoritative exact-reference candidate'] },
+  }]
 }
 
 export default function MatterTimelineGraphCanvas({
@@ -101,6 +123,7 @@ export default function MatterTimelineGraphCanvas({
   filteredCountLabel,
   filters,
   authoringContext,
+  relationshipReviewCandidate,
 }: MatterTimelineGraphCanvasProps) {
   const router = useRouter()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -116,10 +139,10 @@ export default function MatterTimelineGraphCanvas({
   useEffect(() => { if (authoringActive) cancelAddButton.current?.focus() }, [authoringActive])
   function finishAuthoring() { setAuthoring(null); setAuthoringMessage(''); requestAnimationFrame(() => addButton.current?.focus()) }
   const projectedNodes = useMemo(
-    () => createNodes(layout, matterId, queryEntries, selectedDocumentId),
-    [layout, matterId, queryEntries, selectedDocumentId],
+    () => createNodes(layout, matterId, queryEntries, selectedDocumentId, relationshipReviewCandidate),
+    [layout, matterId, queryEntries, selectedDocumentId, relationshipReviewCandidate],
   )
-  const projectedEdges = useMemo(() => createEdges(layout, zoom), [layout, zoom])
+  const projectedEdges = useMemo(() => createEdges(layout, zoom, relationshipReviewCandidate), [layout, zoom, relationshipReviewCandidate])
   const [nodes, setNodes, onNodesChange] = useNodesState<MatterTimelineFlowNode>(projectedNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<MatterTimelineFlowEdge>(projectedEdges)
   const topology = `${layout.nodes.map((node) => node.id).join('|')}::${layout.edges.map((edge) => edge.id).join('|')}`
@@ -170,7 +193,8 @@ export default function MatterTimelineGraphCanvas({
           <p className="text-xs text-[var(--text-muted)]">{filteredCountLabel}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {canAddTimelineRelationship(authoringContext) && <Button ref={addButton} disabled={Boolean(authoring)} onClick={() => setAuthoring({ sourceId: '', targetId: '' })}>Add relationship</Button>}
+          {relationshipReviewCandidate ? <p className="text-xs text-[var(--text-secondary)]">Dashed edge is a candidate only · no relationship is effective</p> : null}
+          {!relationshipReviewCandidate && canAddTimelineRelationship(authoringContext) && <Button ref={addButton} disabled={Boolean(authoring)} onClick={() => setAuthoring({ sourceId: '', targetId: '' })}>Add relationship</Button>}
           {authoringContext && authoring && <Button ref={cancelAddButton} variant="outline" onClick={finishAuthoring}>Cancel adding relationship</Button>}
           {authoringContext && authoring?.targetId && <MatterRelationshipAuthoring key={`${authoring.sourceId}:${authoring.targetId}`} matterId={matterId} context={authoringContext} initialSourceId={authoring.sourceId} initialTargetId={authoring.targetId} initiallyOpen onFinish={finishAuthoring} />}
           <MatterTimelineFilters matterId={matterId} entries={queryEntries} filters={filters} />
@@ -178,7 +202,7 @@ export default function MatterTimelineGraphCanvas({
           <Button type="button" variant="ghost" className="min-h-11" onClick={() => instanceRef.current?.zoomIn({ duration: 0 })}>Zoom in</Button>
           <Button type="button" variant="ghost" className="min-h-11" onClick={() => instanceRef.current?.zoomOut({ duration: 0 })}>Zoom out</Button>
           {hasDragged ? <Button type="button" variant="ghost" className="min-h-11" onClick={() => { setNodes(projectedNodes); setHasDragged(false) }}>Reset layout</Button> : null}
-          <details className="relative">
+          {!relationshipReviewCandidate && <details className="relative">
             <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-[var(--radius-sm)] px-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">Relationship list ({layout.edges.length})</summary>
             <div className="custom-scrollbar absolute right-0 z-30 mt-1 max-h-72 w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--surface)] p-2 shadow-[var(--shadow-md)]">
               {layout.edges.length === 0 ? <p className="p-2 text-sm text-[var(--text-secondary)]">No visible relationships connect these proceedings.</p> : (
@@ -199,7 +223,7 @@ export default function MatterTimelineGraphCanvas({
                 </ol>
               )}
             </div>
-          </details>
+          </details>}
           <Link href={chronologyHref} scroll={false} prefetch={false} className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] px-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)]">Chronology</Link>
         </div>
       </div>
