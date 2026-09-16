@@ -37,6 +37,8 @@ const env = {
   TRIGGER_API_URL: 'http://127.0.0.1:9',
   RESEND_API_KEY: 're_acceptance_disabled',
   RESEND_FROM_EMAIL: 'acceptance@invalid.example',
+  CASECHAIN_EMAIL_CAPTURE_URL: '',
+  API_SECRET_KEY: '',
   GOOGLE_APPLICATION_CREDENTIALS: '',
   GOOGLE_APPLICATION_CREDENTIALS_JSON: '',
   GOOGLE_CLOUD_PROJECT: '',

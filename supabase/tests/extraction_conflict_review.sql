@@ -22,6 +22,7 @@ BEGIN
   IF EXISTS(SELECT 1 FROM public.read_review_queue('bogus')) OR EXISTS(SELECT 1 FROM public.read_review_queue('all','all','all','',0,25)) THEN RAISE EXCEPTION 'Invalid filters accepted'; END IF;
   detail:=public.read_review_detail(item);
   IF detail->'allowed_actions'<>'["select_candidate", "request_clarification"]'::jsonb OR (detail#>>'{evidence,1,page_number}')::int<>2 OR detail->>'document_version_id'<>'15300000-0000-0000-0000-000000000001' THEN RAISE EXCEPTION 'Detail authority or exact evidence failed'; END IF;
+  IF detail ? 'source_analysis_run_id' THEN RAISE EXCEPTION 'Extraction conflict leaked an irrelevant null source run'; END IF;
   IF public.read_review_detail(clarify)->'allowed_actions'<>'["request_clarification"]'::jsonb THEN RAISE EXCEPTION 'Conflicting observation is selectable'; END IF;
   IF (SELECT revision FROM public.review_items WHERE id=item)<>1 THEN RAISE EXCEPTION 'Reading mutated item'; END IF;
   SELECT count(*) INTO initial_count FROM public.review_items;

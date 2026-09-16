@@ -1,5 +1,38 @@
 # Local acceptance
 
+## Provider-free release-candidate checklist
+
+Run the full local candidate only from a Node 24 checkout with no release identity,
+provider credential, or non-loopback target configured:
+
+```sh
+npm run acceptance:release-candidate
+```
+
+It fails before any child process when those inputs are present, then runs these
+ordered gates: Node runtime contract, migration-version uniqueness, refined
+database-type contract, focused release-policy/application contracts, release-journey
+runner contracts, TypeScript, full lint against the committed baseline plus lint scoped to the checklist's owned files, a production build in a temporary copy without `.env*` files, and the stateful
+confirmation-required synthetic release journey. Each passed stage prints `exit 0`;
+the first failed child prints its exact stage name and exit status, and later stages
+do not run. Review the listed command shape without running it with:
+
+```sh
+npm run acceptance:release-candidate -- --dry-run
+```
+
+The final journey exclusively owns its disposable loopback stack and performs clean
+migration replay, database lint, deterministic generated/refined types,
+production-webpack Chromium journey, and cleanup. This checklist does not deploy,
+contact paid providers, or establish confidential-production readiness, provider
+quality, recovery, or release approval.
+
+Repository-wide lint currently has 285 committed baseline diagnostics (231 errors,
+54 warnings). The command runs the whole repository and requires its deterministic
+count/fingerprint in `release-candidate-lint-baseline.json` to match exactly, then
+runs changed-file lint. Any added, removed, or altered diagnostic fails the command;
+the baseline is explicit debt rather than a scoped-lint bypass.
+
 The mandatory first-release local integration rehearsal has one exclusively owned,
 confirmation-required Supabase stack and one stateful production-webpack Chromium
 journey:

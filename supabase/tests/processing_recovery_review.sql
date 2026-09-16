@@ -26,6 +26,7 @@ BEGIN
   detail:=public.read_review_detail(recovery);
   IF detail->'allowed_actions'<>'["continue_manual"]' OR detail->>'source_identity'<>'Document version 1'
     OR detail->>'source_page_number'<>'1' OR jsonb_array_length(detail->'evidence')<>0 THEN RAISE EXCEPTION 'Recovery detail authority/source shape failed: %',detail; END IF;
+  IF (detail->>'source_analysis_run_id') IS NULL OR NOT (detail->>'source_analysis_run_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') THEN RAISE EXCEPTION 'Processing recovery lost its owned source run: %',detail; END IF;
   FOREACH resolving_member IN ARRAY ARRAY[actor,admin,associate] LOOP
     PERFORM set_config('request.jwt.claim.sub',resolving_member::text,true);
     IF public.read_review_detail(recovery)->'allowed_actions'<>'["continue_manual"]'::jsonb THEN

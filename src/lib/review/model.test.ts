@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, possibleDuplicateResolution, processingRecoveryResolution, reviewAction, reviewValueLabel, taxPeriodComparison } from './model'
+import { ambiguousPlacementResolution, deadlineReviewResolution, extractionReviewResolution, parseReviewFilters, possibleDuplicateResolution, processingRecoveryResolution, reviewAction, reviewDetail, reviewValueLabel, taxPeriodComparison } from './model'
 
 test('possible duplicate names an exact subset or all-distinct, never an implicit group equivalence',()=>{
   const ids=['153e0000-0000-0000-0000-000000000001','153e0000-0000-0000-0000-000000000002']
@@ -33,6 +33,16 @@ test('typed decision rejects arbitrary domain changes, dismiss and mismatched ca
   const base = { itemId: '153e0000-0000-0000-0000-000000000001', revision: 1, action: 'request_clarification', candidateId: null, reason: 'Explain the source difference', idempotencyKey: '15390000-0000-0000-0000-000000000001' }
   assert.equal(extractionReviewResolution.safeParse(base).success, true)
   for (const invalid of [{ ...base, action: 'dismiss' }, { ...base, reason: '' }, { ...base, reason: 'a'.repeat(501) }, { ...base, reason: 'line\nbreak' }, { ...base, action: 'select_candidate' }, { ...base, orgId: 'arbitrary' }, { ...base, revision: 0 }, { ...base, candidateId: base.itemId }]) assert.equal(extractionReviewResolution.safeParse(invalid).success, false)
+})
+test('Review detail omits an irrelevant source run rather than accepting a nullable one', () => {
+  const extraction = {
+    id: '153e0000-0000-0000-0000-000000000001', priority: 'normal', priority_reason: 'Fixture', status: 'needs_review', closure_reason: null, revision: 1, created_at: '2026-01-01T00:00:00.000Z',
+    document_title: 'Fixture', matter_title: 'Matter', client_name: 'Client', type: 'extraction_conflict', field_path: 'document.type', reason_code: 'material_candidate_conflict', impact: 'Conflict', document_id: '153e0000-0000-0000-0000-000000000001', document_version_id: '153e0000-0000-0000-0000-000000000002', intake_id: null,
+    version_number: 1, is_current: true, source_identity: 'Document version 1', allowed_actions: ['select_candidate'], evidence: [], last_decision: null,
+  }
+  assert.equal(reviewDetail.safeParse(extraction).success, true)
+  assert.equal(reviewDetail.safeParse({ ...extraction, source_analysis_run_id: null }).success, false)
+  assert.equal(reviewDetail.safeParse({ ...extraction, source_analysis_run_id: '153e0000-0000-0000-0000-000000000003' }).success, true)
 })
 test('manual recovery requires a bounded typed metadata set and cannot request extraction retry', () => {
   const base = { itemId: '153e0000-0000-0000-0000-000000000001', revision: 1, action: 'continue_manual', reason: 'Verified against the PDF', idempotencyKey: '15390000-0000-0000-0000-000000000001', metadata: { doc_type: 'SCN', reference_number: 'SCN/42', document_date: '2026-09-15', direction: 'incoming', issued_by: 'GST Authority' } }
